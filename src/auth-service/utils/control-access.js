@@ -116,7 +116,7 @@ const GroupModel = (tenant) => {
 };
 
 const routeDefinitions = [
-  { uri: "/api/v2/devices/events", service: "events-registry" },
+  { uri: ["/api/v2/devices/events"], service: "events-registry" },
   { uriEndsWith: ["/api/v2/devices/sites"], service: "site-registry" },
   {
     uriEndsWith: ["/api/v2/devices", "/api/v2/devices/soft"],
@@ -798,6 +798,11 @@ const controlAccess = {
         limit,
         filter,
       });
+
+      logObject(
+        "responseFromListAccessToken.data",
+        responseFromListAccessToken.data
+      );
 
       logObject(
         "responseFromListAccessToken.data[0]",

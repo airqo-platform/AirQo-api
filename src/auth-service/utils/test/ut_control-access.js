@@ -5177,5 +5177,242 @@ describe("controlAccess", () => {
       expect(result.message).to.equal("Failed to list groups");
     });
   });
+  describe("verifyToken", () => {
+    let requestMock;
+    let AccessTokenModelMock;
+    let winstonLoggerMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: { tenant: "exampleTenant" },
+        headers: {
+          "x-original-uri": "/api/v2/devices/events",
+          "x-original-method": "GET",
+        },
+      };
+
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({
+          success: true,
+          status: 200,
+          data: [{ user: { email: "user@example.com" } }],
+        }),
+      });
+
+      winstonLoggerMock = {
+        info: sinon.stub(),
+      };
+
+      sinon.stub(moment.tz, "guess").returns("UTC");
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return createUnauthorizedResponse when access token list returns NOT_FOUND", async () => {
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 404 }),
+      });
+
+      const createUnauthorizedResponseStub = sinon
+        .stub()
+        .returns("Unauthorized Response");
+
+      const result = await verifyTokenFunction.verifyToken(
+        requestMock,
+        AccessTokenModelMock,
+        winstonLoggerMock,
+        createUnauthorizedResponseStub
+      );
+      expect(result).to.equal("Unauthorized Response");
+    });
+
+    it("should return createValidTokenResponse when access token list returns OK", async () => {
+      const createValidTokenResponseStub = sinon
+        .stub()
+        .returns("Valid Token Response");
+      const getServiceStub = sinon.stub().returns("service");
+      const getUserActionStub = sinon.stub().returns("userAction");
+
+      const result = await verifyTokenFunction.verifyToken(
+        requestMock,
+        AccessTokenModelMock,
+        winstonLoggerMock,
+        null,
+        createValidTokenResponseStub,
+        getServiceStub,
+        getUserActionStub
+      );
+      expect(result).to.equal("Valid Token Response");
+
+      expect(getServiceStub.calledOnce).to.be.true;
+      expect(getUserActionStub.calledOnce).to.be.true;
+      expect(winstonLoggerMock.info.calledOnce).to.be.true;
+      expect(winstonLoggerMock.info.firstCall.args[0]).to.equal("userAction");
+      expect(winstonLoggerMock.info.firstCall.args[1]).to.deep.equal({
+        username: "user@example.com",
+        email: "user@example.com",
+        service: "service",
+      });
+    });
+  });
+  describe("verifyVerificationToken", () => {
+    let requestMock;
+    let AccessTokenModelMock;
+    let UserModelMock;
+    let mailerMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: { tenant: "exampleTenant" },
+        params: { user_id: "user123", token: "token123" },
+      };
+
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 200 }),
+        remove: sinon.stub().resolves({ success: true }),
+      });
+
+      UserModelMock = (tenant) => ({
+        modify: sinon.stub().resolves({ success: true, data: {} }),
+      });
+
+      mailerMock = {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      };
+
+      sinon.stub(moment.tz, "guess").returns("UTC");
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return error for invalid link", async () => {
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 404 }),
+      });
+
+      const result =
+        await verifyVerificationTokenFunction.verifyVerificationToken(
+          requestMock,
+          AccessTokenModelMock,
+          UserModelMock,
+          mailerMock
+        );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(400);
+      expect(result.message).to.equal("Invalid link");
+    });
+
+    it("should verify user, send email, and remove token", async () => {
+      const generateStub = sinon.stub().returns("generatedPassword");
+      const filterResponse = { success: true };
+      const modifyResponse = {
+        success: true,
+        data: {
+          email: "user@example.com",
+          firstName: "John",
+          userName: "johnDoe",
+        },
+      };
+
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 200 }),
+        remove: sinon.stub().resolves({ success: true }),
+      });
+
+      UserModelMock = (tenant) => ({
+        modify: sinon.stub().resolves(modifyResponse),
+      });
+
+      const mailerAfterEmailVerificationStub = sinon
+        .stub()
+        .resolves({ success: true });
+
+      const result =
+        await verifyVerificationTokenFunction.verifyVerificationToken(
+          requestMock,
+          AccessTokenModelMock,
+          UserModelMock,
+          mailerAfterEmailVerificationStub,
+          generateStub
+        );
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(200);
+      expect(mailerAfterEmailVerificationStub.calledOnce).to.be.true;
+    });
+
+    // Additional tests for other scenarios
+  });
+  describe("getUserAction", () => {
+    it('should return "update operation" for PUT method', () => {
+      const headers = { "x-original-method": "PUT" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("update operation");
+    });
+
+    it('should return "delete operation" for DELETE method', () => {
+      const headers = { "x-original-method": "DELETE" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("delete operation");
+    });
+
+    it('should return "creation operation" for POST method', () => {
+      const headers = { "x-original-method": "POST" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("creation operation");
+    });
+
+    it('should return "Unknown Action" for unknown method', () => {
+      const headers = { "x-original-method": "UNKNOWN" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("Unknown Action");
+    });
+
+    it('should return "Unknown Action" for missing method', () => {
+      const headers = {};
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("Unknown Action");
+    });
+  });
+  describe("getService", () => {
+    const routeDefinitions = [
+      // Define your route definitions here
+      // Example: { uri: '/api/v1/users', service: 'auth' }
+    ];
+
+    it("should return the correct service based on URI", () => {
+      const headers = { "x-original-uri": "/api/v1/users" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("auth");
+    });
+
+    it("should return the correct service based on uriEndsWith", () => {
+      const headers = { "x-original-uri": "/api/v1/devices/sites" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("site-registry");
+    });
+
+    it("should return the correct service based on uriIncludes", () => {
+      const headers = { "x-original-uri": "/api/v2/incentives/details" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("incentives");
+    });
+
+    it("should return the correct service from serviceHeader", () => {
+      const headers = { service: "custom-service" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("custom-service");
+    });
+
+    it('should return "unknown" for unknown URI and missing serviceHeader', () => {
+      const headers = {};
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("unknown");
+    });
+  });
   // Add more test cases for other methods in the controlAccess object
 });
