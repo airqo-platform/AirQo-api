@@ -294,7 +294,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "data-export-scheduling",
           action: "API Access",
         },
-        // ... add more specific routes as needed
       ];
 
       specificRoutes.forEach((route) => {
@@ -308,7 +307,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
       });
 
       const routesWithService = [
-        // site-registry
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/sites"],
@@ -327,7 +325,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "site-registry",
           action: "Site Deletion",
         },
-        //device-registry
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices"],
@@ -364,7 +361,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-registry",
           action: "Device SOFT Creation",
         },
-        //airqlouds-registry
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/airqlouds"],
@@ -389,7 +385,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "airqlouds-registry",
           action: "AirQloud Deletion",
         },
-        // site activities
+
         {
           method: "POST",
           uriIncludes: [
@@ -417,7 +413,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-deployment",
           action: "Deploy Device",
         },
-        // create users
+
         {
           method: "POST",
           uriIncludes: ["api/v2/users", "api/v1/users"],
@@ -436,7 +432,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "auth",
           action: "Delete User",
         },
-        // incentives
+
         {
           method: "POST",
           uriIncludes: [
@@ -455,21 +451,21 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "incentives",
           action: "Send Money to Host",
         },
-        //calibrate
+
         {
           method: "POST",
           uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
           service: "calibrate",
           action: "calibrate device",
         },
-        //locate
+
         {
           method: "POST",
           uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
           service: "locate",
           action: "Identify Suitable Device Locations",
         },
-        //fault detection
+
         {
           method: "POST",
           uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
@@ -486,7 +482,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
           method &&
           route.method === method &&
           uri &&
-          (route.uriEndsWith.some((suffix) => uri.endsWith(suffix)) ||
+          (!route.uriEndsWith ||
+            route.uriEndsWith.some((suffix) => uri.endsWith(suffix))) &&
+          (!route.uriIncludes ||
             route.uriIncludes.some((substring) => uri.includes(substring)))
         ) {
           service = route.service;
