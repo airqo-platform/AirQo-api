@@ -302,58 +302,31 @@ describe("commonUtil", () => {
     });
   });
   describe("getDocumentsByNetworkId", () => {
-    it("should return cohorts and grids by network ID", async () => {
-      const tenantId = "yourTenantId";
-      const network = "yourNetwork";
-      const category = "yourCategory";
-
-      const expectedCohorts = [
-        /* ... your expected cohorts array ... */
-      ];
-      const expectedGrids = [
-        /* ... your expected grids array ... */
-      ];
-
-      const mockCohortQuery = {
-        aggregate: sinon.stub().returnsThis(),
-        match: sinon.stub().returnsThis(),
-        lookup: sinon.stub().returnsThis(),
-        project: sinon.stub().resolves(expectedCohorts),
-      };
-
-      const mockGridQuery = {
-        aggregate: sinon.stub().returnsThis(),
-        match: sinon.stub().returnsThis(),
-        lookup: sinon.stub().returnsThis(),
-        project: sinon.stub().resolves(expectedGrids),
-      };
-
-      sinon
-        .stub(CohortModel("yourTenantId"), "aggregate")
-        .returns(mockCohortQuery);
-      sinon.stub(GridModel("yourTenantId"), "aggregate").returns(mockGridQuery);
-
-      const result = await commonUtil.getDocumentsByNetworkId(
-        tenantId,
-        network,
-        category
-      );
-
-      expect(result.cohorts).to.deep.equal(expectedCohorts);
-      expect(result.grids).to.deep.equal(expectedGrids);
-
-      // Restore the stubbed methods after the test
-      CohortModel("yourTenantId").aggregate.restore();
-      GridModel("yourTenantId").aggregate.restore();
+    afterEach(() => {
+      sinon.restore();
     });
 
-    it("should handle errors and return an error response", async () => {
+    it("should return cohorts and grids", async () => {
       const tenantId = "yourTenantId";
       const network = "yourNetwork";
       const category = "yourCategory";
 
-      const mockError = new Error("Something went wrong");
-      sinon.stub(CohortModel("yourTenantId"), "aggregate").throws(mockError);
+      const cohortStub = sinon
+        .stub(CohortModel(tenantId), "aggregate")
+        .returnsThis();
+      cohortStub.withArgs([{ $match: { network } }]).returnsThis();
+      // ... Add more stubs for CohortModel and projections
+
+      const gridStub = sinon
+        .stub(GridModel(tenantId), "aggregate")
+        .returnsThis();
+      gridStub.withArgs([{ $match: { network } }]).returnsThis();
+      // ... Add more stubs for GridModel and projections
+
+      const cohortsQueryExecStub = cohortStub
+        .withArgs([])
+        .resolves(["cohortData"]);
+      const gridsQueryExecStub = gridStub.withArgs([]).resolves(["gridData"]);
 
       const result = await commonUtil.getDocumentsByNetworkId(
         tenantId,
@@ -361,12 +334,50 @@ describe("commonUtil", () => {
         category
       );
 
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(500);
-      expect(result.errors.message).to.equal(mockError.message);
+      expect(result).to.deep.equal({
+        cohorts: ["cohortData"],
+        grids: ["gridData"],
+      });
+      expect(cohortsQueryExecStub.calledOnce).to.be.true;
+      expect(gridsQueryExecStub.calledOnce).to.be.true;
+    });
 
-      // Restore the stubbed method after the test
-      CohortModel("yourTenantId").aggregate.restore();
+    it("should handle internal server error", async () => {
+      const tenantId = "yourTenantId";
+      const network = "yourNetwork";
+      const category = "yourCategory";
+
+      const cohortStub = sinon
+        .stub(CohortModel(tenantId), "aggregate")
+        .returnsThis();
+      cohortStub.withArgs([{ $match: { network } }]).returnsThis();
+      // ... Add more stubs for CohortModel and projections
+
+      const gridStub = sinon
+        .stub(GridModel(tenantId), "aggregate")
+        .returnsThis();
+      gridStub.withArgs([{ $match: { network } }]).returnsThis();
+      // ... Add more stubs for GridModel and projections
+
+      const cohortsQueryExecStub = cohortStub
+        .withArgs([])
+        .rejects(new Error("Test Error"));
+      const gridsQueryExecStub = gridStub.withArgs([]).resolves(["gridData"]); // Resolve grids query to avoid unhandled promise rejection
+
+      const result = await commonUtil.getDocumentsByNetworkId(
+        tenantId,
+        network,
+        category
+      );
+
+      expect(result).to.deep.equal({
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Test Error" },
+        message: "Internal Server Error",
+      });
+      expect(cohortsQueryExecStub.calledOnce).to.be.true;
+      expect(gridsQueryExecStub.calledOnce).to.be.true;
     });
   });
 
