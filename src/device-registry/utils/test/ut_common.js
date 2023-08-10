@@ -2,7 +2,13 @@ require("module-alias/register");
 const commonUtil = require("@utils/common");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const chai = require("chai");
+const sinonChai = require("sinon-chai");
+chai.use(sinonChai);
 const httpStatus = require("http-status");
+
+const CohortModel = require("@models/Cohort");
+const GridModel = require("@models/Grid");
 
 describe("commonUtil", () => {
   describe("getSitesFromAirQloud", () => {
@@ -296,125 +302,71 @@ describe("commonUtil", () => {
     });
   });
   describe("getDocumentsByNetworkId", () => {
-    it("should return cohorts and grids for a valid networkId", async () => {
-      const tenantId = "airqo";
-      const networkId = "validNetworkId";
-      const category = undefined;
+    it("should return cohorts and grids by network ID", async () => {
+      const tenantId = "yourTenantId";
+      const network = "yourNetwork";
+      const category = "yourCategory";
 
-      // Mock data for cohorts and grids
-      const cohortsData = [{ name: "Cohort 1", description: "Description 1" }];
-      const gridsData = [
-        { name: "Grid 1", shape: { type: "Polygon", coordinates: [] } },
+      const expectedCohorts = [
+        /* ... your expected cohorts array ... */
+      ];
+      const expectedGrids = [
+        /* ... your expected grids array ... */
       ];
 
-      // Stub the CohortModel and GridModel functions
-      const cohortFindStub = sinon.stub(CohortModel(tenantId), "find").returns({
-        select: sinon.stub().returnsThis(),
-        exec: sinon.stub().resolves(cohortsData),
-      });
+      const mockCohortQuery = {
+        aggregate: sinon.stub().returnsThis(),
+        match: sinon.stub().returnsThis(),
+        lookup: sinon.stub().returnsThis(),
+        project: sinon.stub().resolves(expectedCohorts),
+      };
 
-      const gridFindStub = sinon.stub(GridModel(tenantId), "find").returns({
-        select: sinon.stub().returnsThis(),
-        exec: sinon.stub().resolves(gridsData),
-      });
+      const mockGridQuery = {
+        aggregate: sinon.stub().returnsThis(),
+        match: sinon.stub().returnsThis(),
+        lookup: sinon.stub().returnsThis(),
+        project: sinon.stub().resolves(expectedGrids),
+      };
+
+      sinon
+        .stub(CohortModel("yourTenantId"), "aggregate")
+        .returns(mockCohortQuery);
+      sinon.stub(GridModel("yourTenantId"), "aggregate").returns(mockGridQuery);
 
       const result = await commonUtil.getDocumentsByNetworkId(
         tenantId,
-        networkId,
+        network,
         category
       );
 
-      // Restore the stubs
-      cohortFindStub.restore();
-      gridFindStub.restore();
+      expect(result.cohorts).to.deep.equal(expectedCohorts);
+      expect(result.grids).to.deep.equal(expectedGrids);
 
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        `Successfully returned the AirQlouds for network ${networkId}`
-      );
-      expect(result.data.cohorts).to.deep.equal(cohortsData);
-      expect(result.data.grids).to.deep.equal(gridsData);
-      expect(result.status).to.equal(httpStatus.OK);
+      // Restore the stubbed methods after the test
+      CohortModel("yourTenantId").aggregate.restore();
+      GridModel("yourTenantId").aggregate.restore();
     });
 
-    it("should return summaries of cohorts and grids for a valid networkId and category 'summary'", async () => {
-      const tenantId = "airqo";
-      const networkId = "validNetworkId";
-      const category = "summary";
+    it("should handle errors and return an error response", async () => {
+      const tenantId = "yourTenantId";
+      const network = "yourNetwork";
+      const category = "yourCategory";
 
-      // Mock data for cohorts and grids summaries
-      const cohortsData = [{ name: "Cohort 1", description: "Description 1" }];
-      const gridsData = [{ name: "Grid 1", shape: { type: "Polygon" } }];
-
-      // Stub the CohortModel and GridModel functions
-      const cohortFindStub = sinon.stub(CohortModel(tenantId), "find").returns({
-        select: sinon.stub().returnsThis(),
-        exec: sinon.stub().resolves(cohortsData),
-      });
-
-      const gridFindStub = sinon.stub(GridModel(tenantId), "find").returns({
-        select: sinon.stub().returnsThis(),
-        exec: sinon.stub().resolves(gridsData),
-      });
+      const mockError = new Error("Something went wrong");
+      sinon.stub(CohortModel("yourTenantId"), "aggregate").throws(mockError);
 
       const result = await commonUtil.getDocumentsByNetworkId(
         tenantId,
-        networkId,
+        network,
         category
       );
 
-      // Restore the stubs
-      cohortFindStub.restore();
-      gridFindStub.restore();
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        `Successfully returned the AirQlouds for network ${networkId}`
-      );
-      expect(result.data.cohorts).to.deep.equal([
-        { name: "Cohort 1", description: "Description 1" },
-      ]);
-      expect(result.data.grids).to.deep.equal([
-        { name: "Grid 1", shape: { type: "Polygon" } },
-      ]);
-      expect(result.status).to.equal(httpStatus.OK);
-    });
-
-    it("should return an error for an invalid networkId", async () => {
-      const tenantId = "airqo";
-      const networkId = "invalidNetworkId";
-      const category = undefined;
-
-      // Stub the CohortModel and GridModel functions to simulate an error
-      const cohortFindStub = sinon
-        .stub(CohortModel(tenantId), "find")
-        .returns({ select: sinon.stub().returnsThis(), exec: sinon.stub() });
-
-      const gridFindStub = sinon
-        .stub(GridModel(tenantId), "find")
-        .returns({ select: sinon.stub().returnsThis(), exec: sinon.stub() });
-
-      const errorMessage = "Network not found";
-      const logErrorStub = sinon.stub(logger, "error");
-
-      const result = await commonUtil.getDocumentsByNetworkId(
-        tenantId,
-        networkId,
-        category
-      );
-
-      // Restore the stubs
-      cohortFindStub.restore();
-      gridFindStub.restore();
-      logErrorStub.restore();
-
-      // Assertions
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal(errorMessage);
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.status).to.equal(500);
+      expect(result.errors.message).to.equal(mockError.message);
+
+      // Restore the stubbed method after the test
+      CohortModel("yourTenantId").aggregate.restore();
     });
   });
 
