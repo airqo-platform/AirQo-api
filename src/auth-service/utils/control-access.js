@@ -119,7 +119,7 @@ const routeDefinitions = [
   { uri: ["/api/v2/devices/events"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
-    uriIncludes: ["/api/v2/devices", "/api/v2/devices/soft"],
+    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
     service: "device-registry",
   },
   { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
