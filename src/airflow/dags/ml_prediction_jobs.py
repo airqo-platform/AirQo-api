@@ -58,7 +58,6 @@ def make_forecasts():
         ForecastUtils.save_forecasts_to_mongo(data, "hourly")
 
     # Daily forecast tasks
-
     @task()
     def get_historical_data_for_daily_forecasts():
         from datetime import datetime, timedelta
@@ -80,7 +79,7 @@ def make_forecasts():
 
     @task()
     def add_timestep_features_historical_data_daily_forecast(data):
-        return ForecastUtils.get_time_features(data)
+        return ForecastUtils.get_time_features(data, "daily")
 
     @task()
     def make_daily_forecasts(data):
