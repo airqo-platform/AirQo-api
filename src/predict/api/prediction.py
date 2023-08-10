@@ -32,7 +32,7 @@ ml_app = Blueprint("ml_app", __name__)
 
 
 @ml_app.route(routes.route["fetch_faulty_devices"], methods=["GET"])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
+# @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key, forced_update=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
         params = request.args.to_dict()

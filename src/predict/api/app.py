@@ -20,10 +20,11 @@ mongo = PyMongo()
 
 cache = Cache(
     config={
-        "CACHE_TYPE": "redis",
+        "CACHE_TYPE": "RedisCache",
         "CACHE_REDIS_HOST": app_configuration.REDIS_SERVER,
         "CACHE_REDIS_PORT": os.getenv("REDIS_PORT"),
         "CACHE_REDIS_URL": f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
+        "CACHE_DEFAULT_TIMEOUT": app_configuration.CACHE_TIMEOUT,
     }
 )
 
