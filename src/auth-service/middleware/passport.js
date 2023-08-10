@@ -311,69 +311,69 @@ const useJWTStrategy = (tenant, req, res, next) =>
         // site-registry
         {
           method: "POST",
-          uriEndsWith: ["/api/v2/devices/sites"],
+          uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Creation",
         },
         {
           method: "PUT",
-          uriEndsWith: ["/api/v2/devices/sites"],
+          uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Update",
         },
         {
           method: "DELETE",
-          uriEndsWith: ["/api/v2/devices/sites"],
+          uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Deletion",
         },
         //device-registry
         {
           method: "DELETE",
-          uriEndsWith: ["/api/v2/devices"],
+          uriIncludes: ["/api/v2/devices"],
           service: "device-registry",
           action: "Device Deletion",
         },
         {
           method: "DELETE",
-          uriEndsWith: ["/api/v2/devices/soft"],
+          uriIncludes: ["/api/v2/devices/soft"],
           service: "device-registry",
           action: "Device SOFT Deletion",
         },
         {
           method: "PUT",
-          uriEndsWith: ["/api/v2/devices"],
+          uriIncludes: ["/api/v2/devices"],
           service: "device-registry",
           action: "Device Update",
         },
         {
           method: "PUT",
-          uriEndsWith: ["/api/v2/devices/soft"],
+          uriIncludes: ["/api/v2/devices/soft"],
           service: "device-registry",
           action: "Device SOFT Update",
         },
         {
           method: "POST",
-          uriEndsWith: ["/api/v2/devices"],
+          uriIncludes: ["/api/v2/devices"],
           service: "device-registry",
           action: "Device Creation",
         },
         {
           method: "POST",
-          uriEndsWith: ["/api/v2/devices/soft"],
+          uriIncludes: ["/api/v2/devices/soft"],
           service: "device-registry",
           action: "Device SOFT Creation",
         },
         //airqlouds-registry
         {
           method: "POST",
-          uriEndsWith: ["/api/v2/devices/airqlouds"],
+          uriIncludes: ["/api/v2/devices/airqlouds"],
           service: "airqlouds-registry",
           action: "AirQloud Creation",
         },
         {
           method: "PUT",
-          uriEndsWith: [
+          uriIncludes: [
             "/api/v2/devices/airqlouds",
             "/api/v1/devices/airqlouds",
           ],
@@ -382,7 +382,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           method: "DELETE",
-          uriEndsWith: [
+          uriIncludes: [
             "/api/v2/devices/airqlouds",
             "/api/v1/devices/airqlouds",
           ],
@@ -392,7 +392,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         // site activities
         {
           method: "POST",
-          uriEndsWith: [
+          uriIncludes: [
             "/api/v2/devices/activities/maintain",
             "/api/v1/devices/activities/maintain",
           ],
@@ -401,7 +401,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           method: "POST",
-          uriEndsWith: [
+          uriIncludes: [
             "/api/v2/devices/activities/recall",
             "/api/v1/devices/activities/recall",
           ],
@@ -410,7 +410,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           method: "POST",
-          uriEndsWith: [
+          uriIncludes: [
             "/api/v2/devices/activities/deploy",
             "/api/v1/devices/activities/deploy",
           ],
@@ -420,26 +420,26 @@ const useJWTStrategy = (tenant, req, res, next) =>
         // create users
         {
           method: "POST",
-          uriEndsWith: ["api/v2/users", "api/v1/users"],
+          uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Create User",
         },
         {
           method: "PUT",
-          uriEndsWith: ["api/v2/users", "api/v1/users"],
+          uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Update User",
         },
         {
           method: "DELETE",
-          uriEndsWith: ["api/v2/users", "api/v1/users"],
+          uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Delete User",
         },
         // incentives
         {
           method: "POST",
-          uriEndsWith: [
+          uriIncludes: [
             "api/v1/incentives/transactions/accounts/payments",
             "api/v2/incentives/transactions/accounts/payments",
           ],
@@ -448,7 +448,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           method: "POST",
-          uriEndsWith: [
+          uriIncludes: [
             "api/v1/incentives/transactions/hosts",
             "api/v2/incentives/transactions/hosts",
           ],
@@ -727,4 +727,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  useJWTStrategy,
 };

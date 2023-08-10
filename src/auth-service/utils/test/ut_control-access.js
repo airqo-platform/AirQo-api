@@ -5414,5 +5414,24 @@ describe("controlAccess", () => {
       expect(result).to.equal("unknown");
     });
   });
+  describe("routeDefinitions", () => {
+    it("should correctly match uri for events-registry", () => {
+      const route = routeDefinitions.find(
+        (route) => route.uri && route.uri.includes("/api/v2/devices/events")
+      );
+      expect(route.service).to.equal("events-registry");
+    });
+
+    it("should correctly match uriIncludes for site-registry", () => {
+      const route = routeDefinitions.find(
+        (route) =>
+          route.uriIncludes &&
+          route.uriIncludes.some((suffix) => suffix === "/api/v2/devices/sites")
+      );
+      expect(route.service).to.equal("site-registry");
+    });
+
+    // Add similar tests for other route definitions
+  });
   // Add more test cases for other methods in the controlAccess object
 });
