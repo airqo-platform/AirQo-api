@@ -266,7 +266,7 @@ const common = {
       };
     }
   },
-  getDocumentsByNetworkId: async (tenantId, network, category) => {
+  getDocumentsByNetworkId_v1: async (tenantId, network, category) => {
     try {
       let cohortsQuery = CohortModel(tenantId).find({
         network,
@@ -282,6 +282,67 @@ const common = {
 
       const cohorts = await cohortsQuery;
       const grids = await gridsQuery;
+      return { cohorts, grids };
+    } catch (error) {
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
+  },
+
+  getDocumentsByNetworkId: async (tenantId, network, category) => {
+    try {
+      let cohortsQuery = CohortModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "devices",
+            foreignField: "_id",
+            as: "devices",
+          },
+        },
+        {
+          $project: {
+            name: 1,
+            description: 1,
+            devices: { _id: 1, name: 1 },
+          },
+        },
+      ]);
+
+      let gridsQuery = GridModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "sites",
+            foreignField: "_id",
+            as: "sites",
+          },
+        },
+        {
+          $project: {
+            name: 1,
+            sites: { _id: 1, name: 1 },
+            "shape.type": 1,
+            admin_level: 1,
+          },
+        },
+      ]);
+
+      const [cohorts, grids] = await Promise.all([
+        cohortsQuery.exec(),
+        gridsQuery.exec(),
+      ]);
+
       return { cohorts, grids };
     } catch (error) {
       return {
