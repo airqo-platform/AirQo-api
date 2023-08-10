@@ -7,6 +7,7 @@ const createEvent = require("@utils/create-event");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
+const isEmpty = require("is-empty");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
