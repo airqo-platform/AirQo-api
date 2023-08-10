@@ -424,28 +424,28 @@ const common = {
             ...devicesInclusionProjection,
           },
         },
-        {
-          $project: {
-            ...devicesInclusionProjection,
-            sites: {
-              $filter: {
-                input: "$devices",
-                as: "device",
-                cond: {
-                  $not: {
-                    $in: ["$$device.fieldNameToRemove", deviceFieldsToExclude],
-                  },
-                },
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            ...devicesInclusionProjection,
-            ...devicesExclusionProjection,
-          },
-        },
+        // {
+        //   $project: {
+        //     ...devicesInclusionProjection,
+        //     sites: {
+        //       $filter: {
+        //         input: "$devices",
+        //         as: "device",
+        //         cond: {
+        //           $not: {
+        //             $in: ["$$device.fieldNameToRemove", deviceFieldsToExclude],
+        //           },
+        //         },
+        //       },
+        //     },
+        //   },
+        // },
+        // {
+        //   $project: {
+        //     ...devicesInclusionProjection,
+        //     ...devicesExclusionProjection,
+        //   },
+        // },
       ]);
 
       const gridsQuery = GridModel(tenantId).aggregate([
@@ -465,28 +465,28 @@ const common = {
             ...sitesInclusionProjection,
           },
         },
-        {
-          $project: {
-            ...sitesInclusionProjection,
-            sites: {
-              $filter: {
-                input: "$sites",
-                as: "site",
-                cond: {
-                  $not: {
-                    $in: ["$$site.fieldNameToRemove", siteFieldsToExclude],
-                  },
-                },
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            ...sitesInclusionProjection,
-            ...sitesExclusionProjection,
-          },
-        },
+        // {
+        //   $project: {
+        //     ...sitesInclusionProjection,
+        //     sites: {
+        //       $filter: {
+        //         input: "$sites",
+        //         as: "site",
+        //         cond: {
+        //           $not: {
+        //             $in: ["$$site.fieldNameToRemove", siteFieldsToExclude],
+        //           },
+        //         },
+        //       },
+        //     },
+        //   },
+        // },
+        // {
+        //   $project: {
+        //     ...sitesInclusionProjection,
+        //     ...sitesExclusionProjection,
+        //   },
+        // },
       ]);
 
       const [cohorts, grids] = await Promise.all([
