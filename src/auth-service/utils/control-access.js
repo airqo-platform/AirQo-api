@@ -788,9 +788,9 @@ const controlAccess = {
         return filterResponse;
       } else {
         filter = Object.assign({}, filterResponse);
-        filter.expires = {
-          $gt: moment().tz(timeZone).toDate(),
-        };
+        // filter.expires = {
+        //   $gt: moment().tz(timeZone).toDate(),
+        // };
       }
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
