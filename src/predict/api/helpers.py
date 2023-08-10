@@ -337,6 +337,7 @@ def get_forecasts(
                 )
             }
             results.append(result)
+
     formatted_results = {"forecasts": results}
     return formatted_results
 

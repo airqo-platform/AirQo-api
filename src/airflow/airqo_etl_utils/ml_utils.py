@@ -330,8 +330,8 @@ class ForecastUtils:
             train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
 
-        q_lower = 0.05
-        q_higher = 0.95
+        q_lower = 0.025
+        q_higher = 0.975
         quantile_lower_model = LGBMRegressor(objective="quantile", alpha=q_lower, verbosity=2)
         quantile_lower_model.fit(train[features], train[target_col])
         quantile_higher_model = LGBMRegressor(objective="quantile", alpha=q_higher, verbosity=2)
@@ -592,6 +592,13 @@ class ForecastUtils:
                     1, -1
                 )
             )[0]
+            confidence_interval_width = (
+                new_row["pm2_5_upper"] - new_row["pm2_5_lower"]
+            )
+            margin_of_error = confidence_interval_width / 2
+            new_row["pm2_5_confidence_interval_lower"] = new_row["pm2_5"] - margin_of_error
+            new_row["pm2_5_confidence_interval_upper"] = new_row["pm2_5"] + margin_of_error
+            new_row["pm2_5_margin_of_error"] = margin_of_error
             return new_row
 
         forecasts = pd.DataFrame()
