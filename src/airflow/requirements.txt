@@ -13,7 +13,6 @@ cffi==1.15.1
 click==8.1.6
 coverage==7.2.7
 exceptiongroup==1.1.2
-Flask==2.3.2
 iniconfig==2.0.0
 itsdangerous==2.1.2
 Jinja2==3.1.2
