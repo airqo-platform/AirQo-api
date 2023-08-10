@@ -278,27 +278,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
         {
           uri: ["/api/v2/devices/events", "/api/v1/devices/events"],
           service: "events-registry",
-          action: "API Access",
-        },
-        {
-          uri: [
-            "api/v2/analytics/data/download",
-            "api/v1/analytics/data/download",
-          ],
-          service: "data-export-download",
-          action: "API Access",
-        },
-
-        {
-          uri: ["api/v1/analytics/data-export", "api/v2/analytics/data-export"],
-          service: "data-export-scheduling",
-          action: "API Access",
+          action: "Events API Access via JWT",
         },
       ];
 
       specificRoutes.forEach((route) => {
         const uri = req.headers["x-original-uri"];
-        // const uri = "/api/v2/devices/events";
         if (uri && route.uri.some((routeUri) => uri.includes(routeUri))) {
           service = route.service;
           userAction = route.action;
@@ -307,6 +292,24 @@ const useJWTStrategy = (tenant, req, res, next) =>
       });
 
       const routesWithService = [
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v2/analytics/data-download",
+            "api/v1/analytics/data-download",
+          ],
+          service: "data-export-download",
+          action: "Export Data",
+        },
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/analytics/data-export",
+            "api/v2/analytics/data-export",
+          ],
+          service: "data-export-scheduling",
+          action: "Schedule Data Download",
+        },
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/sites"],
