@@ -220,11 +220,7 @@ const createUser = {
   },
 
   verify: (req, res) => {
-    return res.status(httpStatus.OK).json({
-      success: true,
-      message: "this token is valid",
-      response: "valid token",
-    });
+    return res.status(httpStatus.OK).send("this token is valid");
   },
   verifyEmail: async (req, res) => {
     try {

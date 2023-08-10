@@ -6,6 +6,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const UserModel = sinon.stub();
 const AccessTokenModel = sinon.stub();
+const { useJWTStrategy } = require("@middleware/passport");
 
 // Require the module to test
 const {
@@ -101,5 +102,55 @@ describe("Authentication Module Unit Tests", () => {
     });
 
     // Add more test cases for different scenarios and validations
+  });
+
+  describe("useJWTStrategy", () => {
+    const jwtOpts = {}; // Define your jwtOpts if needed
+
+    it("should call done with user object when valid token and route match", async () => {
+      const UserModel = {
+        findOne: sinon.stub().resolves({ _id: "user_id" }),
+      };
+      const payload = { _id: "user_id" };
+      const doneSpy = sinon.spy();
+      const request = {
+        headers: {
+          "x-original-uri": "/api/v2/devices/events",
+          "x-original-method": "POST",
+        },
+      };
+      const nextStub = sinon.stub();
+      const jwtStrategy = useJWTStrategy("tenant", request, {}, nextStub);
+      const jwtVerifyStub = sinon.stub(jwtStrategy, "jwtVerify");
+      jwtVerifyStub.callsArgWith(1, null, payload);
+
+      await jwtStrategy.jwtVerify("token", doneSpy);
+
+      expect(doneSpy.calledWith(null, { _id: "user_id" })).to.be.true;
+      expect(nextStub.called).to.be.false;
+      jwtVerifyStub.restore();
+    });
+
+    it("should call done with false when invalid token", async () => {
+      const doneSpy = sinon.spy();
+      const request = {
+        headers: {
+          "x-original-uri": "/api/v2/devices/events",
+          "x-original-method": "POST",
+        },
+      };
+      const nextStub = sinon.stub();
+      const jwtStrategy = useJWTStrategy("tenant", request, {}, nextStub);
+      const jwtVerifyStub = sinon.stub(jwtStrategy, "jwtVerify");
+      jwtVerifyStub.callsArgWith(1, new Error("Invalid token"));
+
+      await jwtStrategy.jwtVerify("invalid_token", doneSpy);
+
+      expect(doneSpy.calledWith(null, false)).to.be.true;
+      expect(nextStub.called).to.be.false;
+      jwtVerifyStub.restore();
+    });
+
+    // Add more test cases as needed for different scenarios
   });
 });
