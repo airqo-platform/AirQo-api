@@ -1,44 +1,47 @@
-require("module-alias/register");
+const { expect } = require("chai");
 const sinon = require("sinon");
-const chai = require("chai");
-const { expect } = chai;
 const express = require("express");
-const request = require("supertest");
-const transactionsRouter = require("@routes/v2/transactions");
-const hostsRouter = require("@routes/v2/hosts");
-const app = express();
+const router = require("./router");
 
-app.use("/transactions", transactionsRouter);
-app.use("/hosts", hostsRouter);
+describe("Router Tests", () => {
+  let app;
 
-describe("Routes", () => {
-  describe("/transactions", () => {
-    it("should handle the /transactions route", async () => {
-      const transactionsStub = sinon.stub(transactionsRouter, "handle");
-
-      await request(app).get("/transactions");
-
-      expect(transactionsStub.calledOnce).to.be.true;
-
-      transactionsStub.restore();
-    });
-
-    // Add more test cases for the transactions route if needed
+  before(() => {
+    app = express();
+    app.use("/api/v2", router);
   });
 
-  describe("/hosts", () => {
-    it("should handle the /hosts route", async () => {
-      const hostsStub = sinon.stub(hostsRouter, "handle");
-
-      await request(app).get("/hosts");
-
-      expect(hostsStub.calledOnce).to.be.true;
-
-      hostsStub.restore();
-    });
-
-    // Add more test cases for the hosts route if needed
+  afterEach(() => {
+    sinon.restore();
   });
 
-  // Add more test cases for other routes if needed
+  it("should use /transactions route", () => {
+    const transactionsRouteStub = sinon
+      .stub()
+      .returns("transactions middleware");
+    sinon
+      .stub(require("@routes/v2/transactions"), "use")
+      .callsFake(transactionsRouteStub);
+
+    const route = app._router.stack.find(
+      (layer) => layer.route.path === "/transactions"
+    );
+
+    expect(route).to.not.be.undefined;
+    expect(transactionsRouteStub.calledOnce).to.be.true;
+    expect(route.route.stack[0].handle).to.equal("transactions middleware");
+  });
+
+  it("should use /hosts route", () => {
+    const hostsRouteStub = sinon.stub().returns("hosts middleware");
+    sinon.stub(require("@routes/v2/hosts"), "use").callsFake(hostsRouteStub);
+
+    const route = app._router.stack.find(
+      (layer) => layer.route.path === "/hosts"
+    );
+
+    expect(route).to.not.be.undefined;
+    expect(hostsRouteStub.calledOnce).to.be.true;
+    expect(route.route.stack[0].handle).to.equal("hosts middleware");
+  });
 });

@@ -71,6 +71,7 @@ const prodConfig = {
   XENTE_DATA_TYPE: process.env.PROD_XENTE_DATA_TYPE,
 };
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
   XENTE_PAYMENT_PROVIDER: process.env.XENTE_PAYMENT_PROVIDER,
   XENTE_METADATA: process.env.XENTE_METADATA,
   XENTE_BATCH_ID: process.env.XENTE_BATCH_ID,

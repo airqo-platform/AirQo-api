@@ -1,7 +1,7 @@
-const transactions = require("@routes/v1/transactions");
-const hosts = require("@routes/v1/hosts");
+const express = require("express");
+const router = express.Router();
 
-module.exports = {
-  transactions,
-  hosts,
-};
+router.use("/transactions", require("@routes/v1/transactions"));
+router.use("/hosts", require("@routes/v1/hosts"));
+
+module.exports = router;
