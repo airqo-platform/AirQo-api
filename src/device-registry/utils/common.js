@@ -19,20 +19,9 @@ const httpStatus = require("http-status");
 
 const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
 const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
-
-const sitesInclusionProjection = {
-  name: 1,
-  description: 1,
-  sites: "$sites",
-  "shape.type": 1,
-  admin_level: 1,
-};
-
-const devicesInclusionProjection = {
-  name: 1,
-  description: 1,
-  devices: "$devices",
-};
+const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
+const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
+const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
 
 const sitesExclusionProjection = siteFieldsToExclude.reduce(
   (projection, fieldName) => {
@@ -41,10 +30,16 @@ const sitesExclusionProjection = siteFieldsToExclude.reduce(
   },
   {}
 );
-
 const devicesExclusionProjection = deviceFieldsToExclude.reduce(
   (projection, fieldName) => {
     projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`shape.${fieldName}`] = 0;
     return projection;
   },
   {}
@@ -302,6 +297,12 @@ const common = {
 
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
+      if (category === "summary") {
+        //make modifications to the exclusion projection
+      }
+      if (category === "dashboard") {
+        //make modifications to the exclusion projection
+      }
       const cohortsQuery = CohortModel(tenantId).aggregate([
         {
           $match: { network },
@@ -315,7 +316,7 @@ const common = {
           },
         },
         {
-          $project: devicesInclusionProjection,
+          $project: cohortsInclusionProjection,
         },
         {
           $project: devicesExclusionProjection,
@@ -335,11 +336,13 @@ const common = {
           },
         },
         {
-          $project: sitesInclusionProjection,
+          $project: gridsInclusionProjection,
         },
-
         {
           $project: sitesExclusionProjection,
+        },
+        {
+          $project: gridShapeExclusionProjection,
         },
       ]);
 
