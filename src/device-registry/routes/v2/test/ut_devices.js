@@ -3,6 +3,7 @@ const request = require("supertest");
 const express = require("express");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const proxyquire = require("proxyquire");
 
 // Import the device router and controller
 const deviceRouter = require("@routes/v2/devices");
@@ -114,5 +115,68 @@ describe("Device Router", () => {
       expect(response.status).to.equal(200);
       // Add more assertions as needed
     });
+  });
+
+  describe("Create Device", () => {
+    let sandbox;
+    let routes; // The routes module with injected stubs
+
+    beforeEach(() => {
+      // Create a sandbox for stubs, spies, and mocks
+      sandbox = sinon.createSandbox();
+
+      // Import the routes module using proxyquire and inject stubs
+      routes = proxyquire("@controllers/create-device", {
+        "@controllers/create-device": {
+          // Use an empty object to stub the entire controller module if needed
+          // Or you can include any other stubs you need here
+        },
+        "express-validator": {
+          ...require("express-validator"), // Import and include all methods
+          custom: (validatorFunction) => {
+            // Replace the custom validator function with a stub
+            // This is specific to the custom validator you want to stub
+            return (value, { req }) => {
+              // Customize the stub behavior based on your test case
+              // Return null if validation passes, or an error message if it fails
+              /* Stub condition for success */
+              if (true) {
+                return null; // Validation passes
+              } else {
+                return "Validation failed"; // Validation fails
+              }
+            };
+          },
+        },
+        // Include other dependencies if needed
+      });
+    });
+
+    afterEach(() => {
+      // Restore and clear stubs, spies, and mocks
+      sandbox.restore();
+    });
+
+    it("should pass validation for valid request", async () => {
+      const req = {
+        body: {
+          tenant: "valid_tenant",
+          name: "Device Name",
+          // ... other valid fields
+        },
+      };
+      const res = {
+        status: sandbox.stub().returnsThis(),
+        json: sandbox.stub(),
+      };
+
+      await routes.create(req, res);
+
+      expect(res.status.called).to.be.false;
+      expect(res.json.called).to.be.false;
+      // Add assertions for your stubs and test cases
+    });
+
+    // ... other test cases
   });
 });

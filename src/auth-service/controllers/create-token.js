@@ -5,6 +5,10 @@ const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-token-controller`
+);
 
 const createAccessToken = {
   create: async (req, res) => {
@@ -133,42 +137,19 @@ const createAccessToken = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      logText("we are in baby");
       let { tenant, id } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      logElement("tenant", tenant);
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["headers"] = req.headers;
+      let request = req;
+      request.query.tenant = tenant;
       const responseFromListAccessToken = await controlAccessUtil.verifyToken(
         request
       );
-
-      if (responseFromListAccessToken.success === true) {
-        const status = responseFromListAccessToken.status
-          ? responseFromListAccessToken.status
-          : httpStatus.OK;
-        return res
-          .status(status)
-          .send(
-            responseFromListAccessToken.message
-              ? responseFromListAccessToken.message
-              : ""
-          );
-      } else if (responseFromListAccessToken.success === false) {
-        const status = responseFromListAccessToken.status
-          ? responseFromListAccessToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: responseFromListAccessToken.message,
-          errors: responseFromListAccessToken.errors
-            ? responseFromListAccessToken.errors
-            : { message: "" },
-        });
-      }
+      const status = responseFromListAccessToken.status;
+      return res.status(status).send(responseFromListAccessToken.message);
     } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

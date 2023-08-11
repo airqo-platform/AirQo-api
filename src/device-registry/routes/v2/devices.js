@@ -398,36 +398,68 @@ router.get(
 router.post(
   "/",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
+      body("network")
+        .optional()
         .trim()
+        .notEmpty()
+        .withMessage("the network should not be empty if provided")
+        .bail()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("long_name")
-        .exists()
-        .withMessage("the device long_name should be provided")
-        .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -436,15 +468,30 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
@@ -454,6 +501,8 @@ router.post(
       body("latitude")
         .optional()
         .notEmpty()
+        .withMessage("the latitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
@@ -476,6 +525,8 @@ router.post(
       body("longitude")
         .optional()
         .notEmpty()
+        .withMessage("the longitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
@@ -498,36 +549,50 @@ router.post(
       body("description")
         .optional()
         .notEmpty()
+        .withMessage("the description should not be empty if provided")
+        .bail()
         .trim(),
       body("product_name")
         .optional()
         .notEmpty()
+        .withMessage("the product_name should not be empty if provided")
+        .bail()
         .trim(),
       body("device_manufacturer")
         .optional()
         .notEmpty()
+        .withMessage("the device_manufacturer should not be empty if provided")
+        .bail()
         .trim(),
       body("isActive")
         .optional()
         .notEmpty()
+        .withMessage("the isActive should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
         .optional()
         .notEmpty()
+        .withMessage("the isRetired should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
         .optional()
         .notEmpty()
+        .withMessage("the mobility should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
         .optional()
         .notEmpty()
+        .withMessage("the nextMaintenance should not be empty if provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
@@ -535,18 +600,24 @@ router.post(
       body("isPrimaryInLocation")
         .optional()
         .notEmpty()
+        .withMessage("the isPrimaryInLocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
         .optional()
         .notEmpty()
+        .withMessage("the isUsedForCollocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
         .optional()
         .notEmpty()
+        .withMessage("the owner should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the owner must be an object ID")
@@ -557,6 +628,8 @@ router.post(
       body("host_id")
         .optional()
         .notEmpty()
+        .withMessage("the host_id should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the host_id must be an object ID")
@@ -567,6 +640,8 @@ router.post(
       body("phoneNumber")
         .optional()
         .notEmpty()
+        .withMessage("the phoneNumber should not be empty if provided")
+        .bail()
         .trim()
         .custom((value) => {
           let parsedPhoneNumber = phoneUtil.parse(value);
@@ -578,6 +653,8 @@ router.post(
       body("height")
         .optional()
         .notEmpty()
+        .withMessage("the height should not be empty if provided")
+        .bail()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
         .withMessage("height must be a number between 0 and 100")
@@ -586,6 +663,8 @@ router.post(
       body("elevation")
         .optional()
         .notEmpty()
+        .withMessage("the elevation should not be empty if provided")
+        .bail()
         .trim()
         .isFloat()
         .withMessage("elevation must be a float")
@@ -594,10 +673,14 @@ router.post(
       body("writeKey")
         .optional()
         .notEmpty()
+        .withMessage("the writeKey should not be empty if provided")
+        .bail()
         .trim(),
       body("readKey")
         .optional()
         .notEmpty()
+        .withMessage("the readKey should not be empty if provided")
+        .bail()
         .trim(),
     ],
   ]),

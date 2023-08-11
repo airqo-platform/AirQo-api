@@ -17,6 +17,39 @@ const geolib = require("geolib");
 const geohash = require("ngeohash");
 const httpStatus = require("http-status");
 
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
+
+const sitesInclusionProjection = {
+  name: 1,
+  description: 1,
+  sites: "$sites",
+  "shape.type": 1,
+  admin_level: 1,
+};
+
+const devicesInclusionProjection = {
+  name: 1,
+  description: 1,
+  devices: "$devices",
+};
+
+const sitesExclusionProjection = siteFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`sites.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+
+const devicesExclusionProjection = deviceFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+
 const devicesModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
 };
@@ -73,7 +106,7 @@ const common = {
           message =
             "Unable to find any sites associated with the provided AirQloud ID";
         }
-        const filteredSites = sites.map((site) => site._id);
+        const filteredSites = map((site) => site._id);
         return {
           success: true,
           message,
@@ -266,22 +299,55 @@ const common = {
       };
     }
   },
+
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
-      let cohortsQuery = CohortModel(tenantId).find({
-        network,
-      });
-      let gridsQuery = GridModel(tenantId).find({
-        network,
-      });
+      const cohortsQuery = CohortModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        {
+          $project: devicesInclusionProjection,
+        },
+        {
+          $project: devicesExclusionProjection,
+        },
+      ]);
 
-      if (category && category === "summary") {
-        cohortsQuery = cohortsQuery.select("name description");
-        gridsQuery = gridsQuery.select("name shape.type");
-      }
+      const gridsQuery = GridModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: sitesInclusionProjection,
+        },
 
-      const cohorts = await cohortsQuery;
-      const grids = await gridsQuery;
+        {
+          $project: sitesExclusionProjection,
+        },
+      ]);
+
+      const [cohorts, grids] = await Promise.all([
+        cohortsQuery.exec(),
+        gridsQuery.exec(),
+      ]);
+
       return { cohorts, grids };
     } catch (error) {
       return {
