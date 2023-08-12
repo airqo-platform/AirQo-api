@@ -1324,6 +1324,7 @@ const defaultConfig = {
     }
     return projection;
   },
+  GRID_SHAPE_FIELDS_TO_EXCLUDE: ["coordinates"],
   SITE_FIELDS_TO_EXCLUDE: [
     "altitude",
     "greenness",

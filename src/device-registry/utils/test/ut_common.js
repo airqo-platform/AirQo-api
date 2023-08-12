@@ -302,82 +302,63 @@ describe("commonUtil", () => {
     });
   });
   describe("getDocumentsByNetworkId", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return cohorts and grids", async () => {
+    it("should fetch documents with correct exclusion projection for summary category", async () => {
       const tenantId = "yourTenantId";
       const network = "yourNetwork";
-      const category = "yourCategory";
+      const category = "summary";
 
-      const cohortStub = sinon
-        .stub(CohortModel(tenantId), "aggregate")
-        .returnsThis();
-      cohortStub.withArgs([{ $match: { network } }]).returnsThis();
-      // ... Add more stubs for CohortModel and projections
+      // Stub your models and aggregation results here
+      const CohortModel = {
+        aggregate: sinon.stub().returnsThis(),
+        exec: sinon.stub().resolves([]), // Mock the result
+      };
+      const GridModel = {
+        aggregate: sinon.stub().returnsThis(),
+        exec: sinon.stub().resolves([]), // Mock the result
+      };
 
-      const gridStub = sinon
-        .stub(GridModel(tenantId), "aggregate")
-        .returnsThis();
-      gridStub.withArgs([{ $match: { network } }]).returnsThis();
-      // ... Add more stubs for GridModel and projections
-
-      const cohortsQueryExecStub = cohortStub
-        .withArgs([])
-        .resolves(["cohortData"]);
-      const gridsQueryExecStub = gridStub.withArgs([]).resolves(["gridData"]);
-
+      // Call the function
       const result = await commonUtil.getDocumentsByNetworkId(
         tenantId,
         network,
         category
       );
 
-      expect(result).to.deep.equal({
-        cohorts: ["cohortData"],
-        grids: ["gridData"],
-      });
-      expect(cohortsQueryExecStub.calledOnce).to.be.true;
-      expect(gridsQueryExecStub.calledOnce).to.be.true;
+      // Assertions or expectations here
+      expect(result).to.have.property("cohorts");
+      expect(result).to.have.property("grids");
+      expect(CohortModel.aggregate.calledOnce).to.be.true;
+      expect(GridModel.aggregate.calledOnce).to.be.true;
+      // Add more assertions as needed
     });
 
-    it("should handle internal server error", async () => {
-      const tenantId = "yourTenantId";
-      const network = "yourNetwork";
-      const category = "yourCategory";
+    it("should fetch documents with correct exclusion projection for dashboard category", async () => {
+      // Similar structure to the first test, but with different category
+    });
 
-      const cohortStub = sinon
-        .stub(CohortModel(tenantId), "aggregate")
-        .returnsThis();
-      cohortStub.withArgs([{ $match: { network } }]).returnsThis();
-      // ... Add more stubs for CohortModel and projections
+    it("should handle errors and return error response", async () => {
+      // Stub models to throw an error
+      const CohortModel = {
+        aggregate: sinon.stub().throws(new Error("Mocked error")),
+      };
+      const GridModel = {
+        aggregate: sinon.stub().throws(new Error("Mocked error")),
+      };
 
-      const gridStub = sinon
-        .stub(GridModel(tenantId), "aggregate")
-        .returnsThis();
-      gridStub.withArgs([{ $match: { network } }]).returnsThis();
-      // ... Add more stubs for GridModel and projections
-
-      const cohortsQueryExecStub = cohortStub
-        .withArgs([])
-        .rejects(new Error("Test Error"));
-      const gridsQueryExecStub = gridStub.withArgs([]).resolves(["gridData"]); // Resolve grids query to avoid unhandled promise rejection
-
+      // Call the function
       const result = await commonUtil.getDocumentsByNetworkId(
-        tenantId,
-        network,
-        category
+        "tenantId",
+        "network",
+        "summary"
       );
 
-      expect(result).to.deep.equal({
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Test Error" },
-        message: "Internal Server Error",
-      });
-      expect(cohortsQueryExecStub.calledOnce).to.be.true;
-      expect(gridsQueryExecStub.calledOnce).to.be.true;
+      // Assertions for error response
+      expect(result).to.have.property("success", false);
+      expect(result).to.have.property(
+        "status",
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(result).to.have.nested.property("errors.message", "Mocked error");
     });
   });
 

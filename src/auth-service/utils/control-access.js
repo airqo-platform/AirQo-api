@@ -116,7 +116,11 @@ const GroupModel = (tenant) => {
 };
 
 const routeDefinitions = [
-  { uri: ["/api/v2/devices/events"], service: "events-registry" },
+  {
+    uriIncludes: ["/api/v1/devices/events"],
+    service: "deprecated-events-endpoint",
+  },
+  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
     uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
@@ -503,6 +507,9 @@ const controlAccess = {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           const service = getService(request.headers);
+          if (service === "deprecated-events-endpoint") {
+            return createUnauthorizedResponse();
+          }
           const userAction = getUserAction(request.headers);
 
           logObject("service", service);
