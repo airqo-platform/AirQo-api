@@ -1,7 +1,9 @@
 const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- Kafka Consumer`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- bin/kafka-consumer`
+);
 const { logText, logObject, logElement } = require("@utils/log");
 const createEvent = require("@utils/create-event");
 const Joi = require("joi");
