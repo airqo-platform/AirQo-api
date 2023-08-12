@@ -21,7 +21,7 @@ try {
 
 const main = async () => {
   if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-    kafkaConsumer();
+    await kafkaConsumer();
   }
   createServer();
 };
