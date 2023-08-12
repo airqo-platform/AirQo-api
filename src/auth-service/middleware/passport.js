@@ -276,9 +276,14 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       const specificRoutes = [
         {
-          uri: ["/api/v2/devices/events", "/api/v1/devices/events"],
+          uri: ["/api/v2/devices/events"],
           service: "events-registry",
           action: "Events API Access via JWT",
+        },
+        {
+          uri: ["/api/v1/devices"],
+          service: "device-registry",
+          action: "deprecated-version-number",
         },
       ];
 
@@ -372,47 +377,32 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           method: "PUT",
-          uriIncludes: [
-            "/api/v2/devices/airqlouds",
-            "/api/v1/devices/airqlouds",
-          ],
+          uriIncludes: ["/api/v2/devices/airqlouds"],
           service: "airqlouds-registry",
           action: "AirQloud Update",
         },
         {
           method: "DELETE",
-          uriIncludes: [
-            "/api/v2/devices/airqlouds",
-            "/api/v1/devices/airqlouds",
-          ],
+          uriIncludes: ["/api/v2/devices/airqlouds"],
           service: "airqlouds-registry",
           action: "AirQloud Deletion",
         },
 
         {
           method: "POST",
-          uriIncludes: [
-            "/api/v2/devices/activities/maintain",
-            "/api/v1/devices/activities/maintain",
-          ],
+          uriIncludes: ["/api/v2/devices/activities/maintain"],
           service: "device-maintenance",
           action: "Maintain Device",
         },
         {
           method: "POST",
-          uriIncludes: [
-            "/api/v2/devices/activities/recall",
-            "/api/v1/devices/activities/recall",
-          ],
+          uriIncludes: ["/api/v2/devices/activities/recall"],
           service: "device-recall",
           action: "Recall Device",
         },
         {
           method: "POST",
-          uriIncludes: [
-            "/api/v2/devices/activities/deploy",
-            "/api/v1/devices/activities/deploy",
-          ],
+          uriIncludes: ["/api/v2/devices/activities/deploy"],
           service: "device-deployment",
           action: "Deploy Device",
         },
