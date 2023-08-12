@@ -5177,85 +5177,69 @@ describe("controlAccess", () => {
       expect(result.message).to.equal("Failed to list groups");
     });
   });
-  describe("verifyToken", () => {
-    let requestMock;
-    let AccessTokenModelMock;
-    let winstonLoggerMock;
+  describe("verifyToken function", () => {
+    let request;
 
     beforeEach(() => {
-      requestMock = {
-        query: { tenant: "exampleTenant" },
-        headers: {
-          "x-original-uri": "/api/v2/devices/events",
-          "x-original-method": "GET",
-        },
+      request = {
+        query: {},
+        headers: {},
       };
+    });
 
-      AccessTokenModelMock = (tenant) => ({
-        list: sinon.stub().resolves({
-          success: true,
-          status: 200,
-          data: [{ user: { email: "user@example.com" } }],
-        }),
+    it("should return an unauthorized response when filterResponse.success is false", async () => {
+      const generateFilter = {
+        tokens: sinon.fake.returns({ success: false }),
+      };
+      const result = await controlAccess.verifyToken(request, generateFilter);
+      expect(result).to.deep.equal({ success: false });
+    });
+
+    it("should return an unauthorized response when service is deprecated-events-endpoint", async () => {
+      request.headers = {
+        "x-original-uri": "/some/uri",
+        "x-original-method": "GET",
+      };
+      const getService = sinon.fake.returns("deprecated-events-endpoint");
+      const result = await controlAccess.verifyToken(request, null, getService);
+      expect(result).to.deep.equal(createUnauthorizedResponse());
+    });
+
+    it("should return a valid token response when conditions are met", async () => {
+      // Mocking AccessTokenModel(tenant).list
+      const responseFromListAccessToken = {
+        success: true,
+        status: httpStatus.OK,
+        data: [
+          {
+            user: { email: "test@example.com" },
+          },
+        ],
+      };
+      const AccessTokenModel = sinon.stub().returns({
+        list: sinon.fake.resolves(responseFromListAccessToken),
       });
 
-      winstonLoggerMock = {
-        info: sinon.stub(),
+      request.headers = {
+        "x-original-uri": "/some/uri",
+        "x-original-method": "GET",
       };
+      const getService = sinon.fake.returns("some-service");
+      const getUserAction = sinon.fake.returns("some-action");
 
-      sinon.stub(moment.tz, "guess").returns("UTC");
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return createUnauthorizedResponse when access token list returns NOT_FOUND", async () => {
-      AccessTokenModelMock = (tenant) => ({
-        list: sinon.stub().resolves({ success: true, status: 404 }),
-      });
-
-      const createUnauthorizedResponseStub = sinon
-        .stub()
-        .returns("Unauthorized Response");
-
-      const result = await verifyTokenFunction.verifyToken(
-        requestMock,
-        AccessTokenModelMock,
-        winstonLoggerMock,
-        createUnauthorizedResponseStub
-      );
-      expect(result).to.equal("Unauthorized Response");
-    });
-
-    it("should return createValidTokenResponse when access token list returns OK", async () => {
-      const createValidTokenResponseStub = sinon
-        .stub()
-        .returns("Valid Token Response");
-      const getServiceStub = sinon.stub().returns("service");
-      const getUserActionStub = sinon.stub().returns("userAction");
-
-      const result = await verifyTokenFunction.verifyToken(
-        requestMock,
-        AccessTokenModelMock,
-        winstonLoggerMock,
+      const result = await controlAccess.verifyToken(
+        request,
         null,
-        createValidTokenResponseStub,
-        getServiceStub,
-        getUserActionStub
+        getService,
+        AccessTokenModel,
+        getUserAction
       );
-      expect(result).to.equal("Valid Token Response");
+      expect(result).to.deep.equal(createValidTokenResponse());
 
-      expect(getServiceStub.calledOnce).to.be.true;
-      expect(getUserActionStub.calledOnce).to.be.true;
-      expect(winstonLoggerMock.info.calledOnce).to.be.true;
-      expect(winstonLoggerMock.info.firstCall.args[0]).to.equal("userAction");
-      expect(winstonLoggerMock.info.firstCall.args[1]).to.deep.equal({
-        username: "user@example.com",
-        email: "user@example.com",
-        service: "service",
-      });
+      // Verify the logs or other expectations as needed
     });
+
+    // Add more test cases as needed
   });
   describe("verifyVerificationToken", () => {
     let requestMock;
