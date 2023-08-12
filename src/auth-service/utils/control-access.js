@@ -478,6 +478,12 @@ const controlAccess = {
         };
       }
 
+      const service = getService(request.headers);
+      if (service === "deprecated-events-endpoint") {
+        return createUnauthorizedResponse();
+      }
+      const userAction = getUserAction(request.headers);
+
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
         limit,
@@ -506,12 +512,6 @@ const controlAccess = {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const service = getService(request.headers);
-          if (service === "deprecated-events-endpoint") {
-            return createUnauthorizedResponse();
-          }
-          const userAction = getUserAction(request.headers);
-
           logObject("service", service);
           logObject("userAction", userAction);
 
