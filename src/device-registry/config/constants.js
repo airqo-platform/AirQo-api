@@ -921,6 +921,7 @@ const defaultConfig = {
     cohorts: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
+    host: { $arrayElemAt: ["$host", 0] },
   },
   DEVICES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
