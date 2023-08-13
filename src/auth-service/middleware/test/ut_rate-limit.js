@@ -5,69 +5,86 @@ const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 const rateLimitMiddleware = require("@middleware/rate-limit");
 const request = require("supertest");
-
 chai.use(sinonChai);
 const expect = chai.expect;
+const httpStatus = require("http-status");
+const { client1 } = require("@config/redis");
 
 describe("Rate Limit Middleware", () => {
-  let app;
+  let redisClientStub;
 
-  before(() => {
-    app = express();
+  beforeEach(() => {
+    redisClientStub = sinon.stub(client1);
+  });
 
-    // Mock user object with rateLimit property
-    const mockUser = { rateLimit: 5 };
+  afterEach(() => {
+    redisClientStub.restore();
+  });
 
-    // Function to extract user limit from req.user
-    const getUserLimit = (user) => {
-      return user.rateLimit || 100;
+  it("should allow requests when rate limit is not exceeded", async () => {
+    const req = {
+      user: { _id: "user123" },
     };
+    const res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+    };
+    const next = sinon.stub();
 
-    // Apply rate limiting middleware for a specific route
-    app.get(
-      "/api/some-route",
-      rateLimitMiddleware(getUserLimit),
-      (req, res) => {
-        res.status(200).json({ message: "Success" });
-      }
-    );
+    redisClientStub.get.withArgs("user123").resolves("5");
+    const middleware = rateLimitMiddleware(() => 10);
 
-    // ...other route definitions
+    await middleware(req, res, next);
+
+    expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+    expect(res.json.called).to.be.false;
+    expect(next.calledOnce).to.be.true;
+    expect(redisClientStub.incr.calledOnce).to.be.true;
+    expect(redisClientStub.expire.calledOnce).to.be.true;
   });
 
-  it("should allow access when user limit is not exceeded", (done) => {
-    request(app)
-      .get("/api/some-route")
-      .set("Authorization", "Bearer valid-token")
-      .set("Accept", "application/json")
-      .end((err, res) => {
-        expect(res.status).to.equal(200);
-        expect(res.body.message).to.equal("Success");
-        done();
-      });
+  it("should return 429 when rate limit is exceeded", async () => {
+    const req = {
+      user: { _id: "user123" },
+    };
+    const res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+    };
+    const next = sinon.stub();
+
+    redisClientStub.get.withArgs("user123").resolves("15");
+    const middleware = rateLimitMiddleware(() => 10);
+
+    await middleware(req, res, next);
+
+    expect(res.status.calledWith(httpStatus.TOO_MANY_REQUESTS)).to.be.true;
+    expect(res.json.calledWith({ message: "Rate limit exceeded" })).to.be.true;
+    expect(next.called).to.be.false;
+    expect(redisClientStub.incr.called).to.be.false;
+    expect(redisClientStub.expire.called).to.be.false;
   });
 
-  it("should deny access when user limit is exceeded", (done) => {
-    request(app)
-      .get("/api/some-route")
-      .set("Authorization", "Bearer valid-token")
-      .set("Accept", "application/json")
-      .end((err, res) => {
-        expect(res.status).to.equal(429);
-        expect(res.body.message).to.equal("Rate limit exceeded");
-        done();
-      });
-  });
+  it("should handle internal server error", async () => {
+    const req = {
+      user: { _id: "user123" },
+    };
+    const res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+    };
+    const next = sinon.stub();
 
-  it("should allow access for a different route", (done) => {
-    request(app)
-      .post("/api/another-route")
-      .set("Authorization", "Bearer valid-token")
-      .set("Accept", "application/json")
-      .end((err, res) => {
-        expect(res.status).to.equal(200);
-        expect(res.body.message).to.equal("Success");
-        done();
-      });
+    redisClientStub.get.rejects(new Error("Redis error"));
+    const middleware = rateLimitMiddleware(() => 10);
+
+    await middleware(req, res, next);
+
+    expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
+    expect(res.json.calledWith({ message: "Internal Server Error" })).to.be
+      .true;
+    expect(next.called).to.be.false;
+    expect(redisClientStub.incr.called).to.be.false;
+    expect(redisClientStub.expire.called).to.be.false;
   });
 });

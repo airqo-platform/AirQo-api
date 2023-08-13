@@ -182,10 +182,15 @@ describe("mailer", () => {
       };
       sendMailStub.resolves(response);
 
-
-      const result = await mailer.inquiry(fullName, email, category, "", tenant);
-      console.log(sendMailStub.firstCall.args[0].html)
-      console.log(msgs.inquiry(fullName, email, category))
+      const result = await mailer.inquiry(
+        fullName,
+        email,
+        category,
+        "",
+        tenant
+      );
+      console.log(sendMailStub.firstCall.args[0].html);
+      console.log(msgs.inquiry(fullName, email, category));
 
       expect(result).to.deep.equal({
         success: true,
@@ -198,10 +203,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Welcome to AirQo");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.inquiry(fullName, email, category));
-
-
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Welcome to AirQo"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.inquiry(fullName, email, category)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
@@ -215,7 +222,13 @@ describe("mailer", () => {
         rejected: [email],
       };
       sendMailStub.resolves(response);
-      const result = await mailer.inquiry(fullName, email, category, "", tenant);
+      const result = await mailer.inquiry(
+        fullName,
+        email,
+        category,
+        "",
+        tenant
+      );
 
       // Assert the result
       expect(result).to.deep.equal({
@@ -232,7 +245,9 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Welcome to AirQo");
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Welcome to AirQo"
+      );
     });
 
     it("should handle internal server error and return error response", async () => {
@@ -243,7 +258,13 @@ describe("mailer", () => {
 
       // Stub the sendMail function to reject with an error
       sendMailStub.rejects(new Error("Mocked sendMail error"));
-      const result = await mailer.inquiry(fullName, email, category, "", tenant);
+      const result = await mailer.inquiry(
+        fullName,
+        email,
+        category,
+        "",
+        tenant
+      );
 
       // Assert the result
       expect(result).to.deep.equal({
@@ -261,8 +282,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Welcome to AirQo");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.inquiry(fullName, email, category));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Welcome to AirQo"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.inquiry(fullName, email, category)
+      );
     });
 
     // Add more tests for other categories (policy, champions, researchers, developers, general)...
@@ -362,7 +387,6 @@ describe("mailer", () => {
     const tenant = "kcca";
     const type = "confirm";
 
-
     // Set up the response from the fake transporter
     const response = {
       accepted: [],
@@ -389,7 +413,6 @@ describe("mailer", () => {
       status: 500,
       errors: { message: response },
     });
-
   });
 
   it("should handle internal server error and return error response", async () => {
@@ -748,7 +771,7 @@ describe("mailer", () => {
 
     // Add more tests for other cases...
   });
-  describe.only("signInWithEmailLink", () => {
+  describe("signInWithEmailLink", () => {
     let sendMailStub;
 
     before(() => {
@@ -797,8 +820,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Verify your email address!");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.join_by_email(email, token));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Verify your email address!"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.join_by_email(email, token)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
@@ -820,7 +847,7 @@ describe("mailer", () => {
       expect(result).to.deep.equal({
         errors: { message: response },
         success: false,
-        "message": "Internal Server Error",
+        message: "Internal Server Error",
       });
 
       // Assert that the sendMail function was called with the correct parameters
@@ -830,8 +857,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Verify your email address!");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.join_by_email(email, token));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Verify your email address!"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.join_by_email(email, token)
+      );
     });
 
     it("should handle internal server error and return error response", async () => {
@@ -857,8 +888,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("Verify your email address!");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.join_by_email(email, token));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "Verify your email address!"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.join_by_email(email, token)
+      );
     });
   });
   describe("deleteMobileAccountEmail", () => {
