@@ -5,6 +5,12 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const rateLimitMiddleware = require("@middleware/rate-limit");
+
+// Function to extract user limit from req.user
+const getUserLimit = (user) => {
+  return user.rateLimit || 100; // Extract user's rate limit from req.user
+};
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -215,6 +221,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
+  rateLimitMiddleware(getUserLimit),
   createTokenController.verify
 );
 router.get(
