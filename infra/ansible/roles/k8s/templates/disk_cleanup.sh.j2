@@ -1,7 +1,9 @@
 #!/bin/bash
 systemctl stop docker.service
 systemctl stop docker.socket
+systemctl stop kubelet.service
 rm -r /var/lib/docker/*
 rm -r /run/log/*
 systemctl start docker.service
 systemctl start docker.socket
+systemctl start kubelet.service
