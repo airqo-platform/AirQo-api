@@ -57,7 +57,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ /api\/v[1-2]\/devices
+    - path: ~ /api\/v2\/devices
       action:
         proxy:
           upstream: device-registry
