@@ -73,11 +73,11 @@ app.use(function(req, res, next) {
 
 app.use(function(err, req, res, next) {
   if (err.status === 404) {
-    logger.error(
-      `this endpoint does not exist --- ${err.message} --- path: ${
-        req.originalUrl ? req.originalUrl : ""
-      }`
-    );
+    // logger.error(
+    //   `this endpoint does not exist --- ${err.message} --- path: ${
+    //     req.originalUrl ? req.originalUrl : ""
+    //   }`
+    // );
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
