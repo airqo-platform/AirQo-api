@@ -280,6 +280,7 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       site_id: this.site_id,
+      host_id: this.host_id,
       height: this.height,
       device_codes: this.device_codes,
       category: this.category,
@@ -451,6 +452,12 @@ deviceSchema.statics = {
           localField: "site_id",
           foreignField: "_id",
           as: "site",
+        })
+        .lookup({
+          from: "hosts",
+          localField: "host_id",
+          foreignField: "_id",
+          as: "host",
         })
         .lookup({
           from: "sites",
