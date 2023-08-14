@@ -15,15 +15,17 @@ def generate_pie_chart_data(records, key, pollutant):
     """
     category_count = defaultdict(int)
 
-    category_count.update({
-        'Good': 0,
-        'Moderate': 0,
-        'UHFSG': 0,
-        'Unhealthy': 0,
-        'VeryUnhealthy': 0,
-        'Hazardous': 0,
-        'Other': 0,
-    })
+    category_count.update(
+        {
+            "Good": 0,
+            "Moderate": 0,
+            "UHFSG": 0,
+            "Unhealthy": 0,
+            "VeryUnhealthy": 0,
+            "Hazardous": 0,
+            "Other": 0,
+        }
+    )
 
     for record in records:
         value = record[key]
@@ -37,14 +39,16 @@ def _destructure_pie_data(generated_data):
     result = []
     for data in generated_data:
         destructured = []
-        name = data.pop('name')
+        name = data.pop("name")
         for key in data.keys():
-            destructured.append({
-                'name': name,
-                'category': key,
-                'color': PM_COLOR_CATEGORY.get(key, '#808080'),
-                'value': data[key],
-            })
+            destructured.append(
+                {
+                    "name": name,
+                    "category": key,
+                    "color": PM_COLOR_CATEGORY.get(key, "#808080"),
+                    "value": data[key],
+                }
+            )
         result.append(destructured)
 
     return result
@@ -63,25 +67,29 @@ def d3_generate_pie_chart_data(records, pollutant):
 
     def default_value():
         return {
-            'Good': 0,
-            'Moderate': 0,
-            'UHFSG': 0,
-            'Unhealthy': 0,
-            'VeryUnhealthy': 0,
-            'Hazardous': 0,
-            'Other': 0,
-            'Unknown': 0,
+            "Good": 0,
+            "Moderate": 0,
+            "UHFSG": 0,
+            "Unhealthy": 0,
+            "VeryUnhealthy": 0,
+            "Hazardous": 0,
+            "Other": 0,
+            "Unknown": 0,
         }
 
     location_category_count = defaultdict(default_value)
 
     for record in records:
-        value = record.get('value')
-        name = record.get('name') or record.get('generated_name')
+        value = record.get("value")
+        name = record.get("name") or record.get("generated_name")
         category = get_pollutant_category(value, pollutant=pollutant)
-        location_category_count[name][category] = location_category_count[name][category] + 1
-        location_category_count[name][category] = location_category_count[name][category] + 1
-        location_category_count[name]['name'] = name
+        location_category_count[name][category] = (
+            location_category_count[name][category] + 1
+        )
+        location_category_count[name][category] = (
+            location_category_count[name][category] + 1
+        )
+        location_category_count[name]["name"] = name
 
     print(len(location_category_count.values()))
     return _destructure_pie_data(location_category_count.values())

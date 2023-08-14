@@ -6,6 +6,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const UserModel = sinon.stub();
 const AccessTokenModel = sinon.stub();
+const { useJWTStrategy } = require("@middleware/passport");
 
 // Require the module to test
 const {
@@ -101,5 +102,74 @@ describe("Authentication Module Unit Tests", () => {
     });
 
     // Add more test cases for different scenarios and validations
+  });
+
+  const { expect } = require("chai");
+  const sinon = require("sinon");
+
+  describe("useJWTStrategy Function", () => {
+    let jwtStrategyStub;
+    let reqMock;
+    let resMock;
+    let nextSpy;
+
+    beforeEach(() => {
+      jwtStrategyStub = sinon.stub().callsFake((_opts, callback) => {
+        return callback(null, {}); // Stub JwtStrategy callback
+      });
+
+      reqMock = {
+        headers: {
+          "x-original-uri": "/api/v2/devices/events", // Sample URI
+          "x-original-method": "GET", // Sample method
+          service: undefined,
+        },
+      };
+
+      resMock = {};
+      nextSpy = sinon.spy();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should call JwtStrategy callback with user when valid route is matched", () => {
+      const jwtStrategySpy = sinon.spy(jwtStrategyStub);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpy);
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpy.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    it("should call JwtStrategy callback with failure when no valid route is matched", () => {
+      const jwtStrategySpy = sinon.spy(jwtStrategyStub);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpy);
+
+      reqMock.headers["x-original-uri"] = "/unknown"; // Invalid URI
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpy.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    it("should call JwtStrategy callback with failure when user not found", () => {
+      const jwtStrategyStubError = sinon.stub().callsFake((_opts, callback) => {
+        return callback(new Error("User not found"), false);
+      });
+
+      const jwtStrategySpyError = sinon.spy(jwtStrategyStubError);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpyError);
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpyError.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    // Add more test cases as needed
   });
 });

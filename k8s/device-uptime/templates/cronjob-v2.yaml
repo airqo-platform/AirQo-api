@@ -21,7 +21,7 @@ spec:
           terminationGracePeriodSeconds: 30
           affinity:
             nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
+              preferredDuringSchedulingIgnoredDuringExecution:
                 - weight: 10
                   preference:
                     matchExpressions:

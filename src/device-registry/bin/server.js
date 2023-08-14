@@ -19,9 +19,7 @@ const options = { mongooseConnection: mongoose.connection };
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- server start script`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
 
 if (isEmpty(constants.SESSION_SECRET)) {
@@ -62,7 +60,7 @@ app.use(
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use("/api/v1/devices", require("@routes/v1"));
+// app.use("/api/v1/devices", require("@routes/v1"));
 app.use("/api/v2/devices", require("@routes/v2"));
 
 // Error handling middleware
@@ -75,11 +73,11 @@ app.use(function(req, res, next) {
 
 app.use(function(err, req, res, next) {
   if (err.status === 404) {
-    logger.error(
-      `this endpoint does not exist --- ${err.message} --- path: ${
-        req.originalUrl ? req.originalUrl : ""
-      }`
-    );
+    // logger.error(
+    //   `this endpoint does not exist --- ${err.message} --- path: ${
+    //     req.originalUrl ? req.originalUrl : ""
+    //   }`
+    // );
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",

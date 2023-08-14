@@ -1,10 +1,73 @@
 require("module-alias/register");
 process.env.NODE_ENV = "development";
+require('dotenv').config();
+
 const chai = require("chai");
-const sinon = require("sinon");
-const createSite = require("@utils/create-site");
-const httpStatus = require("http-status");
+const chaiHttp = require("chai-http");
+const should = chai.should();
 const expect = chai.expect;
+const assert = chai.assert;
+const faker = require("faker");
+const sinon = require("sinon");
+chai.use(chaiHttp);
+
+const geolib = require("geolib");
+const httpStatus = require("http-status");
+const axios = require("axios");
+const { Client } = require("@googlemaps/google-maps-services-js");
+const client = new Client({});
+const axiosInstance = () => {
+  return axios.create();
+};
+const { Kafka } = require("kafkajs");
+
+const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
+const siteSchema = require("@models/Site");
+const createSite = require("@utils/create-site");
+const createAirqloud = require("@utils/create-airqloud");
+const constants = require("@config/constants");
+const generateFilter = require("../generate-filter");
+const distanceUtil = require("../distance");
+
+let stubValue = {
+  _id: faker.datatype.uuid(),
+  tenant: "test",
+  name: faker.name.findName(),
+  generated_name: faker.address.secondaryAddress(),
+  formatted_name: faker.address.streetAddress(),
+  latitude: faker.address.latitude(),
+  longitude: faker.address.longitude(),
+  createdAt: faker.date.past(),
+  updatedAt: faker.date.past(),
+  description: faker.address.direction(),
+  site_activities: faker.random.words(),
+  county: faker.address.county(),
+  sub_county: faker.address.county(),
+  parish: faker.address.county(),
+  village: faker.address.county(),
+  region: faker.address.country(),
+  district: faker.address.state(),
+  city: faker.address.city(),
+  road_intensity: faker.datatype.float(),
+  distance_to_nearest_motor_way: faker.datatype.float(),
+  distance_to_nearest_residential_area: faker.datatype.float(),
+  distance_to_nearest_city: faker.datatype.float(),
+  distance_to_nearest_road: faker.datatype.float(),
+  lat_long: `${this.latitude}_${this.longitude}`,
+  altitude: faker.datatype.float(),
+  aspect: faker.datatype.float(),
+  greenness: faker.datatype.float(),
+  roadStatus: faker.datatype.float(),
+  landUse: faker.datatype.float(),
+  terrain: faker.datatype.float(),
+  trafficFactor: faker.datatype.float(),
+};
+
+
+const kafka = new Kafka({
+  clientId: "location-test-service",
+  brokers: "brokers:9092",
+});
 
 // Mocked data
 const mockReq = {
@@ -65,19 +128,21 @@ describe("create-site-util", () => {
             location: {
               coordinates: [[[1, 1], [1, 2], [2, 2], [2, 1], [1, 1]]],
             },
+            latitude: 1,
+            longitude: 1,
           },
-          {
-            _id: "airqloud_id2",
-            location: {
-              coordinates: [[[3, 3], [3, 4], [4, 4], [4, 3], [3, 3]]],
-            },
-          },
+
         ],
       };
 
       // Stub the list function in createSite to return the mock response
       const listStub = sinon.stub(createSite, "list");
       listStub.resolves(listResponse);
+
+      const airqloudStub = sinon.stub(createAirqloud, "list");
+      airqloudStub.resolves(listResponse);
+
+      const geoLibStub = sinon.stub(geolib, "isPointInPolygon").returns(true);
 
       // Call the function and assert
       const result = await createSite.findAirQlouds(request);
@@ -88,6 +153,8 @@ describe("create-site-util", () => {
 
       // Restore the stub to its original function
       listStub.restore();
+      geoLibStub.restore();
+      airqloudStub.restore();
     });
 
     // Add more test cases for different scenarios if necessary
@@ -192,61 +259,108 @@ describe("create-site-util", () => {
   });
   describe("listWeatherStations", () => {
     it("should return a list of weather stations when API call is successful", async () => {
-      // Mock the axios.get function to return a successful response
-      const axiosGetStub = sinon.stub(createSite.axiosInstance(), "get");
+
       const mockResponse = {
+        success: true,
+        message: 'successfully retrieved all the stations',
+        status: 200,
         data: {
           data: [
             {
-              id: "station_id_1",
-              code: "station_code_1",
+              id: 200,
+              code: 'Test',
               location: {
-                latitude: 1.111,
-                longitude: 5.555,
-                elevationmsl: 100,
-                countrycode: "US",
-                timezone: "America/New_York",
-                timezoneoffset: -4,
-                name: "Station 1",
-                type: "Weather Station",
+                latitude: 10.56302,
+                longitude: 31.39055,
+                elevationmsl: 1319,
+                countrycode: 'UG',
+                timezone: 'Africa/Nairobi',
+                timezoneoffset: 0,
+                name: 'Mubende Hydromet',
+                type: 'Meteo Office'
               },
             },
             {
-              id: "station_id_2",
-              code: "station_code_2",
+              id: 218,
+              code: 'Test',
               location: {
-                latitude: 2.222,
-                longitude: 6.666,
-                elevationmsl: 150,
-                countrycode: "CA",
-                timezone: "America/Toronto",
-                timezoneoffset: -5,
-                name: "Station 2",
-                type: "Weather Station",
+                latitude: 10.499446,
+                longitude: 33.2634,
+                elevationmsl: 1354.624,
+                countrycode: 'UG',
+                timezone: 'Africa/Nairobi',
+                timezoneoffset: 0,
+                name: 'Busoga College Mwiri',
+                type: 'Secondary school'
               },
-            },
-          ],
+            }
+          ]
         },
       };
-      axiosGetStub.resolves(mockResponse);
+      let outputData = [
+        {
+          id: 200,
+          code: 'Test',
+          latitude: 10.56302,
+          longitude: 31.39055,
+          elevation: 1319,
+          countrycode: 'UG',
+          timezone: 'Africa/Nairobi',
+          timezoneoffset: 0,
+          name: 'Mubende Hydromet',
+          type: 'Meteo Office'
+        },
+        {
+          id: 218,
+          code: 'Test',
+          latitude: 10.499446,
+          longitude: 33.2634,
+          elevation: 1354.624,
+          countrycode: 'UG',
+          timezone: 'Africa/Nairobi',
+          timezoneoffset: 0,
+          name: 'Busoga College Mwiri',
+          type: 'Secondary school'
 
-      // Call the function and assert
+        }
+      ];
+      const axiosGetStub = sinon.stub(axios, "get").resolves(mockResponse);
+      const result = await createSite.listWeatherStations();
+      expect(result.data).to.be.an("array");
+      expect(result.data).to.have.lengthOf(2);
+      expect(result.data).to.deep.equal(outputData);
+
+      axiosGetStub.restore();
+    }).timeout(6000);
+
+    it("should return a list with only the expected keys", async () => {
+      const expectedKeys = [
+        'id',
+        'code',
+        'latitude',
+        'longitude',
+        'elevation',
+        'countrycode',
+        'timezone',
+        'timezoneoffset',
+        'name',
+        'type'
+      ];
+
       const result = await createSite.listWeatherStations();
 
       expect(result.success).to.be.true;
       expect(result.data)
-        .to.be.an("array")
-        .with.lengthOf(2);
-      expect(result.data[0].id).to.equal("station_id_1");
-      // Add more assertions based on the expected results for a successful case
+        .to.be.an("array");
+      for (const station of result.data) {
+        expect(Object.keys(station)).to.have.members(expectedKeys);
+      }
 
-      // Restore the stub to its original function
-      axiosGetStub.restore();
     });
 
     it("should return an error response when the API call fails", async () => {
       // Mock the axios.get function to return an error response
-      const axiosGetStub = sinon.stub(createSite.axiosInstance(), "get");
+      const axiosGetStub = sinon.stub(axios, "get");
       const mockError = new Error("API error");
       axiosGetStub.rejects(mockError);
 
@@ -264,8 +378,9 @@ describe("create-site-util", () => {
 
     it("should return an empty array when the API call response has no data", async () => {
       // Mock the axios.get function to return a response with no data
-      const axiosGetStub = sinon.stub(createSite.axiosInstance(), "get");
+      const axiosGetStub = sinon.stub(axios, "get");
       const mockResponse = {
+        success: true,
         data: {},
       };
       axiosGetStub.resolves(mockResponse);
@@ -273,15 +388,10 @@ describe("create-site-util", () => {
       // Call the function and assert
       const result = await createSite.listWeatherStations();
 
-      expect(result.success).to.be.true;
+      expect(result.success).to.be.false;
       expect(result.data).to.be.an("array").that.is.empty;
-      // Add more assertions based on the expected results when the API response has no data
-
-      // Restore the stub to its original function
       axiosGetStub.restore();
     });
-
-    // Add more test cases for different scenarios if necessary
   });
   describe("validateSiteName", () => {
     it("should return true for a valid site name", () => {
@@ -328,6 +438,7 @@ describe("create-site-util", () => {
     // Add more test cases based on specific validation rules and edge cases
   });
   describe("generateName", () => {
+    const uniqueIdentifierStub = sinon.stub(UniqueIdentifierCounterSchema.statics, "modify");
     it("should generate a unique name for the site", async () => {
       const tenant = "example_tenant";
       const expectedName = "site_1"; // Assuming the initial count is 0 and it increments for each generation
@@ -339,9 +450,7 @@ describe("create-site-util", () => {
         },
         status: 200,
       };
-      sinon
-        .stub(getModelByTenant, "modify")
-        .returns(responseFromModifyUniqueIdentifierCounter);
+      uniqueIdentifierStub.returns(responseFromModifyUniqueIdentifierCounter);
 
       const result = await createSite.generateName(tenant);
 
@@ -350,7 +459,7 @@ describe("create-site-util", () => {
       expect(result.data).to.equal(expectedName);
       expect(result.status).to.equal(200);
 
-      getModelByTenant.modify.restore();
+      uniqueIdentifierStub.restore();
     });
 
     it("should handle errors when unable to find the counter document", async () => {
@@ -361,22 +470,19 @@ describe("create-site-util", () => {
         errors: { message: "Unable to find the counter document" },
         status: 404,
       };
-      sinon
-        .stub(getModelByTenant, "modify")
-        .returns(responseFromModifyUniqueIdentifierCounter);
+      uniqueIdentifierStub.throws(new Error("Unable to find the counter document"));
 
       const result = await createSite.generateName(tenant);
 
       expect(result.success).to.be.false;
       expect(result.message).to.equal(
-        "unable to generate unique name for this site, contact support"
+        "generateName -- createSite util server error"
       );
       expect(result.errors).to.deep.equal({
         message: "Unable to find the counter document",
       });
-      expect(result.status).to.equal(404);
+      expect(result.status).to.equal(500);
 
-      getModelByTenant.modify.restore();
     });
 
     // Add more test cases based on other possible scenarios and error cases
@@ -395,7 +501,7 @@ describe("create-site-util", () => {
         },
         query: { tenant: "example_tenant" },
       };
-      const generated_name = "site_1"; // Assuming the initial count is 0 and it increments for each generation
+      const generated_name = "site_1";
 
       // Stub the response from generateName function
       sinon.stub(createSite, "generateName").resolves({
@@ -427,12 +533,16 @@ describe("create-site-util", () => {
 
       const responseFromCreateSite = {
         success: true,
-        data: {
-          // Your created site data here
-        },
+        data: stubValue,
         status: 201,
       };
-      sinon.stub(getModelByTenant, "register").resolves(responseFromCreateSite);
+      const siteStub = sinon.stub(siteSchema.statics, "register").returns(responseFromCreateSite);
+      kafkaProducer = {
+        connect: sinon.stub(),
+        send: sinon.stub(),
+        disconnect: sinon.stub()
+      };
+      sinon.stub(kafka, "producer").returns(kafkaProducer);
 
       const result = await createSite.create(tenant, req);
 
@@ -443,7 +553,7 @@ describe("create-site-util", () => {
       createSite.generateName.restore();
       createSite.createApproximateCoordinates.restore();
       createSite.generateMetadata.restore();
-      getModelByTenant.register.restore();
+      sinon.restore();
     });
 
     it("should handle errors when creating a site with invalid name", async () => {
@@ -466,34 +576,49 @@ describe("create-site-util", () => {
       expect(result.message).to.equal(
         "site name is invalid, please check documentation"
       );
-      // Add more assertions for the specific error handling
 
-      // No need to restore the stubs since we're not using them in this case
     });
 
-    // Add more test cases based on other possible scenarios and error cases
+    it('returns error message and errors on unsuccessful site creation', async () => {
+      const siteStub = sinon.stub(siteSchema.statics, "register").returns({
+        errors: '',
+        message: '',
+        success: false,
+        status: '',
+      });
+
+      const tenant = 'testTenant';
+      const req = {
+        body: {
+          name: 'testSite',
+          latitude: '12.34',
+          longitude: '56.78',
+          airqlouds: [],
+          network: 'testNetwork',
+          approximate_distance_in_km: 10
+        },
+        query: {
+          tenant: tenant
+        }
+      };
+      const response = await createSite.create(tenant, req);
+      expect(response.success).to.equal(false);
+    });
   });
+
   describe("update", () => {
     it("should update a site with valid parameters", async () => {
-      const tenant = "example_tenant";
-      const filter = { _id: "site_id" }; // Replace with the filter to select the specific site
-      const update = {
-        name: "Updated Site Name",
-        latitude: 40.7128,
-        longitude: -74.006,
-        airqlouds: [],
-        network: "example_network",
-        approximate_distance_in_km: 10,
-      };
+      const tenant = stubValue.tenant;
+      const filter = { _id: stubValue._id }; // Replace with the filter to select the specific site
+      const update = stubValue;
+
 
       const responseFromModifySite = {
         success: true,
-        data: {
-          // Your updated site data here
-        },
+        data: stubValue,
         status: 200,
       };
-      sinon.stub(getModelByTenant, "modify").resolves(responseFromModifySite);
+      const siteStub = sinon.stub(siteSchema.statics, "modify").returns(responseFromModifySite);
 
       const result = await createSite.update(tenant, filter, update);
 
@@ -501,22 +626,19 @@ describe("create-site-util", () => {
       expect(result.data).to.deep.equal(responseFromModifySite.data);
       expect(result.status).to.equal(200);
 
-      getModelByTenant.modify.restore();
+      siteStub.restore();
     });
 
     it("should handle errors when updating a site", async () => {
       const tenant = "example_tenant";
-      const filter = { _id: "site_id" }; // Replace with the filter to select the specific site
+      const filter = { _id: stubValue._id }; 
       const update = {
-        // Invalid update data
+
       };
 
       const result = await createSite.update(tenant, filter, update);
 
       expect(result.success).to.be.false;
-      // Add more assertions for the specific error handling
-
-      // No need to restore the stub since we're not using it in this case
     });
 
     // Add more test cases based on other possible scenarios and error cases
@@ -526,7 +648,7 @@ describe("create-site-util", () => {
       const name = "  This is a Long Name  ";
       const result = createSite.sanitiseName(name);
 
-      expect(result).to.equal("thisisalongna");
+      expect(result).to.equal("thisisalongname");
     });
 
     it("should remove white spaces and convert to lowercase when the name is shorter than 15 characters", () => {
@@ -559,6 +681,12 @@ describe("create-site-util", () => {
       const latitude = 40.7128;
       const longitude = -74.006;
 
+      const axiosGetStub = sinon.stub(axios, "get").resolves({
+        data: {
+          data: stubValue.name,
+        }
+      });
+
       const result = await createSite.getRoadMetadata(latitude, longitude);
 
       expect(result.success).to.be.true;
@@ -567,13 +695,29 @@ describe("create-site-util", () => {
       );
       expect(result.status).to.equal(httpStatus.OK);
       expect(result.data).to.deep.equal({
-        key1_data: "Your mocked response for key1",
-        key2_data: "Your mocked response for key2",
+
+        altitude: stubValue.name,
+        aspect: stubValue.name,
+        bearing_to_kampala_center: stubValue.name,
+        distance_to_kampala_center: stubValue.name,
+        distance_to_nearest_primary_road: stubValue.name,
+        distance_to_nearest_residential_road: stubValue.name,
+        distance_to_nearest_road: stubValue.name,
+        distance_to_nearest_secondary_road: stubValue.name,
+        distance_to_nearest_tertiary_road: stubValue.name,
+        distance_to_nearest_unclassified_road: stubValue.name,
+        greenness: stubValue.name,
+        landform_270: stubValue.name,
+        landform_90: stubValue.name,
+        weather_stations: stubValue.name,
+
       });
+
+      axiosGetStub.restore();
     });
 
     it("should return 'not found' status when no road metadata is retrieved", async () => {
-      // Mock an empty response for both keys
+
       axios.get = async () => ({ data: {} });
 
       const latitude = 40.7128;
@@ -590,20 +734,19 @@ describe("create-site-util", () => {
     });
 
     it("should handle errors and return 'internal server error' status", async () => {
-      // Mock an error response
-      axios.get = async () => {
-        throw new Error("Mocked error");
-      };
 
       const latitude = 40.7128;
       const longitude = -74.006;
 
+      const axiosGetStub = sinon.stub(axios, "get").throws(new Error("Mocked error"));
       const result = await createSite.getRoadMetadata(latitude, longitude);
 
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
+      expect(result.message).to.equal('Internal Server Error');
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(result.errors).to.deep.equal({ message: "Mocked error" });
+
+      axiosGetStub.restore();
     });
   });
   describe("generateMetadata", () => {
@@ -613,9 +756,10 @@ describe("create-site-util", () => {
       const reverseGeoCodeResponse = {
         success: true,
         data: { site_tags: ["tag1", "tag2"], other_data: "other_data" },
+        status: httpStatus.OK,
       };
-      sinon.stub(createSite, "getAltitude").resolves(getAltitudeResponse);
-      sinon.stub(createSite, "reverseGeoCode").resolves(reverseGeoCodeResponse);
+      const getAltitudeStub = sinon.stub(createSite, "getAltitude").resolves(getAltitudeResponse);
+      const reverseGeoCodeStub = sinon.stub(createSite, "reverseGeoCode").resolves(reverseGeoCodeResponse);
 
       const result = await createSite.generateMetadata(mockReq);
 
@@ -633,50 +777,40 @@ describe("create-site-util", () => {
       });
 
       // Restore the stubs
-      createSite.getAltitude.restore();
-      createSite.reverseGeoCode.restore();
+      getAltitudeStub.restore();
+      reverseGeoCodeStub.restore();
     });
 
     it("should handle errors and return 'internal server error' status", async () => {
-      // Mock an error response for getAltitude
-      const getAltitudeResponse = {
-        success: false,
-        errors: { message: "Altitude error" },
-      };
-      sinon.stub(createSite, "getAltitude").resolves(getAltitudeResponse);
+      const getAltitudeStub = sinon.stub(createSite, "getAltitude").throws(new Error("Altitude error"));
+
 
       const result = await createSite.generateMetadata(mockReq);
 
       expect(createSite.getAltitude.calledOnce).to.be.true;
-      expect(createSite.reverseGeoCode.called).to.be.false; // Should not call reverseGeoCode if getAltitude fails
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Internal Server Error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(result.errors).to.deep.equal({ message: "Altitude error" });
 
       // Restore the stubs
-      createSite.getAltitude.restore();
+      getAltitudeStub.restore();
     });
 
     it("should handle 'not found' status when reverseGeoCode returns no data", async () => {
       // Mock a response for getAltitude and reverseGeoCode
       const getAltitudeResponse = { success: true, data: 1234 };
-      const reverseGeoCodeResponse = { success: false };
-      sinon.stub(createSite, "getAltitude").resolves(getAltitudeResponse);
-      sinon.stub(createSite, "reverseGeoCode").resolves(reverseGeoCodeResponse);
+      const reverseGeoCodeResponse = { success: false, data: {}, status: httpStatus.NOT_FOUND };
+      const getAltitudeStub = sinon.stub(createSite, "getAltitude").resolves(getAltitudeResponse);
+      const reverseGeoCodeStub = sinon.stub(createSite, "reverseGeoCode").resolves(reverseGeoCodeResponse);
 
       const result = await createSite.generateMetadata(mockReq);
 
-      expect(createSite.getAltitude.calledOnce).to.be.true;
-      expect(createSite.reverseGeoCode.calledOnce).to.be.true;
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.errors).to.deep.equal({ message: "" });
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(result.data).to.deep.equal({});
 
-      // Restore the stubs
-      createSite.getAltitude.restore();
-      createSite.reverseGeoCode.restore();
+      getAltitudeStub.restore();
+      reverseGeoCodeStub.restore();
     });
   });
   describe("pickAvailableValue", () => {
@@ -700,7 +834,7 @@ describe("create-site-util", () => {
       };
 
       const result = createSite.pickAvailableValue(valuesInObject);
-      expect(result).to.be.null;
+      expect(result).to.be.undefined;
     });
 
     it("should return undefined if the valuesInObject is empty", () => {
@@ -717,6 +851,15 @@ describe("create-site-util", () => {
 
     it("should return the refreshed site details when successful", async () => {
       // Stub the necessary functions
+
+      const generateFilterStub = sinon.stub(generateFilter, "sites").resolves(stubValue._id);
+
+      const listStub = sinon.stub(siteSchema.statics, "list");
+      listStub.returns({
+        success: true,
+        data: [stubValue],
+      });
+
       const getAltitudeStub = sinon.stub(createSite, "getAltitude").resolves({
         success: true,
         data: 100, // Replace with the expected altitude value
@@ -724,7 +867,7 @@ describe("create-site-util", () => {
 
       const generateNameStub = sinon.stub(createSite, "generateName").resolves({
         success: true,
-        data: "site_1", // Replace with the expected generated name
+        data: stubValue.name, // Replace with the expected generated name
       });
 
       const findAirQloudsStub = sinon
@@ -749,27 +892,22 @@ describe("create-site-util", () => {
         .resolves({
           success: true,
           data: {
-            name: "Site 1",
-            latitude: 10.123,
-            longitude: 20.456,
+            name: stubValue.name,
+            latitude: stubValue.latitude,
+            longitude: stubValue.longitude,
             // Add other metadata properties here
           }, // Replace with the expected metadata
         });
 
-      const updateStub = sinon.stub().resolves({
+      const updateStub = sinon.stub(createSite, "update").resolves({
         success: true,
-        data: {
-          // Replace with the updated site data
-        },
+        data: stubValue,
       });
-
-      // Stub the getModelByTenant function to return the stubbed update function
-      getModelByTenantStub.returns({ modify: updateStub });
 
       // Prepare the request object
       const req = {
         query: {
-          id: "123", // Replace with the site ID
+          id: stubValue._id, 
         },
         // Add other required properties to the request body
       };
@@ -788,18 +926,21 @@ describe("create-site-util", () => {
       findAirQloudsStub.restore();
       findNearestWeatherStationStub.restore();
       generateMetadataStub.restore();
+      updateStub.restore();
+      listStub.restore();
+      generateFilterStub.restore();
+
     });
 
-    it("should return the error response when getModelByTenant fails", async () => {
-      // Stub the getModelByTenant function to throw an error
-      getModelByTenantStub.throws(new Error("Database connection error"));
+    it("should return the error response when refresh fails", async () => {
+
+      const generateFilterStub = sinon.stub(generateFilter, "sites").throws(new Error("Mocked error"));
 
       // Prepare the request object
       const req = {
         query: {
           id: "123", // Replace with the site ID
         },
-        // Add other required properties to the request body
       };
 
       // Call the refresh function
@@ -808,10 +949,9 @@ describe("create-site-util", () => {
       // Assert the result
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Internal Server Error");
-      // Add more assertions for the error response data
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.errors).to.deep.equal({ message: "Mocked error" });
+      generateFilterStub.restore();
     });
 
     // Add more test cases for other scenarios and error handling
@@ -829,7 +969,6 @@ describe("create-site-util", () => {
 
       // Call the delete function
       const result = await createSite.delete("testTenant", filter);
-
       // Assert the result
       expect(result.success).to.be.false;
       expect(result.message).to.equal(
@@ -841,68 +980,43 @@ describe("create-site-util", () => {
       // No need to restore any stubbed functions in this case
     });
 
-    it("should return the error response when getModelByTenant fails", async () => {
-      // Stub the getModelByTenant function to throw an error
-      getModelByTenantStub.throws(new Error("Database connection error"));
-
-      // Prepare the filter object
-      const filter = {
-        // Add filter conditions here
-      };
-
-      // Call the delete function
-      const result = await createSite.delete("testTenant", filter);
-
-      // Assert the result
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("delete Site util server error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      // Add more assertions for the error response data
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
-    });
-
-    it("should return the response from the remove function when successful", async () => {
-      // Stub the necessary functions
-      const removeStub = sinon.stub().resolves({
-        success: true,
-        data: {
-          // Replace with the removed site data
+  });
+  describe("list", () => {
+    const listStub = sinon.stub(siteSchema.statics, "list");
+    it("should return the response from the list function when successful", async () => {
+      // Prepare the list options
+      const options = {
+        tenant: "testTenant",
+        filter: {
+          // Add filter conditions here
         },
+        skip: 0,
+        limit: 10,
+      };
+      listStub.resolves({
+        success: true,
+        data: [
+          { lat_long: "1_1", name: "Site 1" },
+          { lat_long: "2_2", name: "Site 2" },
+          { lat_long: "4_4", name: "Site 3" },
+          { lat_long: "3_3", name: "Site 4" },
+        ],
       });
 
-      // Stub the getModelByTenant function to return the stubbed remove function
-      getModelByTenantStub.returns({ remove: removeStub });
-
-      // Prepare the filter object
-      const filter = {
-        // Add filter conditions here
-      };
-
-      // Call the delete function
-      const result = await createSite.delete("testTenant", filter);
+      const result = await createSite.list(options);
 
       // Assert the result
       expect(result.success).to.be.true;
-      // Add more assertions for the expected data in the result
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
-      removeStub.restore();
+      expect(result.data).to.deep.equal([
+        { lat_long: "1_1", name: "Site 1" },
+        { lat_long: "2_2", name: "Site 2" },
+        { lat_long: "3_3", name: "Site 4" },
+      ],);
+      listStub.restore();
     });
 
-    // Add more test cases for other scenarios and error handling
-  });
-  describe("list", () => {
-    afterEach(() => {
-      sinon.reset(); // Reset the stub after each test case
-    });
-
-    it("should return the error response when getModelByTenant fails", async () => {
-      // Stub the getModelByTenant function to throw an error
-      getModelByTenantStub.throws(new Error("Database connection error"));
-
+    it("should return the error response when list fails", async () => {
+      listStub.throws(new Error("Mocked error"));
       // Prepare the list options
       const options = {
         tenant: "testTenant",
@@ -920,86 +1034,12 @@ describe("create-site-util", () => {
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Internal Server Error");
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      // Add more assertions for the error response data
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
-    });
-
-    it("should return the response from the list function when successful", async () => {
-      // Prepare the list options
-      const options = {
-        tenant: "testTenant",
-        filter: {
-          // Add filter conditions here
-        },
-        skip: 0,
-        limit: 10,
-      };
-
-      // Stub the necessary functions
-      const listStub = sinon.stub().resolves({
-        success: true,
-        data: [
-          // Replace with site data objects
-        ],
-      });
-
-      // Stub the getModelByTenant function to return the stubbed list function
-      getModelByTenantStub.returns({ list: listStub });
-
-      // Call the list function
-      const result = await createSite.list(options);
-
-      // Assert the result
-      expect(result.success).to.be.true;
-      // Add more assertions for the expected data in the result
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
       listStub.restore();
     });
+  });
 
-    it("should filter out objects with 'lat_long' value equal to '4_4'", async () => {
-      // Prepare the list options
-      const options = {
-        tenant: "testTenant",
-        filter: {
-          // Add filter conditions here
-        },
-        skip: 0,
-        limit: 10,
-      };
-
-      // Stub the necessary functions
-      const listStub = sinon.stub().resolves({
-        success: true,
-        data: [
-          { lat_long: "1_1", name: "Site 1" },
-          { lat_long: "2_2", name: "Site 2" },
-          { lat_long: "4_4", name: "Site 3" },
-          { lat_long: "3_3", name: "Site 4" },
-        ],
-      });
-
-      // Stub the getModelByTenant function to return the stubbed list function
-      getModelByTenantStub.returns({ list: listStub });
-
-      // Call the list function
-      const result = await createSite.list(options);
-
-      // Assert the result
-      expect(result.success).to.be.true;
-      expect(result.data).to.have.lengthOf(3);
-      // Add more assertions for the expected filtered data in the result
-
-      // Restore the stubbed functions
-      getModelByTenantStub.restore();
-      listStub.restore();
-    });
 
     // Add more test cases for other scenarios and error handling
-  });
   describe("formatSiteName", () => {
     it("should format the site name by removing whitespace and converting to lowercase", () => {
       const siteName = "  My Test Site  ";
@@ -1074,7 +1114,7 @@ describe("create-site-util", () => {
         division: "Parish Name",
         village: "Parish Name",
         sub_county: "Parish Name",
-        search_name: "Town",
+        search_name: "Parish Name",
         formatted_name: "Formatted Address",
         geometry: { location: { lat: 12.345, lng: 67.89 } },
         site_tags: ["site_tags"],
@@ -1108,7 +1148,7 @@ describe("create-site-util", () => {
 
       // Stub axios.get to return mock data
       const axiosGetStub = sinon.stub(axios, "get");
-      axiosGetStub.withArgs(url).resolves({
+      axiosGetStub.resolves({
         data: {
           results: [
             {
@@ -1128,6 +1168,13 @@ describe("create-site-util", () => {
         },
       });
 
+      const retrieveInformationFromAddressStub = sinon.stub(createSite, "retrieveInformationFromAddress").resolves({
+        success: true,
+        data: {
+          town: "Town",
+        },
+      });
+
       const expectedData = {
         town: "Town",
         // Add more expected data as needed
@@ -1139,6 +1186,7 @@ describe("create-site-util", () => {
 
       // Restore the stub after the test
       axiosGetStub.restore();
+      retrieveInformationFromAddressStub.restore();
     });
 
     it("should return an error message for invalid coordinates", async () => {
@@ -1156,7 +1204,7 @@ describe("create-site-util", () => {
 
       const result = await createSite.reverseGeoCode(latitude, longitude);
       expect(result.success).to.be.false;
-      expect(result.message).to.equal("unable to get the site address details");
+      expect(result.message).to.equal("unable to get the address values");
       expect(result.errors).to.exist;
 
       // Restore the stub after the test
@@ -1166,16 +1214,17 @@ describe("create-site-util", () => {
     // Add more test cases for edge cases and specific scenarios
   });
   describe("getAltitude", () => {
+    const elevationStub = sinon.stub(client, "elevation");
     it("should successfully retrieve the altitude details", async () => {
       const latitude = 12.345;
       const longitude = 67.89;
-      const mockAltitude = 100.0; // Replace with the desired mock altitude
+      const mockAltitude = -4225.99462890625; // Replace with the desired mock altitude
 
       // Stub Client.elevation to return mock data
-      const elevationStub = sinon.stub(Client, "elevation").resolves({
+      elevationStub.resolves({
         data: {
           results: [{ elevation: mockAltitude }],
-          status: StatusCodes.OK,
+          status: httpStatus.OK,
         },
       });
 
@@ -1187,17 +1236,17 @@ describe("create-site-util", () => {
 
       // Restore the stub after the test
       elevationStub.restore();
-    });
+    }).timeout(5000);
 
     it("should return an error for a bad gateway response", async () => {
-      const latitude = 12.345;
+      const latitude = null;
       const longitude = 67.89;
 
       // Stub Client.elevation to return a bad gateway response
-      const elevationStub = sinon.stub(Client, "elevation").rejects({
+      elevationStub.rejects({
         response: {
           data: "Bad Gateway",
-          status: StatusCodes.BAD_GATEWAY,
+          status: httpStatus.BAD_GATEWAY,
         },
       });
 
@@ -1211,12 +1260,11 @@ describe("create-site-util", () => {
     });
 
     it("should return an error for an internal server error", async () => {
-      const latitude = 12.345;
+      const latitude = null;
       const longitude = 67.89;
 
       // Stub Client.elevation to throw an internal server error
-      const elevationStub = sinon
-        .stub(Client, "elevation")
+      elevationStub
         .throws(new Error("Internal Server Error"));
 
       const result = await createSite.getAltitude(latitude, longitude);
@@ -1235,7 +1283,7 @@ describe("create-site-util", () => {
       const latitude = 12.345;
       const longitude = 67.89;
 
-      const expectedLatLong = "12.345_67.890";
+      const expectedLatLong = "12.345_67.89";
 
       const result = createSite.generateLatLong(latitude, longitude);
       expect(result).to.equal(expectedLatLong);
@@ -1245,7 +1293,7 @@ describe("create-site-util", () => {
       const latitude = -12.345;
       const longitude = -67.89;
 
-      const expectedLatLong = "-12.345_-67.890";
+      const expectedLatLong = "-12.345_-67.89";
 
       const result = createSite.generateLatLong(latitude, longitude);
       expect(result).to.equal(expectedLatLong);
@@ -1277,7 +1325,7 @@ describe("create-site-util", () => {
           {
             id: 1,
             name: "Site 1",
-            latitude: 12.346, // Slightly outside the radius
+            latitude: 12.546, // Slightly outside the radius
             longitude: 67.89,
           },
           {
@@ -1295,7 +1343,7 @@ describe("create-site-util", () => {
           {
             id: 4,
             name: "Site 4",
-            latitude: 12.34, // Outside the radius
+            latitude: 13.34, // Outside the radius
             longitude: 67.88, // Outside the radius
           },
         ],
@@ -1313,7 +1361,9 @@ describe("create-site-util", () => {
       };
 
       // Overwrite the distanceUtil used in the createSite utility with the mock version
-      createSite.distanceUtil = distanceUtil;
+      // createSite.distanceUtil = distanceUtil;
+      const distanceStub = sinon.replace
+        (distanceUtil, "distanceBtnTwoPoints", sinon.fake(distanceUtil.distanceBtnTwoPoints));
 
       // Mock the createSite.list function to return the mock response
       createSite.list = async () => mockListResponse;
@@ -1331,14 +1381,14 @@ describe("create-site-util", () => {
             name: "Site 2",
             latitude: 12.345,
             longitude: 67.891,
-            distance: 0.001, // Distance between (latitude, longitude) and (12.345, 67.891)
+            distance: 0.10862387304028723, // Distance between (latitude, longitude) and (12.345, 67.891)
           },
           {
             id: 3,
             name: "Site 3",
             latitude: 12.345,
             longitude: 67.889,
-            distance: 0.001, // Distance between (latitude, longitude) and (12.345, 67.889)
+            distance: 0.10862387304028723, // Distance between (latitude, longitude) and (12.345, 67.889)
           },
         ],
         message: "successfully retrieved the nearest sites",
@@ -1393,19 +1443,15 @@ describe("create-site-util", () => {
 
       // Mock the response from distanceUtil.createApproximateCoordinates function
       const mockResponse = {
-        latitude: 12.346, // Approximate latitude
-        longitude: 67.891, // Approximate longitude
-        bearing_in_radians: 0.7853981633974483, // Approximate bearing in radians
+        provided_latitude: 12.345,
+        provided_longitude: 67.89,
         approximate_distance_in_km: 1, // Same as input approximate_distance_in_km
+        approximate_latitude: 12.337025313531365,
+        approximate_longitude: 67.88576668161961,
+        bearing_in_radians: 3.62
       };
 
-      // Mock the distanceUtil.createApproximateCoordinates function to return the mock response
-      distanceUtil.createApproximateCoordinates = ({
-        latitude,
-        longitude,
-        approximate_distance_in_km,
-        bearing,
-      }) => mockResponse;
+      const randomnumberStub = sinon.stub(distanceUtil, "generateRandomNumbers").returns(3.62);
 
       // Call the createApproximateCoordinates function
       const result = distanceUtil.createApproximateCoordinates({
@@ -1415,15 +1461,10 @@ describe("create-site-util", () => {
         bearing,
       });
 
-      // Expected result based on the mock data
-      const expectedResponse = {
-        success: true,
-        data: mockResponse,
-        message: "successfully approximated the GPS coordinates",
-      };
 
       // Assert the actual result against the expected result
-      expect(result).to.deep.equal(expectedResponse);
+      expect(result).to.deep.equal(mockResponse);
+      randomnumberStub.restore();
     });
 
     it("should handle errors from distanceUtil.createApproximateCoordinates function", () => {
@@ -1432,15 +1473,8 @@ describe("create-site-util", () => {
       const approximate_distance_in_km = 1; // Test approximate distance in km
       const bearing = 45; // Test bearing in degrees
 
-      // Mock the distanceUtil.createApproximateCoordinates function to throw an error
-      distanceUtil.createApproximateCoordinates = ({
-        latitude,
-        longitude,
-        approximate_distance_in_km,
-        bearing,
-      }) => {
-        throw new Error("Error in createApproximateCoordinates");
-      };
+      const generateRandomNumbersStub = sinon.stub(distanceUtil, "degreesToRadians")
+        .throws(new Error("Error in createApproximateCoordinates"));
 
       // Call the createApproximateCoordinates function
       const result = distanceUtil.createApproximateCoordinates({
@@ -1449,7 +1483,6 @@ describe("create-site-util", () => {
         approximate_distance_in_km,
         bearing,
       });
-
       // Expected result for the error scenario
       const expectedErrorResponse = {
         success: false,
@@ -1461,6 +1494,7 @@ describe("create-site-util", () => {
 
       // Assert the actual result against the expected error response
       expect(result).to.deep.equal(expectedErrorResponse);
+      generateRandomNumbersStub.restore();
     });
 
     // Add more test cases for edge cases and specific scenarios

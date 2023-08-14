@@ -3,7 +3,6 @@ import math
 import traceback
 from datetime import datetime
 
-import geojson
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -12,7 +11,7 @@ from google.cloud import bigquery
 from sqlalchemy import func
 
 from app import cache
-from config.constants import connect_mongo, Config
+from config import connect_mongo, Config
 
 load_dotenv()
 db = connect_mongo()
@@ -60,6 +59,16 @@ def hourly_forecasts_cache_key():
     return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
 
 
+def get_faults_cache_key():
+    args = request.args
+    airqloud = args.get("airqloud")
+    device_name = args.get("device_name")
+    correlation_fault = args.get("correlation_fault")
+    missing_data_fault = args.get("missing_data_fault")
+    created_at = args.get("created_at")
+    return f"{airqloud}_{device_name}_{correlation_fault}_{missing_data_fault}_{created_at}"
+
+
 def geo_coordinates_cache_key():
     key = (
         "geo_coordinates:"
@@ -70,118 +79,6 @@ def geo_coordinates_cache_key():
         + str(request.args.get("distance_in_metres"))
     )
     return key
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def convert_to_geojson(data):
-    """
-    converts a list of predictions to geojson format
-    """
-    features = []
-    for record in data:
-        point = geojson.Point(
-            (record["values"]["longitude"], record["values"]["latitude"])
-        )
-        feature = geojson.Feature(
-            geometry=point,
-            properties={
-                "latitude": record["values"]["latitude"],
-                "longitude": record["values"]["longitude"],
-                "predicted_value": record["values"]["predicted_value"],
-                "variance": record["values"]["variance"],
-                "interval": record["values"]["interval"],
-            },
-        )
-        features.append(feature)
-
-    return geojson.FeatureCollection(features)
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_gp_predictions(airqloud=None, page=1, limit=1000):
-    """Returns PM 2.5 predictions for a particular airqloud name or id or all airqlouds."""
-
-    pipeline = [
-        {"$sort": {"created_at": -1}},
-        {
-            "$project": {
-                "_id": 0,
-                "airqloud_id": 1,
-                "airqloud": 1,
-                "created_at": 1,
-                "values": 1,
-            }
-        },
-        {"$unwind": "$values"},
-    ]
-    if airqloud:
-        pipeline.insert(0, {"$match": {"airqloud": airqloud.lower()}})
-        pipeline.insert(
-            3,
-            {
-                "$group": {
-                    "_id": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
-                    "doc": {"$first": "$$ROOT"},
-                }
-            },
-        )
-        pipeline.insert(4, {"$replaceRoot": {"newRoot": "$doc"}})
-        pipeline.extend(
-            [
-                {
-                    "$setWindowFields": {
-                        "partitionBy": {
-                            "airqloud_id": "$airqloud_id",
-                            "airqloud": "$airqloud",
-                        }
-                        if airqloud
-                        else None,
-                        "sortBy": {"created_at": 1},
-                        "output": {
-                            "total": {
-                                "$sum": 1,
-                                "window": {"documents": ["unbounded", "unbounded"]},
-                            }
-                        },
-                    }
-                },
-                {"$replaceRoot": {"newRoot": "$doc"}},
-                {
-                    "$project": {
-                        "_id": 0,
-                        "airqloud_id": 1,
-                        "airqloud": 1,
-                        "created_at": 1,
-                        "values": 1,
-                    }
-                },
-                {"$unwind": "$values"},
-                {
-                    "$setWindowFields": {
-                        "partitionBy": {
-                            "airqloud_id": "$airqloud_id",
-                            "airqloud": "$airqloud",
-                        },
-                        "sortBy": {"created_at": 1},
-                        "output": {
-                            "total": {
-                                "$sum": 1,
-                                "window": {"documents": ["unbounded", "unbounded"]},
-                            }
-                        },
-                    }
-                },
-                {"$skip": (page - 1) * limit},
-                {"$limit": limit},
-            ]
-        )
-    predictions = db.gp_predictions.aggregate(pipeline)
-    predictions = list(predictions)
-    created_at = predictions[0]["created_at"]
-    total_count = predictions[0]["total"]
-    pages = math.ceil(total_count / limit)
-    airqloud_id = predictions[0]["airqloud_id"]
-    return airqloud_id, created_at, predictions, total_count, pages
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
@@ -304,7 +201,6 @@ def get_forecasts(
     district=None,
     region=None,
 ):
-    db = connect_mongo()
     query = {}
     params = {
         "site_id": site_id,
@@ -338,3 +234,84 @@ def get_forecasts(
             results.append(result)
     formatted_results = {"forecasts": results}
     return formatted_results
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def read_predictions_from_db(airqloud=None, page_number=1, limit=1000):
+    collection = db.gp_model_predictions
+
+    pipeline = []
+
+    if airqloud:
+        pipeline.append({"$match": {"airqloud": airqloud}})
+
+    pipeline.extend(
+        [
+            {"$unwind": "$values"},
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "values": {"$push": "$values"},
+                }
+            },
+            {
+                "$project": {
+                    "total": 1,
+                    "values": {"$slice": ["$values", (page_number - 1) * limit, limit]},
+                }
+            },
+        ]
+    )
+
+    result = collection.aggregate(pipeline)
+
+    total = 0
+    values = []
+
+    for document in result:
+        total = document["total"]
+        values = document.get("values", [])
+
+    return values, total
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def convert_to_geojson(values):
+    geojson = {"type": "FeatureCollection", "features": []}
+    for value in values:
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [value["longitude"], value["latitude"]],
+            },
+            "properties": {
+                "pm2_5": value["predicted_value"],
+                "variance": value["variance"],
+                "interval": value["interval"],
+                "latitude": value["latitude"],
+                "longitude": value["longitude"],
+            },
+        }
+        geojson["features"].append(feature)
+    return geojson
+
+
+def validate_param_values(params):
+    for param in params:
+        if param in ["correlation_fault", "missing_data_fault"]:
+            value = params[param]
+            if value not in ["0", "1"]:
+                return False, f"Invalid value for {param}: {value}"
+    return True, None
+
+
+def read_faulty_devices(query):
+    collection = db["faulty_devices"]
+    docs = collection.find(query).sort("created_at", -1)
+    result = []
+    for doc in docs:
+        doc.pop("_id")
+        result.append(doc)
+    return result

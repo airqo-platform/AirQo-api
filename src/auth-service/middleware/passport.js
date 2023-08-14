@@ -117,7 +117,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     async (email, password, done) => {
       try {
         const service = req.headers["service"];
-        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
@@ -141,10 +140,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
+
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -186,10 +182,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -217,10 +209,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             email: profile._json.email,
           })
           .exec();
-        // let user = result.toJSON();
+
         req.auth = {};
         if (user) {
-          // logObject("the user", user);
           req.auth.success = true;
           req.auth.message = "successful login";
 
@@ -234,7 +225,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           );
           cb(null, user);
           return next();
-          // return cb(null, user);
         } else {
           const responseFromRegisterUser = await UserModel(tenant).register({
             google_id: profile._json.sub,
@@ -275,28 +265,249 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      const service = req.headers["service"];
+      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
+      logObject(
+        "req.headers[x-original-method]",
+        req.headers["x-original-method"]
+      );
+
+      let service = req.headers["service"];
+      let userAction = "Unknown Action";
+
+      const specificRoutes = [
+        {
+          uri: ["/api/v2/devices/events"],
+          service: "events-registry",
+          action: "Events API Access via JWT",
+        },
+        {
+          uri: ["/api/v1/devices"],
+          service: "device-registry",
+          action: "deprecated-version-number",
+        },
+      ];
+
+      specificRoutes.forEach((route) => {
+        const uri = req.headers["x-original-uri"];
+        if (uri && route.uri.some((routeUri) => uri.includes(routeUri))) {
+          service = route.service;
+          userAction = route.action;
+          return done(null, false);
+        }
+      });
+
+      const routesWithService = [
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v2/analytics/data-download",
+            "api/v1/analytics/data-download",
+          ],
+          service: "data-export-download",
+          action: "Export Data",
+        },
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/analytics/data-export",
+            "api/v2/analytics/data-export",
+          ],
+          service: "data-export-scheduling",
+          action: "Schedule Data Download",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Creation",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Update",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Deletion",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Deletion",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Deletion",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Update",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Update",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Creation",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Creation",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Creation",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Update",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Deletion",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/maintain"],
+          service: "device-maintenance",
+          action: "Maintain Device",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/recall"],
+          service: "device-recall",
+          action: "Recall Device",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/deploy"],
+          service: "device-deployment",
+          action: "Deploy Device",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Create User",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Update User",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Delete User",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/incentives/transactions/accounts/payments",
+            "api/v2/incentives/transactions/accounts/payments",
+          ],
+          service: "incentives",
+          action: "Add Money to Organizational Account",
+        },
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/incentives/transactions/hosts",
+            "api/v2/incentives/transactions/hosts",
+          ],
+          service: "incentives",
+          action: "Send Money to Host",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
+          service: "calibrate",
+          action: "calibrate device",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
+          service: "locate",
+          action: "Identify Suitable Device Locations",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
+          service: "fault-detection",
+          action: "Detect Faults",
+        },
+      ];
+
+      routesWithService.forEach((route) => {
+        const uri = req.headers["x-original-uri"];
+        const method = req.headers["x-original-method"];
+
+        if (
+          method &&
+          route.method === method &&
+          uri &&
+          (!route.uriEndsWith ||
+            route.uriEndsWith.some((suffix) => uri.endsWith(suffix))) &&
+          (!route.uriIncludes ||
+            route.uriIncludes.some((substring) => uri.includes(substring)))
+        ) {
+          service = route.service;
+          userAction = route.action;
+        }
+      });
+
+      // ... other route checks
       logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
         .exec();
+
       if (!user) {
         return done(null, false);
       }
 
-      winstonLogger.info(
-        `successful login through ${service ? service : "unknown"} service`,
-        {
-          username: user.userName,
-          email: user.email,
-          service: service ? service : "unknown",
-        }
-      );
+      winstonLogger.info(userAction, {
+        username: user.userName,
+        email: user.email,
+        service: service ? service : "unknown",
+      });
+
       return done(null, user);
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return done(e, false);
     }
   });
+
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -507,4 +718,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  useJWTStrategy,
 };

@@ -115,6 +115,125 @@ const GroupModel = (tenant) => {
   }
 };
 
+const routeDefinitions = [
+  {
+    uriIncludes: ["/api/v1/devices"],
+    service: "deprecated-version-number",
+  },
+  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
+  { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
+  {
+    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
+    service: "device-registry",
+  },
+  { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
+  {
+    uriIncludes: ["/api/v2/devices/activities/maintain"],
+    service: "device-maintenance",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/activities/deploy"],
+    service: "device-deployment",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/activities/recall"],
+    service: "device-recall",
+  },
+  { uriIncludes: ["/api/v2/users"], service: "auth" },
+  { uriIncludes: ["/api/v2/incentives"], service: "incentives" },
+  {
+    uriIncludes: ["/api/v2/calibrate", "/api/v1/calibrate"],
+    service: "calibrate",
+  },
+  { uriIncludes: ["/api/v2/locate", "/api/v1/locate"], service: "locate" },
+  {
+    uriIncludes: ["/api/v2/predict-faults", "/api/v1/predict-faults"],
+    service: "fault-detection",
+  },
+  {
+    uriIncludes: [
+      "/api/v2/analytics/data-download",
+      "/api/v1/analytics/data-download",
+    ],
+    service: "data-export-download",
+  },
+  {
+    uriIncludes: [
+      "/api/v2/analytics/data-export",
+      "/api/v1/analytics/data-export",
+    ],
+    service: "data-export-scheduling",
+  },
+];
+
+const getService = (headers) => {
+  const uri = headers["x-original-uri"];
+  const serviceHeader = headers["service"];
+
+  if (uri) {
+    for (const route of routeDefinitions) {
+      if (route.uri && uri.includes(route.uri)) {
+        return route.service;
+      } else if (
+        route.uriEndsWith &&
+        route.uriEndsWith.some((suffix) => uri.endsWith(suffix))
+      ) {
+        return route.service;
+      } else if (
+        route.uriIncludes &&
+        route.uriIncludes.some((includes) => uri.includes(includes))
+      ) {
+        return route.service;
+      }
+    }
+  } else if (serviceHeader) {
+    return serviceHeader;
+  }
+
+  return "unknown";
+};
+
+const getUserAction = (headers) => {
+  if (headers["x-original-method"]) {
+    const method = headers["x-original-method"];
+    const actionMap = {
+      PUT: "update operation",
+      DELETE: "delete operation",
+      POST: "creation operation",
+      GET: "viewing data",
+    };
+    return actionMap[method] || "Unknown Action";
+  }
+  return "Unknown Action";
+};
+
+const createUnauthorizedResponse = () => {
+  return {
+    success: false,
+    message: "Unauthorized",
+    status: httpStatus.UNAUTHORIZED,
+    errors: { message: "Unauthorized" },
+  };
+};
+
+const createValidTokenResponse = () => {
+  return {
+    success: true,
+    message: "The token is valid",
+    status: httpStatus.OK,
+  };
+};
+
+const handleServerError = (error) => {
+  const errorMessage = error.message || "Internal server error";
+  return {
+    success: false,
+    message: errorMessage,
+    status: httpStatus.INTERNAL_SERVER_ERROR,
+    errors: { message: errorMessage },
+  };
+};
+
 const controlAccess = {
   sample: async (request) => {
     try {
@@ -348,13 +467,22 @@ const controlAccess = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       const filterResponse = generateFilter.tokens(request);
+      const timeZone = moment.tz.guess();
 
       if (filterResponse.success === false) {
         return filterResponse;
       } else {
         filter = Object.assign({}, filterResponse);
-        // filter.expires = { $gt: new Date().toISOString() };
+        filter.expires = {
+          $gt: moment().tz(timeZone).toDate(),
+        };
       }
+
+      const service = getService(request.headers);
+      if (service === "deprecated-version-number") {
+        return createUnauthorizedResponse();
+      }
+      const userAction = getUserAction(request.headers);
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -362,47 +490,47 @@ const controlAccess = {
         filter,
       });
 
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
+      logObject(
+        "responseFromListAccessToken.data",
+        responseFromListAccessToken.data
+      );
+
+      logObject(
+        "responseFromListAccessToken.data[0]",
+        responseFromListAccessToken.data[0]
+      );
+      logObject(
+        "request.headers[x-original-uri]",
+        request.headers["x-original-uri"]
+      );
+      logObject(
+        "request.headers[x-original-method]",
+        request.headers["x-original-method"]
+      );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          let newResponse = Object.assign({}, responseFromListAccessToken);
-          newResponse.message = "Unauthorized";
-          newResponse.status = httpStatus.UNAUTHORIZED;
-          newResponse.errors = { message: "Unauthorized" };
-          return newResponse;
+          return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          let newResponse = Object.assign({}, responseFromListAccessToken);
-          newResponse.message = "the token is valid";
-          newResponse.data = newResponse.data[0];
-          try {
-            const service = request.headers
-              ? request.headers["service"]
-              : "unknown";
-            const user = newResponse.data.user;
-            winstonLogger.info(`successful login through ${service} service`, {
+          logObject("service", service);
+          logObject("userAction", userAction);
+
+          if (service && userAction) {
+            const user = responseFromListAccessToken.data[0].user;
+            winstonLogger.info(userAction, {
               username: user.email,
               email: user.email,
-              service: service ? service : "none",
+              service: service,
             });
-          } catch (error) {
-            logObject("error", error);
-            logger.error(`internal server error -- ${error.message}`);
+
+            return createValidTokenResponse();
           }
-          return newResponse;
         }
       } else if (responseFromListAccessToken.success === false) {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("erroring in util", error);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return handleServerError(error);
     }
   },
 
@@ -455,6 +583,13 @@ const controlAccess = {
       const { query, body } = request;
       const { tenant } = query;
       let { user_id } = body;
+
+      return {
+        success: false,
+        message: "feature temporarily disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
 
       const token = accessCodeGenerator
         .generate(

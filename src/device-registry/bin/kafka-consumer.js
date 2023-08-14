@@ -1,12 +1,15 @@
 const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- Kafka Consumer`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- bin/kafka-consumer`
+);
 const { logText, logObject, logElement } = require("@utils/log");
 const createEvent = require("@utils/create-event");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
+const isEmpty = require("is-empty");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
@@ -186,7 +189,7 @@ const kafkaConsumer = async () => {
   // Define topic-to-operation function mapping
   const topicOperations = {
     [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
-    topic2: operationFunction2,
+    //topic2: operationFunction2,
     // Add more topics and their corresponding functions as needed
   };
 
@@ -194,29 +197,28 @@ const kafkaConsumer = async () => {
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
-      Object.keys(topicOperations).map((topic) =>
-        consumer.subscribe({ topic, fromBeginning: true })
-      )
+      Object.keys(topicOperations).map((topic) => {
+        consumer.subscribe({ topic, fromBeginning: true });
+        consumer.run({
+          eachMessage: async ({ partition, message }) => {
+            try {
+              const operation = topicOperations[topic];
+              if (operation) {
+                // const messageData = JSON.parse(message.value.toString());
+                const messageData = message.value.toString();
+                await operation(messageData);
+              } else {
+                logger.error(`No operation defined for topic: ${topic}`);
+              }
+            } catch (error) {
+              logger.error(
+                `Error processing Kafka message for topic ${topic}: ${error}`
+              );
+            }
+          },
+        });
+      })
     );
-
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const operation = topicOperations[topic];
-          if (operation) {
-            // const messageData = JSON.parse(message.value.toString());
-            const messageData = message.value.toString();
-            await operation(messageData);
-          } else {
-            logger.error(`No operation defined for topic: ${topic}`);
-          }
-        } catch (error) {
-          logger.error(
-            `Error processing Kafka message for topic ${topic}: ${error}`
-          );
-        }
-      },
-    });
   } catch (error) {
     logger.error(`Error connecting to Kafka: ${error}`);
   }
