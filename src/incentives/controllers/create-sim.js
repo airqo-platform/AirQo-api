@@ -204,7 +204,7 @@ const createSim = {
         tenant = "airqo";
       }
       request.query.tenant = tenant;
-      const responseFromListSims = await createSimUtil.list(request);
+      const responseFromListSims = await createSimUtil.listLocal(request);
       logElement(
         "has the response for listing sims been successful?",
         responseFromListSims.success
