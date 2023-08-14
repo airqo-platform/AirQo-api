@@ -35,7 +35,7 @@ const createHost = {
 
       let update = body;
       const filter = generateFilter.hosts(request);
-      if (filter.success && filter.success === fale) {
+      if (filter.success && filter.success === false) {
         return filter;
       }
 

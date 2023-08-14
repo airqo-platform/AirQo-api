@@ -54,6 +54,30 @@ const generateFilter = {
 
     return filter;
   },
+  sims: (req) => {
+    try {
+      const { id } = req.query;
+      const { sim_id } = req.params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (sim_id) {
+        filter["_id"] = ObjectId(sim_id);
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
+  },
 };
 
 module.exports = generateFilter;

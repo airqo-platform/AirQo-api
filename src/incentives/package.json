@@ -29,6 +29,7 @@
     "dependencies": {
         "@log4js-node/slack": "^1.0.0",
         "app-module-path": "^2.2.0",
+        "axios": "^1.4.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
         "connect-mongo": "^5.0.0",
@@ -52,6 +53,8 @@
         "morgan": "~1.9.0",
         "mtn-momo": "^2.0.0",
         "node-fetch": "^2.6.1",
+        "node-schedule": "^2.1.1",
+        "nodemailer": "^6.9.4",
         "nodemon": "^1.19.4",
         "request": "^2.88.0",
         "xml2js": "^0.6.2"

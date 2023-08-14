@@ -19,7 +19,7 @@ const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- server start script`
+  `${constants.ENVIRONMENT} -- bin/server script`
 );
 const { logText, logObject } = require("@utils/log");
 
@@ -63,11 +63,6 @@ app.use(function (req, res, next) {
 
 app.use(function (err, req, res, next) {
   if (err.status === 404) {
-    logger.error(
-      `this endpoint does not exist --- ${err.message} --- path: ${
-        req.originalUrl ? req.originalUrl : ""
-      }`
-    );
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",

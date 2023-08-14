@@ -1,7 +1,9 @@
 const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- Kafka Consumer`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- /bin/kafka-consumer script`
+);
 const { logText, logObject } = require("@utils/log");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
@@ -78,7 +80,6 @@ const kafkaConsumer = async () => {
             try {
               const operation = topicOperations[topic];
               if (operation) {
-                // const messageData = JSON.parse(message.value.toString());
                 const messageData = message.value.toString();
                 await operation(messageData);
               } else {
