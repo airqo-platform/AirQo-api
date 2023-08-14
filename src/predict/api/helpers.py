@@ -163,6 +163,7 @@ def get_parish_predictions(
         {
             "parish": parish.parish,
             "pm2_5": parish.pm2_5,
+            "district": parish.district,
             "timestamp": parish.timestamp,
             "geometry": json.loads(parish.geometry),
         }
@@ -184,7 +185,7 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
         return {}
     return {
         "parish": point.parish,
-        "district": point.pm2_5,
+        "district": point.district,
         "pm2_5": point.pm2_5,
         "timestamp": point.timestamp,
     }
