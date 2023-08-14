@@ -110,7 +110,13 @@ knowYourAirQuestionSchema.statics = {
                 .match(filter)
                 .sort({ question_position: 1 })
                 .lookup({
-                    from: "kyaquizs",
+                    from: "kyaanswers",
+                    localField: "_id",
+                    foreignField: "kya_question",
+                    as: "answers",
+                })
+                .lookup({
+                    from: "kyaquizzes",
                     localField: "kya_quiz",
                     foreignField: "_id",
                     as: "kyaquiz",

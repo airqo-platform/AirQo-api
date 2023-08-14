@@ -1110,6 +1110,59 @@ router.get(
   ]),
   knowYourAirController.listQuestions
 );
+
+router.get(
+  "/quizzes/answers",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .withMessage("this answer identifier cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  knowYourAirController.listAnswers
+);
+
+router.get(
+  "/quizzes/progress/:user_id?",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  knowYourAirController.listUserQuizProgress
+);
+
 router.get(
   "/quizzes",
   oneOf([
@@ -1358,23 +1411,7 @@ router.get(
 );
 
 /************* tracking user progress ******************************/
-router.get(
-  "/quizzes/progress/:user_id?",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("the tenant cannot be empty, if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  knowYourAirController.listUserQuizProgress
-);
+
 router.delete(
   "/quizzes/progress/:progress_id",
   oneOf([
@@ -1630,7 +1667,7 @@ router.post(
         }),
     ],
   ]),
-  knowYourAirController.syncUserLessonProgress
+  knowYourAirController.syncUserQuizProgress
 );
 
 /******************* Questions *********************************************/
@@ -1805,39 +1842,7 @@ router.get(
 
 
 /******************* Answers *********************************************/
-router.get(
-  "/quizzes/answers",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("the tenant cannot be empty, if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      query("id")
-        .optional()
-        .notEmpty()
-        .withMessage("this answer identifier cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  knowYourAirController.listAnswers
-);
+
 router.post(
   "/quizzes/answers",
   oneOf([

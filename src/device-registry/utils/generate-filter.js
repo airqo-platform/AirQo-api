@@ -976,9 +976,10 @@ const generateFilter = {
     try {
       const { query, params } = request;
       const { id } = query;
-      const { user_id, lesson_id, progress_id } = params;
+      const { user_id, lesson_id, progress_id, quiz_id } = params;
       logObject("user_id", user_id && user_id.toString());
       logObject("lesson_id ", lesson_id && lesson_id.toString());
+      logObject("quiz_id ", quiz_id && quiz_id.toString());
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);

@@ -122,7 +122,7 @@ userQuizProgressSchema.statics = {
         .limit(
           limit
             ? limit
-            : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZ)
+            : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES)
         )
         .allowDiskUse(true);
 

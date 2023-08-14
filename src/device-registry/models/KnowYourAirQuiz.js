@@ -117,6 +117,20 @@ knowYourAirQuizSchema.statics = {
                     foreignField: "kya_quiz",
                     as: "questions",
                 })
+                .unwind("$questions")
+                .lookup({
+                    from: "kyaanswers",
+                    localField: "questions._id",
+                    foreignField: "kya_question",
+                    as: "answers",
+                })
+                .addFields({
+                    "questions.answers": "$answers",
+                })
+                .group({
+                    _id: "$_id",
+                    questions: { $push: "$questions" }
+                })
                 .lookup({
                     from: "kyaquizprogresses",
                     localField: "_id",

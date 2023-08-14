@@ -1289,7 +1289,7 @@ const createKnowYourAir = {
       const { query, body, params } = request;
       const { tenant } = query;
       const { user_id } = params;
-      let progressList = body.kya_user_progress;
+      let progressList = body.kya_quiz_user_progress;
 
       if (progressList.length !== 0) {
 
@@ -1722,7 +1722,6 @@ const createKnowYourAir = {
         success: true,
         message: "successfully assigned all the provided questions to the Quiz",
         status: httpStatus.OK,
-        data: [],
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1811,7 +1810,6 @@ const createKnowYourAir = {
         success: true,
         message: `successfully unassigned all the provided  questions from the quiz ${quiz_id}`,
         status: httpStatus.OK,
-        data: [],
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1901,7 +1899,6 @@ const createKnowYourAir = {
         success: true,
         message: "successfully assigned all the provided answers to the Question",
         status: httpStatus.OK,
-        data: [],
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1990,7 +1987,6 @@ const createKnowYourAir = {
         success: true,
         message: `successfully unassigned all the provided  answers from the question ${question_id}`,
         status: httpStatus.OK,
-        data: [],
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);

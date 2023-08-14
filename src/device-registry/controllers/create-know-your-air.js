@@ -2217,7 +2217,7 @@ const createKnowYourAir = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswer(
+      const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswers(
         request
       );
       logObject(
