@@ -102,11 +102,11 @@ class DeviceUptime(BaseModel):
         )
 
     @cache.memoize()
-    def get_device_uptime(self, start_date, end_date, device_name):
+    def get_device_uptime(self, start_date, end_date, devices):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
-        if device_name:
-            db_filter["device_name"] = device_name
+        if devices:
+            db_filter["device_name"] = {"$in": str(devices).split(",")}
 
         return list(
             self.collection.aggregate(

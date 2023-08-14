@@ -100,7 +100,7 @@ def get_network_uptime():
 def get_device_uptime():
     errors = {}
     tenant = request.args.get("tenant")
-    device_name = request.args.get("device_name")
+    devices = request.args.get("devices")
 
     try:
         start_date = validate_datetime(request.args.get("startDate"))
@@ -130,7 +130,7 @@ def get_device_uptime():
         )
 
     model = DeviceUptime(tenant)
-    result = model.get_device_uptime(start_date, end_date, device_name)
+    result = model.get_device_uptime(start_date, end_date, devices)
 
     response = dict(message="device uptime query successful", data=result)
     return jsonify(response), 200
