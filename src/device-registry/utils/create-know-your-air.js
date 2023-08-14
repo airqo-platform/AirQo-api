@@ -63,7 +63,7 @@ const KnowYourAirUserLessonProgressModel = (tenant) => {
 
 const KnowYourAirQuizModel = (tenant) => {
   try {
-    let kyaquizzes = mongoose.model("kyaquizs");
+    let kyaquizzes = mongoose.model("kyaquizzes");
     return kyaquizzes;
   } catch (error) {
     let kyaquizzes = getModelByTenant(
@@ -1381,7 +1381,7 @@ const createKnowYourAir = {
   },
 
   /******************* questions *******************************/
-  listQuestion: async (request) => {
+  listQuestions: async (request) => {
     try {
       const { query } = request;
       const { tenant } = query;
@@ -1513,14 +1513,14 @@ const createKnowYourAir = {
   },
 
   /******************* Answers *******************************/
-  listAnswer: async (request) => {
+  listAnswers: async (request) => {
     try {
       const { query } = request;
       const { tenant } = query;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
 
-      const filter = generateFilter.kyaanswers(request);
+      const filter = generateFilter.kyaquestions(request);
       if (filter.success && filter.success === false) {
         return filter;
       }
@@ -1548,7 +1548,7 @@ const createKnowYourAir = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaanswers(request);
+      const filter = generateFilter.kyaquestions(request);
       if (filter.success && filter.success === false) {
         return filter;
       }
@@ -1573,7 +1573,7 @@ const createKnowYourAir = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaanswers(request);
+      const filter = generateFilter.kyaquestions(request);
       if (filter.success && filter.success === false) {
         return filter;
       }

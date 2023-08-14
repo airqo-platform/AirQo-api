@@ -115,6 +115,9 @@ const defaultConfig = {
   TIPS_TOPIC: process.env.TIPS_TOPIC,
   KYA_TOPIC: process.env.KYA_TOPIC,
   KYA_LESSON: process.env.KYA_LESSON,
+  KYA_QUESTION: process.env.KYA_QUESTION,
+  KYA_ANSWER: process.env.KYA_ANSWER,
+  KYA_QUIZ: process.env.KYA_QUIZ,
   GRID_TOPIC: process.env.GRID_TOPIC,
   COHORT_TOPIC: process.env.COHORT_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
@@ -229,6 +232,12 @@ const defaultConfig = {
     process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS,
   DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_QUESTIONS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUESTIONS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_ANSWERS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_ANSWERS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -1028,6 +1037,57 @@ const defaultConfig = {
     }
     return projection;
   },
+  KYA_QUIZ_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    completion_message: 1,
+    image: 1,
+    questions: 1,
+    active_question: { $arrayElemAt: ["$kya_user_quiz_progress.active_question", 0] },
+    status: { $arrayElemAt: ["$kya_user_quiz_progress.status", 0] },
+  },
+  KYA_QUIZ_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_QUESTIONS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    context: 1,
+    question_position: 1,
+    kya_quiz: {
+      $arrayElemAt: ["$kyaquizzes", 0],
+    },
+  },
+  KYA_QUESTIONS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_ANSWERS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    content: 1,
+    kya_question: {
+      $arrayElemAt: ["$kyaquestions", 0],
+    },
+  },
+  KYA_ANSWERS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
 
   GRIDS_INCLUSION_PROJECTION: {
     _id: 1,

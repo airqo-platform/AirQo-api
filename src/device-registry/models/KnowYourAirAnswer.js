@@ -13,8 +13,8 @@ const knowYourAirAnswerSchema = new Schema(
             required: [true, "the title is required!"],
             unique: true,
         },
-        context: {
-            required: [true, "the context is required!"],
+        content: {
+            required: [true, "the content is required!"],
             type: String,
             trim: true,
         },
@@ -41,7 +41,7 @@ knowYourAirAnswerSchema.methods = {
     toJSON() {
         return {
             title: this.title,
-            context: this.context,
+            content: this.content,
             image: this.image,
             _id: this._id,
         };
@@ -235,7 +235,7 @@ knowYourAirAnswerSchema.statics = {
                 projection: {
                     _id: 1,
                     title: 1,
-                    context: 1,
+                    content: 1,
                     image: 1,
                 },
             };

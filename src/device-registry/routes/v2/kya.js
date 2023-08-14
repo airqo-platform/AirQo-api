@@ -1078,6 +1078,39 @@ router.delete(
 
 /******************* quizzes *********************************************/
 router.get(
+  "/quizzes/questions",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .withMessage("this question identifier cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  knowYourAirController.listQuestions
+);
+router.get(
   "/quizzes",
   oneOf([
     [
@@ -1290,71 +1323,6 @@ router.delete(
     ],
   ]),
   knowYourAirController.deleteQuiz
-);
-router.get(
-  "/quizzes/:quiz_id/assigned-questions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("the tenant cannot be empty, if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("quiz_id")
-        .exists()
-        .withMessage("the quiz_id should exist")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("quiz_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  knowYourAirController.listAssignedQuestions
-);
-router.get(
-  "/quizzes/:quiz_id/available-questions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("the tenant cannot be empty, if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      query("id")
-        .optional()
-        .notEmpty()
-        .withMessage("this quiz identifier cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  knowYourAirController.listAvailableQuestions
 );
 router.get(
   "/quizzes/:quiz_id",
@@ -1666,39 +1634,7 @@ router.post(
 );
 
 /******************* Questions *********************************************/
-router.get(
-  "/quizzes/questions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("the tenant cannot be empty, if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      query("id")
-        .optional()
-        .notEmpty()
-        .withMessage("this question identifier cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  knowYourAirController.listQuestions
-);
+
 router.post(
   "/quizzes/questions",
   oneOf([

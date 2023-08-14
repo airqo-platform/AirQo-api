@@ -992,6 +992,9 @@ const generateFilter = {
       if (lesson_id) {
         filter["lesson_id"] = ObjectId(lesson_id);
       }
+      if (quiz_id) {
+        filter["quiz_id"] = ObjectId(quiz_id);
+      }
       return filter;
     } catch (error) {
       return {
@@ -1004,6 +1007,63 @@ const generateFilter = {
       };
     }
   },
+
+  kyaquizzes: (request) => {
+    try {
+      const { query, body, params } = request;
+      const { id } = query;
+      const { quiz_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (quiz_id) {
+        filter["_id"] = ObjectId(quiz_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyaquestions: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { quiz_id, question_id, answer_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (quiz_id) {
+        filter["_id"] = ObjectId(quiz_id);
+      }
+      if (question_id) {
+        filter["_id"] = ObjectId(question_id);
+      }
+      if (answer_id) {
+        filter["_id"] = ObjectId(answer_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
 };
 
 module.exports = generateFilter;

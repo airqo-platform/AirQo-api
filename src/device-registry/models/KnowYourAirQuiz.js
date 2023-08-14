@@ -118,7 +118,7 @@ knowYourAirQuizSchema.statics = {
                     as: "questions",
                 })
                 .lookup({
-                    from: "kyaprogresses",
+                    from: "kyaquizprogresses",
                     localField: "_id",
                     foreignField: "quiz_id",
                     let: {
@@ -137,7 +137,7 @@ knowYourAirQuizSchema.statics = {
                             }
                         }
                     ],
-                    as: "kya_user_progress",
+                    as: "kya_user_quiz_progress",
                 })
                 .project(inclusionProjection)
                 .project(exclusionProjection)
@@ -145,7 +145,7 @@ knowYourAirQuizSchema.statics = {
                 .limit(
                     limit
                         ? limit
-                        : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZ)
+                        : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES)
                 )
                 .allowDiskUse(true);
 
