@@ -15,6 +15,8 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        #TODO: Remove later
+        self.hourly_measurements_table_prod = configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
         self.hourly_forecasts_table = (
             configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
@@ -615,7 +617,7 @@ class BigQueryApi:
         # historical is for the actual jobs, not training
         query = f"""
                 SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
-                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}`
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD}`
                 WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
                 ORDER BY created_at, device_number
         """

@@ -74,4 +74,4 @@ def train_forecasting_models():
     train_and_save_daily_model(daily_data)
 
 
-# train_forecasting_models()
+train_forecasting_models()
