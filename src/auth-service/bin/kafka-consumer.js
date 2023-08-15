@@ -12,7 +12,7 @@ const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
 }).unknown(true);
 
-const operationFunction1 = async (messageData) => {
+const operationForNewMobileAppUser = async (messageData) => {
   try {
     logger.info(
       `KAFKA: successfully received the new User --- ${JSON.stringify({
@@ -80,8 +80,8 @@ const kafkaConsumer = async () => {
 
   // Define topic-to-operation function mapping
   const topicOperations = {
-    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationFunction1,
-    topic2: operationFunction2,
+    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser,
+    // topic2: operationFunction2,
     // Add more topics and their corresponding functions as needed
   };
 
@@ -89,29 +89,28 @@ const kafkaConsumer = async () => {
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
-      Object.keys(topicOperations).map((topic) =>
-        consumer.subscribe({ topic, fromBeginning: true })
-      )
+      Object.keys(topicOperations).map(async (topic) => {
+        consumer.subscribe({ topic, fromBeginning: true });
+        await consumer.run({
+          eachMessage: async ({ topic, partition, message }) => {
+            try {
+              const operation = topicOperations[topic];
+              if (operation) {
+                // const messageData = JSON.parse(message.value.toString());
+                const messageData = message.value.toString();
+                await operation(messageData);
+              } else {
+                logger.error(`No operation defined for topic: ${topic}`);
+              }
+            } catch (error) {
+              logger.error(
+                `Error processing Kafka message for topic ${topic}: ${error}`
+              );
+            }
+          },
+        });
+      })
     );
-
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const operation = topicOperations[topic];
-          if (operation) {
-            // const messageData = JSON.parse(message.value.toString());
-            const messageData = message.value.toString();
-            await operation(messageData);
-          } else {
-            logger.error(`No operation defined for topic: ${topic}`);
-          }
-        } catch (error) {
-          logger.error(
-            `Error processing Kafka message for topic ${topic}: ${error}`
-          );
-        }
-      },
-    });
   } catch (error) {
     logger.error(`Error connecting to Kafka: ${error}`);
   }

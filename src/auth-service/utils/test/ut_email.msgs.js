@@ -143,25 +143,48 @@ describe("email.msgs", () => {
       const firstName = "John";
       const lastName = "Doe";
       const password = "password123";
-      const username = "john_doe123";
-      const expectedMessage =
-        `Dear John Doe \n\n` +
-        "Welcome to the KCCA AirQo air quality monitoring platform. \n\n" +
-        "Your username is: john_doe123\n" +
-        "Your password is: password123\n\n" +
-        "You can always change your password in your account settings after login\n" +
-        `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-        "A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics\n\n\n\n" +
-        "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
-        "For KCCA related questions, please contact:\n" +
-        "Sadam Yiga: syiga@kcca.go.ug or Eleth Nakazzi: enakazzi@kcca.go.ug \n " +
-        "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net";
-      const result = constants.welcome_kcca(
+      const email = "johndoe@test.com";
+      const name = firstName + " " + lastName;
+      const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Welcome to the KCCA AirQo air quality monitoring platform.
+                                    <br />
+                                    Your username is: ${email}
+                                    <br />
+                                    Your password is: ${password}
+                                    <br /><br />
+                                    You can always change your password in your account settings after login. Follow this link to access the dashboard right
+                                    now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics
+                                    <br /><br />
+                                    PLEASE DO NOT REPLY TO THIS EMAIL. For KCCA related questions, please contact:
+                                    <ul>
+                                        <li>Sadam Yiga: <span
+                                                style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">syiga@kcca.go.ug</span>
+                                        </li>
+                                        <li>Eleth Nakazzi: <span
+                                                style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">enakazzi@kcca.go.ug</span>
+                                        </li>
+                                    </ul>
+                                    <br />
+                                    If you experience any technical challenges or wish to offer suggestions, please contact us at
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const result = msgs.welcome_kcca(
         firstName,
         lastName,
         password,
-        username
+        email
       );
+      const joinRequestSpy = sinon.spy(msgs, "welcome_kcca");
+      expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, password, email)).to.be.true;
+      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -170,28 +193,52 @@ describe("email.msgs", () => {
       const firstName = "John";
       const lastName = "Doe";
       const password = "password123";
-      const username = "john_doe123";
-      const expectedMessage =
-        `Dear John Doe \n\n` +
-        "Welcome to AirQo Analytics. Your login credentials are as follows: \n\n" +
-        "YOUR USERNAME: john_doe123\n" +
-        "YOUR PASSWORD: password123\n\n" +
-        `To access the dashboard, please follow this link: ${constants.LOGIN_PAGE}\n` +
-        "After login, you can change your password in your account settings.\n\n" +
-        "You can also use your AirQo Analytics credentials to access the AirQo API\n" +
-        "The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n" +
-        "By actively utilising AirQo Analytics, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n" +
-        "For any technical challenges or suggestions, please contact us at support@airqo.net. \n\n" +
-        "Please note that this is an automated message, so please do not reply to this email. \n\n" +
-        "To learn more about AirQo Analytics and its features, please refer to the user guide available here: https://docs.airqo.net/airqo-platform/ \n\n" +
-        "Best regards, \n\n" +
-        "AirQo Data Team";
-      const result = constants.welcome_general(
+      const email = "johndoe@test.com";
+      const name = firstName + " " + lastName;
+      const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Welcome to AirQo Analytics. Your login credentials are as follows:
+                                    <br />
+                                    YOUR USERNAME: ${email}
+                                    <br />
+                                    YOUR PASSWORD: ${password}
+                                    <br /><br />
+                                    To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
+                                    <br />
+                                    After login, you can change your password in your account settings. You can also use your AirQo Analytics credentials to
+                                    access the AirQo API.
+                                    <br />
+                                    The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
+                                        Documentation</a>
+                                    <br /><br />
+                                    By actively utilising AirQo Analytics, you automatically agree to the <a
+                                        href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
+                                    <br />
+                                    For any technical challenges or suggestions, please contact us at <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
+                                    <br /><br />
+                                    Please note that this is an automated message, so please do not reply to this email.
+                                    <br />
+                                    To learn more about AirQo Analytics and its features, please refer to the <a
+                                        href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
+                                    <br /><br />
+                                    Best regards,
+                                    <br />
+                                    AirQo Data Team
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const result = msgs.welcome_general(
         firstName,
         lastName,
         password,
-        username
+        email
       );
+      const joinRequestSpy = sinon.spy(msgs, "welcome_general");
+      expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, password, email)).to.be.true;
+      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });

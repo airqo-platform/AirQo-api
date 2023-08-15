@@ -150,7 +150,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     """
     Makes the predictions and stores them in a database
     """
-    time = (
+    time =(
         datetime.now()
         .replace(microsecond=0, second=0, minute=0)
         .strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -201,7 +201,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     result.append(result_builder)
 
     db = connect_mongo(tenant)
-    collection = db["gp_predictions"]
+    collection = db["gp_model_predictions"]
 
     if collection.count_documents({"airqloud": airqloud}) != 0:
         collection.delete_many({"airqloud": airqloud})

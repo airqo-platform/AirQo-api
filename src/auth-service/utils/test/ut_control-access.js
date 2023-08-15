@@ -5177,5 +5177,245 @@ describe("controlAccess", () => {
       expect(result.message).to.equal("Failed to list groups");
     });
   });
+  describe("verifyToken function", () => {
+    let request;
+
+    beforeEach(() => {
+      request = {
+        query: {},
+        headers: {},
+      };
+    });
+
+    it("should return an unauthorized response when filterResponse.success is false", async () => {
+      const generateFilter = {
+        tokens: sinon.fake.returns({ success: false }),
+      };
+      const result = await controlAccess.verifyToken(request, generateFilter);
+      expect(result).to.deep.equal({ success: false });
+    });
+
+    it("should return an unauthorized response when service is deprecated-events-endpoint", async () => {
+      request.headers = {
+        "x-original-uri": "/some/uri",
+        "x-original-method": "GET",
+      };
+      const getService = sinon.fake.returns("deprecated-events-endpoint");
+      const result = await controlAccess.verifyToken(request, null, getService);
+      expect(result).to.deep.equal(createUnauthorizedResponse());
+    });
+
+    it("should return a valid token response when conditions are met", async () => {
+      // Mocking AccessTokenModel(tenant).list
+      const responseFromListAccessToken = {
+        success: true,
+        status: httpStatus.OK,
+        data: [
+          {
+            user: { email: "test@example.com" },
+          },
+        ],
+      };
+      const AccessTokenModel = sinon.stub().returns({
+        list: sinon.fake.resolves(responseFromListAccessToken),
+      });
+
+      request.headers = {
+        "x-original-uri": "/some/uri",
+        "x-original-method": "GET",
+      };
+      const getService = sinon.fake.returns("some-service");
+      const getUserAction = sinon.fake.returns("some-action");
+
+      const result = await controlAccess.verifyToken(
+        request,
+        null,
+        getService,
+        AccessTokenModel,
+        getUserAction
+      );
+      expect(result).to.deep.equal(createValidTokenResponse());
+
+      // Verify the logs or other expectations as needed
+    });
+
+    // Add more test cases as needed
+  });
+  describe("verifyVerificationToken", () => {
+    let requestMock;
+    let AccessTokenModelMock;
+    let UserModelMock;
+    let mailerMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: { tenant: "exampleTenant" },
+        params: { user_id: "user123", token: "token123" },
+      };
+
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 200 }),
+        remove: sinon.stub().resolves({ success: true }),
+      });
+
+      UserModelMock = (tenant) => ({
+        modify: sinon.stub().resolves({ success: true, data: {} }),
+      });
+
+      mailerMock = {
+        afterEmailVerification: sinon.stub().resolves({ success: true }),
+      };
+
+      sinon.stub(moment.tz, "guess").returns("UTC");
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return error for invalid link", async () => {
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 404 }),
+      });
+
+      const result =
+        await verifyVerificationTokenFunction.verifyVerificationToken(
+          requestMock,
+          AccessTokenModelMock,
+          UserModelMock,
+          mailerMock
+        );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(400);
+      expect(result.message).to.equal("Invalid link");
+    });
+
+    it("should verify user, send email, and remove token", async () => {
+      const generateStub = sinon.stub().returns("generatedPassword");
+      const filterResponse = { success: true };
+      const modifyResponse = {
+        success: true,
+        data: {
+          email: "user@example.com",
+          firstName: "John",
+          userName: "johnDoe",
+        },
+      };
+
+      AccessTokenModelMock = (tenant) => ({
+        list: sinon.stub().resolves({ success: true, status: 200 }),
+        remove: sinon.stub().resolves({ success: true }),
+      });
+
+      UserModelMock = (tenant) => ({
+        modify: sinon.stub().resolves(modifyResponse),
+      });
+
+      const mailerAfterEmailVerificationStub = sinon
+        .stub()
+        .resolves({ success: true });
+
+      const result =
+        await verifyVerificationTokenFunction.verifyVerificationToken(
+          requestMock,
+          AccessTokenModelMock,
+          UserModelMock,
+          mailerAfterEmailVerificationStub,
+          generateStub
+        );
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(200);
+      expect(mailerAfterEmailVerificationStub.calledOnce).to.be.true;
+    });
+
+    // Additional tests for other scenarios
+  });
+  describe("getUserAction", () => {
+    it('should return "update operation" for PUT method', () => {
+      const headers = { "x-original-method": "PUT" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("update operation");
+    });
+
+    it('should return "delete operation" for DELETE method', () => {
+      const headers = { "x-original-method": "DELETE" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("delete operation");
+    });
+
+    it('should return "creation operation" for POST method', () => {
+      const headers = { "x-original-method": "POST" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("creation operation");
+    });
+
+    it('should return "Unknown Action" for unknown method', () => {
+      const headers = { "x-original-method": "UNKNOWN" };
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("Unknown Action");
+    });
+
+    it('should return "Unknown Action" for missing method', () => {
+      const headers = {};
+      const result = getUserActionFunction.getUserAction(headers);
+      expect(result).to.equal("Unknown Action");
+    });
+  });
+  describe("getService", () => {
+    const routeDefinitions = [
+      // Define your route definitions here
+      // Example: { uri: '/api/v1/users', service: 'auth' }
+    ];
+
+    it("should return the correct service based on URI", () => {
+      const headers = { "x-original-uri": "/api/v1/users" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("auth");
+    });
+
+    it("should return the correct service based on uriEndsWith", () => {
+      const headers = { "x-original-uri": "/api/v1/devices/sites" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("site-registry");
+    });
+
+    it("should return the correct service based on uriIncludes", () => {
+      const headers = { "x-original-uri": "/api/v2/incentives/details" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("incentives");
+    });
+
+    it("should return the correct service from serviceHeader", () => {
+      const headers = { service: "custom-service" };
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("custom-service");
+    });
+
+    it('should return "unknown" for unknown URI and missing serviceHeader', () => {
+      const headers = {};
+      const result = getServiceFunction.getService(headers, routeDefinitions);
+      expect(result).to.equal("unknown");
+    });
+  });
+  describe("routeDefinitions", () => {
+    it("should correctly match uri for events-registry", () => {
+      const route = routeDefinitions.find(
+        (route) => route.uri && route.uri.includes("/api/v2/devices/events")
+      );
+      expect(route.service).to.equal("events-registry");
+    });
+
+    it("should correctly match uriIncludes for site-registry", () => {
+      const route = routeDefinitions.find(
+        (route) =>
+          route.uriIncludes &&
+          route.uriIncludes.some((suffix) => suffix === "/api/v2/devices/sites")
+      );
+      expect(route.service).to.equal("site-registry");
+    });
+
+    // Add similar tests for other route definitions
+  });
   // Add more test cases for other methods in the controlAccess object
 });
