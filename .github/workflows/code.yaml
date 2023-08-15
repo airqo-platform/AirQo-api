@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Test Airflow
+    name: Test codecov
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-python@v4
@@ -23,4 +23,15 @@ jobs:
       uses: codecov/codecov-action@v3
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
