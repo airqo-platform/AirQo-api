@@ -116,10 +116,14 @@ const GroupModel = (tenant) => {
 };
 
 const routeDefinitions = [
-  { uri: ["/api/v2/devices/events"], service: "events-registry" },
+  {
+    uriIncludes: ["/api/v1/devices"],
+    service: "deprecated-version-number",
+  },
+  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
-    uriIncludes: ["/api/v2/devices", "/api/v2/devices/soft"],
+    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
     service: "device-registry",
   },
   { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
@@ -148,8 +152,8 @@ const routeDefinitions = [
   },
   {
     uriIncludes: [
-      "/api/v2/analytics/data/download",
-      "/api/v1/analytics/data/download",
+      "/api/v2/analytics/data-download",
+      "/api/v1/analytics/data-download",
     ],
     service: "data-export-download",
   },
@@ -196,6 +200,7 @@ const getUserAction = (headers) => {
       PUT: "update operation",
       DELETE: "delete operation",
       POST: "creation operation",
+      GET: "viewing data",
     };
     return actionMap[method] || "Unknown Action";
   }
@@ -473,6 +478,12 @@ const controlAccess = {
         };
       }
 
+      const service = getService(request.headers);
+      if (service === "deprecated-version-number") {
+        return createUnauthorizedResponse();
+      }
+      const userAction = getUserAction(request.headers);
+
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
         limit,
@@ -501,9 +512,6 @@ const controlAccess = {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const service = getService(request.headers);
-          const userAction = getUserAction(request.headers);
-
           logObject("service", service);
           logObject("userAction", userAction);
 

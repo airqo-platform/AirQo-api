@@ -1,4 +1,4 @@
-BASE_URL = "/api/v1/monitor"
+BASE_URL = "/api/v2/monitor"
 
 HEALTH = f"{BASE_URL}/health"
 

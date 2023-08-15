@@ -185,8 +185,9 @@ const mailer = {
           },
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
-          text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
+          html: msgs.welcome_kcca(firstName, lastName, password, email),
           bcc,
+          attachments
         };
       } else {
         mailOptions = {
@@ -196,8 +197,9 @@ const mailer = {
           },
           to: `${email}`,
           subject: "Welcome to AirQo Analytics",
-          text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
+          html: msgs.welcome_general(firstName, lastName, password, email),
           bcc,
+          attachments
         };
       }
 

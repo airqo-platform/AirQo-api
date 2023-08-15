@@ -141,9 +141,8 @@ const createAccessToken = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["headers"] = req.headers;
+      let request = req;
+      request.query.tenant = tenant;
       const responseFromListAccessToken = await controlAccessUtil.verifyToken(
         request
       );

@@ -17,6 +17,34 @@ const geolib = require("geolib");
 const geohash = require("ngeohash");
 const httpStatus = require("http-status");
 
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
+const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
+const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
+const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
+
+const sitesExclusionProjection = siteFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`sites.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const devicesExclusionProjection = deviceFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`shape.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+
 const devicesModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
 };
@@ -73,7 +101,7 @@ const common = {
           message =
             "Unable to find any sites associated with the provided AirQloud ID";
         }
-        const filteredSites = sites.map((site) => site._id);
+        const filteredSites = map((site) => site._id);
         return {
           success: true,
           message,
@@ -266,22 +294,63 @@ const common = {
       };
     }
   },
+
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
-      let cohortsQuery = CohortModel(tenantId).find({
-        network,
-      });
-      let gridsQuery = GridModel(tenantId).find({
-        network,
-      });
-
-      if (category && category === "summary") {
-        cohortsQuery = cohortsQuery.select("name description");
-        gridsQuery = gridsQuery.select("name shape.type");
+      if (category === "summary") {
+        //make modifications to the exclusion projection
       }
+      if (category === "dashboard") {
+        //make modifications to the exclusion projection
+      }
+      const cohortsQuery = CohortModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        {
+          $project: cohortsInclusionProjection,
+        },
+        {
+          $project: devicesExclusionProjection,
+        },
+      ]);
 
-      const cohorts = await cohortsQuery;
-      const grids = await gridsQuery;
+      const gridsQuery = GridModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: gridsInclusionProjection,
+        },
+        {
+          $project: sitesExclusionProjection,
+        },
+        {
+          $project: gridShapeExclusionProjection,
+        },
+      ]);
+
+      const [cohorts, grids] = await Promise.all([
+        cohortsQuery.exec(),
+        gridsQuery.exec(),
+      ]);
+
       return { cohorts, grids };
     } catch (error) {
       return {
