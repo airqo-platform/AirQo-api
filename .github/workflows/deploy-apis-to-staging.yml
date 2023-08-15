@@ -4,17 +4,18 @@ on:
   pull_request:
     branches:
       - staging
+      - codecov2
     types:
       - closed
 
 env:
   REGISTRY_URL: eu.gcr.io
   PROJECT_ID: airqo-250220
-  DEPLOY_BRANCH: staging
+  DEPLOY_BRANCH: codecov2
 
 jobs:
   image-tag:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -31,7 +32,7 @@ jobs:
           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
   check:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
