@@ -141,6 +141,7 @@ const createActivity = {
         powerType,
         isPrimaryInLocation,
         site_id,
+        host_id,
         network,
       } = body;
 
@@ -195,6 +196,7 @@ const createActivity = {
               description: "device deployed",
               activityType: "deployment",
               site_id,
+              host_id: host_id ? host_id : null,
               network,
               nextMaintenance: addMonthsToProvideDateTime(
                 date && new Date(date),
@@ -237,6 +239,7 @@ const createActivity = {
               ? bearing_in_radians
               : 0;
             deviceBody.body.site_id = site_id;
+            deviceBody.body.host_id = host_id ? host_id : null;
             deviceBody.body.isActive = true;
             deviceBody.body.deployment_date =
               (date && new Date(date)) || new Date();
@@ -406,6 +409,7 @@ const createActivity = {
         deviceBody.body.isActive = false;
         deviceBody.body.status = "recalled";
         deviceBody.body.site_id = null;
+        deviceBody.body.host_id = null;
         deviceBody.body.previous_sites = [previousSiteId];
         deviceBody.body.recall_date = new Date();
         deviceBody.query.name = deviceName;
@@ -484,7 +488,9 @@ const createActivity = {
       });
 
       if (!deviceExists) {
-        logger.error(`Maintain Device: Invalid request-- Device ${deviceName} not found`);
+        logger.error(
+          `Maintain Device: Invalid request-- Device ${deviceName} not found`
+        );
         return {
           success: false,
           message: "Device not found",
