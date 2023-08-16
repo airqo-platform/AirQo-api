@@ -192,7 +192,7 @@ class CollocationBatch:
                 "parameter": "data_completeness_threshold",
                 "minimum_value": 1,
                 "maximum_value": 100,
-                "error_message": "Data completeness threshold should range from 0 to 1",
+                "error_message": "Data completeness threshold should range from 1 to 100",
             },
             {
                 "parameter": "intra_correlation_threshold",
@@ -222,7 +222,7 @@ class CollocationBatch:
                 "parameter": "differences_threshold",
                 "minimum_value": 0,
                 "maximum_value": 5,
-                "error_message": "Differences threshold should be greater than 0",
+                "error_message": "Differences threshold should range from 0 to 5",
             },
             {
                 "parameter": "expected_hourly_records",
