@@ -10,32 +10,11 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 
 const ClientSchema = new Schema(
   {
-    client_id: {
-      type: String,
-      required: [true, "client is required!"],
-      trim: true,
-      unique: true,
-    },
-    client_secret: {
-      type: String,
-      required: [true, "client_secret is required!"],
-      trim: true,
-    },
-    name: {
-      type: String,
-      required: [true, "client is required!"],
-      trim: true,
-    },
-    redirect_uri: {
-      type: String,
-    },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-      },
-    ],
+    user_id: { type: ObjectId, ref: "user" },
+    client_secret: { type: String, trim: true },
+    redirect_uri: { type: String },
     description: { type: String },
+    rateLimit: { type: Number },
   },
   { timestamps: true }
 );
@@ -130,12 +109,6 @@ ClientSchema.statics = {
 
       const response = await this.aggregate()
         .match(filter)
-        .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_clients",
-          as: "networks",
-        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -169,23 +142,13 @@ ClientSchema.statics = {
       };
     }
   },
-
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let modifiedUpdate = update;
-      modifiedUpdate["$addToSet"] = {};
 
-      if (modifiedUpdate.networks) {
-        modifiedUpdate["$addToSet"]["networks"] = {};
-        modifiedUpdate["$addToSet"]["networks"]["$each"] =
-          modifiedUpdate.networks;
-        delete modifiedUpdate["networks"];
-      }
-
-      let updatedClient = await this.findOneAndUpdate(
+      const updatedClient = await this.findOneAndUpdate(
         filter,
-        modifiedUpdate,
+        update,
         options
       ).exec();
 
@@ -219,7 +182,7 @@ ClientSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, client_id: 1, client_secret: 1, name: 1 },
+        projection: { _id: 1, client_secret: 1 },
       };
       let removedClient = await this.findOneAndRemove(filter, options).exec();
 
@@ -256,10 +219,10 @@ ClientSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      client_id: this.client_id,
       client_secret: this.client_secret,
-      name: this.name,
       redirect_uri: this.redirect_uri,
+      description: this.description,
+      rateLimit: this.rateLimit,
     };
   },
 };

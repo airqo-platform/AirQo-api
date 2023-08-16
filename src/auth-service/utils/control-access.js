@@ -19,11 +19,20 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
-
+const crypto = require("crypto");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
+
+const generateClientSecret = (length) => {
+  if (length % 2 !== 0) {
+    throw new Error("Length must be an even number");
+  }
+  const numBytes = length / 2;
+  const clientSecret = crypto.randomBytes(numBytes).toString("hex");
+  return clientSecret;
+};
 
 const NetworkModel = (tenant) => {
   try {
@@ -495,31 +504,29 @@ const controlAccess = {
         responseFromListAccessToken.data
       );
 
-      logObject(
-        "responseFromListAccessToken.data[0]",
-        responseFromListAccessToken.data[0]
-      );
-      logObject(
-        "request.headers[x-original-uri]",
-        request.headers["x-original-uri"]
-      );
-      logObject(
-        "request.headers[x-original-method]",
-        request.headers["x-original-method"]
-      );
+      // logObject(
+      //   "responseFromListAccessToken.data[0]",
+      //   responseFromListAccessToken.data[0]
+      // );
+      // logObject(
+      //   "request.headers[x-original-uri]",
+      //   request.headers["x-original-uri"]
+      // );
+      // logObject(
+      //   "request.headers[x-original-method]",
+      //   request.headers["x-original-method"]
+      // );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          logObject("service", service);
-          logObject("userAction", userAction);
+          // logObject("service", service);
+          // logObject("userAction", userAction);
 
           if (service && userAction) {
-            const user = responseFromListAccessToken.data[0].user;
+            const client = responseFromListAccessToken.data[0].client;
             winstonLogger.info(userAction, {
-              username: user.email,
-              email: user.email,
               service: service,
             });
 
@@ -578,7 +585,7 @@ const controlAccess = {
     }
   },
 
-  createAccessToken: async (request) => {
+  createAccessToken_v1: async (request) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
@@ -684,6 +691,52 @@ const controlAccess = {
     }
   },
 
+  createAccessToken: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { client_id } = request.body;
+
+      const client = await ClientModel(tenant).findById(ObjectId(client_id));
+      if (!client) {
+        return {
+          success: false,
+          message: "Client not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Invalid request, Client ${client_id} not found`,
+          },
+        };
+      }
+
+      const token = accessCodeGenerator
+        .generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+        )
+        .toUpperCase();
+
+      const tokenCreationBody = {
+        token,
+        client_id: ObjectId(client_id),
+      };
+
+      const responseFromCreateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).register(tokenCreationBody);
+
+      logObject("responseFromCreateToken", responseFromCreateToken);
+
+      return responseFromCreateToken;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   generateVerificationToken: async (request) => {
     try {
       /**
@@ -722,20 +775,12 @@ const controlAccess = {
           )
           .toUpperCase();
 
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
-
         const client_secret = accessCodeGenerator.generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(31)
         );
 
         const responseFromSaveClient = await ClientModel(tenant).register({
-          client_id,
           client_secret,
-          name: responseFromCreateUser.data.email,
         });
         if (
           responseFromSaveClient.success === false ||
@@ -933,6 +978,9 @@ const controlAccess = {
   /******** create clients ******************************************/
   updateClient: async (request) => {
     try {
+      /**
+       * Should we updating the client ID?
+       */
       const { query, body } = request;
       const { tenant } = query;
       let filter = {};
@@ -1013,6 +1061,9 @@ const controlAccess = {
 
   listClient: async (request) => {
     try {
+      /**
+       * list client util
+       */
       const { query } = request;
       const { tenant } = query;
       const limit = parseInt(request.query.limit, 0);
@@ -1024,14 +1075,12 @@ const controlAccess = {
       } else {
         filter = responseFromGenerateFilter;
       }
-      const responseFromListToken = await ClientModel(
+      const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter });
-      if (responseFromListToken.success === true) {
-        return responseFromListToken;
-      } else if (responseFromListToken.success === false) {
-        return responseFromListToken;
-      }
+
+      logObject("responseFromListClient", responseFromListClient);
+      return responseFromListClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -1045,37 +1094,81 @@ const controlAccess = {
 
   createClient: async (request) => {
     try {
-      const { query, body, params } = request;
+      const { body, query } = request;
       const { tenant } = query;
-
-      const client_id = accessCodeGenerator
-        .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-        )
-        .toUpperCase();
-      const client_secret = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
-      );
-
+      const { user_id } = body;
+      const client_secret = generateClientSecret(100);
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `User ${user_id} does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       let modifiedBody = Object.assign({}, body);
-      modifiedBody["client_secret"] = client_secret;
-      modifiedBody["client_id"] = client_id;
+      modifiedBody.client_secret = client_secret;
 
       const responseFromCreateToken = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
-
-      if (responseFromCreateToken.success === true) {
-        return responseFromCreateToken;
-      } else if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      }
+      return responseFromCreateToken;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  updateClientSecret: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { client_id } = request.params;
+
+      const clientExists = await ClientModel(tenant).exists({ _id: client_id });
+      if (!clientExists) {
+        logger.error(`Client with ID ${client_id} not found`);
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Client with ID ${client_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const client_secret = generateClientSecret(100);
+      const updatedClient = await ClientModel(tenant)
+        .findByIdAndUpdate(client_id, { client_secret }, { new: true })
+        .exec();
+
+      // logObject("updatedClient", updatedClient);
+      if (isEmpty(updatedClient)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "unable to complete operation" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        return {
+          success: true,
+          message: "Successful Operation",
+          status: httpStatus.OK,
+          data: updatedClient.client_secret,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`Error updating client secret: ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: `Error updating client secret: ${error.message}` },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

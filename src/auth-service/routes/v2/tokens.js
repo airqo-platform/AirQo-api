@@ -7,11 +7,6 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const rateLimitMiddleware = require("@middleware/rate-limit");
 
-// Function to extract user limit from req.user
-const getUserLimit = (user) => {
-  return user.rateLimit || 100; // Extract user's rate limit from req.user
-};
-
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -57,38 +52,22 @@ router.post(
     ],
   ]),
   oneOf([
-    body("user_id")
+    body("client_id")
       .exists()
       .withMessage(
-        "a token requirement is missing in request, consider using the user_id"
+        "a token requirement is missing in request, consider using the client_id"
       )
       .bail()
       .notEmpty()
-      .withMessage("this user_id cannot be empty")
+      .withMessage("this client_id cannot be empty")
       .bail()
       .trim()
       .isMongoId()
-      .withMessage("user_id must be an object ID")
+      .withMessage("client_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    // body("client_id")
-    //   .exists()
-    //   .withMessage(
-    //     "a token requirement is missing in request, consider using the client_id"
-    //   )
-    //   .bail()
-    //   .notEmpty()
-    //   .withMessage("this client_id cannot be empty")
-    //   .bail()
-    //   .trim()
-    //   .isMongoId()
-    //   .withMessage("client_id must be an object ID")
-    //   .bail()
-    //   .customSanitizer((value) => {
-    //     return ObjectId(value);
-    //   }),
   ]),
   oneOf([
     [
@@ -221,7 +200,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
-  rateLimitMiddleware(getUserLimit),
+  rateLimitMiddleware,
   createTokenController.verify
 );
 router.get(

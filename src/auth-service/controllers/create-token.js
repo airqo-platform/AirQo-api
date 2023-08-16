@@ -24,13 +24,13 @@ const createAccessToken = {
         );
       }
 
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
 
       let request = req;
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromCreateAccessToken =
         await controlAccessUtil.createAccessToken(request);
 
@@ -60,6 +60,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -117,6 +118,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -137,7 +139,7 @@ const createAccessToken = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -207,6 +209,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -264,6 +267,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

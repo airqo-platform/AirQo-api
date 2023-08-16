@@ -376,24 +376,11 @@ const filter = {
       }
 
       if (client_id) {
-        filter["client_id"] = client_id;
+        filter["_id"] = ObjectId(client_id);
       }
 
       if (client_secret) {
         filter["client_secret"] = client_secret;
-      }
-
-      if (client_name) {
-        filter["name"] = client_name;
-      }
-
-      if (network_id) {
-        const networksArray = network_id.split(",");
-        const arrayOfNetworkObjects = networksArray.map((value) => {
-          ObjectId(value);
-        });
-        filter["networks"] = {};
-        filter["networks"]["$in"] = arrayOfNetworkObjects;
       }
 
       return filter;

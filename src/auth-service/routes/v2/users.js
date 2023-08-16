@@ -18,13 +18,6 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-const rateLimitMiddleware = require("@middleware/rate-limit");
-
-// Function to extract user limit from req.user
-const getUserLimit = (user) => {
-  return user.rateLimit || 100; // Extract user's rate limit from req.user
-};
-
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -336,13 +329,7 @@ router.post(
   createUserController.verifyFirebaseCustomToken
 );
 
-router.post(
-  "/verify",
-  setJWTAuth,
-  authJWT,
-  rateLimitMiddleware(getUserLimit),
-  createUserController.verify
-);
+router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
   "/verify/:user_id/:token",

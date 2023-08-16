@@ -1,90 +1,116 @@
 require("module-alias/register");
-const express = require("express");
 const chai = require("chai");
 const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 const rateLimitMiddleware = require("@middleware/rate-limit");
-const request = require("supertest");
 chai.use(sinonChai);
 const expect = chai.expect;
 const httpStatus = require("http-status");
+const mongoose = require("mongoose");
 const { client1 } = require("@config/redis");
+const redisClient = client1;
+const AccessTokenModel = require("@models/AccessToken");
+const ClientModel = require("@models/Client");
 
 describe("Rate Limit Middleware", () => {
-  let redisClientStub;
+  let req, res, next, sandbox;
 
   beforeEach(() => {
-    redisClientStub = sinon.stub(client1);
+    sandbox = sinon.createSandbox();
+    req = {
+      params: {
+        token: "sample-token",
+      },
+      query: {
+        tenant: "sample-tenant",
+      },
+    };
+    res = {
+      status: sandbox.stub().returnsThis(),
+      send: sandbox.stub(),
+    };
+    next = sandbox.stub();
   });
 
   afterEach(() => {
-    redisClientStub.restore();
+    sandbox.restore();
   });
 
-  it("should allow requests when rate limit is not exceeded", async () => {
-    const req = {
-      user: { _id: "user123" },
+  it("should handle valid token and client", async () => {
+    const responseFromFindToken = [
+      {
+        client_id: mongoose.Types.ObjectId().toString(),
+      },
+    ];
+    const client = {
+      _id: mongoose.Types.ObjectId(),
+      rateLimit: 10,
     };
-    const res = {
-      status: sinon.stub().returnsThis(),
-      json: sinon.stub(),
-    };
-    const next = sinon.stub();
-
-    redisClientStub.get.withArgs("user123").resolves("5");
-    const middleware = rateLimitMiddleware(() => 10);
-
-    await middleware(req, res, next);
+    sandbox
+      .stub(AccessTokenModel.prototype, "find")
+      .resolves(responseFromFindToken);
+    sandbox.stub(ClientModel.prototype, "findById").resolves(client);
+    sandbox.stub(redisClient, "get").resolves("5");
+    await rateLimitMiddleware(req, res, next);
 
     expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-    expect(res.json.called).to.be.false;
     expect(next.calledOnce).to.be.true;
-    expect(redisClientStub.incr.calledOnce).to.be.true;
-    expect(redisClientStub.expire.calledOnce).to.be.true;
   });
 
-  it("should return 429 when rate limit is exceeded", async () => {
-    const req = {
-      user: { _id: "user123" },
-    };
-    const res = {
-      status: sinon.stub().returnsThis(),
-      json: sinon.stub(),
-    };
-    const next = sinon.stub();
+  it("should handle invalid client ID", async () => {
+    const responseFromFindToken = [
+      {
+        client_id: "invalid-client-id",
+      },
+    ];
+    sandbox
+      .stub(AccessTokenModel.prototype, "find")
+      .resolves(responseFromFindToken);
+    await rateLimitMiddleware(req, res, next);
 
-    redisClientStub.get.withArgs("user123").resolves("15");
-    const middleware = rateLimitMiddleware(() => 10);
+    expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
+    expect(
+      res.send.calledWith("Invalid client ID associated with provided token")
+    ).to.be.true;
+  });
 
-    await middleware(req, res, next);
+  it("should handle unauthorized client", async () => {
+    sandbox.stub(AccessTokenModel.prototype, "find").resolves([]);
+    await rateLimitMiddleware(req, res, next);
+
+    expect(res.status.calledWith(httpStatus.UNAUTHORIZED)).to.be.true;
+    expect(res.send.calledWith("Unauthorized")).to.be.true;
+  });
+
+  it("should handle rate limit exceeded", async () => {
+    const responseFromFindToken = [
+      {
+        client_id: mongoose.Types.ObjectId().toString(),
+      },
+    ];
+    const client = {
+      _id: mongoose.Types.ObjectId(),
+      rateLimit: 5,
+    };
+    sandbox
+      .stub(AccessTokenModel.prototype, "find")
+      .resolves(responseFromFindToken);
+    sandbox.stub(ClientModel.prototype, "findById").resolves(client);
+    sandbox.stub(redisClient, "get").resolves("10");
+    await rateLimitMiddleware(req, res, next);
 
     expect(res.status.calledWith(httpStatus.TOO_MANY_REQUESTS)).to.be.true;
-    expect(res.json.calledWith({ message: "Rate limit exceeded" })).to.be.true;
-    expect(next.called).to.be.false;
-    expect(redisClientStub.incr.called).to.be.false;
-    expect(redisClientStub.expire.called).to.be.false;
+    expect(res.send.calledWith("Rate limit exceeded")).to.be.true;
   });
 
   it("should handle internal server error", async () => {
-    const req = {
-      user: { _id: "user123" },
-    };
-    const res = {
-      status: sinon.stub().returnsThis(),
-      json: sinon.stub(),
-    };
-    const next = sinon.stub();
-
-    redisClientStub.get.rejects(new Error("Redis error"));
-    const middleware = rateLimitMiddleware(() => 10);
-
-    await middleware(req, res, next);
+    sandbox
+      .stub(AccessTokenModel.prototype, "find")
+      .throws(new Error("Sample Error"));
+    await rateLimitMiddleware(req, res, next);
 
     expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
-    expect(res.json.calledWith({ message: "Internal Server Error" })).to.be
+    expect(res.send.calledWith("Internal Server Error -- Sample Error")).to.be
       .true;
-    expect(next.called).to.be.false;
-    expect(redisClientStub.incr.called).to.be.false;
-    expect(redisClientStub.expire.called).to.be.false;
   });
 });
