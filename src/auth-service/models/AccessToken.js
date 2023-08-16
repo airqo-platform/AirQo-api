@@ -6,13 +6,6 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
-// const saltRounds = constants.SALT_ROUNDS;
-// const bcrypt = require("bcrypt");
-
-/**
- * belongs to a user
- * a User has many access tokens
- */
 
 const toMilliseconds = (hrs, min, sec) =>
   (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -224,13 +217,13 @@ AccessTokenSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
-      delete modifiedUpdate.user_id;
-      // if (modifiedUpdate.token) {
-      //   modifiedUpdate.token = bcrypt.hashSync(
-      //     modifiedUpdate.token,
-      //     saltRounds
-      //   );
-      // }
+      if (!isEmpty(modifiedUpdate.user_id)) {
+        delete modifiedUpdate.user_id;
+      }
+      if (!isEmpty(modifiedUpdate.client_id)) {
+        delete modifiedUpdate.client_id;
+      }
+
       const updatedToken = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -252,7 +245,7 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",

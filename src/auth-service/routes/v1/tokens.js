@@ -113,19 +113,6 @@ router.put(
   ]),
   oneOf([
     [
-      body("user_id")
-        .optional()
-        .trim()
-        .notEmpty()
-        .withMessage("this user ID cannot be empty if provideds")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       body("expires")
         .optional()
         .trim()

@@ -415,19 +415,14 @@ const controlAccess = {
         .toUpperCase();
 
       let update = Object.assign({}, body);
-      update["token"] = token;
+      update.token = token;
 
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
