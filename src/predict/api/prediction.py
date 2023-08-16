@@ -34,6 +34,7 @@ ml_app = Blueprint("ml_app", __name__)
 # @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key, forced_update=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
+        query = {}
         params = {
             "airqloud_name": request.args.get("airqloud_name", default=None, type=str),
             "correlation_fault": request.args.get(
@@ -52,16 +53,15 @@ def fetch_faulty_devices():
                     ),
                     400,
                 )
-        query = {}
-        for param, value in params.items():
-            if param == "airqloud_names":
-                query[param] = {"$in": [value]}
-            else:
-                query[param] = {
-                    "$eq": int(value)
-                    if param in ["correlation_fault", "missing_data_fault"]
-                    else value
-                }
+            for param, value in params.items():
+                if param == "airqloud_names":
+                    query[param] = {"$in": [value]}
+                else:
+                    query[param] = {
+                        "$eq": int(value)
+                        if param in ["correlation_fault", "missing_data_fault"]
+                        else value
+                    }
 
         result = read_faulty_devices(query)
         return jsonify(result), 200
