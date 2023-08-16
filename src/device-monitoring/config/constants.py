@@ -15,7 +15,7 @@ TWO_HOURS = 7200  # seconds
 
 
 class CollocationDefaults:
-    DataCompletenessThreshold = os.getenv("DATA_COMPLETENESS_THRESHOLD", 0.8)
+    DataCompletenessThreshold = os.getenv("DATA_COMPLETENESS_THRESHOLD", 80)
 
     IntraCorrelationThreshold = os.getenv("INTRA_CORRELATION_THRESHOLD", 0.98)
     IntraCorrelationR2Threshold = os.getenv("INTRA_CORRELATION_R2_THRESHOLD", 0.99)
