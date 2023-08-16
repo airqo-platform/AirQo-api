@@ -29,6 +29,7 @@ const activitySchema = new Schema(
     },
     device: { type: String, trim: true },
     site_id: { type: ObjectId },
+    host_id: { type: ObjectId },
     date: { type: Date },
     description: { type: String, trim: true },
     network: {
@@ -72,6 +73,7 @@ activitySchema.methods = {
       updatedAt: this.updatedAt,
       tags: this.tags,
       site_id: this.site_id,
+      host_id: this.host_id,
       firstName: this.firstName,
       lastName: this.lastName,
       userName: this.userName,
@@ -222,6 +224,7 @@ activitySchema.statics = {
           _id: 1,
           device: 1,
           site_id: 1,
+          host_id: 1,
           network: 1,
           date: 1,
           description: 1,
