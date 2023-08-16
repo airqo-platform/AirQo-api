@@ -6,10 +6,15 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
+const AdminLevelSchema = require("@models/AdminLevel");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
 const NetworkSchema = require("@models/Network");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- airqlouds-route-v2`
+);
 
 const NetworkModel = (tenant) => {
   try {
@@ -47,14 +52,31 @@ const AdminLevelModel = (tenant) => {
 };
 
 const validAdminLevels = async () => {
-  const levels = await AdminLevelModel("airqo").distinct("name");
-  return levels.map((level) => level.toLowerCase());
+  try {
+    logText("we are now inside validAdminLevels...");
+    const levels = await AdminLevelModel("airqo").distinct("name");
+    logObject("levels inside", levels);
+    return levels.map((level) => level.toLowerCase());
+  } catch (error) {
+    logObject("Error in validAdminLevels:", error);
+    logger.error(`Error in validAdminLevels -- ${JSON.stringify(error)}`);
+    throw error; // Rethrow the error
+  }
 };
 
 const validateAdminLevels = async (value) => {
-  const levels = await validAdminLevels();
-  if (!levels.includes(value.toLowerCase())) {
-    throw new Error("Invalid level");
+  try {
+    logObject("value", value);
+    const levels = await validAdminLevels();
+    logObject("levels outside", levels);
+
+    if (!levels.includes(value.toLowerCase())) {
+      throw new Error("Invalid level");
+    }
+  } catch (error) {
+    logObject("Error in validateAdminLevels:", error);
+    logger.error(`Error in validAdminLevels -- ${JSON.stringify(error)}`);
+    throw error; // Rethrow the error
   }
 };
 
