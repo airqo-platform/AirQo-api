@@ -82,26 +82,26 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
         "x": {},
         "y": {
             "record_count": int(
-                no_of_hours * collocation_batch.data_completeness_threshold
+                no_of_hours * (collocation_batch.data_completeness_threshold / 100)
             ),
         },
         "z": {"record_count": 0},
     }
     meta_data["x"]["record_count"] = no_of_hours - meta_data["y"]["record_count"]
 
-    meta_data["x"]["completeness"] = round(
-        meta_data["x"]["record_count"] / no_of_hours, 2
+    meta_data["x"]["completeness"] = (
+        round(meta_data["x"]["record_count"] / no_of_hours, 2) * 100
     )
-    meta_data["y"]["completeness"] = round(
-        meta_data["y"]["record_count"] / no_of_hours, 2
+    meta_data["y"]["completeness"] = (
+        round(meta_data["y"]["record_count"] / no_of_hours, 2) * 100
     )
-    meta_data["z"]["completeness"] = round(
-        meta_data["z"]["record_count"] / no_of_hours, 2
+    meta_data["z"]["completeness"] = (
+        round(meta_data["z"]["record_count"] / no_of_hours, 2) * 100
     )
 
-    meta_data["x"]["missing"] = round(1 - meta_data["x"]["completeness"], 2)
-    meta_data["y"]["missing"] = round(1 - meta_data["y"]["completeness"], 2)
-    meta_data["z"]["missing"] = round(1 - meta_data["z"]["completeness"], 2)
+    meta_data["x"]["missing"] = 100 - meta_data["x"]["completeness"]
+    meta_data["y"]["missing"] = 100 - meta_data["y"]["completeness"]
+    meta_data["z"]["missing"] = 100 - meta_data["z"]["completeness"]
 
     data = {
         "x": generate_test_data(
@@ -147,3 +147,111 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
             else False
         )
         assert result.passed is passed
+
+
+def test_data_completeness_threshold(collocation_batch):
+    collocation_batch.data_completeness_threshold = 0
+    validate_data_completeness = collocation_batch.validate(raise_exception=False)
+    assert validate_data_completeness is False
+
+    collocation_batch.data_completeness_threshold = 1
+    validate_data_completeness = collocation_batch.validate(raise_exception=False)
+    assert validate_data_completeness is True
+
+    collocation_batch.data_completeness_threshold = 100
+    validate_data_completeness = collocation_batch.validate(raise_exception=False)
+    assert validate_data_completeness is True
+
+    collocation_batch.data_completeness_threshold = 101
+    validate_data_completeness = collocation_batch.validate(raise_exception=False)
+    assert validate_data_completeness is False
+
+
+def test_inter_sensor_threshold(collocation_batch):
+    collocation_batch.inter_correlation_threshold = 0
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.inter_correlation_threshold = 1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.inter_correlation_threshold = -1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+    collocation_batch.inter_correlation_threshold = 2
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+
+def test_inter_sensor_r2_threshold(collocation_batch):
+    collocation_batch.inter_correlation_r2_threshold = 0
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.inter_correlation_r2_threshold = 1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.inter_correlation_r2_threshold = -1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+    collocation_batch.inter_correlation_r2_threshold = 2
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+
+def test_intra_sensor_threshold(collocation_batch):
+    collocation_batch.intra_correlation_threshold = 0
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.intra_correlation_threshold = 1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.intra_correlation_threshold = -1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+    collocation_batch.intra_correlation_threshold = 2
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+
+def test_intra_sensor_r2_threshold(collocation_batch):
+    collocation_batch.intra_correlation_r2_threshold = 0
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.intra_correlation_r2_threshold = 1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.intra_correlation_r2_threshold = -1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+    collocation_batch.intra_correlation_r2_threshold = 2
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+
+def test_differences_threshold(collocation_batch):
+    collocation_batch.differences_threshold = 0
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.differences_threshold = 5
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is True
+
+    collocation_batch.differences_threshold = -1
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False
+
+    collocation_batch.differences_threshold = 6
+    valid = collocation_batch.validate(raise_exception=False)
+    assert valid is False

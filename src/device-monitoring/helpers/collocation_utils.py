@@ -12,7 +12,8 @@ from models.collocation import (
     BaseResult,
     DataCompletenessResult,
     IntraSensorCorrelationResult,
-    IntraSensorData, CollocationBatch,
+    IntraSensorData,
+    CollocationBatch,
 )
 
 
@@ -549,7 +550,6 @@ def compute_data_completeness_using_hourly_records(
     data: dict[str, pd.DataFrame],
     collocation_batch: CollocationBatch,
 ) -> DataCompletenessResult:
-
     now = datetime.utcnow()
     end_date_time = (
         now if now < collocation_batch.end_date else collocation_batch.end_date
@@ -563,18 +563,31 @@ def compute_data_completeness_using_hourly_records(
     for device in collocation_batch.devices:
         try:
             device_data = data.get(device, pd.DataFrame())
-            device_data.dropna(subset=[collocation_batch.data_completeness_parameter], inplace=True)
+            device_data.dropna(
+                subset=[collocation_batch.data_completeness_parameter], inplace=True
+            )
 
             if len(device_data.index) == 0:
                 device_completeness = 0.0
 
             else:
-                device_data = device_data.resample("1H", on="timestamp").mean(numeric_only=True)
-                device_data.dropna(subset=list(set(device_data.columns.to_list()).difference(["timestamp"])), inplace=True)
-                device_completeness = round(len(device_data.index) / expected_records, 2)
-                device_completeness = 1 if device_completeness > 1 else device_completeness
+                device_data = device_data.resample("1H", on="timestamp").mean(
+                    numeric_only=True
+                )
+                device_data.dropna(
+                    subset=list(
+                        set(device_data.columns.to_list()).difference(["timestamp"])
+                    ),
+                    inplace=True,
+                )
+                device_completeness = (
+                    round(len(device_data.index) / expected_records, 2) * 100
+                )
+                device_completeness = (
+                    100 if device_completeness > 100 else device_completeness
+                )
 
-            missing = round(1 - device_completeness, 2)
+            missing = 100 - device_completeness
             completeness.append(
                 DataCompleteness(
                     device_name=device,
@@ -582,7 +595,8 @@ def compute_data_completeness_using_hourly_records(
                     expected=expected_records,
                     completeness=device_completeness,
                     missing=missing,
-                    passed=device_completeness >= collocation_batch.data_completeness_threshold,
+                    passed=device_completeness
+                    >= collocation_batch.data_completeness_threshold,
                 )
             )
         except Exception as ex:
@@ -593,7 +607,9 @@ def compute_data_completeness_using_hourly_records(
     failed_devices = list(filter(lambda x: x.passed is False, completeness))
     failed_devices = [x.device_name for x in failed_devices]
     error_devices = list(
-        set(collocation_batch.devices).difference(set(passed_devices)).difference(set(failed_devices))
+        set(collocation_batch.devices)
+        .difference(set(passed_devices))
+        .difference(set(failed_devices))
     )
 
     errors = []
