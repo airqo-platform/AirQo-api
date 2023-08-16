@@ -185,6 +185,53 @@ class CollocationBatch:
     results: CollocationBatchResult
     errors: list[str]
 
+    @staticmethod
+    def valid_ranges():
+        return [
+            {
+                "parameter": "data_completeness_threshold",
+                "minimum_value": 1,
+                "maximum_value": 100,
+                "error_message": "Data completeness threshold should range from 0 to 1",
+            },
+            {
+                "parameter": "intra_correlation_threshold",
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Intra correlation threshold should range from 0 to 1",
+            },
+            {
+                "parameter": "inter_correlation_threshold",
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Inter correlation threshold should range from 0 to 1",
+            },
+            {
+                "parameter": "intra_correlation_r2_threshold",
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Intra R2 correlation threshold should range from 0 to 1",
+            },
+            {
+                "parameter": "inter_correlation_r2_threshold",
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Inter R2 correlation threshold should range from 0 to 1",
+            },
+            {
+                "parameter": "differences_threshold",
+                "minimum_value": 0,
+                "maximum_value": 5,
+                "error_message": "Differences threshold should be greater than 0",
+            },
+            {
+                "parameter": "expected_hourly_records",
+                "minimum_value": 0,
+                "maximum_value": float("inf"),
+                "error_message": "Expected records per hour should be greater than 0",
+            },
+        ]
+
     def to_dict(self):
         data = asdict(self)
         data["status"] = self.status.value
@@ -254,65 +301,68 @@ class CollocationBatch:
                 raise CollocationError(", ".join(errors))
             return False
 
-        value_checks = [
-            {
-                "value": self.data_completeness_threshold,
-                "minimum_value": 0,
-                "maximum_value": 1,
-                "error_message": "Data completeness threshold should range from 0 to 1",
-            },
-            {
-                "value": self.intra_correlation_threshold,
-                "minimum_value": 0,
-                "maximum_value": 1,
-                "error_message": "Intra correlation threshold should range from 0 to 1",
-            },
-            {
-                "value": self.inter_correlation_threshold,
-                "minimum_value": 0,
-                "maximum_value": 1,
-                "error_message": "Inter correlation threshold should range from 0 to 1",
-            },
-            {
-                "value": self.intra_correlation_r2_threshold,
-                "minimum_value": 0,
-                "maximum_value": 1,
-                "error_message": "Intra R2 correlation threshold should range from 0 to 1",
-            },
-            {
-                "value": self.inter_correlation_r2_threshold,
-                "minimum_value": 0,
-                "maximum_value": 1,
-                "error_message": "Inter R2 correlation threshold should range from 0 to 1",
-            },
-            {
-                "value": self.differences_threshold,
-                "minimum_value": 0,
-                "maximum_value": float("inf"),
-                "error_message": "Differences threshold should be greater than 0",
-            },
-            {
-                "value": self.expected_hourly_records,
-                "minimum_value": 0,
-                "maximum_value": float("inf"),
-                "error_message": "Expected records per hour should be greater than 0",
-            },
-        ]
+        for parameter_range in self.valid_ranges():
+            parameter = parameter_range["parameter"]
+            minimum_value = parameter_range["minimum_value"]
+            maximum_value = parameter_range["maximum_value"]
+            error_message = parameter_range["error_message"]
 
-        for check in value_checks:
-            if (
-                check["value"] < check["minimum_value"]
-                or check["value"] > check["maximum_value"]
-            ):
-                errors.append(check["error_message"])
+            if parameter == "data_completeness_threshold":
+                if (
+                    not maximum_value
+                    >= self.data_completeness_threshold
+                    >= minimum_value
+                ):
+                    errors.append(error_message)
+
+            if parameter == "expected_hourly_records":
+                if not maximum_value >= self.expected_hourly_records >= minimum_value:
+                    errors.append(error_message)
+
+            if parameter == "differences_threshold":
+                if not maximum_value >= self.differences_threshold >= minimum_value:
+                    errors.append(error_message)
+
+            if parameter == "inter_correlation_r2_threshold":
+                if (
+                    not maximum_value
+                    >= self.inter_correlation_r2_threshold
+                    >= minimum_value
+                ):
+                    errors.append(error_message)
+
+            if parameter == "intra_correlation_r2_threshold":
+                if (
+                    not maximum_value
+                    >= self.intra_correlation_r2_threshold
+                    >= minimum_value
+                ):
+                    errors.append(error_message)
+
+            if parameter == "inter_correlation_threshold":
+                if (
+                    not maximum_value
+                    >= self.inter_correlation_threshold
+                    >= minimum_value
+                ):
+                    errors.append(error_message)
+
+            if parameter == "intra_correlation_threshold":
+                if (
+                    not maximum_value
+                    >= self.intra_correlation_threshold
+                    >= minimum_value
+                ):
+                    errors.append(error_message)
 
         if len(self.devices) < 1:
             errors.append("Devices cannot be empty")
+        is_valid = len(errors) == 0
 
-        if len(errors) != 0 and raise_exception:
+        if not is_valid and raise_exception:
             raise CollocationError(", ".join(errors))
 
-        return len(errors) == 0
+        return is_valid
 
     def to_api_output(self):
         data = self.to_dict()
