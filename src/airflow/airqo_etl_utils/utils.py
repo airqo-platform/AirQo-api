@@ -176,13 +176,12 @@ class Utils:
     @staticmethod
     def handle_api_error(response: Response):
         try:
-            print(response.request.url)
-            print(response.request.body)
+            print("URL:", response._request_url)
+            print("Response:", response.data)
         except Exception as ex:
-            print(ex)
+            print("Error while handling API error:", ex)
         finally:
-            print(response.content)
-            print(f"API request failed with status code {response.status_code}")
+            print("API request failed with status code:", response.status)
 
     @staticmethod
     def query_dates_array(
