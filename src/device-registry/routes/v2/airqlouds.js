@@ -167,10 +167,16 @@ router.post(
         .withMessage("admin_level is missing in your request")
         .bail()
         .toLowerCase()
-        .custom(validateAdminLevels)
-        .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
       body("airqloud_tags")
         .optional()
         .custom((value) => {
@@ -272,10 +278,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .custom(validateAdminLevels)
-        .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.list
@@ -318,10 +330,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .custom(validateAdminLevels)
-        .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.listSummary
@@ -364,10 +382,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .custom(validateAdminLevels)
-        .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.listDashboard
@@ -419,10 +443,16 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .custom(validateAdminLevels)
-      .withMessage(
-        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-      ),
+      .custom(async (value) => {
+        try {
+          await validateAdminLevels(value);
+          return true;
+        } catch (error) {
+          throw new Error(
+            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+          );
+        }
+      }),
   ]),
   airqloudController.findSites
 );
@@ -479,10 +509,16 @@ router.put(
         )
         .bail()
         .toLowerCase()
-        .custom(validateAdminLevels)
-        .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
       body("description")
         .optional()
         .trim(),
@@ -650,10 +686,16 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .custom(validateAdminLevels)
-      .withMessage(
-        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
-      ),
+      .custom(async (value) => {
+        try {
+          await validateAdminLevels(value);
+          return true;
+        } catch (error) {
+          throw new Error(
+            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+          );
+        }
+      }),
   ]),
   airqloudController.calculateGeographicalCenter
 );
