@@ -64,8 +64,8 @@ class ForecastUtils:
             data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
-        data = data.dropna(subset=["pm2_5"])
         data["device_number"] = data["device_number"].astype(int)
+        data = data.dropna(subset=["pm2_5"])
         return data
 
     @staticmethod
@@ -156,8 +156,6 @@ class ForecastUtils:
             train_data = pd.concat([train_data, train_df])
             test_data = pd.concat([test_data, test_df])
 
-        train_data["device_number"] = train_data["device_number"].astype(int)
-        test_data["device_number"] = test_data["device_number"].astype(int)
         train_data.drop(columns=["created_at"], axis=1, inplace=True)
         test_data.drop(columns=["created_at"], axis=1, inplace=True)
 
@@ -172,7 +170,6 @@ class ForecastUtils:
             reg_lambda = 1
             max_depth = 1
             random_state = 1
-            quantiles = [0.05, 0.95]
 
             clf = LGBMRegressor(
                 n_estimators=n_estimators,
@@ -238,6 +235,7 @@ class ForecastUtils:
     @staticmethod
     def train_and_save_daily_forecast_model(train):  # separate code for monthly model
         train["created_at"] = pd.to_datetime(train["created_at"])
+        train = train.sort_values(by=["device_number", "created_at"])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
@@ -254,8 +252,6 @@ class ForecastUtils:
             train_data = pd.concat([train_data, train_df])
             test_data = pd.concat([test_data, test_df])
 
-        train_data["device_number"] = train_data["device_number"].astype(int)
-        test_data["device_number"] = test_data["device_number"].astype(int)
         train_data.drop(columns=["created_at"], axis=1, inplace=True)
         test_data.drop(columns=["created_at"], axis=1, inplace=True)
 
@@ -327,21 +323,9 @@ class ForecastUtils:
                 max_depth=-1,
                 random_state=1,
             )
-            train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
         upload_trained_model_to_gcs(clf, project_id, bucket, "daily_forecast_model.pkl")
-        quantiles = [0.025, 0.975]
-        model_names = [
-            "daily_forecast_model_lower.pkl",
-            "daily_forecast_model_upper.pkl",
-        ]
-
-        for q, name in zip(quantiles, model_names):
-            quantile_model = LGBMRegressor(objective="quantile", alpha=q, verbosity=2)
-            quantile_model.fit(train[features], train[target_col])
-            upload_trained_model_to_gcs(quantile_model, project_id, bucket, name)
-
-        print("Models saved successfully")
+        print("Model saved successfully")
 
     #### FORECAST JOB UTILS ####
 
@@ -435,10 +419,8 @@ class ForecastUtils:
     @staticmethod
     def generate_hourly_forecasts(data, project_name, bucket_name, source_blob_name):
         data["created_at"] = pd.to_datetime(data["created_at"])
-        data["pm2_5_lower"] = np.nan
-        data["pm2_5_upper"] = np.nan
 
-        def get_new_row(df, device1, model, lower_quantile_model, upper_quantile_model):
+        def get_new_row(df, device1, model):
             last_row = df[df["device_number"] == device1].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
             for i in fixed_columns:
@@ -489,38 +471,11 @@ class ForecastUtils:
                     1, -1
                 )
             )[0]
-            new_row["pm2_5_lower"] = lower_quantile_model.predict(
-                new_row.drop(
-                    fixed_columns
-                    + ["created_at", "pm2_5", "pm2_5_lower", "pm2_5_upper"]
-                ).values.reshape(1, -1)
-            )[0]
-            new_row["pm2_5_upper"] = upper_quantile_model.predict(
-                new_row.drop(
-                    fixed_columns
-                    + ["created_at", "pm2_5", "pm2_5_upper", "pm2_5_lower"]
-                ).values.reshape(1, -1)
-            )[0]
-            confidence_interval_width = new_row["pm2_5_upper"] - new_row["pm2_5_lower"]
-            margin_of_error = confidence_interval_width / 2
-            new_row["pm2_5_confidence_interval_lower"] = (
-                new_row["pm2_5"] - margin_of_error
-            )
-            new_row["pm2_5_confidence_interval_upper"] = (
-                new_row["pm2_5"] + margin_of_error
-            )
-            new_row["pm2_5_margin_of_error"] = margin_of_error
             return new_row
 
         forecasts = pd.DataFrame()
         forecast_model = get_trained_model_from_gcs(
             project_name, bucket_name, source_blob_name
-        )
-        lower_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, "hourly_forecast_model_lower.pkl"
-        )
-        upper_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, "hourly_forecast_model_upper.pkl"
         )
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
@@ -529,9 +484,7 @@ class ForecastUtils:
                 new_row = get_new_row(
                     test_copy,
                     device,
-                    forecast_model,
-                    lower_quantile_model,
-                    upper_quantile_model,
+                    forecast_model
                 )
                 test_copy = pd.concat(
                     [test_copy, new_row.to_frame().T], ignore_index=True
@@ -553,11 +506,9 @@ class ForecastUtils:
     @staticmethod
     def generate_daily_forecasts(data, project_name, bucket_name, source_blob_name):
         data["created_at"] = pd.to_datetime(data["created_at"])
-        data["pm2_5_lower"] = np.nan
-        data["pm2_5_upper"] = np.nan
 
         def get_new_row(
-            df_tmp, device, model, lower_quantile_model, upper_quantile_model
+            df_tmp, device, model
         ):
             last_row = df_tmp[df_tmp["device_number"] == device].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
@@ -603,42 +554,15 @@ class ForecastUtils:
             new_row["pm2_5"] = model.predict(
                 new_row.drop(
                     fixed_columns
-                    + ["created_at", "pm2_5", "pm2_5_lower", "pm2_5_upper"]
+                    + ["created_at", "pm2_5"]
                 ).values.reshape(1, -1)
             )[0]
-            new_row["pm2_5_lower"] = lower_quantile_model.predict(
-                new_row.drop(
-                    fixed_columns
-                    + ["created_at", "pm2_5_lower", "pm2_5", "pm2_5_upper"]
-                ).values.reshape(1, -1)
-            )[0]
-            new_row["pm2_5_upper"] = upper_quantile_model.predict(
-                new_row.drop(
-                    fixed_columns
-                    + ["created_at", "pm2_5_lower", "pm2_5", "pm2_5_upper"]
-                ).values.reshape(1, -1)
-            )[0]
-            confidence_interval_width = new_row["pm2_5_upper"] - new_row["pm2_5_lower"]
-            margin_of_error = confidence_interval_width / 2
-            new_row["pm2_5_confidence_interval_lower"] = (
-                new_row["pm2_5"] - margin_of_error
-            )
-            new_row["pm2_5_confidence_interval_upper"] = (
-                new_row["pm2_5"] + margin_of_error
-            )
-            new_row["pm2_5_margin_of_error"] = margin_of_error
             return new_row
 
         forecasts = pd.DataFrame()
 
         forecast_model = get_trained_model_from_gcs(
             project_name, bucket_name, source_blob_name
-        )
-        lower_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, "daily_forecast_model_lower.pkl"
-        )
-        upper_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, "daily_forecast_model_upper.pkl"
         )
 
         df_tmp = data.copy()
@@ -649,8 +573,6 @@ class ForecastUtils:
                     test_copy,
                     device,
                     forecast_model,
-                    lower_quantile_model,
-                    upper_quantile_model,
                 )
                 test_copy = pd.concat(
                     [test_copy, new_row.to_frame().T], ignore_index=True
@@ -663,7 +585,7 @@ class ForecastUtils:
         current_time_utc = pd.Timestamp(current_time, tz="UTC")
         result = forecasts[
             fixed_columns
-            + ["time", "pm2_5", "device_number", "pm2_5_lower", "pm2_5_upper"]
+            + ["time", "pm2_5", "device_number"]
         ][forecasts["time"] >= current_time_utc]
 
         return result
