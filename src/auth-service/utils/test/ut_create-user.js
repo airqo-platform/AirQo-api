@@ -37,7 +37,6 @@ const rewireCreateUser = rewire("@utils/create-user");
 const UserModel = rewireCreateUser.__get__("UserModel");
 const LogModel = rewireCreateUser.__get__("LogModel");
 const AccessTokenModel = rewireCreateUser.__get__("AccessTokenModel");
-const ClientModel = rewireCreateUser.__get__("ClientModel");
 const NetworkModel = rewireCreateUser.__get__("NetworkModel");
 const RoleModel = rewireCreateUser.__get__("RoleModel");
 const accessCodeGenerator = require("generate-password");
@@ -1357,21 +1356,6 @@ describe("create-user-util", function () {
           email: "test@example.com",
           // Include other user data you want to return in the response
         },
-      });
-
-      // Stub the ClientModel's register method to return a successful response
-      sinon.stub(ClientModel("your-tenant"), "register").resolves({
-        success: true,
-        data: {
-          _id: "client-id", // Replace with the actual client ID value
-          // Include other client data you want to return in the response
-        },
-      });
-
-      // Stub the AccessTokenModel's register method to return a successful response
-      sinon.stub(AccessTokenModel("your-tenant"), "register").resolves({
-        success: true,
-        // Include other access token data you want to return in the response
       });
 
       // Stub the mailer.verifyEmail method to return a successful response
