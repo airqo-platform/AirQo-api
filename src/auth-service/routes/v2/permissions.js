@@ -20,7 +20,7 @@ const headers = (req, res, next) => {
 router.use(headers);
 
 router.get(
-  "/:permission_id",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -120,6 +120,39 @@ router.put(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("permission_id")
+        .exists()
+        .withMessage("the permission_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("permission")
+        .not()
+        .exists()
+        .withMessage("permission should not exist in the request body"),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id should not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("description")
+        .optional()
+        .notEmpty()
+        .withMessage("description should not be empty if provided")
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createPermissionController.update
@@ -143,6 +176,26 @@ router.delete(
   setJWTAuth,
   authJWT,
   createPermissionController.delete
+);
+
+router.get(
+  "/:permission_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPermissionController.list
 );
 
 module.exports = router;
