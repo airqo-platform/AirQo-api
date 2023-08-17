@@ -55,6 +55,8 @@ def train_model(train):
     """
     Perform the actual training
     """
+    import joblib
+
     print('feature selection started.....')
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     print(features)
@@ -98,7 +100,7 @@ def train_model(train):
             random_state=random_state)
 
         clf.fit(train_data[features], train_target, eval_set=[(test_data[features], test_target)],
-                callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
+                callbacks=[early_stopping(stopping_rounds=150)],
                 eval_metric='rmse')
         print('Model training completed.....')
 

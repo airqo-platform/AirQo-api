@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
-const { isEmpty } = require("underscore");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
