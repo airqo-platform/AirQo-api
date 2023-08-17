@@ -691,20 +691,6 @@ const controlAccess = {
           )
           .toUpperCase();
 
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(31)
-        );
-
-        const responseFromSaveClient = await ClientModel(tenant).register({
-          client_secret,
-        });
-        if (
-          responseFromSaveClient.success === false ||
-          responseFromSaveClient.status === httpStatus.ACCEPTED
-        ) {
-          return responseFromSaveClient;
-        }
-
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
@@ -714,8 +700,7 @@ const controlAccess = {
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
-          network_id,
-          client_id: responseFromSaveClient.data._id,
+
           user_id: responseFromCreateUser.data._id,
           expires: Date.now() + toMilliseconds(hrs, min, sec),
         });
@@ -882,9 +867,6 @@ const controlAccess = {
   /******** create clients ******************************************/
   updateClient: async (request) => {
     try {
-      /**
-       * Should we updating the client ID?
-       */
       const { query, body } = request;
       const { tenant } = query;
       let filter = {};
@@ -894,33 +876,15 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      let update = Object.assign({}, body);
-      if (update.client_id) {
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
-        update["client_id"] = client_id;
-      }
-      if (update.client_secret) {
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(
-            constants.CLIENT_SECRET_LENGTH
-          )
-        );
-        update["client_secret"] = client_secret;
-      }
 
-      const responseFromUpdateToken = await ClientModel(
+      let update = Object.assign({}, body);
+      if (update.client_secret) {
+        delete update.client_secret;
+      }
+      const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      return responseFromUpdateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -942,15 +906,10 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      const responseFromDeleteToken = await ClientModel(
+      const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
       ).remove({ filter });
-
-      if (responseFromDeleteToken.success === true) {
-        return responseFromDeleteToken;
-      } else if (responseFromDeleteToken.success == false) {
-        return responseFromDeleteToken;
-      }
+      return responseFromDeleteClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -963,9 +922,6 @@ const controlAccess = {
   },
   listClient: async (request) => {
     try {
-      /**
-       * list client util
-       */
       const { query } = request;
       const { tenant } = query;
       const limit = parseInt(request.query.limit, 0);
@@ -1011,10 +967,10 @@ const controlAccess = {
       let modifiedBody = Object.assign({}, body);
       modifiedBody.client_secret = client_secret;
 
-      const responseFromCreateToken = await ClientModel(
+      const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
-      return responseFromCreateToken;
+      return responseFromCreateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
