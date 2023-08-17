@@ -88,7 +88,52 @@ router.post(
 );
 
 router.put(
-  "/:token",
+  "/:token/regenerate",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("token")
+      .exists()
+      .withMessage("the token parameter is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token must not be empty")
+      .trim(),
+  ]),
+  oneOf([
+    [
+      body("expires")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("expires cannot be empty if provided")
+        .bail()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("expires must be a valid datetime.")
+        .bail()
+        .isAfter(new Date().toISOString().slice(0, 10))
+        .withMessage("the date should not be before the current date")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.regenerate
+);
+
+router.put(
+  "/:token/update",
   oneOf([
     [
       query("tenant")
@@ -187,7 +232,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
-  rateLimitMiddleware,
+  // rateLimitMiddleware,
   createTokenController.verify
 );
 router.get(

@@ -218,6 +218,64 @@ const createAccessToken = {
     }
   },
 
+  regenerate: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = req;
+      request.query.tenant = tenant;
+      const responseFromUpdateAccessToken =
+        await controlAccessUtil.regenerateAccessToken(request);
+
+      if (responseFromUpdateAccessToken.success === true) {
+        const status = responseFromUpdateAccessToken.status
+          ? responseFromUpdateAccessToken.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromUpdateAccessToken.message
+            ? responseFromUpdateAccessToken.message
+            : "",
+          updated_token: responseFromUpdateAccessToken.data
+            ? responseFromUpdateAccessToken.data
+            : [],
+        });
+      } else if (responseFromUpdateAccessToken.success === false) {
+        const status = responseFromUpdateAccessToken.status
+          ? responseFromUpdateAccessToken.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromUpdateAccessToken.message
+            ? responseFromUpdateAccessToken.message
+            : "",
+          errors: responseFromUpdateAccessToken.errors
+            ? responseFromUpdateAccessToken.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   update: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -237,7 +295,7 @@ const createAccessToken = {
       }
 
       let request = req;
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromUpdateAccessToken =
         await controlAccessUtil.updateAccessToken(request);
 

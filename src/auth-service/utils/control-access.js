@@ -400,6 +400,64 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+      const token = request.params.token;
+      const tokenDetails = await AccessTokenModel(tenant)
+        .find({ token })
+        .lean();
+
+      if (isEmpty(tokenDetails)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Bad request -- Token ${token} does not exist` },
+        };
+      } else {
+        const tokenId = tokenDetails._id;
+        let update = Object.assign({}, body);
+        if (update.token) {
+          delete update.token;
+        }
+        if (update.expires) {
+          delete update.expires;
+        }
+        if (update._id) {
+          delete update._id;
+        }
+        const updatedToken = await AccessTokenModel(tenant)
+          .findByIdAndUpdate(tokenId, update, { new: true })
+          .lean();
+
+        if (!isEmpty(updatedToken)) {
+          return {
+            success: true,
+            message: "Successfully updated the token's metadata",
+            data: updatedToken,
+            status: httpStatus.OK,
+          };
+        } else {
+          return {
+            success: false,
+            message: "Unable to update the token's metadata",
+            errors: { message: "Unable to update the token's metadata" },
+            status: httpStatus.CONFLICT,
+          };
+        }
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  regenerateAccessToken: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
       let filter = {};
       const responseFromFilter = generateFilter.tokens(request);
       if (responseFromFilter.success === false) {
@@ -431,7 +489,6 @@ const controlAccess = {
       };
     }
   },
-
   deleteAccessToken: async (request) => {
     try {
       const { query } = request;
@@ -462,7 +519,6 @@ const controlAccess = {
       };
     }
   },
-
   verifyToken: async (request) => {
     try {
       const { query } = request;
@@ -535,7 +591,6 @@ const controlAccess = {
       return handleServerError(error);
     }
   },
-
   listAccessToken: async (request) => {
     try {
       const { query, params } = request;
@@ -563,7 +618,6 @@ const controlAccess = {
       };
     }
   },
-
   createAccessToken: async (request) => {
     try {
       const { tenant } = request.query;
@@ -587,10 +641,10 @@ const controlAccess = {
         )
         .toUpperCase();
 
-      const tokenCreationBody = {
-        token,
-        client_id: ObjectId(client_id),
-      };
+      const tokenCreationBody = Object.assign(
+        { token, client_id: ObjectId(client_id) },
+        request.body
+      );
 
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
@@ -609,7 +663,6 @@ const controlAccess = {
       };
     }
   },
-
   generateVerificationToken: async (request) => {
     try {
       const { query, body } = request;
@@ -877,7 +930,6 @@ const controlAccess = {
       };
     }
   },
-
   deleteClient: async (request) => {
     try {
       const { query } = request;
@@ -908,7 +960,6 @@ const controlAccess = {
       };
     }
   },
-
   listClient: async (request) => {
     try {
       /**
@@ -941,7 +992,6 @@ const controlAccess = {
       };
     }
   },
-
   createClient: async (request) => {
     try {
       const { body, query } = request;
@@ -974,7 +1024,6 @@ const controlAccess = {
       };
     }
   },
-
   updateClientSecret: async (request) => {
     try {
       const { tenant } = request.query;
