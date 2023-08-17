@@ -46,8 +46,6 @@ ClientSchema.pre("update", function (next) {
   return next();
 });
 
-ClientSchema.index({ client_id: 1 }, { unique: true });
-
 ClientSchema.statics = {
   async register(args) {
     try {
@@ -82,11 +80,7 @@ ClientSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        const duplicate_record = args.client_id
-          ? args.client_id
-          : args.client_id;
-        response[duplicate_record] = `${duplicate_record} must be unique`;
-        response["message"] = "the client_id must be unique for every client";
+        response["message"] = "the Client must be unique for every client";
       }
       return {
         error: response,
