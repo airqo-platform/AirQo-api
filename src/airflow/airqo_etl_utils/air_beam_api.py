@@ -1,6 +1,9 @@
 import datetime
 import json
 
+import urllib3
+from urllib3.util.retry import Retry
+
 import pandas as pd
 import requests
 
@@ -21,9 +24,7 @@ class AirBeamApi:
         username: str,
         pollutant: str,
     ):
-        request = requests.get(
-            url=f"{self.AIR_BEAM_BASE_URL}mobile/sessions.json",
-            params={
+        params={
                 "q": json.dumps(
                     {
                         "time_from": int(start_date_time.timestamp()),
@@ -41,16 +42,13 @@ class AirBeamApi:
                         "unit_symbol": "µg/m³",
                     }
                 )
-            },
+            }
+        request = self.__request(
+            endpoint=f"mobile/sessions.json",
+            params=params,
         )
 
-        print(request.request.url)
-
-        if request.status_code == 200:
-            return request.json()
-        else:
-            handle_api_error(request)
-            return None
+        return request
 
     def get_measurements(
         self,
@@ -67,20 +65,34 @@ class AirBeamApi:
             endpoint=f"measurements.json",
             params=params,
         )
-
+        
     def __request(self, endpoint, params):
-        api_request = requests.get(
-            "%s/%s" % (self.AIR_BEAM_BASE_URL, endpoint),
-            params=params,
-            verify=False,
+
+        url = f"{self.AIR_BEAM_BASE_URL}{endpoint}"
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=5,
         )
-
-        print(api_request.request.url)
-
-        if api_request.status_code == 200:
-            return api_request.json()
-        else:
-            handle_api_error(api_request)
+        
+        http = urllib3.PoolManager(retries=retry_strategy)
+        
+        try:
+            response = http.request(
+                "GET", 
+                url, 
+                fields=params,)
+            
+            response_data = response.data
+            print(response._request_url)
+            
+            if response.status == 200:
+                return json.loads(response_data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+            
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None
 
 

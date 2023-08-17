@@ -121,6 +121,9 @@ const UserSchema = new Schema(
       type: String,
       default: "airqo",
     },
+    rateLimit: {
+      type: Number,
+    },
     phoneNumber: {
       type: Number,
       validate: {
@@ -547,6 +550,7 @@ UserSchema.methods = {
         phoneNumber: this.phoneNumber,
         createdAt: this.createdAt,
         updatedAt: this.updatedAt,
+        rateLimit: this.rateLimit,
       },
       constants.JWT_SECRET
     );
@@ -591,6 +595,7 @@ UserSchema.methods = {
       role: this.role,
       verified: this.verified,
       networks: this.networks,
+      rateLimit: this.rateLimit,
     };
   },
 };

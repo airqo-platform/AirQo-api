@@ -19,11 +19,20 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
-
+const crypto = require("crypto");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
+
+const generateClientSecret = (length) => {
+  if (length % 2 !== 0) {
+    throw new Error("Length must be an even number");
+  }
+  const numBytes = length / 2;
+  const clientSecret = crypto.randomBytes(numBytes).toString("hex");
+  return clientSecret;
+};
 
 const NetworkModel = (tenant) => {
   try {
@@ -391,6 +400,65 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+      const token = request.params.token;
+      const tokenDetails = await AccessTokenModel(tenant)
+        .find({ token })
+        .lean();
+
+      if (isEmpty(tokenDetails)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Bad request -- Token ${token} does not exist` },
+        };
+      } else {
+        const tokenId = tokenDetails[0]._id;
+        let update = Object.assign({}, body);
+        if (update.token) {
+          delete update.token;
+        }
+        if (update.expires) {
+          delete update.expires;
+        }
+        if (update._id) {
+          delete update._id;
+        }
+        const updatedToken = await AccessTokenModel(tenant)
+          .findByIdAndUpdate(tokenId, update, { new: true })
+          .lean();
+
+        if (!isEmpty(updatedToken)) {
+          return {
+            success: true,
+            message: "Successfully updated the token's metadata",
+            data: updatedToken,
+            status: httpStatus.OK,
+          };
+        } else {
+          return {
+            success: false,
+            message: "Unable to update the token's metadata",
+            errors: { message: "Unable to update the token's metadata" },
+            status: httpStatus.CONFLICT,
+          };
+        }
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  regenerateAccessToken: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
       let filter = {};
       const responseFromFilter = generateFilter.tokens(request);
       if (responseFromFilter.success === false) {
@@ -406,19 +474,14 @@ const controlAccess = {
         .toUpperCase();
 
       let update = Object.assign({}, body);
-      update["token"] = token;
+      update.token = token;
 
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -427,7 +490,6 @@ const controlAccess = {
       };
     }
   },
-
   deleteAccessToken: async (request) => {
     try {
       const { query } = request;
@@ -458,7 +520,6 @@ const controlAccess = {
       };
     }
   },
-
   verifyToken: async (request) => {
     try {
       const { query } = request;
@@ -516,10 +577,8 @@ const controlAccess = {
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const user = responseFromListAccessToken.data[0].user;
+            const client = responseFromListAccessToken.data[0].client;
             winstonLogger.info(userAction, {
-              username: user.email,
-              email: user.email,
               service: service,
             });
 
@@ -533,12 +592,10 @@ const controlAccess = {
       return handleServerError(error);
     }
   },
-
   listAccessToken: async (request) => {
     try {
       const { query, params } = request;
       const { tenant } = query;
-      // const { token } = params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
@@ -551,22 +608,7 @@ const controlAccess = {
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter });
-      if (responseFromListToken.success === true) {
-        // if (!isEmpty(token)) {
-        //   const returnedToken = responseFromListToken.data[0];
-        //   if (!compareSync(token, returnedToken.token)) {
-        //     return {
-        //       success: false,
-        //       message: "either token or user do not exist",
-        //       status: httpStatus.BAD_REQUEST,
-        //       errors: { message: "either token or user do not exist" },
-        //     };
-        //   }
-        // }
-        return responseFromListToken;
-      } else if (responseFromListToken.success === false) {
-        return responseFromListToken;
-      }
+      return responseFromListToken;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -577,19 +619,22 @@ const controlAccess = {
       };
     }
   },
-
   createAccessToken: async (request) => {
     try {
-      const { query, body } = request;
-      const { tenant } = query;
-      let { user_id } = body;
+      const { tenant } = request.query;
+      const { client_id } = request.body;
 
-      return {
-        success: false,
-        message: "feature temporarily disabled --coming soon",
-        status: httpStatus.SERVICE_UNAVAILABLE,
-        errors: { message: "Service Unavailable" },
-      };
+      const client = await ClientModel(tenant).findById(ObjectId(client_id));
+      if (!client) {
+        return {
+          success: false,
+          message: "Client not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Invalid request, Client ${client_id} not found`,
+          },
+        };
+      }
 
       const token = accessCodeGenerator
         .generate(
@@ -597,84 +642,20 @@ const controlAccess = {
         )
         .toUpperCase();
 
-      /**
-       * Does the User ID actually exist?
-       */
-
-      const userExists = await UserModel(tenant).exists({ _id: user_id });
-      if (!userExists) {
-        return {
-          success: false,
-          message: "User not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Invalid request, User ${user_id} not found` },
-        };
-      }
-
-      /**
-       * Does the client ID actually exist?
-       * We shall not just create random access IDs from here.
-       */
-
-      // if (!isEmpty(client_id)) {
-      //   const clientExists = await ClientModel(tenant).exists({
-      //     _id: client_id,
-      //   });
-      //   if (!clientExists) {
-      //     return {
-      //       success: false,
-      //       message: "Client not found",
-      //       status: httpStatus.BAD_REQUEST,
-      //       errors: {
-      //         message: `Invalid request, Client ${client_id} not found`,
-      //       },
-      //     };
-      //   }
-      // }
-
-      /**
-       * just create the client from here?
-       */
-
-      const client_id = accessCodeGenerator
-        .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-        )
-        .toUpperCase();
-
-      const client_secret = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
+      const tokenCreationBody = Object.assign(
+        { token, client_id: ObjectId(client_id) },
+        request.body
       );
-      const clientName = request.user ? request.user.email : "no_email";
-      let clientRequestBody = {};
-      clientRequestBody["client_secret"] = client_secret;
-      clientRequestBody["client_id"] = client_id;
-      clientRequestBody["name"] = `client_${clientName}`;
 
-      const responseFromCreateClient = await ClientModel(
+      const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).register(clientRequestBody);
+      ).register(tokenCreationBody);
 
-      if (responseFromCreateClient.success === true) {
-        let modifiedBody = Object.assign({}, body);
-        modifiedBody["token"] = token;
-        modifiedBody["client_secret"] = client_secret;
-        modifiedBody["client_id"] = client_id;
+      logObject("responseFromCreateToken", responseFromCreateToken);
 
-        const responseFromCreateToken = await AccessTokenModel(
-          tenant.toLowerCase()
-        ).register(modifiedBody);
-
-        if (responseFromCreateToken.success === true) {
-          return responseFromCreateToken;
-        } else if (responseFromCreateToken.success === false) {
-          return responseFromCreateToken;
-        }
-      } else if (responseFromCreateClient.success === false) {
-        return responseFromCreateClient;
-      }
+      return responseFromCreateToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -683,14 +664,8 @@ const controlAccess = {
       };
     }
   },
-
   generateVerificationToken: async (request) => {
     try {
-      /**
-       * Just create the token and save it on the system
-       * Store it alongside their email address
-       * Send the token to the user so as to use it for verification
-       */
       const { query, body } = request;
       const { email } = body;
       const { tenant } = query;
@@ -700,12 +675,6 @@ const controlAccess = {
         : accessCodeGenerator.generate(
             constants.RANDOM_PASSWORD_CONFIGURATION(10)
           );
-
-      /**
-       *We are just going to create the user in the system and 
-       send them verification codes via email
-       It is those verification codes we shall use to verify them in the system
-       */
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
@@ -722,28 +691,6 @@ const controlAccess = {
           )
           .toUpperCase();
 
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
-
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(31)
-        );
-
-        const responseFromSaveClient = await ClientModel(tenant).register({
-          client_id,
-          client_secret,
-          name: responseFromCreateUser.data.email,
-        });
-        if (
-          responseFromSaveClient.success === false ||
-          responseFromSaveClient.status === httpStatus.ACCEPTED
-        ) {
-          return responseFromSaveClient;
-        }
-
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
@@ -753,8 +700,7 @@ const controlAccess = {
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
-          network_id,
-          client_id: responseFromSaveClient.data._id,
+
           user_id: responseFromCreateUser.data._id,
           expires: Date.now() + toMilliseconds(hrs, min, sec),
         });
@@ -801,11 +747,6 @@ const controlAccess = {
   },
   verifyVerificationToken: async (request) => {
     try {
-      /**
-       * create the user on the Platform
-       * create the user on Firebase
-       *
-       */
       const { query, params } = request;
       const { tenant } = query;
       const { user_id, token } = params;
@@ -819,8 +760,6 @@ const controlAccess = {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
-
-      // expires: { $gt: new Date().toISOString() },
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -856,11 +795,6 @@ const controlAccess = {
           logObject("responseFromUpdateUser", responseFromUpdateUser);
 
           if (responseFromUpdateUser.success === true) {
-            /**
-             * we shall also need to handle case where there was no update
-             * later...cases where the user never existed in the first place
-             * this will not be necessary if user deletion is cascaded.
-             */
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
@@ -942,33 +876,15 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      let update = Object.assign({}, body);
-      if (update.client_id) {
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
-        update["client_id"] = client_id;
-      }
-      if (update.client_secret) {
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(
-            constants.CLIENT_SECRET_LENGTH
-          )
-        );
-        update["client_secret"] = client_secret;
-      }
 
-      const responseFromUpdateToken = await ClientModel(
+      let update = Object.assign({}, body);
+      if (update.client_secret) {
+        delete update.client_secret;
+      }
+      const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      return responseFromUpdateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -979,7 +895,6 @@ const controlAccess = {
       };
     }
   },
-
   deleteClient: async (request) => {
     try {
       const { query } = request;
@@ -991,15 +906,10 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      const responseFromDeleteToken = await ClientModel(
+      const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
       ).remove({ filter });
-
-      if (responseFromDeleteToken.success === true) {
-        return responseFromDeleteToken;
-      } else if (responseFromDeleteToken.success == false) {
-        return responseFromDeleteToken;
-      }
+      return responseFromDeleteClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -1010,7 +920,6 @@ const controlAccess = {
       };
     }
   },
-
   listClient: async (request) => {
     try {
       const { query } = request;
@@ -1024,14 +933,12 @@ const controlAccess = {
       } else {
         filter = responseFromGenerateFilter;
       }
-      const responseFromListToken = await ClientModel(
+      const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter });
-      if (responseFromListToken.success === true) {
-        return responseFromListToken;
-      } else if (responseFromListToken.success === false) {
-        return responseFromListToken;
-      }
+
+      logObject("responseFromListClient", responseFromListClient);
+      return responseFromListClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -1042,40 +949,82 @@ const controlAccess = {
       };
     }
   },
-
   createClient: async (request) => {
     try {
-      const { query, body, params } = request;
+      const { body, query } = request;
       const { tenant } = query;
-
-      const client_id = accessCodeGenerator
-        .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-        )
-        .toUpperCase();
-      const client_secret = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
-      );
-
+      const { user_id } = body;
+      const client_secret = generateClientSecret(100);
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `User ${user_id} does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       let modifiedBody = Object.assign({}, body);
-      modifiedBody["client_secret"] = client_secret;
-      modifiedBody["client_id"] = client_id;
+      modifiedBody.client_secret = client_secret;
 
-      const responseFromCreateToken = await ClientModel(
+      const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
-
-      if (responseFromCreateToken.success === true) {
-        return responseFromCreateToken;
-      } else if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      }
+      return responseFromCreateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateClientSecret: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { client_id } = request.params;
+
+      const clientExists = await ClientModel(tenant).exists({ _id: client_id });
+      if (!clientExists) {
+        logger.error(`Client with ID ${client_id} not found`);
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Client with ID ${client_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const client_secret = generateClientSecret(100);
+      const updatedClient = await ClientModel(tenant)
+        .findByIdAndUpdate(client_id, { client_secret }, { new: true })
+        .exec();
+
+      // logObject("updatedClient", updatedClient);
+      if (isEmpty(updatedClient)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "unable to complete operation" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        return {
+          success: true,
+          message: "Successful Operation",
+          status: httpStatus.OK,
+          data: updatedClient.client_secret,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`Error updating client secret: ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: `Error updating client secret: ${error.message}` },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

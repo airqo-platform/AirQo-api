@@ -1,6 +1,10 @@
-import requests
+import json
+
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
+from .utils import Utils
 
 
 class PurpleAirApi:
@@ -28,28 +32,31 @@ class PurpleAirApi:
         return response if response else {}
 
     def __request(self, endpoint, params):
-        api_request = requests.get(
-            "%s%s" % (self.PURPLE_AIR_BASE_URL, endpoint),
-            params=params,
-            verify=False,
-            headers={"x-api-key": self.PURPLE_AIR_API_KEY},
+
+        url = f"{self.PURPLE_AIR_BASE_URL}{endpoint}"
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=5,
         )
-
-        print(api_request.request.url)
-
-        if api_request.status_code == 200:
-            return api_request.json()
-        else:
-            handle_api_error(api_request)
+        
+        http = urllib3.PoolManager(retries=retry_strategy)
+        
+        try:
+            response = http.request(
+                "GET", 
+                url, 
+                fields=params,
+                headers={"x-api-key": self.PURPLE_AIR_API_KEY},)
+            
+            response_data = response.data
+            print(response._request_url)
+            
+            if response.status == 200:
+                return json.loads(response_data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+            
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)

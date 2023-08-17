@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
+from google.oauth2 import service_account
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
@@ -14,8 +15,14 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        # TODO: Remove later
+        self.hourly_measurements_table_prod = (
+            configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD
+        )
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
-        self.forecast_measurements_table = configuration.BIGQUERY_FORECAST_EVENTS_TABLE
+        self.hourly_forecasts_table = (
+            configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
+        )
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -152,8 +159,6 @@ class BigQueryApi:
             or table == self.daily_measurements_table
         ):
             schema_file = "measurements.json"
-        elif table == self.forecast_measurements_table:
-            schema_file = "forecast_measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
@@ -574,16 +579,14 @@ class BigQueryApi:
            WHERE
            DATE(timestamp) >= DATE_SUB(
                CURRENT_DATE(), INTERVAL 7 DAY) 
-            ORDER BY device_id, timestamp ASC
+            ORDER BY device_id, timestamp
            """
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
+        dataframe = self.client.query(f"{query}", job_config).result().to_dataframe()
         try:
-            dataframe = (
-                self.client.query(f"{query}", job_config).result().to_dataframe()
-            )
             if dataframe.empty:
                 raise Exception("No data found from bigquery")
             dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
@@ -609,6 +612,34 @@ class BigQueryApi:
                 final_df = pd.concat([final_df, device_df])
 
             return final_df
-
         except Exception as e:
             raise e
+
+    def fetch_data(self, start_date_time: str, historical: bool = False):
+        # historical is for the actual jobs, not training
+        query = f"""
+                SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD}`
+                WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
+                ORDER BY created_at, device_number
+        """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        df = self.client.query(f"{query}", job_config).result().to_dataframe()
+        return df
+
+    @staticmethod
+    def save_forecasts_to_bigquery(df, table):
+        """saves the dataframes to the bigquery tables"""
+        credentials = service_account.Credentials.from_service_account_file(
+            configuration.GOOGLE_APPLICATION_CREDENTIALS
+        )
+        df.to_gbq(
+            destination_table=f"{table}",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists="append",
+            credentials=credentials,
+        )
+        print("Hourly data saved to bigquery")

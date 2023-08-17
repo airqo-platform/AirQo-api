@@ -7,7 +7,7 @@ images:
     predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/airqo-train-job
     predictPlaces: eu.gcr.io/airqo-250220/airqo-predict-places-air-quality
-  tag: prod-60f6105c-1692164979
+  tag: prod-3df2b38b-1692187708
 api:
   name: airqo-prediction-api
   label: prediction-api
@@ -22,26 +22,6 @@ api:
       cpu: 5m
       memory: 120Mi
 jobs:
-  predict:
-    name: airqo-predict-job
-    configmap: env-predict-job-production
-    schedule: 0 0 * * *
-    resources:
-      limits:
-        cpu: 1000m
-        memory: 4000Mi
-  train:
-    name: airqo-train-job
-    configmap: env-train-job-production
-    schedule: 0 1 1 * *
-    suspend: false
-    resources:
-      limits:
-        cpu: 8000m
-        memory: 16000Mi
-      requests:
-        cpu: 2500m
-        memory: 4000Mi
   predictPlaces:
     name: airqo-predict-places-air-quality
     configmap: env-predict-places-air-quality-production

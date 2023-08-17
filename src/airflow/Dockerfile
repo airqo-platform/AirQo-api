@@ -8,6 +8,7 @@ FROM apache/airflow:2.6.3-python3.10 as base-builder
 ENV AIRFLOW_VERSION=2.6.3
 USER root
 RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
+RUN apt-get install -y gcc && apt-get install -y git && apt-get install libgomp1
 USER airflow
 
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl

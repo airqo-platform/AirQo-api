@@ -9,7 +9,7 @@ const constants = require("@config/constants");
 
 const log4jsConfiguration = require("@config/log4js");
 log4js.configure(log4jsConfiguration);
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- www-start-script`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/index script`);
 
 try {
   require("fs").mkdirSync("./log");
@@ -21,7 +21,9 @@ try {
 }
 
 const main = async () => {
-  kafkaConsumer();
+  await kafkaConsumer().catch((error) => {
+    logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+  });
   createServer();
 };
 

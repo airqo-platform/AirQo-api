@@ -186,7 +186,7 @@ const defaultConfig = {
                                     style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
                                     Dear ${name},
                                 </td>
-                            </tr>`
+                            </tr>`;
   },
   EMAIL_HEADER_TEMPLATE: () => {
     return `
@@ -299,7 +299,7 @@ const defaultConfig = {
 
     </body>
 
-</html>`
+</html>`;
   },
   NETWORKS_INCLUSION_PROJECTION: {
     _id: 1,
@@ -751,13 +751,16 @@ const defaultConfig = {
   TOKENS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,
-    name: 1,
     token: 1,
-    network_id: 1,
     last_used_at: 1,
     expires: 1,
+    name: 1,
+    permissions: 1,
+    scopes: 1,
     last_ip_address: 1,
-    user: { $arrayElemAt: ["$users", 0] },
+    expires_in: 1,
+    client: { $arrayElemAt: ["$client", 0] },
+    user: { $arrayElemAt: ["$user", 0] },
   },
 
   TOKENS_EXCLUSION_PROJECTION: (category) => {
@@ -767,7 +770,9 @@ const defaultConfig = {
       "user.verified": 0,
       "user.networks": 0,
       "user.groups": 0,
-      "user.roles": 0,
+      "user.emailConfirmed": 0,
+      "user.organization": 0,
+      "user.role": 0,
       "user.permissions": 0,
       "user.locationCount": 0,
       "user.userName": 0,
@@ -780,6 +785,14 @@ const defaultConfig = {
       "user.__v": 0,
       "user.resetPasswordExpires": 0,
       "user.resetPasswordToken": 0,
+      "user.website": 0,
+      "user.category": 0,
+      "user.jobTitle": 0,
+      "user.profilePicture": 0,
+      "user.phoneNumber": 0,
+      "user.description": 0,
+      "user.country": 0,
+      "client.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

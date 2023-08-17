@@ -330,7 +330,7 @@ const filter = {
     try {
       const { query, params } = req;
       const { id } = query;
-      const { token, user_id, network_id, client_id } = params;
+      const { token, client_id, name } = params;
       let filter = {};
 
       if (id) {
@@ -342,16 +342,13 @@ const filter = {
       }
 
       if (client_id) {
-        filter["client_id"] = client_id;
+        filter["client_id"] = ObjectId(client_id);
       }
 
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
+      if (name) {
+        filter["name"] = name;
       }
 
-      if (user_id) {
-        filter[" user_id"] = ObjectId(user_id);
-      }
       return filter;
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
@@ -376,24 +373,11 @@ const filter = {
       }
 
       if (client_id) {
-        filter["client_id"] = client_id;
+        filter["_id"] = ObjectId(client_id);
       }
 
       if (client_secret) {
         filter["client_secret"] = client_secret;
-      }
-
-      if (client_name) {
-        filter["name"] = client_name;
-      }
-
-      if (network_id) {
-        const networksArray = network_id.split(",");
-        const arrayOfNetworkObjects = networksArray.map((value) => {
-          ObjectId(value);
-        });
-        filter["networks"] = {};
-        filter["networks"]["$in"] = arrayOfNetworkObjects;
       }
 
       return filter;

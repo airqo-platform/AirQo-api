@@ -1,8 +1,12 @@
 import traceback
+from urllib.parse import urlencode
 
 import pandas as pd
 import requests
 import simplejson
+
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -316,50 +320,52 @@ class AirQoApi:
         if params is None:
             params = {}
         params.update({"token": self.AIRQO_API_TOKEN})
-        if method is None or method == "get":
-            api_request = requests.get(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                verify=False,
-            )
-        elif method == "put":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.put(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                data=simplejson.dumps(body, ignore_nan=True),
-                verify=False,
-            )
-        elif method == "post":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.post(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                data=simplejson.dumps(body, ignore_nan=True),
-                verify=False,
-            )
-        else:
-            handle_api_error("Invalid")
+
+        retry_strategy = Retry(
+            total=5,       
+            backoff_factor=5,
+        )
+
+        http = urllib3.PoolManager(retries=retry_strategy)
+
+        url = f"{base_url}/{endpoint}"
+        print(url)
+        try:
+            if method is None or method == "get":
+                response = http.request("GET", url, fields=params, headers=headers)
+            elif method == "put":
+                headers["Content-Type"] = "application/json"
+                encoded_args = urlencode(params)
+                url = url + "?" + encoded_args
+                response = http.request(
+                    "PUT", 
+                    url,
+                    headers=headers, 
+                    body=simplejson.dumps(body, ignore_nan=True)
+                    )
+            elif method == "post":
+                headers["Content-Type"] = "application/json"
+                encoded_args = urlencode(params)
+                url = url + "?" + encoded_args
+                response = http.request(
+                    "POST", 
+                    url,
+                    headers=headers, 
+                    body=simplejson.dumps(body, ignore_nan=True)
+                    )
+            else:
+                handle_api_error("Invalid")
+                return None
+
+            print(response._request_url)
+
+            if response.status == 200 or response.status == 201:
+                return simplejson.loads(response.data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None
 
-        print(api_request.request.url)
-
-        if api_request.status_code == 200 or api_request.status_code == 201:
-            return api_request.json()
-        else:
-            handle_api_error(api_request)
-            return None
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)
