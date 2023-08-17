@@ -36,7 +36,6 @@ const rewire = require("rewire");
 const rewireCreateUser = rewire("@utils/create-user");
 const UserModel = rewireCreateUser.__get__("UserModel");
 const LogModel = rewireCreateUser.__get__("LogModel");
-const AccessTokenModel = rewireCreateUser.__get__("AccessTokenModel");
 const NetworkModel = rewireCreateUser.__get__("NetworkModel");
 const RoleModel = rewireCreateUser.__get__("RoleModel");
 const accessCodeGenerator = require("generate-password");
