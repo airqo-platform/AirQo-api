@@ -413,7 +413,7 @@ const controlAccess = {
           errors: { message: `Bad request -- Token ${token} does not exist` },
         };
       } else {
-        const tokenId = tokenDetails._id;
+        const tokenId = tokenDetails[0]._id;
         let update = Object.assign({}, body);
         if (update.token) {
           delete update.token;
@@ -445,6 +445,7 @@ const controlAccess = {
         }
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
