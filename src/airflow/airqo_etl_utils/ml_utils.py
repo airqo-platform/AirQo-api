@@ -481,11 +481,7 @@ class ForecastUtils:
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
             for i in range(int(configuration.HOURLY_FORECAST_HORIZON)):
-                new_row = get_new_row(
-                    test_copy,
-                    device,
-                    forecast_model
-                )
+                new_row = get_new_row(test_copy, device, forecast_model)
                 test_copy = pd.concat(
                     [test_copy, new_row.to_frame().T], ignore_index=True
                 )
@@ -507,9 +503,7 @@ class ForecastUtils:
     def generate_daily_forecasts(data, project_name, bucket_name, source_blob_name):
         data["created_at"] = pd.to_datetime(data["created_at"])
 
-        def get_new_row(
-            df_tmp, device, model
-        ):
+        def get_new_row(df_tmp, device, model):
             last_row = df_tmp[df_tmp["device_number"] == device].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
             for i in fixed_columns:
@@ -552,10 +546,9 @@ class ForecastUtils:
             new_row["week"] = new_row["created_at"].isocalendar().week
 
             new_row["pm2_5"] = model.predict(
-                new_row.drop(
-                    fixed_columns
-                    + ["created_at", "pm2_5"]
-                ).values.reshape(1, -1)
+                new_row.drop(fixed_columns + ["created_at", "pm2_5"]).values.reshape(
+                    1, -1
+                )
             )[0]
             return new_row
 
@@ -583,10 +576,9 @@ class ForecastUtils:
         forecasts.rename(columns={"created_at": "time"}, inplace=True)
         current_time = datetime.utcnow()
         current_time_utc = pd.Timestamp(current_time, tz="UTC")
-        result = forecasts[
-            fixed_columns
-            + ["time", "pm2_5", "device_number"]
-        ][forecasts["time"] >= current_time_utc]
+        result = forecasts[fixed_columns + ["time", "pm2_5", "device_number"]][
+            forecasts["time"] >= current_time_utc
+        ]
 
         return result
 
