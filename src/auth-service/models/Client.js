@@ -11,6 +11,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 const ClientSchema = new Schema(
   {
     user_id: { type: ObjectId, ref: "user" },
+    name: { type: String, trim: true },
     client_secret: { type: String, trim: true },
     redirect_uri: { type: String },
     description: { type: String },
@@ -215,6 +216,7 @@ ClientSchema.methods = {
       _id: this._id,
       client_secret: this.client_secret,
       redirect_uri: this.redirect_uri,
+      name: this.name,
       description: this.description,
       rateLimit: this.rateLimit,
     };
