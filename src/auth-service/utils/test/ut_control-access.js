@@ -5184,65 +5184,59 @@ describe("controlAccess", () => {
     });
   });
   describe("verifyToken()", () => {
-    let request;
+    let AccessTokenModelStub;
 
     beforeEach(() => {
-      request = {
-        query: {},
-        headers: {},
-      };
+      AccessTokenModelStub = sinon.stub();
+      AccessTokenModelStub.list = sinon.stub();
     });
 
-    it("should return an unauthorized response when filterResponse.success is false", async () => {
-      const generateFilter = {
-        tokens: sinon.fake.returns({ success: false }),
-      };
-      const result = await controlAccess.verifyToken(request, generateFilter);
-      expect(result).to.deep.equal({ success: false });
+    afterEach(() => {
+      sinon.restore();
     });
 
-    it("should return an unauthorized response when service is deprecated-events-endpoint", async () => {
-      request.headers = {
-        "x-original-uri": "/some/uri",
-        "x-original-method": "GET",
-      };
-      const getService = sinon.fake.returns("deprecated-events-endpoint");
-      const result = await controlAccess.verifyToken(request, null, getService);
+    it("should return unauthorized response if deprecated version", async () => {
+      const headers = { "x-original-uri": "deprecated-version-number" };
+      const request = { headers, query: { tenant: "example_tenant" } };
+
+      const result = await controlAccess.verifyToken(request);
+
       expect(result).to.deep.equal(createUnauthorizedResponse());
     });
 
-    it("should return a valid token response when conditions are met", async () => {
-      // Mocking AccessTokenModel(tenant).list
-      const responseFromListAccessToken = {
+    it("should return unauthorized response if AccessTokenModel.list returns NOT_FOUND status", async () => {
+      AccessTokenModelStub.list.resolves({
+        success: true,
+        status: httpStatus.NOT_FOUND,
+      });
+      const request = { headers: {}, query: { tenant: "example_tenant" } };
+
+      const result = await controlAccess.verifyToken(request);
+
+      expect(result).to.deep.equal(createUnauthorizedResponse());
+    });
+
+    it("should create valid token response if AccessTokenModel.list returns OK status and required headers are provided", async () => {
+      AccessTokenModelStub.list.resolves({
         success: true,
         status: httpStatus.OK,
         data: [
           {
-            user: { email: "test@example.com" },
+            client: "example_client",
+            user: { email: "user@example.com", userName: "username" },
           },
         ],
-      };
-      const AccessTokenModel = sinon.stub().returns({
-        list: sinon.fake.resolves(responseFromListAccessToken),
       });
 
-      request.headers = {
-        "x-original-uri": "/some/uri",
+      const headers = {
+        "x-original-uri": "example-uri",
         "x-original-method": "GET",
       };
-      const getService = sinon.fake.returns("some-service");
-      const getUserAction = sinon.fake.returns("some-action");
+      const request = { headers, query: { tenant: "example_tenant" } };
 
-      const result = await controlAccess.verifyToken(
-        request,
-        null,
-        getService,
-        AccessTokenModel,
-        getUserAction
-      );
+      const result = await controlAccess.verifyToken(request);
+
       expect(result).to.deep.equal(createValidTokenResponse());
-
-      // Verify the logs or other expectations as needed
     });
 
     // Add more test cases as needed

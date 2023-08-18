@@ -577,8 +577,13 @@ const controlAccess = {
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const client = responseFromListAccessToken.data[0].client;
+            const { user: { email = "", userName = "" } = {} } =
+              responseFromListAccessToken.data[0];
+            logObject("email", email);
+            logObject("userName", userName);
             winstonLogger.info(userAction, {
+              email,
+              userName,
               service: service,
             });
 
