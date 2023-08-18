@@ -3,8 +3,13 @@ const chai = require("chai");
 const chaiHttp = require("chai-http");
 const sinon = require("sinon");
 const httpStatus = require("http-status");
+const assert = chai.assert;
+const faker = require("faker");
+const mongoose = require("mongoose").set("debug", true);
+
 const createKnowYourAir = require("@utils/create-know-your-air");
 const { getModelByTenant } = require("@config/database");
+const generateFilter = require("../generate-filter");
 
 chai.use(chaiHttp);
 const expect = chai.expect;
@@ -1792,5 +1797,658 @@ describe("createKnowYourAir", () => {
     // Add more test cases as needed
   });
 
+
   // Add tests for other functions in createKnowYourAir
+});
+
+describe("KYA QUIZ", () => {
+  let quizStubValue = {
+    _id: faker.datatype.uuid(),
+    tenant: "test",
+    user_id: faker.datatype.uuid(),
+    title: faker.lorem.word(),
+    description: faker.lorem.sentence(),
+    image: faker.image.imageUrl(),
+    completion_message: faker.lorem.sentence(),
+  };
+
+  let questionStubValue = {
+    _id: faker.datatype.uuid(),
+    tenant: "test",
+    kya_quiz: faker.datatype.uuid(),
+    title: faker.lorem.word(),
+    context: faker.lorem.sentence(),
+    quiz_position: faker.datatype.number(),
+  };
+
+
+  let answerStubValue = {
+    _id: faker.datatype.uuid(),
+    tenant: "test",
+    kya_question: faker.datatype.uuid(),
+    title: faker.lorem.word(),
+    content: faker.lorem.sentence(),
+  };
+
+  const mockReq = {
+    query: {
+      tenant: "test",
+      limit: 10,
+      skip: 0,
+    },
+    params: {
+      user_id: quizStubValue.user_id
+    },
+  }
+
+
+  describe("Quiz", () => {
+    describe("List Quizzes", () => {
+
+      const mongooseStub = sinon.stub(mongoose, "model");
+      it("should return the list of quizzes", async () => {
+        const generateFilterStubQuiz = sinon.stub(generateFilter, "kyaquizzes").returns({
+          _id: quizStubValue._id
+        });
+        const listStub = sinon.stub().resolves(quizStubValue);
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listQuiz(mockReq);
+        expect(response).deep.equals(quizStubValue);
+
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const listStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listQuiz(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+    });
+
+    describe("Delete Quiz", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should delete the quiz", async () => {
+        const generateFilterStubQuiz = sinon
+          .stub(generateFilter, "kyaquizzes")
+          .returns({
+            _id: quizStubValue._id,
+          });
+
+        const removeStub = sinon.stub().resolves({ success: true });
+        const knowYourAirMock = {
+          remove: removeStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.deleteQuiz(mockReq);
+        expect(response).to.deep.equal({ success: true });
+
+        generateFilterStubQuiz.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const removeStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          remove: removeStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.deleteQuiz(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+
+    describe("Update Quiz", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should update the quiz", async () => {
+        const generateFilterStubQuiz = sinon
+          .stub(generateFilter, "kyaquizzes")
+          .returns({
+            _id: quizStubValue._id,
+          });
+
+        const modifyStub = sinon.stub().resolves(quizStubValue);
+        const knowYourAirMock = {
+          modify: modifyStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.updateQuiz(mockReq);
+        expect(response).to.deep.equal(quizStubValue);
+
+        generateFilterStubQuiz.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const modifyStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          modify: modifyStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.updateQuiz(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+
+    describe("Create Quiz", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should create a quiz and publish it to Kafka", async () => {
+        const mockResponse = { success: true, data: quizStubValue };
+        const registerStub = sinon.stub().resolves(mockResponse);
+        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+          connect: sinon.stub().resolves(),
+          send: sinon.stub().resolves(),
+          disconnect: sinon.stub().resolves(),
+        });
+
+        const knowYourAirMock = {
+          register: registerStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const mockCreateReq = { body: quizStubValue, query: { tenant: "test" } };
+        const response = await createKnowYourAir.createQuiz(mockCreateReq);
+
+        expect(registerStub.calledOnce).to.be.true;
+        expect(kafkaProducerStub.calledOnce).to.be.true;
+        expect(response).to.deep.equal(mockResponse);
+
+        kafkaProducerStub.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const registerStub = sinon.stub().rejects(new Error(errorMessage));
+        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+          connect: sinon.stub().resolves(),
+          send: sinon.stub().resolves(),
+          disconnect: sinon.stub().resolves(),
+        });
+
+        const knowYourAirMock = {
+          register: registerStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.createQuiz(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+
+        kafkaProducerStub.restore();
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+
+
+  })
+
+
+  describe("Questions", () => {
+    sinon.restore();
+    describe("List Questions", () => {
+
+      const mongooseStub = sinon.stub(mongoose, "model");
+      it("should return the list of questions", async () => {
+        const generateFilterStubQuestions = sinon.stub(generateFilter, "kyaquestions").returns({
+          _id: questionStubValue._id
+        });
+        const listStub = sinon.stub().resolves(questionStubValue);
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listQuestions(mockReq);
+        expect(response).deep.equals(questionStubValue);
+
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const listStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listQuestions(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+    });
+
+    describe("Delete Question", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should delete the question", async () => {
+        const generateFilterStubQuestion = sinon
+          .stub(generateFilter, "kyaquestions")
+          .returns({
+            _id: questionStubValue._id,
+          });
+
+        const removeStub = sinon.stub().resolves({ success: true });
+        const knowYourAirMock = {
+          remove: removeStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.deleteQuestion(mockReq);
+        expect(response).to.deep.equal({ success: true });
+
+        generateFilterStubQuestion.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const removeStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          remove: removeStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.deleteQuestion(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+
+    describe("Update Question", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should update the question", async () => {
+        const generateFilterStubQuestion = sinon
+          .stub(generateFilter, "kyaquestions")
+          .returns({
+            _id: questionStubValue._id,
+          });
+
+        const modifyStub = sinon.stub().resolves(questionStubValue);
+        const knowYourAirMock = {
+          modify: modifyStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.updateQuestion(mockReq);
+        expect(response).to.deep.equal(questionStubValue);
+
+        generateFilterStubQuestion.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const modifyStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          modify: modifyStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.updateQuestion(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+
+    describe("Create Question", () => {
+      const mongooseStub = sinon.stub(mongoose, "model");
+
+      it("should create a question and publish it to Kafka", async () => {
+        const mockResponse = { success: true, data: questionStubValue };
+        const registerStub = sinon.stub().resolves(mockResponse);
+        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+          connect: sinon.stub().resolves(),
+          send: sinon.stub().resolves(),
+          disconnect: sinon.stub().resolves(),
+        });
+
+        const knowYourAirMock = {
+          register: registerStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const mockCreateReq = { body: questionStubValue, query: { tenant: "test" } };
+        const response = await createKnowYourAir.createQuestion(mockCreateReq);
+
+        expect(registerStub.calledOnce).to.be.true;
+        expect(kafkaProducerStub.calledOnce).to.be.true;
+        expect(response).to.deep.equal(mockResponse);
+
+        kafkaProducerStub.restore();
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const registerStub = sinon.stub().rejects(new Error(errorMessage));
+        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+          connect: sinon.stub().resolves(),
+          send: sinon.stub().resolves(),
+          disconnect: sinon.stub().resolves(),
+        });
+
+        const knowYourAirMock = {
+          register: registerStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+
+        const response = await createKnowYourAir.createQuestion(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+
+        kafkaProducerStub.restore();
+      });
+
+      afterEach(() => {
+        mongooseStub.restore();
+      });
+    });
+  })
+
+  describe("Answers", () => {
+    sinon.restore();
+    describe("List Answers", () => {
+
+      const mongooseStub = sinon.stub(mongoose, "model");
+      it("should return the list of answers", async () => {
+        const generateFilterStubAnswers = sinon.stub(generateFilter, "kyaanswers").returns({
+          _id: answerStubValue._id
+        });
+        const listStub = sinon.stub().resolves(answerStubValue);
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listAnswers(mockReq);
+        expect(response).deep.equals(answerStubValue);
+
+      });
+
+      it("should handle error and return appropriate response", async () => {
+        const errorMessage = "Test error message";
+        const listStub = sinon.stub().rejects(new Error(errorMessage));
+        const knowYourAirMock = {
+          list: listStub,
+        };
+        mongooseStub.returns(knowYourAirMock);
+        const response = await createKnowYourAir.listAnswers(mockReq);
+
+        const expectedErrorResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: errorMessage },
+        };
+        expect(response).to.deep.equal(expectedErrorResponse);
+      });
+
+      describe("Delete Answer", () => {
+        const mongooseStub = sinon.stub(mongoose, "model");
+
+        it("should delete the answer", async () => {
+          const generateFilterStubAnswer = sinon
+            .stub(generateFilter, "kyaanswers")
+            .returns({
+              _id: answerStubValue._id,
+            });
+
+          const removeStub = sinon.stub().resolves({ success: true });
+          const knowYourAirMock = {
+            remove: removeStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+
+          const response = await createKnowYourAir.deleteAnswer(mockReq);
+          expect(response).to.deep.equal({ success: true });
+
+          generateFilterStubAnswer.restore();
+        });
+
+        it("should handle error and return appropriate response", async () => {
+          const errorMessage = "Test error message";
+          const removeStub = sinon.stub().rejects(new Error(errorMessage));
+          const knowYourAirMock = {
+            remove: removeStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+
+          const response = await createKnowYourAir.deleteAnswer(mockReq);
+
+          const expectedErrorResponse = {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: errorMessage },
+          };
+          expect(response).to.deep.equal(expectedErrorResponse);
+        });
+
+        afterEach(() => {
+          mongooseStub.restore();
+        });
+      });
+
+      describe("Update Answer", () => {
+        const mongooseStub = sinon.stub(mongoose, "model");
+
+        it("should update the answer", async () => {
+          const generateFilterStubAnswer = sinon
+            .stub(generateFilter, "kyaanswers")
+            .returns({
+              _id: answerStubValue._id,
+            });
+
+          const modifyStub = sinon.stub().resolves(answerStubValue);
+          const knowYourAirMock = {
+            modify: modifyStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+          const response = await createKnowYourAir.updateAnswer(mockReq);
+          expect(response).to.deep.equal(answerStubValue);
+
+          generateFilterStubAnswer.restore();
+        });
+
+        it("should handle error and return appropriate response", async () => {
+          const errorMessage = "Test error message";
+          const modifyStub = sinon.stub().rejects(new Error(errorMessage));
+          const knowYourAirMock = {
+            modify: modifyStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+
+          const response = await createKnowYourAir.updateAnswer(mockReq);
+
+          const expectedErrorResponse = {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: errorMessage },
+          };
+          expect(response).to.deep.equal(expectedErrorResponse);
+        });
+
+        afterEach(() => {
+          mongooseStub.restore();
+        });
+      });
+
+      describe("Create Answer", () => {
+        const mongooseStub = sinon.stub(mongoose, "model");
+
+        it("should create a answer and publish it to Kafka", async () => {
+          const mockResponse = { success: true, data: answerStubValue };
+          const registerStub = sinon.stub().resolves(mockResponse);
+          const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+            connect: sinon.stub().resolves(),
+            send: sinon.stub().resolves(),
+            disconnect: sinon.stub().resolves(),
+          });
+
+          const knowYourAirMock = {
+            register: registerStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+
+          const mockCreateReq = { body: answerStubValue, query: { tenant: "test" } };
+          const response = await createKnowYourAir.createAnswer(mockCreateReq);
+
+          expect(registerStub.calledOnce).to.be.true;
+          expect(kafkaProducerStub.calledOnce).to.be.true;
+          expect(response).to.deep.equal(mockResponse);
+
+          kafkaProducerStub.restore();
+        });
+
+        it("should handle error and return appropriate response", async () => {
+          const errorMessage = "Test error message";
+          const registerStub = sinon.stub().rejects(new Error(errorMessage));
+          const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+            connect: sinon.stub().resolves(),
+            send: sinon.stub().resolves(),
+            disconnect: sinon.stub().resolves(),
+          });
+
+          const knowYourAirMock = {
+            register: registerStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+
+          const response = await createKnowYourAir.createAnswer(mockReq);
+
+          const expectedErrorResponse = {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: errorMessage },
+          };
+          expect(response).to.deep.equal(expectedErrorResponse);
+
+          kafkaProducerStub.restore();
+        });
+
+        afterEach(() => {
+          mongooseStub.restore();
+        });
+      });
+    });
+
+    describe("UserQuizProgress", () => {
+      sinon.restore();
+      describe("List UserQuizProgress", () => {
+
+        const mongooseStub = sinon.stub(mongoose, "model");
+        it("should return the list of UserProgress", async () => {
+          const generateFilterStubProgress = sinon.stub(generateFilter, "kyaprogress").returns({
+            _id: kyaProgressStubValue._id
+          });
+          const listStub = sinon.stub().resolves(kyaProgressStubValue);
+          const knowYourAirMock = {
+            list: listStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+          const response = await createKnowYourAir.listUserQuizProgress(mockReq);
+          expect(response).deep.equals(kyaProgressStubValue);
+
+        });
+
+        it("should handle error and return appropriate response", async () => {
+          const errorMessage = "Test error message";
+          const listStub = sinon.stub().rejects(new Error(errorMessage));
+          const knowYourAirMock = {
+            list: listStub,
+          };
+          mongooseStub.returns(knowYourAirMock);
+          const response = await createKnowYourAir.listUserQuizProgress(mockReq);
+
+          const expectedErrorResponse = {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: errorMessage },
+          };
+          expect(response).to.deep.equal(expectedErrorResponse);
+        });
+      });
+    })
+
+  })
+
 });

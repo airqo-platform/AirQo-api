@@ -11,6 +11,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 const ClientSchema = new Schema(
   {
     user_id: { type: ObjectId, ref: "user" },
+    name: { type: String, trim: true },
     client_secret: { type: String, trim: true },
     redirect_uri: { type: String },
     description: { type: String },
@@ -46,8 +47,6 @@ ClientSchema.pre("update", function (next) {
   return next();
 });
 
-ClientSchema.index({ client_id: 1 }, { unique: true });
-
 ClientSchema.statics = {
   async register(args) {
     try {
@@ -82,11 +81,7 @@ ClientSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        const duplicate_record = args.client_id
-          ? args.client_id
-          : args.client_id;
-        response[duplicate_record] = `${duplicate_record} must be unique`;
-        response["message"] = "the client_id must be unique for every client";
+        response["message"] = "the Client must be unique for every client";
       }
       return {
         error: response,
@@ -221,6 +216,7 @@ ClientSchema.methods = {
       _id: this._id,
       client_secret: this.client_secret,
       redirect_uri: this.redirect_uri,
+      name: this.name,
       description: this.description,
       rateLimit: this.rateLimit,
     };
