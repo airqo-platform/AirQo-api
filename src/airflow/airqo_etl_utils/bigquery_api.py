@@ -619,7 +619,7 @@ class BigQueryApi:
         # historical is for the actual jobs, not training
         query = f"""
                 SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
-                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD}`
+                FROM `{self.hourly_measurements_table_prod}`
                 WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
                 ORDER BY created_at, device_number
         """
@@ -627,6 +627,29 @@ class BigQueryApi:
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
+        df = self.client.query(f"{query}", job_config).result().to_dataframe()
+        return df
+
+    def \
+            fetch_training_data(self, start_date_time:str,) -> pd.DataFrame:
+        query = f"""
+        SELECT DISTINCT 
+            t1.device_id, 
+            t1.timestamp,  
+            t1.site_id, 
+            t1.pm2_5_calibrated_value, 
+            t2.latitude, 
+            t2.longitude, 
+            t3.device_category 
+        FROM `{self.hourly_measurements_table_prod}` t1 
+        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id 
+        JOIN `{self.devices_table}` t3 on t1.device_id = t3.device_id
+        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
+        ORDER BY device_id, timestamp"""
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+    
         df = self.client.query(f"{query}", job_config).result().to_dataframe()
         return df
 

@@ -6,6 +6,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 import pymongo as pm
+from category_encoders import OneHotEncoder, CountEncoder
 from lightgbm import LGBMRegressor, early_stopping
 from scipy.stats import skew
 from sklearn.metrics import mean_squared_error
@@ -49,38 +50,36 @@ class ForecastUtils:
     ###FORECAST MODEL TRAINING UTILS####
     @staticmethod
     def preprocess_training_data(data, frequency):
-        data["created_at"] = pd.to_datetime(data["created_at"])
-        data["device_number"] = data["device_number"].astype(str)
-        data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["pm2_5"] = data.groupby("device_id")["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
         if frequency == "daily":
             data = (
-                data.groupby(["device_number"])
-                .resample("D", on="created_at")
+                data.groupby(["device_id"])
+                .resample("D", on="timestamp")
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
+            data["pm2_5"] = data.groupby("device_id")["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
-        data["device_number"] = data["device_number"].astype(int)
         data = data.dropna(subset=["pm2_5"])
         return data
 
     @staticmethod
-    def feature_eng_training_data(data, target_column, frequency):
+    def feature_eng_training_data(data, target_column, frequency): 
         def get_lag_features(df, target_col, freq):
-            df = df.sort_values(by=["device_number", "created_at"])
+            df = df.sort_values(by=["device_id", "timestamp"])
 
             if freq == "daily":
-                shifts = [1, 2]
+                shifts = [1, 2, 3, 7, 14]
                 for s in shifts:
-                    df[f"pm2_5_last_{s}_day"] = df.groupby(["device_number"])[
+                    df[f"pm2_5_last_{s}_day"] = df.groupby(["device_id"])[
                         target_col
                     ].shift(s)
 
-                shifts = [3, 7, 14, 30]
+                shifts = [2, 3, 7, 14]
                 functions = ["mean", "std", "max", "min"]
                 for s in shifts:
                     for f in functions:
@@ -127,10 +126,46 @@ class ForecastUtils:
 
             print("Additional features added")
             return df_tmp
+        def encode_categorical_features(df_tmp):
+            #use count_encoding on site_id & device_id,also save the real values & what they've been encoded to in a dictionary
 
-        data["created_at"] = pd.to_datetime(data["created_at"])
+            #encode site_id
+            site_id_encoder = CountEncoder()
+            site_id_encoder.fit(df_tmp['site_id'])
+            df_tmp['site_id'] = site_id_encoder.transform(df_tmp['site_id'])
+            # site_id_encoder_dict = site_id_encoder.mapping[0]['mapping']
+
+            #encode device_id
+            device_id_encoder = CountEncoder()
+            device_id_encoder.fit(df_tmp['device_id'])
+            df_tmp['device_id'] = device_id_encoder.transform(df_tmp['device_id'])
+            # device_id_encoder_dict = device_id_encoder.mapping[0]['mapping']
+
+            device_category_encoder = OneHotEncoder(cols=['device_category'])
+            df_tmp = device_category_encoder.fit_transform(df_tmp)
+
+            return df_tmp
+
+        def get_time_and_cyclic_features(df):
+            attributes = ["year", "month", "day", "dayofweek", "hour"]
+            max_vals = [2023, 12, 31, 6, 23]
+            for a, m in zip(attributes, max_vals):
+                df[a] = df["timestamp"].dt.__getattribute__(a)
+                df[a + "_sin"] = np.sin(2 * np.pi * df[a] / m)
+                df[a + "_cos"] = np.cos(2 * np.pi * df[a] / m)
+        
+            df["week"] = df["timestamp"].dt.isocalendar().week
+            df["week_sin"] = np.sin(2 * np.pi * df["week"] / 52)
+            df["week_cos"] = np.cos(2 * np.pi * df["week"] / 52)
+            df.drop(columns=attributes, inplace=True)
+            return df
+
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         df_tmp = get_other_features(data, frequency)
         df_tmp = get_lag_features(df_tmp, target_column, frequency)
+        df_tmp = encode_categorical_features(df_tmp)
+        df_tmp = get_time_and_cyclic_features(df_tmp)
 
         return df_tmp
 
@@ -234,9 +269,9 @@ class ForecastUtils:
 
     @staticmethod
     def train_and_save_daily_forecast_model(train):  # separate code for monthly model
-        train["created_at"] = pd.to_datetime(train["created_at"])
-        train = train.sort_values(by=["device_number", "created_at"])
-        features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
+        train["timestamp"] = pd.to_datetime(train["timestamp"])
+        train = train.sort_values(by=['device_id', 'timestamp'])
+        features = [c for c in train.columns if c not in ["timestamp", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
         train_data, test_data = pd.DataFrame(), pd.DataFrame()
