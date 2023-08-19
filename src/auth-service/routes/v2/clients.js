@@ -65,6 +65,10 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("name")
+        .exists()
+        .withMessage("the name is missing in your request")
+        .trim(),
       body("redirect_url")
         .optional()
         .notEmpty()
