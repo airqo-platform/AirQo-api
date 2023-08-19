@@ -236,7 +236,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
-  // rateLimitMiddleware,
+  rateLimitMiddleware,
   createTokenController.verify
 );
 router.get(
