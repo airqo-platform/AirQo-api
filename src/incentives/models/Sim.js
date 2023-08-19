@@ -26,7 +26,7 @@ const badRequestResponse = {
 
 const SimSchema = new Schema(
   {
-    msisdn: { type: Number, trim: true, unique: true },
+    msisdn: { type: Number, trim: true, unique: true, required: true },
     balance: { type: Number, trim: true },
     activationDate: { type: Date, trim: true },
     msisdn: { type: Number, trim: true },
@@ -115,6 +115,7 @@ SimSchema.statics.list = async function ({
     return {
       ...successResponse,
       message: "no sims exist for this search",
+      data: [],
     };
   } catch (error) {
     return handleServerError(error, "unable to retrieve sims");
