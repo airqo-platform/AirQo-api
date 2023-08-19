@@ -52,6 +52,10 @@ router.post(
     ],
   ]),
   oneOf([
+    body("name")
+      .exists()
+      .withMessage("the name is missing in your request")
+      .trim(),
     body("client_id")
       .exists()
       .withMessage(

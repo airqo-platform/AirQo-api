@@ -24,7 +24,7 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     permissions: [{ type: ObjectId, ref: "permission" }],
     scopes: [{ type: ObjectId, ref: "scope" }],
-    name: { type: String },
+    name: { type: String, required: [true, "name is required!"] },
     token: {
       type: String,
       unique: true,
