@@ -6,7 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -20,7 +20,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -34,7 +34,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -48,7 +48,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -118,7 +118,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -146,7 +146,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -160,7 +160,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -174,7 +174,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -188,7 +188,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -202,7 +202,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -216,7 +216,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000
@@ -230,7 +230,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 3
+  partitions: 1
   replicas: 2
   config:
     retention.ms: 86400000

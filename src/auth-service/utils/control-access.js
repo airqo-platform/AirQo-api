@@ -457,6 +457,14 @@ const controlAccess = {
   },
   regenerateAccessToken: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service temporarily unavailable",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: {
+          message: "Service temporarily unavailable",
+        },
+      };
       const { query, body } = request;
       const { tenant } = query;
       let filter = {};

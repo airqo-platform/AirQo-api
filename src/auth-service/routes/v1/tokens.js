@@ -52,6 +52,10 @@ router.post(
     ],
   ]),
   oneOf([
+    body("name")
+      .exists()
+      .withMessage("the name is missing in your request")
+      .trim(),
     body("client_id")
       .exists()
       .withMessage(
@@ -232,7 +236,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
-  // rateLimitMiddleware,
+  rateLimitMiddleware,
   createTokenController.verify
 );
 router.get(
