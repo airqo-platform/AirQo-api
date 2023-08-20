@@ -533,6 +533,7 @@ UserSchema.methods = {
     return bcrypt.compareSync(password, this.password);
   },
   createToken() {
+    const expiresIn = "1h"; // expires 1 hour
     return jwt.sign(
       {
         _id: this._id,
@@ -552,7 +553,8 @@ UserSchema.methods = {
         updatedAt: this.updatedAt,
         rateLimit: this.rateLimit,
       },
-      constants.JWT_SECRET
+      constants.JWT_SECRET,
+      { expiresIn }
     );
   },
   newToken() {
