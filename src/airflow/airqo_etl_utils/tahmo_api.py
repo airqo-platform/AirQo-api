@@ -54,32 +54,29 @@ class TahmoApi:
         return measurements.to_dict(orient="records")
 
     def __request(self, endpoint, params):
-
         url = f"{self.BASE_URL}{endpoint}"
         retry_strategy = Retry(
             total=5,
             backoff_factor=5,
         )
-        
+
         http = urllib3.PoolManager(retries=retry_strategy)
-        
+
         try:
-            headers = urllib3.util.make_headers(basic_auth=f"{self.API_KEY}:{self.API_SECRET}")
-            response = http.request(
-                "GET", 
-                url, 
-                fields=params,
-                headers=headers)
-            
+            headers = urllib3.util.make_headers(
+                basic_auth=f"{self.API_KEY}:{self.API_SECRET}"
+            )
+            response = http.request("GET", url, fields=params, headers=headers)
+
             response_data = response.data
             print("Tahmo API request: %s" % response._request_url)
-            
+
             if response.status == 200:
                 return json.loads(response_data)
             else:
                 Utils.handle_api_error(response)
                 return None
-            
+
         except urllib3.exceptions.HTTPError as e:
             print(f"HTTPError: {e}")
             return None

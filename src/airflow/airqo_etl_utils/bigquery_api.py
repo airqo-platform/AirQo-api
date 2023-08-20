@@ -630,8 +630,10 @@ class BigQueryApi:
         df = self.client.query(f"{query}", job_config).result().to_dataframe()
         return df
 
-    def \
-            fetch_training_data(self, start_date_time:str,) -> pd.DataFrame:
+    def fetch_training_data(
+        self,
+        start_date_time: str,
+    ) -> pd.DataFrame:
         query = f"""
         SELECT DISTINCT 
             t1.device_id, 
@@ -649,7 +651,7 @@ class BigQueryApi:
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-    
+
         df = self.client.query(f"{query}", job_config).result().to_dataframe()
         return df
 
