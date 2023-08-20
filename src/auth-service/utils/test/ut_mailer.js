@@ -7,6 +7,28 @@ const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
 const transporter = require("@config/mailer");
 
+const emailFailedResponse = {
+  success: false,
+  message: "email not sent",
+  status: 500,
+  errors: { message: response },
+};
+
+const emailSuccessResponse = {
+  success: true,
+  message: "email successfully sent",
+  data: response,
+  status: 200,
+};
+
+const internalServerResponse = {
+  success: false,
+  message: "Internal Server Error",
+  error: "Mocked sendMail error",
+  errors: { message: "Mocked sendMail error" },
+  status: 500,
+};
+
 describe("mailer", () => {
   describe("candidate", () => {
     let sendMailStub;
@@ -45,12 +67,7 @@ describe("mailer", () => {
       const result = await mailer.candidate(firstName, lastName, email, tenant);
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: response,
-        status: 200,
-      });
+      expect(result).to.deep.equal(emailSuccessResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -91,12 +108,7 @@ describe("mailer", () => {
       const result = await mailer.candidate(firstName, lastName, email, tenant);
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "email not sent",
-        status: 500,
-        errors: { message: response },
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -128,13 +140,7 @@ describe("mailer", () => {
       const result = await mailer.candidate(firstName, lastName, email, tenant);
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        error: "Mocked sendMail error",
-        errors: { message: "Mocked sendMail error" },
-        status: 500,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -192,12 +198,7 @@ describe("mailer", () => {
       console.log(sendMailStub.firstCall.args[0].html);
       console.log(msgs.inquiry(fullName, email, category));
 
-      expect(result).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: response,
-        status: 200,
-      });
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
         name: constants.EMAIL_NAME,
         address: constants.EMAIL,
@@ -231,12 +232,7 @@ describe("mailer", () => {
       );
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "email not sent",
-        status: 500,
-        errors: { message: response },
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -267,13 +263,7 @@ describe("mailer", () => {
       );
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        error: "Mocked sendMail error",
-        errors: { message: "Mocked sendMail error" },
-        status: 500,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -330,19 +320,14 @@ describe("mailer", () => {
         type
       );
 
-      expect(result).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: response,
-        status: 200,
-      });
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
       expect(sendMailStub.firstCall.args[0].html).to.equal(
         msgs.user(firstName, lastName, email)
       );
     });
-  });
+
 
   it("should send general user welcome email and return success response", async () => {
     const firstName = "Jane";
@@ -441,6 +426,9 @@ describe("mailer", () => {
       status: 500,
     });
   });
+
+  });
+
   describe("verifyEmail", () => {
     let fakeTransporter;
     let sendMailStub;
@@ -559,214 +547,159 @@ describe("mailer", () => {
     // Add more tests for other cases...
   });
   describe("afterEmailVerification", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
+
     it("should send verification email and return success response", async () => {
-      // Arrange
       const firstName = "John";
       const username = "john_doe";
       const email = "johndoe@example.com";
       const password = "s3cr3tP@ssw0rd";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "Welcome to AirQo!",
-        html: msgTemplates.afterEmailVerification(
-          firstName,
-          username,
-          password
-        ),
-        bcc: constants.REQUEST_ACCESS_EMAILS,
+
+      const response = {
+        accepted: [email],
+        rejected: [],
       };
 
-      // Act
-      // Assuming transporter is accessible from the afterEmailVerification function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.afterEmailVerification({
+      sendMailStub.resolves(response);
+      const result = await mailer.afterEmailVerification(
         firstName,
         username,
         email,
         password,
-      });
+      );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.afterEmailVerification(firstName,
+          username,
+          email,
+          password,)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const firstName = "John";
+      const username = "john_doe";
+      const email = "johndoe@example.com";
+      const password = "s3cr3tP@ssw0rd";
 
-      // Act
-      // Assuming transporter is accessible from the afterEmailVerification function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.afterEmailVerification({
-        firstName: "John",
-        username: "john_doe",
-        email: "johndoe@example.com",
-        password: "s3cr3tP@ssw0rd",
-      });
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "email not sent",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      sendMailStub.resolves(response);
+      const result = await mailer.afterEmailVerification(
+        firstName,
+        username,
+        email,
+        password,
+      );
+
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      const firstName = "John";
+      const username = "john_doe";
+      const email = "johndoe@example.com";
+      const password = "s3cr3tP@ssw0rd";
 
-      // Act
-      // Assuming transporter is accessible from the afterEmailVerification function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.afterEmailVerification({
-        firstName: "John",
-        username: "john_doe",
-        email: "johndoe@example.com",
-        password: "s3cr3tP@ssw0rd",
-      });
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.afterEmailVerification(
+        firstName,
+        username,
+        email,
+        password,
+      );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
     });
 
     // Add more tests for other cases...
   });
   describe("forgot", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
     it("should send recovery email and return success response", async () => {
-      // Arrange
       const email = "johndoe@example.com";
       const token = "abcdef123456";
       const tenant = "airqo";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "Link To Reset Password",
-        text: msgs.recovery_email(token, tenant),
+
+      const response = {
+        accepted: [email],
+        rejected: [],
       };
 
-      // Act
-      // Assuming transporter is accessible from the forgot function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.forgot(email, token, tenant);
+      sendMailStub.resolves(response);
+      const result = await mailer.forgot(
+        email, token, tenant
+      );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.forgot(email, token, tenant)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const email = "johndoe@example.com";
+      const token = "abcdef123456";
+      const tenant = "airqo";
 
-      // Act
-      // Assuming transporter is accessible from the forgot function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.forgot(
-        "johndoe@example.com",
-        "abcdef123456",
-        "airqo"
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.forgot(
+        email, token, tenant
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      const email = "johndoe@example.com";
+      const token = "abcdef123456";
+      const tenant = "airqo";
 
-      // Act
-      // Assuming transporter is accessible from the forgot function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.forgot(
-        "johndoe@example.com",
-        "abcdef123456",
-        "airqo"
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.forgot(
+        email, token, tenant
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
     });
 
     // Add more tests for other cases...
@@ -806,12 +739,7 @@ describe("mailer", () => {
       const result = await mailer.signInWithEmailLink(email, token);
 
       // Assert the result
-      expect(result).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: response,
-        status: 200,
-      });
+      expect(result).to.deep.equal(emailSuccessResponse);
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
@@ -997,416 +925,304 @@ describe("mailer", () => {
     // Add more tests for other cases...
   });
   describe("authenticateEmail", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
     it("should send email for email authentication and return success response", async () => {
-      // Arrange
       const email = "johndoe@example.com";
       const token = "abcdef123456";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "Changes to your AirQo email",
-        text: msgs.authenticate_email(token),
+      const tenant = "airqo";
+
+      const response = {
+        accepted: [email],
+        rejected: [],
       };
 
-      // Act
-      // Assuming transporter is accessible from the authenticateEmail function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.authenticateEmail(email, token);
+      sendMailStub.resolves(response);
+      const result = await mailer.authenticateEmail(
+        email, token
+      );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.authenticateEmail(email, token)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const email = "johndoe@example.com";
+      const token = "abcdef123456";
+      const tenant = "airqo";
 
-      // Act
-      // Assuming transporter is accessible from the authenticateEmail function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.authenticateEmail(
-        "johndoe@example.com",
-        "abcdef123456"
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.authenticateEmail(
+        email, token
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      const email = "johndoe@example.com";
+      const token = "abcdef123456";
+      const tenant = "airqo";
 
-      // Act
-      // Assuming transporter is accessible from the authenticateEmail function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.authenticateEmail(
-        "johndoe@example.com",
-        "abcdef123456"
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.authenticateEmail(
+        email, token
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
     });
 
-    // Add more tests for other cases...
   });
   describe("update", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
     it("should send email for account update and return success response", async () => {
-      // Arrange
       const email = "johndoe@example.com";
       const firstName = "John";
       const lastName = "Doe";
       const updatedUserDetails = {
-        /* your updated user details here */
-      };
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "AirQo Analytics account updated",
-        text: msgs.user_updated(firstName, lastName, updatedUserDetails),
+        "firstName": "Jonathan"
       };
 
-      // Act
-      // Assuming transporter is accessible from the update function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.update(
-        email,
-        firstName,
-        lastName,
-        updatedUserDetails
+      const response = {
+        accepted: [email],
+        rejected: [],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.update(
+        email, firstName, lastName, updatedUserDetails
       );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.user_updated(firstName, lastName, updatedUserDetails, email)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
+      const updatedUserDetails = {
+        "firstName": "Jonathan"
+      };
 
-      // Act
-      // Assuming transporter is accessible from the update function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.update(
-        "johndoe@example.com",
-        "John",
-        "Doe",
-        {}
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.update(
+        email, firstName, lastName, updatedUserDetails
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
+
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
-
-      // Act
-      // Assuming transporter is accessible from the update function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.update(
-        "johndoe@example.com",
-        "John",
-        "Doe",
-        {}
-      );
-
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-
-    // Add more tests for other cases...
-  });
-  describe("updateForgottenPassword", () => {
-    let fakeTransporter;
-    let sendMailStub;
-
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
+      const updatedUserDetails = {
+        "firstName": "Jonathan"
       };
 
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.update(
+        email, firstName, lastName, updatedUserDetails
+      );
+
+      expect(result).to.deep.equal(internalServerResponse);
+    });
+
+  });
+  describe("updateForgottenPassword", () => {
+    let sendMailStub;
+
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
     it("should send email for forgotten password update and return success response", async () => {
-      // Arrange
       const email = "johndoe@example.com";
       const firstName = "John";
       const lastName = "Doe";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "AirQo Analytics Password Reset Successful",
-        text: msgs.forgotten_password_updated(firstName, lastName),
+
+      const response = {
+        accepted: [email],
+        rejected: [],
       };
 
-      // Act
-      // Assuming transporter is accessible from the updateForgottenPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateForgottenPassword(
+      sendMailStub.resolves(response);
+      const result = await mailer.updateForgottenPassword(
         email,
         firstName,
         lastName
       );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.forgotten_password_updated(firstName, lastName, email)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
 
-      // Act
-      // Assuming transporter is accessible from the updateForgottenPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateForgottenPassword(
-        "johndoe@example.com",
-        "John",
-        "Doe"
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.updateForgottenPassword(
+        email,
+        firstName,
+        lastName
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
 
-      // Act
-      // Assuming transporter is accessible from the updateForgottenPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateForgottenPassword(
-        "johndoe@example.com",
-        "John",
-        "Doe"
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.updateForgottenPassword(
+        email,
+        firstName,
+        lastName
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
     });
 
-    // Add more tests for other cases...
   });
   describe("updateKnownPassword", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
-      // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+    before(() => {
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
-      // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+
+    after(() => {
       sendMailStub.restore();
     });
 
     it("should send email for known password update and return success response", async () => {
-      // Arrange
       const email = "johndoe@example.com";
       const firstName = "John";
       const lastName = "Doe";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        to: email,
-        subject: "AirQo Analytics Password Update Successful",
-        text: msgs.known_password_updated(firstName, lastName),
+
+      const response = {
+        accepted: [email],
+        rejected: [],
       };
 
-      // Act
-      // Assuming transporter is accessible from the updateKnownPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateKnownPassword(
+      sendMailStub.resolves(response);
+      const result = await mailer.updateKnownPassword(
         email,
         firstName,
         lastName
       );
 
-      // Assert
+      expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.known_password_updated(firstName, lastName, email)
+      );
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
 
-      // Act
-      // Assuming transporter is accessible from the updateKnownPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateKnownPassword(
-        "johndoe@example.com",
-        "John",
-        "Doe"
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
+
+      sendMailStub.resolves(response);
+      const result = await mailer.updateKnownPassword(
+        email,
+        firstName,
+        lastName
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Email not sent" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      const email = "johndoe@example.com";
+      const firstName = "John";
+      const lastName = "Doe";
 
-      // Act
-      // Assuming transporter is accessible from the updateKnownPassword function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.updateKnownPassword(
-        "johndoe@example.com",
-        "John",
-        "Doe"
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
+      const result = await mailer.updateKnownPassword(
+        email,
+        firstName,
+        lastName
       );
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      expect(result).to.deep.equal(internalServerResponse);
     });
 
     // Add more tests for other cases...
