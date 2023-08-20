@@ -708,6 +708,15 @@ const authJWT = passport.authenticate("jwt", {
   session: false,
 });
 
+const logOut = (req, res, next) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.redirect("/");
+  });
+};
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
@@ -715,6 +724,7 @@ module.exports = {
   setGuestToken,
   authLocal,
   authJWT,
+  logOut,
   authGoogle,
   authGoogleCallback,
   authGuest,

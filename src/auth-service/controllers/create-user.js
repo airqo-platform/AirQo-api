@@ -863,7 +863,6 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
-      let { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -878,11 +877,7 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-
+      let { tenant } = req.query;
       if (!isEmpty(tenant) && tenant !== "airqo") {
         logObject("tenant", tenant);
         return res.status(httpStatus.MOVED_PERMANENTLY).json({
@@ -895,6 +890,9 @@ const createUser = {
             location: "https://platform.airqo.net/",
           },
         });
+      }
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
 
       if (req.auth.success === true) {
@@ -916,6 +914,54 @@ const createUser = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        success: false,
+      });
+    }
+  },
+
+  logout: (req, res) => {
+    logText("..................................");
+    logText("user logout......");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+
+      if (!isEmpty(tenant) && tenant !== "airqo") {
+        logObject("tenant", tenant);
+        return res.status(httpStatus.MOVED_PERMANENTLY).json({
+          message:
+            "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+          location: "https://platform.airqo.net/",
+          errors: {
+            message:
+              "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+            location: "https://platform.airqo.net/",
+          },
+        });
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },

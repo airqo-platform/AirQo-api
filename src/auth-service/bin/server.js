@@ -38,6 +38,9 @@ app.use(
     store: new MongoStore(options),
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      maxAge: 1800000, // 30 minutes
+    },
   })
 ); // session setup
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
@@ -52,6 +55,7 @@ if (isDev) {
 }
 
 app.use(passport.initialize());
+app.use(passport.session());
 
 app.use(cookieParser());
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));

@@ -6,6 +6,7 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const {
   setJWTAuth,
   authJWT,
+  logOut,
   setLocalAuth,
   setGoogleAuth,
   authGoogleCallback,
@@ -18,6 +19,17 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const sessionMiddleware = (req, res, next) => {
+  if (
+    req.session &&
+    req.session.cookie &&
+    req.session.cookie.expires < Date.now()
+  ) {
+    req.logout();
+  }
+  next();
+};
+
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -28,6 +40,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(sessionMiddleware);
 
 router.get(
   "/deleteMobileUserData/:userId/:token",
@@ -70,6 +83,27 @@ router.post(
   setLocalAuth,
   authLocal,
   createUserController.login
+);
+
+router.post(
+  "/logout",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  logOut,
+  createUserController.logout
 );
 
 router.post(
