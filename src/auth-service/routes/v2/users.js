@@ -107,6 +107,26 @@ router.post(
 );
 
 router.post(
+  "/refresh-token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.refresh
+);
+
+router.post(
   "/guest",
   oneOf([
     [
