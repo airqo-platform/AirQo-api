@@ -175,7 +175,6 @@ const consumeHourlyMeasurements = async (messageData) => {
 
 const operationFunction2 = async (messageData) => {
   // Operation logic for topic2
-  // You can perform a different operation here
 };
 
 const kafkaConsumer = async () => {
@@ -188,7 +187,15 @@ const kafkaConsumer = async () => {
 
   // Define topic-to-operation function mapping
   const topicOperations = {
-    [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
+    [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements.catch(
+      (error) => {
+        logger.error(
+          `errors while consuming hourly measurements -- ${JSON.stringify(
+            error
+          )}`
+        );
+      }
+    ),
     //topic2: operationFunction2,
     // Add more topics and their corresponding functions as needed
   };
@@ -197,22 +204,22 @@ const kafkaConsumer = async () => {
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
-      Object.keys(topicOperations).map((topic) => {
-        consumer.subscribe({ topic, fromBeginning: true });
+      Object.keys(topicOperations).map((topic_id) => {
+        consumer.subscribe({ topic: topic_id, fromBeginning: true });
         consumer.run({
-          eachMessage: async ({ partition, message }) => {
+          eachMessage: async ({ message }) => {
             try {
-              const operation = topicOperations[topic];
+              const operation = topicOperations[topic_id];
               if (operation) {
                 // const messageData = JSON.parse(message.value.toString());
                 const messageData = message.value.toString();
                 await operation(messageData);
               } else {
-                logger.error(`No operation defined for topic: ${topic}`);
+                logger.error(`No operation defined for topic: ${topic_id}`);
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic}: ${error}`
+                `Error processing Kafka message for topic ${topic_id}: ${error}`
               );
             }
           },
@@ -220,7 +227,7 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
-    logger.error(`Error connecting to Kafka: ${error}`);
+    logger.error(`Error connecting to Kafka: ${JSON.stringify(error)}`);
   }
 };
 
