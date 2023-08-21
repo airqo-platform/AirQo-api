@@ -490,10 +490,10 @@ class CollocationBatch:
 
         for device_result in self.results.data_completeness.results:
             description = (
-                f"Data completeness was {round(device_result.completeness * 100, 2)}%. "
-                f"Acceptable percentage was set to {self.data_completeness_threshold * 100}%. "
-                f"A minimum of {device_result.expected} records are expected. "
-                f"Device sent {device_result.actual} records. "
+                f"Data completeness was {device_result.completeness}%. "
+                f"Acceptable percentage was set to {self.data_completeness_threshold}%. "
+                f"A minimum of {device_result.expected} hourly records are expected. "
+                f"Device sent {device_result.actual} hourly records. "
             )
             if device_result.passed:
                 title = "Meets recommended data completeness"

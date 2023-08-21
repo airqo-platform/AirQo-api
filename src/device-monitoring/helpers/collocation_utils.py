@@ -556,8 +556,8 @@ def compute_data_completeness_using_hourly_records(
     )
 
     data = data.copy()
-    expected_records = (end_date_time - collocation_batch.start_date).days * 24
-
+    total_records = (end_date_time - collocation_batch.start_date).days * 24
+    expected_records = int((collocation_batch.data_completeness_threshold / 100) * total_records)
     completeness: list[DataCompleteness] = []
 
     for device in collocation_batch.devices:
@@ -566,8 +566,9 @@ def compute_data_completeness_using_hourly_records(
             device_data.dropna(
                 subset=[collocation_batch.data_completeness_parameter], inplace=True
             )
+            actual = len(device_data.index)
 
-            if len(device_data.index) == 0:
+            if actual == 0:
                 device_completeness = 0.0
 
             else:
@@ -580,8 +581,10 @@ def compute_data_completeness_using_hourly_records(
                     ),
                     inplace=True,
                 )
+                actual = len(device_data.index)
+
                 device_completeness = (
-                    round(len(device_data.index) / expected_records, 2) * 100
+                    round(actual / total_records, 2) * 100
                 )
                 device_completeness = (
                     100 if device_completeness > 100 else device_completeness
@@ -591,7 +594,7 @@ def compute_data_completeness_using_hourly_records(
             completeness.append(
                 DataCompleteness(
                     device_name=device,
-                    actual=len(device_data.index),
+                    actual=actual,
                     expected=expected_records,
                     completeness=device_completeness,
                     missing=missing,

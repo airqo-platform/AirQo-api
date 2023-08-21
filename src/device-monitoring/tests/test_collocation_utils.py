@@ -123,6 +123,8 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
             end_time=collocation_batch.end_date,
         ),
     }
+    total_records = (collocation_batch.end_date - collocation_batch.start_date).days * 24
+    expected_records = int((collocation_batch.data_completeness_threshold / 100) * total_records)
 
     assert list(data.keys()) == collocation_batch.devices
 
@@ -137,10 +139,11 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
     assert len(result.results) == 3
 
     for result in result.results:
-        assert meta_data[result.device_name]["completeness"] == result.completeness
-        assert meta_data[result.device_name]["missing"] == result.missing
+        device = result.device_name
+        assert meta_data[device]["completeness"] == result.completeness
+        assert meta_data[device]["missing"] == result.missing
         assert result.actual == meta_data[result.device_name]["record_count"]
-        assert result.expected == no_of_hours
+        assert result.expected == expected_records
         passed = (
             True
             if result.completeness >= collocation_batch.data_completeness_threshold
