@@ -112,6 +112,8 @@ knowYourAirLessonSchema.statics = {
           foreignField: "kya_lesson",
           as: "tasks",
         })
+        .unwind("$tasks")
+        .sort({ "tasks.task_position": 1 }) 
         .lookup({
           from: "kyaprogresses",
           localField: "_id",
