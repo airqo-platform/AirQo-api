@@ -3,6 +3,8 @@ const chai = require("chai");
 const { expect } = chai;
 
 const generateFilter = require("@utils/generate-filter");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 describe("generateFilter", () => {
   describe("hosts", () => {
@@ -48,45 +50,61 @@ describe("generateFilter", () => {
   });
 
   describe("transactions", () => {
-    it("should generate filter object with host_id and transaction_id fields", () => {
+    it("should generate valid filter object based on parameters", () => {
       const req = {
-        query: {
-          host_id: "12345",
-          transaction_id: "67890",
-        },
-      };
-
-      const result = generateFilter.transactions(req);
-
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("host_id", "12345");
-      expect(result).to.have.property("transaction_id", "67890");
-    });
-
-    it("should generate filter object with _id and status fields", () => {
-      const req = {
-        query: {
-          id: "12345",
+        params: {
+          id: "fakeId",
           status: "completed",
+          transaction_id: "fakeTransactionId",
+          host_id: "fakeHostId",
         },
       };
 
-      const result = generateFilter.transactions(req);
-
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "12345");
-      expect(result).to.have.property("status", "completed");
-    });
-
-    it("should return empty filter object if no parameters provided", () => {
-      const req = {
-        query: {},
+      const fakeFilter = {
+        _id: ObjectId("fakeId"),
+        status: "completed",
+        transaction_id: "fakeTransactionId",
+        host_id: ObjectId("fakeHostId"),
       };
 
       const result = generateFilter.transactions(req);
 
-      expect(result).to.be.an("object");
-      expect(result).to.be.empty;
+      expect(result).to.deep.equal(fakeFilter);
+    });
+
+    it("should generate empty filter object when no parameters are provided", () => {
+      const req = {
+        params: {},
+      };
+
+      const fakeFilter = {};
+
+      const result = generateFilter.transactions(req);
+
+      expect(result).to.deep.equal(fakeFilter);
+    });
+
+    it("should handle error and return error response", () => {
+      const req = {
+        params: {
+          id: "fakeId",
+        },
+      };
+
+      const fakeErrorMessage = "An error occurred";
+
+      const ObjectIdStub = sinon
+        .stub(ObjectId, "isValid")
+        .throws(new Error(fakeErrorMessage));
+
+      const result = generateFilter.transactions(req);
+
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Internal Server error");
+      expect(result.errors.message).to.equal(fakeErrorMessage);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+
+      ObjectIdStub.restore();
     });
   });
 
