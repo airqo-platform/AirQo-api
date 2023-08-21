@@ -62,9 +62,8 @@ def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
 
 
 class ForecastUtils:
-    # FORECAST MODEL TRAINING UTILS
     @staticmethod
-    def preprocess_training_data(data, frequency):
+    def preprocess__data(data, frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
@@ -329,92 +328,6 @@ class ForecastUtils:
 
     #### FORECAST JOB UTILS ####
 
-    @staticmethod
-    def preprocess_historical_data(data, frequency):
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["device_number"] = data["device_number"].astype(str)
-        data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])[
-            "pm2_5"
-        ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
-        if frequency == "hourly":
-            data.sort_values(
-                by=fixed_columns + ["device_number", "timestamp"], inplace=True
-            )
-        elif frequency == "daily":
-            data = (
-                data.groupby(fixed_columns + ["device_number"])
-                .resample("D", on="timestamp")
-                .mean(numeric_only=True)
-            )
-            data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])[
-                "pm2_5"
-            ].transform(
-                lambda x: x.interpolate(method="linear", limit_direction="both")
-            )
-            data.sort_values(
-                by=fixed_columns + ["device_number", "timestamp"], inplace=True
-            )
-        else:
-            raise ValueError("Invalid frequency argument")
-        data["device_number"] = data["device_number"].astype(int)
-        data = data.dropna(subset=["pm2_5"])
-        return data
-
-    @staticmethod
-    def get_lag_features(df_tmp, TARGET_COL, frequency):
-        df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
-        df_tmp = df_tmp.sort_values(by=fixed_columns + ["device_number", "timestamp"])
-        if frequency == "hourly":
-            shifts = [1, 2]
-            for s in shifts:
-                df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.groupby(["device_number"])[
-                    TARGET_COL
-                ].shift(s)
-
-            shifts = [6, 12, 24, 48]
-            functions = ["mean", "std", "median", "skew"]
-            for s in shifts:
-                for f in functions:
-                    df_tmp[f"pm2_5_{f}_{s}_hour"] = (
-                        df_tmp.groupby(["device_number"])[TARGET_COL]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
-                    )
-        elif frequency == "daily":
-            shifts = [1, 2]
-            for s in shifts:
-                df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.groupby(["device_number"])[
-                    TARGET_COL
-                ].shift(s)
-            shifts = [3, 7, 14, 30]
-            functions = ["mean", "std", "max", "min"]
-            for s in shifts:
-                for f in functions:
-                    df_tmp[f"pm2_5_{f}_{s}_day"] = (
-                        df_tmp.groupby(["device_number"])[TARGET_COL]
-                        .shift(1)
-                        .rolling(s)
-                        .agg(f)
-                    )
-        else:
-            raise ValueError("Invalid frequency argument")
-        print("Adding lag features")
-        return df_tmp
-
-    @staticmethod
-    def get_time_features(df_tmp, frequency):
-        df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
-        attributes = ["year", "month", "day", "dayofweek"]
-        if frequency == "hourly":
-            attributes.extend(["hour", "minute"])
-        for a in attributes:
-            df_tmp[a] = df_tmp["timestamp"].dt.__getattribute__(a)
-
-        df_tmp["week"] = df_tmp["timestamp"].dt.isocalendar().week
-        print("Adding other features")
-        return df_tmp
 
     @staticmethod
     def generate_hourly_forecasts(data, project_name, bucket_name, source_blob_name):
