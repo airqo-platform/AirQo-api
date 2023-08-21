@@ -9,7 +9,7 @@ import numpy as np
 import optuna
 import pandas as pd
 import pymongo as pm
-from lightgbm import LGBMRegressor
+from lightgbm import LGBMRegressor, early_stopping
 from scipy.stats import skew
 from sklearn.metrics import mean_squared_error
 
@@ -178,17 +178,16 @@ class ForecastUtils:
         train_data = validation_data = test_data = pd.DataFrame()
         for device in train["device_id"].unique():
             device_df = train[train["device_id"] == device]
-            device_df = device_df.sort_values(by="timestamp")
             months = device_df["timestamp"].dt.month.unique()
             train_months = val_months = test_months = []
             if frequency == "hourly":
-                train_months = months[:10]
-                val_months = months[10:11]
-                test_months = months[11:]
+                train_months = months[:8]
+                val_months = months[9]
+                test_months = months[10]
             elif frequency == "daily":
-                train_months = months[:10]
-                val_months = months[10:11]
-                test_months = months[11:]
+                train_months = months[:8]
+                val_months = months[8:9]
+                test_months = months[9:]
 
             train_df = device_df[device_df["timestamp"].dt.month.isin(train_months)]
             val_df = device_df[device_df["timestamp"].dt.month.isin(val_months)]
@@ -207,11 +206,6 @@ class ForecastUtils:
             test_data[target_col],
         )
 
-        mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(f"LGBM_{frequency}_forecast_model_{environment}")
-        registered_model_name = f"LGBM_{frequency}_forecast_model_{environment}"
-
-        mlflow.lightgbm.autolog(registered_model_name=registered_model_name)
 
         sampler = optuna.samplers.TPESampler()
         pruner = optuna.pruners.SuccessiveHalvingPruner(
@@ -223,21 +217,18 @@ class ForecastUtils:
 
         def objective(trial):
             param_grid = {
-                "colsample_bytree": trial.suggest_uniform("colsample_bytree", 0.1, 1),
-                "reg_alpha": trial.suggest_uniform("reg_alpha", 0, 10),
-                "reg_lambda": trial.suggest_uniform("reg_lambda", 0, 10),
-                "n_estimators": trial.suggest_categorical("n_estimators", [10000]),
+                "colsample_bytree": trial.suggest_float("colsample_bytree", 0.1, 1),
+                "reg_alpha": trial.suggest_float("reg_alpha", 0, 10),
+                "reg_lambda": trial.suggest_float("reg_lambda", 0, 10),
+                "n_estimators": trial.suggest_categorical("n_estimators", [50]),
                 "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3),
-                "num_leaves": trial.suggest_int("num_leaves", 20, 3000, step=20),
-                "max_depth": trial.suggest_int("max_depth", 3, 12),
-                "min_split_gain": trial.suggest_float("min_gain_to_split", 0, 15),
+                "num_leaves": trial.suggest_int("num_leaves", 20, 50),
+                "max_depth": trial.suggest_int("max_depth", 4, 7),
             }
-
             score = 0
             for step in range(4):
                 lgb_reg = LGBMRegressor(
                     objective="regression",
-                    n_jobs=2,
                     random_state=42,
                     **param_grid,
                     verbosity=2,
@@ -248,6 +239,7 @@ class ForecastUtils:
                     categorical_feature=["device_id", "site_id", "device_category"],
                     eval_set=[(test_data[features], test_target)],
                     eval_metric="rmse",
+                    callbacks=[early_stopping(stopping_rounds=150)],
                 )
 
                 val_preds = lgb_reg.predict(validation_data[features])
@@ -257,8 +249,14 @@ class ForecastUtils:
 
             return score
 
-        study.optimize(objective, n_trials=150)
+        study.optimize(objective, n_trials=15)
 
+
+        mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
+        mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
+        registered_model_name = f"{frequency}_forecast_model_{environment}"
+
+        mlflow.lightgbm.autolog(registered_model_name=registered_model_name, log_datasets=False)
         with mlflow.start_run():
             best_params = study.best_params
             print(f"Best params are {best_params}")
@@ -279,52 +277,53 @@ class ForecastUtils:
                 eval_set=[(test_data[features], test_target)],
                 eval_metric="rmse",
                 categorical_feature=["device_id", "site_id", "device_category"],
+                callbacks=[early_stopping(stopping_rounds=150)],
             )
 
             # train quantile regression models for 0.025 and 0.975 quantiles
-            clf_025 = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
-                random_state=42,
-                verbosity=2,
-                objective="quantile",
-                alpha=0.025,
-                metric="quantile",
-            )
+        clf_025 = LGBMRegressor(
+            n_estimators=best_params["n_estimators"],
+            learning_rate=best_params["learning_rate"],
+            colsample_bytree=best_params["colsample_bytree"],
+            reg_alpha=best_params["reg_alpha"],
+            reg_lambda=best_params["reg_lambda"],
+            max_depth=best_params["max_depth"],
+            random_state=42,
+            verbosity=2,
+            objective="quantile",
+            alpha=0.025,
+            metric="quantile",
+        )
 
-            clf_025.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
-                categorical_feature=["device_id", "site_id", "device_category"],
-            )
+        clf_025.fit(
+            train_data[features],
+            train_target,
+            eval_set=[(test_data[features], test_target)],
+            categorical_feature=["device_id", "site_id", "device_category"],
+        )
 
-            clf_975 = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
-                random_state=42,
-                verbosity=2,
-                objective="quantile",
-                alpha=0.975,
-                metric="quantile",
-            )
+        clf_975 = LGBMRegressor(
+            n_estimators=best_params["n_estimators"],
+            learning_rate=best_params["learning_rate"],
+            colsample_bytree=best_params["colsample_bytree"],
+            reg_alpha=best_params["reg_alpha"],
+            reg_lambda=best_params["reg_lambda"],
+            max_depth=best_params["max_depth"],
+            random_state=42,
+            verbosity=2,
+            objective="quantile",
+            alpha=0.975,
+            metric="quantile",
+        )
 
-            clf_975.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
-                categorical_feature=["device_id", "site_id", "device_category"],
-            )
+        clf_975.fit(
+            train_data[features],
+            train_target,
+            eval_set=[(test_data[features], test_target)],
+            categorical_feature=["device_id", "site_id", "device_category"],
+        )
 
-            upload_trained_model_to_gcs(
+        upload_trained_model_to_gcs(
                 clf, project_id, bucket, "hourly_forecast_model.pkl"
             )
 
