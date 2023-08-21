@@ -65,6 +65,7 @@ const operationForNewMobileAppUser = async (messageData) => {
       }
     }
   } catch (error) {
+    logObject("KAFKA error: inside operationForNewMobileAppUser()", error);
     logger.error(
       `KAFKA error: inside operationForNewMobileAppUser() -- ${JSON.stringify(
         error
@@ -79,48 +80,42 @@ const operationFunction2 = async (messageData) => {
 };
 
 const kafkaConsumer = async () => {
-  const kafka = new Kafka({
-    clientId: constants.KAFKA_CLIENT_ID,
-    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-  });
-
-  const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
-
-  // Define topic-to-operation function mapping
-  const topicOperations = {
-    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser.catch(
-      (error) => {
-        logger.error(
-          `KAFKA: error when calling operationForNewMobileAppUser() -- ${JSON.stringify(
-            error
-          )} `
-        );
-      }
-    ),
-    // topic2: operationFunction2,
-    // Add more topics and their corresponding functions as needed
-  };
-
   try {
+    const kafka = new Kafka({
+      clientId: constants.KAFKA_CLIENT_ID,
+      brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+    });
+
+    const consumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+
+    // Define topic-to-operation function mapping
+    const topicOperations = {
+      [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser,
+      // topic2: operationFunction2,
+      // Add more topics and their corresponding functions as needed
+    };
+
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
-      Object.keys(topicOperations).map(async (topic_id) => {
-        consumer.subscribe({ topic: topic_id, fromBeginning: true });
+      Object.keys(topicOperations).map(async (topic) => {
+        consumer.subscribe({ topic, fromBeginning: true });
         await consumer.run({
-          eachMessage: async ({ topic, partition, message }) => {
+          eachMessage: async ({ message }) => {
             try {
-              const operation = topicOperations[topic_id];
+              const operation = topicOperations[topic];
               if (operation) {
                 // const messageData = JSON.parse(message.value.toString());
                 const messageData = message.value.toString();
                 await operation(messageData);
               } else {
-                logger.error(`No operation defined for topic: ${topic_id}`);
+                logger.error(`No operation defined for topic: ${topic}`);
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic_id}: ${JSON.stringify(
+                `Error processing Kafka message for topic ${topic}: ${JSON.stringify(
                   error
                 )}`
               );
@@ -130,6 +125,7 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
+    logObject("Error connecting to Kafka", error);
     logger.error(`Error connecting to Kafka: ${JSON.stringify(error)}`);
   }
 };
