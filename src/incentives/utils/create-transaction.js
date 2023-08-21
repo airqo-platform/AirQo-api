@@ -337,6 +337,8 @@ const createTransaction = {
         metadata,
       } = request.body;
 
+      const { tenant } = request.query;
+
       const firstBearerToken = await getFirstBearerToken();
       const secondBearerToken = await getSecondBearerToken(firstBearerToken);
       const api = axios.create({
@@ -660,6 +662,7 @@ const createTransaction = {
       if (filter.success && filter.success === false) {
         return filter;
       }
+      const { tenant } = request.query;
       const transactionDetails = await TransactionModel(tenant)
         .find(filter)
         .lean();
