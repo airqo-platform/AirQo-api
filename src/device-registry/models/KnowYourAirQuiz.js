@@ -118,6 +118,7 @@ knowYourAirQuizSchema.statics = {
                     as: "questions",
                 })
                 .unwind("$questions")
+                .sort({ "questions.question_position": 1 }) 
                 .lookup({
                     from: "kyaanswers",
                     localField: "questions._id",
