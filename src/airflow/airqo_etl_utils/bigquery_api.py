@@ -639,7 +639,7 @@ class BigQueryApi:
             t1.device_id, 
             t1.timestamp,  
             t1.site_id, 
-            t1.pm2_5_calibrated_value, 
+            t1.pm2_5_calibrated_value as pm2_5, 
             t2.latitude, 
             t2.longitude, 
             t3.device_category 

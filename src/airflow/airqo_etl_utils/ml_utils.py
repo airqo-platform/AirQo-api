@@ -1,4 +1,5 @@
 import json
+import random
 from datetime import datetime
 
 import gcsfs
@@ -65,17 +66,17 @@ class ForecastUtils:
     @staticmethod
     def preprocess_training_data(data, frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["pm2_5"] = data.groupby("device_id")["pm2_5"].transform(
+        data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
         if frequency == "daily":
             data = (
-                data.groupby(["device_id"])
+                data.groupby(["device_id", "site_id", "device_category"])
                 .resample("D", on="timestamp")
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby("device_id")["pm2_5"].transform(
+            data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
         data = data.dropna(subset=["pm2_5"])
@@ -84,8 +85,6 @@ class ForecastUtils:
     @staticmethod
     def feature_eng_training_data(data, target_column, frequency):
         def get_lag_features(df, target_col, freq):
-            df = df.sort_values(by=["device_id", "timestamp"])
-
             if freq == "daily":
                 shifts = [1, 2, 3, 7, 14]
                 for s in shifts:
@@ -125,30 +124,30 @@ class ForecastUtils:
 
             return df
 
-        def count_encode_categorical_features(df):
-            device_id_mappings, site_id_mappings, device_category_mappings = {}, {}, {}
-            for col in ["device_id", "site_id", "device_category"]:
-                counts = df[col].value_counts()
-                count_dict = dict(zip(counts.index, counts.values))
-                if col == "device_id":
-                    device_id_mappings = count_dict
-                elif col == "site_id":
-                    site_id_mappings = count_dict
-                elif col == "device_category":
-                    device_category_mappings = count_dict
-                df[f"{col}"] = df[col].map(count_dict)
-            mappings = [device_id_mappings, site_id_mappings, device_category_mappings]
-            for mapping in mappings:
-                upload_mapping_to_gcs(mapping, project_id, bucket, f"{mapping}.json")
-
+        def encode_categorical_features(df):
+            columns = ["device_id", "site_id", "device_category"]
+            mappings = []
+            for col in columns:
+                mapping = {}
+                for val in df[col].unique():
+                    num = random.randint(0, 10000)
+                    while num in mapping.values():
+                        num = random.randint(0, 10000)
+                    mapping[val] = num
+                df[col] = df[col].map(mapping)
+                mappings.append(mapping)
+            for i, col in enumerate(columns):
+                upload_mapping_to_gcs(
+                    mappings[i], project_id, bucket, f"{col}_mapping.json"
+                )
             return df
 
         def get_time_and_cyclic_features(df, freq):
-            attributes = ["year", "month", "day", "dayofweek", "hour"]
+            attributes = ["year", "month", "day", "dayofweek"]
             max_vals = [2023, 12, 31, 6, 23]
             if freq == "hourly":
-                attributes.append("minute")
-                max_vals.append(59)
+                attributes.extend(["hour", "minute"])
+                max_vals.append([23, 59])
             for a, m in zip(attributes, max_vals):
                 df[a] = df["timestamp"].dt.__getattribute__(a)
                 df[a + "_sin"] = np.sin(2 * np.pi * df[a] / m)
@@ -162,7 +161,7 @@ class ForecastUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         df_tmp = get_lag_features(data, target_column, frequency)
-        df_tmp = count_encode_categorical_features(df_tmp)
+        df_tmp = encode_categorical_features(df_tmp)
         df_tmp = get_time_and_cyclic_features(df_tmp, frequency)
 
         return df_tmp
@@ -173,24 +172,19 @@ class ForecastUtils:
         Perform the actual training for hourly data
         """
         train["timestamp"] = pd.to_datetime(train["timestamp"])
-        train = train.sort_values(by=["device_id", "timestamp"])
         features = [c for c in train.columns if c not in ["timestamp", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
-        train_data, validation_data, test_data = (
-            pd.DataFrame(),
-            pd.DataFrame(),
-            pd.DataFrame(),
-        )
+        train_data = validation_data = test_data = pd.DataFrame()
         for device in train["device_id"].unique():
             device_df = train[train["device_id"] == device]
             device_df = device_df.sort_values(by="timestamp")
             months = device_df["timestamp"].dt.month.unique()
-            train_months = val_months = test_months = 0
+            train_months = val_months = test_months = []
             if frequency == "hourly":
-                train_months = months[:8]
-                val_months = months[8:9]
-                test_months = months[9:]
+                train_months = months[:10]
+                val_months = months[10:11]
+                test_months = months[11:]
             elif frequency == "daily":
                 train_months = months[:10]
                 val_months = months[10:11]
