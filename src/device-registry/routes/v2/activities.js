@@ -184,6 +184,18 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("host_id")
+        .optional()
+        .notEmpty()
+        .withMessage("host_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("host_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("date")
         .exists()
         .withMessage("date is missing")

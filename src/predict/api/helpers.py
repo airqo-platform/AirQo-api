@@ -224,15 +224,15 @@ def get_forecasts(
         for time, pm2_5, health_tips in zip(
             site_forecasts[0]["time"],
             site_forecasts[0]["pm2_5"],
-            site_forecasts[0]["health_tips"],
         ):
             result = {
                 key: value
                 for key, value in zip(
-                    ["time", "pm2_5", "health_tips"], [time, pm2_5, health_tips]
+                    ["time", "pm2_5"], [time, pm2_5]
                 )
             }
             results.append(result)
+
     formatted_results = {"forecasts": results}
     return formatted_results
 

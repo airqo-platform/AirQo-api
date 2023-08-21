@@ -1,7 +1,8 @@
 import datetime
 import json
 
-import requests
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
 from .constants import Tenant
@@ -21,17 +22,17 @@ class PlumeLabsApi:
     def __get_tenant_meta_data(self, tenant: Tenant) -> dict:
         tenant = str(tenant)
         tenants = dict(self.__get_tenants_credentials())
-        tenant_credentials = tenants.get(tenant, {})
+        tenant_id, token = next(iter(tenants.items()))
         sensors = self.__request(
-            endpoint=f"/organizations/{tenant_credentials.get('id')}/sensors/list",
+            endpoint=f"/organizations/{tenant_id}/sensors/list",
             params={
-                "token": tenant_credentials.get("token"),
+                "token": token,
             },
         )
 
         return {
-            "id": tenant_credentials.get("id"),
-            "token": tenant_credentials.get("token"),
+            "id": tenant_id,
+            "token": token,
             "tenant": tenant,
             "sensors": sensors["sensors"],
         }
@@ -176,16 +177,29 @@ class PlumeLabsApi:
         return sensors_data
 
     def __request(self, endpoint, params):
-        api_request = requests.get(
-            "%s%s" % (self.PLUME_LABS_BASE_URL, endpoint),
-            params=params,
-            verify=False,
+        url = f"{self.PLUME_LABS_BASE_URL}{endpoint}"
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=5,
         )
-
-        print(api_request.request.url)
-
-        if api_request.status_code == 200:
-            return api_request.json()
-        else:
-            Utils.handle_api_error(api_request)
+        
+        http = urllib3.PoolManager(retries=retry_strategy)
+        
+        try:
+            response = http.request(
+                "GET", 
+                url, 
+                fields=params,)
+            
+            response_data = response.data
+            print(response._request_url)
+            
+            if response.status == 200:
+                return json.loads(response_data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+            
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None

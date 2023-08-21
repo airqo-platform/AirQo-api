@@ -161,7 +161,7 @@ const consumeHourlyMeasurements = async (messageData) => {
       }
     }
   } catch (error) {
-    logObject("error", error);
+    logObject("KAFKA error for consumeHourlyMeasurements()", error);
     logger.info(
       `incoming KAFKA value which is causing errors --- ${message.value.toString()}`
     );
@@ -175,32 +175,32 @@ const consumeHourlyMeasurements = async (messageData) => {
 
 const operationFunction2 = async (messageData) => {
   // Operation logic for topic2
-  // You can perform a different operation here
 };
 
 const kafkaConsumer = async () => {
-  const kafka = new Kafka({
-    clientId: constants.KAFKA_CLIENT_ID,
-    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-  });
-
-  const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
-
-  // Define topic-to-operation function mapping
-  const topicOperations = {
-    [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
-    //topic2: operationFunction2,
-    // Add more topics and their corresponding functions as needed
-  };
-
   try {
+    const kafka = new Kafka({
+      clientId: constants.KAFKA_CLIENT_ID,
+      brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+    });
+
+    const consumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+
+    // Define topic-to-operation function mapping
+    const topicOperations = {
+      [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
+      //topic2: operationFunction2,
+      // Add more topics and their corresponding functions as needed
+    };
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
       Object.keys(topicOperations).map((topic) => {
         consumer.subscribe({ topic, fromBeginning: true });
         consumer.run({
-          eachMessage: async ({ partition, message }) => {
+          eachMessage: async ({ message }) => {
             try {
               const operation = topicOperations[topic];
               if (operation) {
@@ -212,7 +212,9 @@ const kafkaConsumer = async () => {
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic}: ${error}`
+                `Error processing Kafka message for topic ${topic}: ${JSON.stringify(
+                  error
+                )}`
               );
             }
           },
@@ -220,7 +222,8 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
-    logger.error(`Error connecting to Kafka: ${error}`);
+    logObject("Error connecting to Kafka", error);
+    logger.error(`Error connecting to Kafka: ${JSON.stringify(error)}`);
   }
 };
 

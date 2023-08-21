@@ -13,7 +13,6 @@ from helpers import (
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
-    get_faults_cache_key,
     get_predictions_by_geo_coordinates_v2,
     get_predictions_by_geo_coordinates,
     get_health_tips,
@@ -22,6 +21,7 @@ from helpers import (
     heatmap_cache_key,
     read_faulty_devices,
     validate_param_values,
+    get_faults_cache_key,
 )
 
 load_dotenv()
@@ -32,23 +32,37 @@ ml_app = Blueprint("ml_app", __name__)
 
 
 @ml_app.route(routes.route["fetch_faulty_devices"], methods=["GET"])
-# @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key, forced_update=get_faults_cache_key)
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
-        params = request.args.to_dict()
-        valid, error = validate_param_values(params)
-        if not valid:
-            return jsonify({"error": error}), 400
         query = {}
-        for param, value in params.items():
-            if param == "airqloud_names":
-                query[param] = {"$in": [value]}
-            else:
-                query[param] = {
-                    "$eq": int(value)
-                    if param in ["correlation_fault", "missing_data_fault"]
-                    else value
-                }
+        params = {
+            "airqloud_name": request.args.get("airqloud_name", default=None, type=str),
+            "correlation_fault": request.args.get(
+                "correlation_fault", default=None, type=int
+            ),
+            "missing_data_fault": request.args.get(
+                "missing_data_fault", default=None, type=int
+            ),
+        }
+        if any(params.values()):
+            valid, error = validate_param_values(params)
+            if not valid:
+                return (
+                    jsonify(
+                        {"error": "Please provide a valid value for the parameter"}
+                    ),
+                    400,
+                )
+            for param, value in params.items():
+                if param == "airqloud_names":
+                    query[param] = {"$in": [value]}
+                else:
+                    query[param] = {
+                        "$eq": int(value)
+                        if param in ["correlation_fault", "missing_data_fault"]
+                        else value
+                    }
 
         result = read_faulty_devices(query)
         return jsonify(result), 200
