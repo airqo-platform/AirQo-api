@@ -44,57 +44,19 @@ router.post(
   ]),
   oneOf([
     [
-      body("first_name")
+      body("msisdn")
         .exists()
-        .withMessage("the first_name is missing in your request")
+        .withMessage("the msisdn is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the first_name should not be empty")
-        .trim(),
-      body("last_name")
-        .exists()
-        .withMessage("the last_name is missing in your request")
+        .withMessage("the msisdn should not be empty")
         .bail()
-        .notEmpty()
-        .withMessage("the last_name should not be empty")
-        .trim(),
-      body("phone_number")
-        .exists()
-        .withMessage("the phone_number is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the phone_number should not be empty")
-        .bail()
-        .custom((value) => {
-          let parsedPhoneNumber = phoneUtil.parse(value);
-          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
-          return isValid;
-        })
-        .withMessage("phone_number must be a valid one")
-        .trim(),
-      body("email")
-        .exists()
-        .withMessage("the email is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the email should not be empty")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("site_id")
-        .exists()
-        .withMessage("the site_id is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the site_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("site_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        })
+        // .custom((value) => {
+        //   let parsedPhoneNumber = phoneUtil.parse(value);
+        //   let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+        //   return isValid;
+        // })
+        // .withMessage("msisdn must be a valid one")
         .trim(),
     ],
   ]),

@@ -34,7 +34,7 @@ const createSim = {
         tenant = "airqo";
       }
       request.query.tenant = tenant;
-      const responseFromCreateSim = await createSimUtil.create(request);
+      const responseFromCreateSim = await createSimUtil.createLocal(request);
       logObject("responseFromCreateSim in controller", responseFromCreateSim);
       if (responseFromCreateSim.success === true) {
         let status = responseFromCreateSim.status
@@ -91,7 +91,7 @@ const createSim = {
         tenant = "airqo";
       }
       request.query.tenant = tenant;
-      const responseFromRemoveSim = await createSimUtil.delete(request);
+      const responseFromRemoveSim = await createSimUtil.deleteLocal(request);
 
       logObject("responseFromRemoveSim", responseFromRemoveSim);
 
@@ -148,7 +148,7 @@ const createSim = {
         tenant = "airqo";
       }
       request.query.tenant = tenant;
-      const responseFromUpdateSim = await createSimUtil.update(request);
+      const responseFromUpdateSim = await createSimUtil.updateLocal(request);
       logObject("responseFromUpdateSim", responseFromUpdateSim);
       if (responseFromUpdateSim.success === true) {
         const status = responseFromUpdateSim.status

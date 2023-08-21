@@ -18,9 +18,26 @@ const createSim = {
       const { body } = request;
       const { tenant } = request.query;
       logObject("body", body);
-      const responseFromRegisterSim = await SimModel(tenant).register(body);
-      logObject("responseFromRegisterSim", responseFromRegisterSim);
-      return responseFromRegisterSim;
+      return await SimModel(tenant)
+        .create(body)
+        .then((createdSim) => {
+          logObject("createdSim", createdSim);
+          return {
+            success: true,
+            message: "successfully created document",
+            data: createdSim,
+            status: httpStatus.OK,
+          };
+        })
+        .catch((error) => {
+          logObject("error", error);
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
     } catch (error) {
       logElement(" the util server error,", error.message);
       logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);

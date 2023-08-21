@@ -29,7 +29,6 @@ const SimSchema = new Schema(
     msisdn: { type: Number, trim: true, unique: true, required: true },
     balance: { type: Number, trim: true },
     activationDate: { type: Date, trim: true },
-    msisdn: { type: Number, trim: true },
     name: { type: String, trim: true },
     status: { type: String, trim: true },
     plan: { type: String, trim: true },
@@ -54,7 +53,7 @@ const handleServerError = (error, message) => {
   const stingifiedMessage = JSON.stringify(error ? error : "");
   logger.error(`Internal Server Error -- ${stingifiedMessage}`);
   return {
-    ...errorResponse,
+    // ...errorRsesponse,
     message,
     errors: { message: error.message },
   };
@@ -72,13 +71,16 @@ SimSchema.pre("update", function (next) {
 
 SimSchema.statics.register = async function (args) {
   try {
+    logObject("inside the register function", args);
     const data = await this.create({ ...args });
+    logObject("data", data);
     return {
       ...successResponse,
       data,
       message: "sim created",
     };
   } catch (error) {
+    logObject("error", error);
     return handleServerError(error, "Internal Server Error");
   }
 };
