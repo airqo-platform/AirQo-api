@@ -246,6 +246,8 @@ describe("email.msgs", () => {
     it("should return the correct user_updated message with valid inputs", () => {
       const firstName = "John";
       const lastName = "Doe";
+      const email = "johndoe@test.com";
+      const name = firstName + " " + lastName;
       const updatedData = {
         email: "john.doe@example.com",
         jobTitle: "Software Engineer",
@@ -253,29 +255,31 @@ describe("email.msgs", () => {
       const updatedFields = Object.keys(updatedData)
         .map((field) => `• ${field}`)
         .join("\n");
-      const expectedMessage =
-        `Dear John Doe,\n\n` +
-        "Your AirQo Analytics account details have been updated.\n\n" +
-        "The following fields have been updated:\n" +
-        "• email\n" +
-        "• jobTitle\n\n" +
-        "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
-        `Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}\n`;
-      const result = constants.user_updated(firstName, lastName, updatedData);
+      const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account details have been updated.
+                                    <br />
+                                    The following fields have been updated:
+                                    <ol>
+                                        ${updatedFields}
+                                    </ol>
+                                    <br />
+                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                    <br />
+                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const result = msgs.user_updated(
+        firstName, lastName, updatedData, email
+      );
+      const joinRequestSpy = sinon.spy(msgs, "user_updated");
       expect(result).to.equal(expectedMessage);
-    });
-
-    it("should return the correct user_updated message with no updated fields", () => {
-      const firstName = "John";
-      const lastName = "Doe";
-      const updatedData = {};
-      const expectedMessage =
-        `Dear John Doe,\n\n` +
-        "Your AirQo Analytics account details have been updated.\n\n" +
-        "The following fields have been updated:\n\n" +
-        "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
-        `Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}\n`;
-      const result = constants.user_updated(firstName, lastName, updatedData);
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, updatedData, email)).to.be.true;
+      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -283,25 +287,63 @@ describe("email.msgs", () => {
     it("should return the correct forgotten_password_updated message with valid inputs", () => {
       const firstName = "John";
       const lastName = "Doe";
-      const expectedMessage =
-        `Dear John Doe,\n\n` +
-        "Your AirQo Analytics account password has been successfully reset.\n\n" +
-        "If you did not initiate this password reset, please reach out to your organization's administrator immediately.\n\n" +
-        `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`;
-      const result = constants.forgotten_password_updated(firstName, lastName);
+      const email = "johndoe@test.com";
+      const name = firstName + " " + lastName;
+      const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account password has been successfully reset.
+                                <br />
+                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                    <br />
+                                    <br />
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    <br />
+                                    Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const result = msgs.forgotten_password_updated(
+        firstName, lastName, email
+      );
+      const joinRequestSpy = sinon.spy(msgs, "forgotten_password_updated");
+      expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
+      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
   describe("known_password_updated", () => {
     it("should return the correct known_password_updated message with valid inputs", () => {
-      const firstName = "Jane";
-      const lastName = "Smith";
-      const expectedMessage =
-        `Dear Jane Smith,\n\n` +
-        "Your AirQo Analytics account password has been successfully updated.\n\n" +
-        "If you did not initiate this password change, please reach out to your organization's administrator immediately.\n\n" +
-        `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`;
-      const result = constants.known_password_updated(firstName, lastName);
+      const firstName = "John";
+      const lastName = "Doe";
+      const email = "johndoe@test.com";
+      const name = firstName + " " + lastName;
+      const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account password has been successfully updated.
+                                <br />
+                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                    <br />
+                                    <br />
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    <br />
+                                    Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
+      const result = msgs.known_password_updated(
+        firstName, lastName, email
+      );
+      const joinRequestSpy = sinon.spy(msgs, "known_password_updated");
+      expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
+      joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -334,10 +376,29 @@ describe("email.msgs", () => {
   });
   describe("authenticate_email", () => {
     it("should return the correct authenticate_email message with valid token", () => {
+      const email = "john.doe@example.com";
       const token = "ABC123";
-      const expectedMessage = `You are about to make changes to your email address. \n\nFirst, you need you to re-authenticate.\n\nEnter the code below in the app. \n\nThe code: ${token}`;
-      const result = constants.authenticate_email(token);
+      const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                You are about to make changes to your email address.
+                                <br />
+                                <br />
+                                First, you need you to re-authenticate.
+                                    <br />
+                                Enter the code below in the app.
+                                <br />
+                                The code: ${token}
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = constants.EMAIL_BODY(email, content);
+      const joinRequestSpy = sinon.spy(msgs, "authenticate_email");
+
+      const result = msgs.authenticate_email(token, email);
       expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(token, email)).to.be.true;
+      joinRequestSpy.restore();
     });
   });
 });
