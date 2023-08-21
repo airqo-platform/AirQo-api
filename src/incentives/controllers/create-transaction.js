@@ -252,6 +252,67 @@ const createTransaction = {
       });
     }
   },
+
+  listTransactions: async (req, res) => {
+    logText("send money to host.............");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+
+      const responseFromListTransactions =
+        await createTransactionUtil.listTransactions(request);
+      logObject(
+        "responseFromListTransactions in controller",
+        responseFromListTransactions
+      );
+      if (responseFromListTransactions.success === true) {
+        const status = responseFromListTransactions.status
+          ? responseFromListTransactions.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListTransactions.message,
+          transaction: responseFromListTransactions.data,
+        });
+      } else if (responseFromListTransactions.success === false) {
+        const status = responseFromListTransactions.status
+          ? responseFromListTransactions.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListTransactions.message,
+          errors: responseFromListTransactions.errors
+            ? responseFromListTransactions.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   /******************************** SIM CARD DATA LOADING *********************************/
   loadDataBundle: async (req, res) => {
     logText("send money to host.............");
