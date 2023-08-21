@@ -114,6 +114,10 @@ knowYourAirLessonSchema.statics = {
         })
         .unwind("$tasks")
         .sort({ "tasks.task_position": 1 }) 
+        .group({
+          _id: "$_id",
+          tasks: { $push: "$tasks" }
+        })
         .lookup({
           from: "kyaprogresses",
           localField: "_id",
