@@ -628,6 +628,7 @@ const createSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
+          data_provider: constants.DATA_PROVIDER_MAPPINGS(body.network),
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
