@@ -12,6 +12,7 @@ const sinonChai = require("sinon-chai");
 const chaiHttp = require("chai-http");
 chai.use(sinonChai);
 chai.use(chaiHttp);
+const generateFilter = require("@utils/generate-filter");
 
 describe("createTransaction", () => {
   let request;
@@ -765,6 +766,70 @@ describe("createTransaction", () => {
       logObjectStub.restore();
       loggerErrorStub.restore();
       throwStub.restore();
+    });
+  });
+
+  describe("listTransactions", () => {
+    it("should retrieve transactions successfully", async () => {
+      const request = {
+        query: {
+          tenant: "yourTenant",
+        },
+      };
+
+      const fakeFilter = { success: true };
+      const fakeTransactionDetails = [{ id: 1, amount: 100 }];
+
+      const generateFilterStub = sinon
+        .stub(generateFilter, "transactions")
+        .returns(fakeFilter);
+      const transactionModelStub = sinon
+        .stub(TransactionModel("yourTenant"), "find")
+        .resolves(fakeTransactionDetails);
+
+      const result = await createTransaction.listTransactions(request);
+
+      expect(generateFilterStub.calledOnceWith(request)).to.be.true;
+      expect(transactionModelStub.calledOnceWith(fakeFilter)).to.be.true;
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal(
+        "Successfully retrieved the transactions"
+      );
+      expect(result.data).to.deep.equal(fakeTransactionDetails);
+      expect(result.status).to.equal(httpStatus.OK);
+
+      generateFilterStub.restore();
+      transactionModelStub.restore();
+    });
+
+    it("should handle error when retrieving transactions", async () => {
+      const request = {
+        query: {
+          tenant: "yourTenant",
+        },
+      };
+
+      const fakeFilter = { success: false };
+      const fakeErrorMessage = "An error occurred";
+
+      const generateFilterStub = sinon
+        .stub(generateFilter, "transactions")
+        .returns(fakeFilter);
+      const transactionModelStub = sinon
+        .stub(TransactionModel("yourTenant"), "find")
+        .rejects(new Error(fakeErrorMessage));
+
+      const result = await createTransaction.listTransactions(request);
+
+      expect(generateFilterStub.calledOnceWith(request)).to.be.true;
+      expect(transactionModelStub.calledOnceWith(fakeFilter)).to.be.true;
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Internal Server Error");
+      expect(result.errors.message).to.equal(fakeErrorMessage);
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+
+      generateFilterStub.restore();
+      transactionModelStub.restore();
     });
   });
 });
