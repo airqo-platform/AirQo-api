@@ -7,4 +7,4 @@ lightgbm
 mlflow
 gcsfs
 pymongo
-category-encoders
+optuna

@@ -15,6 +15,8 @@ from airqo_etl_utils.ml_utils import ForecastUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job"],
 )
 def train_forecasting_models():
+
+    # Hourly forecast tasks
     @task()
     def fetch_training_data_for_hourly_forecast_model():
         from dateutil.relativedelta import relativedelta
@@ -26,19 +28,20 @@ def train_forecasting_models():
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_data(start_date)
-
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
         return ForecastUtils.preprocess_data(data, "hourly")
 
     @task()
     def feature_engineer_training_data_for_hourly_forecast_model(data):
-        return ForecastUtils.feature_eng_training_data(data, "pm2_5", "hourly")
+        return ForecastUtils.feature_eng_data(data, "pm2_5", "hourly", "train")
 
     @task()
     def train_and_save_hourly_forecast_model(train_data):
-        return ForecastUtils.train_and_save_hourly_forecast_model(train_data)
+        return ForecastUtils.train_and_save_forecast_models(train_data, frequency='hourly')
 
+
+# Daily forecast tasks
     @task()
     def fetch_training_data_for_daily_forecast_model():
         from dateutil.relativedelta import relativedelta
@@ -57,11 +60,11 @@ def train_forecasting_models():
 
     @task()
     def feature_engineer_data_for_daily_forecast_model(data):
-        return ForecastUtils.feature_eng_training_data(data, "pm2_5", "daily")
+        return ForecastUtils.feature_eng_data(data, "pm2_5", "daily", "train")
 
     @task()
     def train_and_save_daily_model(train_data):
-        return ForecastUtils.train_and_save_daily_forecast_model(train_data)
+        return ForecastUtils.train_and_save_forecast_models(train_data, "daily")
 
     hourly_data = fetch_training_data_for_hourly_forecast_model()
     hourly_data = preprocess_training_data_for_hourly_forecast_model(hourly_data)

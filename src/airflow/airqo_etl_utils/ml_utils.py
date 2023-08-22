@@ -64,9 +64,9 @@ class ForecastUtils:
     @staticmethod
     def preprocess_data(data, frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])["pm2_5"].transform(
-            lambda x: x.interpolate(method="linear", limit_direction="both")
-        )
+        data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
+            "pm2_5"
+        ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
         if frequency == "daily":
             data = (
                 data.groupby(["device_id", "site_id", "device_category"])
@@ -74,7 +74,9 @@ class ForecastUtils:
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])["pm2_5"].transform(
+            data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
+                "pm2_5"
+            ].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
         data = data.dropna(subset=["pm2_5"])
@@ -122,7 +124,7 @@ class ForecastUtils:
 
             return df
 
-        def encode_categorical_features(df):
+        def encode_categorical_features(df, frequency):
             columns = ["device_id", "site_id", "device_category"]
             mappings = []
             for col in columns:
@@ -136,13 +138,13 @@ class ForecastUtils:
                 mappings.append(mapping)
             for i, col in enumerate(columns):
                 upload_mapping_to_gcs(
-                    mappings[i], project_id, bucket, f"{col}_mapping.json"
+                    mappings[i], project_id, bucket, f"{frequency}_{col}_mapping.json"
                 )
             return df
 
         def get_time_and_cyclic_features(df, freq):
             attributes = ["year", "month", "day", "dayofweek"]
-            max_vals = [2023, 12, 31, 6, 23]
+            max_vals = [2023, 12, 30, 7]
             if freq == "hourly":
                 attributes.extend(["hour", "minute"])
                 max_vals.append([23, 59])
@@ -157,14 +159,21 @@ class ForecastUtils:
             df.drop(columns=attributes + ["week"], inplace=True)
             return df
 
-        def decode_categorical_features(df):
+        def decode_categorical_features(df, frequency):
             columns = ["device_id", "site_id", "device_category"]
             for col in columns:
-                mapping = get_mapping_from_gcs(
-                    project_id, bucket, f"{col}_mapping.json"
+                if frequency == "hourly":
+                    mapping = get_mapping_from_gcs(
+                    project_id, bucket, f"hourly_{col}_mapping.json"
                 )
+                elif frequency == "daily":
+                    mapping = get_mapping_from_gcs(
+                    project_id, bucket, f"daily_{col}_mapping.json"
+                )
+                    
                 df[col] = df[col].map(mapping)
             return df
+
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         df_tmp = get_lag_features(data, target_column, frequency)
         df_tmp = get_time_and_cyclic_features(df_tmp, frequency)
@@ -215,7 +224,6 @@ class ForecastUtils:
             test_data[target_col],
         )
 
-
         sampler = optuna.samplers.TPESampler()
         pruner = optuna.pruners.SuccessiveHalvingPruner(
             min_resource=10, reduction_factor=2, min_early_stopping_rate=0
@@ -260,12 +268,13 @@ class ForecastUtils:
 
         study.optimize(objective, n_trials=15)
 
-
         mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
         mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
         registered_model_name = f"{frequency}_forecast_model_{environment}"
 
-        mlflow.lightgbm.autolog(registered_model_name=registered_model_name, log_datasets=False)
+        mlflow.lightgbm.autolog(
+            registered_model_name=registered_model_name, log_datasets=False
+        )
         with mlflow.start_run():
             best_params = study.best_params
             print(f"Best params are {best_params}")
@@ -289,127 +298,181 @@ class ForecastUtils:
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
 
-            # train quantile regression models for 0.025 and 0.975 quantiles
-        clf_025 = LGBMRegressor(
-            n_estimators=best_params["n_estimators"],
-            learning_rate=best_params["learning_rate"],
-            colsample_bytree=best_params["colsample_bytree"],
-            reg_alpha=best_params["reg_alpha"],
-            reg_lambda=best_params["reg_lambda"],
-            max_depth=best_params["max_depth"],
-            random_state=42,
-            verbosity=2,
-            objective="quantile",
-            alpha=0.025,
-            metric="quantile",
-        )
-
-        clf_025.fit(
-            train_data[features],
-            train_target,
-            eval_set=[(test_data[features], test_target)],
-            categorical_feature=["device_id", "site_id", "device_category"],
-        )
-
-        clf_975 = LGBMRegressor(
-            n_estimators=best_params["n_estimators"],
-            learning_rate=best_params["learning_rate"],
-            colsample_bytree=best_params["colsample_bytree"],
-            reg_alpha=best_params["reg_alpha"],
-            reg_lambda=best_params["reg_lambda"],
-            max_depth=best_params["max_depth"],
-            random_state=42,
-            verbosity=2,
-            objective="quantile",
-            alpha=0.975,
-            metric="quantile",
-        )
-
-        clf_975.fit(
-            train_data[features],
-            train_target,
-            eval_set=[(test_data[features], test_target)],
-            categorical_feature=["device_id", "site_id", "device_category"],
-        )
-
-        upload_trained_model_to_gcs(
-                clf, project_id, bucket, "hourly_forecast_model.pkl"
+            upload_trained_model_to_gcs(
+                clf, project_id, bucket, f"{frequency}_forecast_model.pkl"
             )
 
-    @staticmethod
-    def generate_forecasts(data, project_name, bucket_name, source_blob_name, frequency):
-        data['timestamp'] = pd.to_datetime(data['timestamp'])
-        data['pm2_5_lower'] = data['pm2_5_upper'] = data['margin_of_error'] = 0
+        alphas = [0.025, 0.975]
+        models = []
+        names = [f'{frequency}_lower_quantile_model', f'{frequency}_upper_quantile_model']
 
-        def get_new_row(df, device_id, forecast_model, lower_quantile_model, upper_quantile_model,  frequency):
-            last_row = df[df['device_id'] == device_id].iloc[-1]
-            new_row = pd.Series(index=last_row.index, dtype='float64')
-            if frequency == 'hourly':
-                new_row['timestamp'] = last_row['timestamp'] + pd.Timedelta(hours=1)
-                new_row['device_id'] = device_id
-                new_row[f'pm2_5_last_1_hour'] = last_row['pm2_5']
-                new_row[f'pm2_5_last_2_hour'] = last_row[f'pm2_5_last_{1}_hour']
-            elif frequency == 'daily':
-                new_row['timestamp'] = last_row['timestamp'] + pd.Timedelta(days=1)
-                new_row['device_id'] = device_id
-                new_row[f'pm2_5_last_1_day'] = last_row['pm2_5']
-                new_row[f'pm2_5_last_2_day'] = last_row[f'pm2_5_last_{1}_day']
-                new_row[f'f"pm2_5_last_3_day'] = last_row[f'pm2_5_last_{2}_day']
+        for alpha in alphas:
+            clf = LGBMRegressor(
+                n_estimators=best_params["n_estimators"],
+                learning_rate=best_params["learning_rate"],
+                colsample_bytree=best_params["colsample_bytree"],
+                reg_alpha=best_params["reg_alpha"],
+                reg_lambda=best_params["reg_lambda"],
+                max_depth=best_params["max_depth"],
+                random_state=42,
+                verbosity=2,
+                objective="quantile",
+                alpha=alpha,
+                metric="quantile",
+            )
+            clf.fit(
+                train_data[features],
+                train_target,
+                eval_set=[(test_data[features], test_target)],
+                categorical_feature=["device_id", "site_id", "device_category"],
+            )
+            models.append(clf)
+        for n, m in zip(names, models):
+            upload_trained_model_to_gcs(
+                m, project_id, bucket, f"{n}.pkl"
+            )
+
+
+    @staticmethod
+    def generate_forecasts(
+        data, project_name, bucket_name, frequency
+    ):
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["pm2_5_lower"] = data["pm2_5_upper"] = data["margin_of_error"] = 0
+
+        def get_new_row(
+            df,
+            device_id,
+            forecast_model,
+            lower_quantile_model,
+            upper_quantile_model,
+            frequency,
+        ):
+            last_row = df[df["device_id"] == device_id].iloc[-1]
+            new_row = pd.Series(index=last_row.index, dtype="float64")
+            if frequency == "hourly":
+                new_row["timestamp"] = last_row["timestamp"] + pd.Timedelta(hours=1)
+                new_row["device_id"] = device_id
+                new_row[f"pm2_5_last_1_hour"] = last_row["pm2_5"]
+                new_row[f"pm2_5_last_2_hour"] = last_row[f"pm2_5_last_{1}_hour"]
+            elif frequency == "daily":
+                new_row["timestamp"] = last_row["timestamp"] + pd.Timedelta(days=1)
+                new_row["device_id"] = device_id
+                new_row[f"pm2_5_last_1_day"] = last_row["pm2_5"]
+                new_row[f"pm2_5_last_2_day"] = last_row[f"pm2_5_last_{1}_day"]
+                new_row[f'f"pm2_5_last_3_day'] = last_row[f"pm2_5_last_{2}_day"]
                 shifts1 = [3, 7, 14]
                 for s in shifts1:
-                    new_row[f'pm2_5_last_{s}_day'] = df[df['device_id'] == device_id]['pm2_5'].shift(s).iloc[-1]
+                    new_row[f"pm2_5_last_{s}_day"] = (
+                        df[df["device_id"] == device_id]["pm2_5"].shift(s).iloc[-1]
+                    )
 
                 shifts2 = [3, 7, 14, 30]
-                functions = ['mean', 'std', 'max', 'min']
+                functions = ["mean", "std", "max", "min"]
                 for s in shifts2:
                     for f in functions:
-                        if f == 'mean':
-                            new_row[f'pm2_5_{f}_{s}_day'] = (last_row['pm2_5'] + last_row[f'pm2_5_{f}_{s}_day']*(s-1))/s
-                        elif f == 'std':
-                            new_row[f'pm2_5_{f}_{s}_day'] = np.sqrt((last_row['pm2_5'] - last_row[f'pm2_5_mean_{s}_day'])**2 + (last_row[f'pm2_5_{f}_{s}_day']**2*(s-1)))/s
-                        elif f == 'max':
-                            new_row[f'pm2_5_{f}_{s}_day'] = max(last_row['pm2_5'], last_row[f'pm2_5_{f}_{s}_day'])
-                        elif f == 'min':
-                            new_row[f'pm2_5_{f}_{s}_day'] = min(last_row['pm2_5'], last_row[f'pm2_5_{f}_{s}_day'])
-            attributes = ['year', 'month', 'day', 'dayofweek']
+                        if f == "mean":
+                            new_row[f"pm2_5_{f}_{s}_day"] = (
+                                last_row["pm2_5"]
+                                + last_row[f"pm2_5_{f}_{s}_day"] * (s - 1)
+                            ) / s
+                        elif f == "std":
+                            new_row[f"pm2_5_{f}_{s}_day"] = (
+                                np.sqrt(
+                                    (
+                                        last_row["pm2_5"]
+                                        - last_row[f"pm2_5_mean_{s}_day"]
+                                    )
+                                    ** 2
+                                    + (last_row[f"pm2_5_{f}_{s}_day"] ** 2 * (s - 1))
+                                )
+                                / s
+                            )
+                        elif f == "max":
+                            new_row[f"pm2_5_{f}_{s}_day"] = max(
+                                last_row["pm2_5"], last_row[f"pm2_5_{f}_{s}_day"]
+                            )
+                        elif f == "min":
+                            new_row[f"pm2_5_{f}_{s}_day"] = min(
+                                last_row["pm2_5"], last_row[f"pm2_5_{f}_{s}_day"]
+                            )
+            attributes = ["year", "month", "day", "dayofweek"]
             max_vals = [2023, 12, 31, 6, 23]
-            if frequency == 'hourly':
-                attributes.extend(['hour', 'minute'])
+            if frequency == "hourly":
+                attributes.extend(["hour", "minute"])
                 max_vals.append([23, 59])
             for a, m in zip(attributes, max_vals):
-                new_row[a] = new_row['timestamp'].dt.__getattribute__(a)
-                new_row[a + '_sin'] = np.sin(2 * np.pi * new_row[a] / m)
-                new_row[a + '_cos'] = np.cos(2 * np.pi * new_row[a] / m)
-            new_row['week'] = new_row['timestamp'].dt.isocalendar().week
-            new_row['week_sin'] = np.sin(2 * np.pi * new_row['week'] / 52)
-            new_row['week_cos'] = np.cos(2 * np.pi * new_row['week'] / 52)
-            direct_forecast = forecast_model.predict(new_row.drop(['timestamp', 'pm2_5']).values.reshape(1, -1))[0]
-            new_row['pm2_5_lower'] = lower_quantile_model.predict(new_row.drop(['timestamp', 'pm2_5']).values.reshape(1, -1))[0]
-            new_row['pm2_5_upper'] = upper_quantile_model.predict(new_row.drop(['timestamp', 'pm2_5']).values.reshape(1, -1))[0]
-            new_row['margin_of_error'] = (new_row['pm2_5_upper'] - new_row['pm2_5_lower']) / 2
-            new_row['pm2_5'] = direct_forecast + new_row['margin_of_error']
+                new_row[a] = new_row["timestamp"].dt.__getattribute__(a)
+                new_row[a + "_sin"] = np.sin(2 * np.pi * new_row[a] / m)
+                new_row[a + "_cos"] = np.cos(2 * np.pi * new_row[a] / m)
+            new_row["week"] = new_row["timestamp"].dt.isocalendar().week
+            new_row["week_sin"] = np.sin(2 * np.pi * new_row["week"] / 52)
+            new_row["week_cos"] = np.cos(2 * np.pi * new_row["week"] / 52)
+            direct_forecast = forecast_model.predict(
+                new_row.drop(["timestamp", "pm2_5"]).values.reshape(1, -1)
+            )[0]
+            new_row["pm2_5_lower"] = lower_quantile_model.predict(
+                new_row.drop(["timestamp", "pm2_5"]).values.reshape(1, -1)
+            )[0]
+            new_row["pm2_5_upper"] = upper_quantile_model.predict(
+                new_row.drop(["timestamp", "pm2_5"]).values.reshape(1, -1)
+            )[0]
+            new_row["margin_of_error"] = (
+                new_row["pm2_5_upper"] - new_row["pm2_5_lower"]
+            ) / 2
+            new_row["pm2_5"] = direct_forecast + new_row["margin_of_error"]
 
             return new_row
 
         forecasts = pd.DataFrame()
-        forecast_model = get_trained_model_from_gcs(project_name, bucket_name, source_blob_name)
-        lower_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, 'daily_forecast_model_lower_quantile.pkl')
-        upper_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, 'daily_forecast_model_upper_quantile.pkl')
+        forecast_model = get_trained_model_from_gcs(
+            project_name, bucket_name, f"{frequency}_forecast_model.pkl"
+        )
+        lower_quantile_model = get_trained_model_from_gcs(
+            project_name, bucket_name,  f"{frequency}_lower_quantile_model.pkl"
+        )
+        upper_quantile_model = get_trained_model_from_gcs(
+            project_name, bucket_name, f"{frequency}_upper_quantile_model.pkl"
+        )
         df_tmp = data.copy()
-        for device in df_tmp['device_id'].unique():
-            test_copy = df_tmp[df_tmp['device_id'] == device]
-            horizon = configuration.HOURLY_FORECAST_HORIZON if frequency == 'hourly' else configuration.DAILY_FORECAST_HORIZON
+        for device in df_tmp["device_id"].unique():
+            test_copy = df_tmp[df_tmp["device_id"] == device]
+            horizon = (
+                configuration.HOURLY_FORECAST_HORIZON
+                if frequency == "hourly"
+                else configuration.DAILY_FORECAST_HORIZON
+            )
             for i in range(int(horizon)):
-                new_row = get_new_row(test_copy, device, forecast_model, lower_quantile_model, upper_quantile_model, frequency)
-                test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
+                new_row = get_new_row(
+                    test_copy,
+                    device,
+                    forecast_model,
+                    lower_quantile_model,
+                    upper_quantile_model,
+                    frequency,
+                )
+                test_copy = pd.concat(
+                    [test_copy, new_row.to_frame().T], ignore_index=True
+                )
             forecasts = pd.concat([forecasts, test_copy], ignore_index=True)
 
-        forecasts['pm2_5'] = forecasts['pm2_5'].astype(float)
-        forecasts['pm2_5_lower'] = forecasts['pm2_5_lower'].astype(float)
-        forecasts['pm2_5_upper'] = forecasts['pm2_5_upper'].astype(float)
-        forecasts['margin_of_error'] = forecasts['margin_of_error'].astype(float)
-        current_time_utc = pd.Timestamp(datetime.utcnow(), tz='UTC')
-        result = forecasts[['timestamp', 'pm2_5', 'pm2_5_lower', 'pm2_5_upper', 'margin_of_error', 'device_id', 'site_id']][forecasts['timestamp'] >= current_time_utc]
+        forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
+        forecasts["pm2_5_lower"] = forecasts["pm2_5_lower"].astype(float)
+        forecasts["pm2_5_upper"] = forecasts["pm2_5_upper"].astype(float)
+        forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
+        current_time_utc = pd.Timestamp(datetime.utcnow(), tz="UTC")
+        forecasts.rename(columns={"timestamp": "time"}, inplace=True)
+        result = forecasts[
+            [
+                "timestamp",
+                "pm2_5",
+                "pm2_5_lower",
+                "pm2_5_upper",
+                "margin_of_error",
+                "device_id",
+                "site_id",
+            ]
+        ][forecasts["time"] >= current_time_utc]
         return result
 
     @staticmethod

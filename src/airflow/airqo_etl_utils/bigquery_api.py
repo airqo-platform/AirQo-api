@@ -615,22 +615,7 @@ class BigQueryApi:
         except Exception as e:
             raise e
 
-    def fetch_data(self, start_date_time: str, historical: bool = False):
-        # historical is for the actual jobs, not training
-        query = f"""
-                SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
-                FROM `{self.hourly_measurements_table_prod}`
-                WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
-                ORDER BY created_at, device_number
-        """
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        df = self.client.query(f"{query}", job_config).result().to_dataframe()
-        return df
-
-    def fetch_training_data(
+    def fetch_data(
         self,
         start_date_time: str,
     ) -> pd.DataFrame:

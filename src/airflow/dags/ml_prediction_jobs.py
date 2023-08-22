@@ -27,25 +27,19 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, historical=True)
+        return BigQueryApi().fetch_data(start_date)
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
-        return ForecastUtils.preprocess_historical_data(data, "hourly")
-
-    @task()
-    def add_lag_features_historical_data_hourly_forecast(data):
-        return ForecastUtils.get_lag_features(data, "pm2_5", frequency="hourly")
+        return ForecastUtils.preprocess_data(data, "hourly")
 
     @task
-    def add_timestep_features_historical_data_hourly_forecasts(data):
-        return ForecastUtils.get_time_features(data, frequency="hourly")
+    def feature_eng_hourly_historical_data(data):
+        return ForecastUtils.feature_eng_data(data, 'pm2_5', 'hourly', 'predict')
 
     @task()
     def make_hourly_forecasts(data):
-        return ForecastUtils.generate_hourly_forecasts(
-            data, project_id, bucket, "hourly_forecast_model.pkl"
-        )
+        return ForecastUtils.generate_forecasts(data=data, project_name=project_id, bucket_name= bucket,frequency='hourly')
 
     @task()
     def save_hourly_forecasts_to_bigquery(data):
@@ -67,25 +61,20 @@ def make_forecasts():
             days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, historical=True)
+        return BigQueryApi().fetch_data(start_date)
 
     @task()
     def preprocess_historical_data_daily_forecast(data):
-        return ForecastUtils.preprocess_historical_data(data, "daily")
+        return ForecastUtils.preprocess_data(data, "daily")
 
     @task()
-    def add_lag_features_historical_data_daily_forecast(data):
-        return ForecastUtils.get_lag_features(data, "pm2_5", frequency="daily")
-
-    @task()
-    def add_timestep_features_historical_data_daily_forecast(data):
-        return ForecastUtils.get_time_features(data, "daily")
+    def feature_engineer_daily_historical_data(data):
+        return ForecastUtils.feature_eng_data(data, 'pm2_5', 'daily', 'predict')
 
     @task()
     def make_daily_forecasts(data):
-        return ForecastUtils.generate_daily_forecasts(
-            data, project_id, bucket, "daily_forecast_model.pkl"
-        )
+        return ForecastUtils.generate_forecasts(data, project_id, bucket, 'daily')
+
 
     @task()
     def save_daily_forecasts_to_bigquery(data):
@@ -99,25 +88,15 @@ def make_forecasts():
 
     hourly_data = get_historical_data_for_hourly_forecasts()
     preprocessed_hourly_data = preprocess_historical_data_hourly_forecast(hourly_data)
-    lagged_hourly_data = add_lag_features_historical_data_hourly_forecast(
-        preprocessed_hourly_data
-    )
-    time_features_hourly_data = add_timestep_features_historical_data_hourly_forecasts(
-        lagged_hourly_data
-    )
-    hourly_forecasts = make_hourly_forecasts(time_features_hourly_data)
+    feat_data = feature_eng_hourly_historical_data(preprocessed_hourly_data)
+    hourly_forecasts = make_hourly_forecasts(feat_data)
     save_hourly_forecasts_to_bigquery(hourly_forecasts)
     save_hourly_forecasts_to_mongo(hourly_forecasts)
 
     daily_data = get_historical_data_for_daily_forecasts()
     preprocessed_daily_data = preprocess_historical_data_daily_forecast(daily_data)
-    lagged_daily_data = add_lag_features_historical_data_daily_forecast(
-        preprocessed_daily_data
-    )
-    time_features_daily_data = add_timestep_features_historical_data_daily_forecast(
-        lagged_daily_data
-    )
-    daily_forecasts = make_daily_forecasts(time_features_daily_data)
+    feat_data = feature_engineer_daily_historical_data(preprocessed_daily_data)
+    daily_forecasts = make_daily_forecasts(feat_data)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
 
