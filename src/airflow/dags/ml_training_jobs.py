@@ -15,7 +15,6 @@ from airqo_etl_utils.ml_utils import ForecastUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job"],
 )
 def train_forecasting_models():
-
     # Hourly forecast tasks
     @task()
     def fetch_training_data_for_hourly_forecast_model():
@@ -28,6 +27,7 @@ def train_forecasting_models():
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_data(start_date)
+
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
         return ForecastUtils.preprocess_data(data, "hourly")
@@ -38,10 +38,11 @@ def train_forecasting_models():
 
     @task()
     def train_and_save_hourly_forecast_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(train_data, frequency='hourly')
+        return ForecastUtils.train_and_save_forecast_models(
+            train_data, frequency="hourly"
+        )
 
-
-# Daily forecast tasks
+    # Daily forecast tasks
     @task()
     def fetch_training_data_for_daily_forecast_model():
         from dateutil.relativedelta import relativedelta

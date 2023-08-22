@@ -35,11 +35,13 @@ def make_forecasts():
 
     @task
     def feature_eng_hourly_historical_data(data):
-        return ForecastUtils.feature_eng_data(data, 'pm2_5', 'hourly', 'predict')
+        return ForecastUtils.feature_eng_data(data, "pm2_5", "hourly", "predict")
 
     @task()
     def make_hourly_forecasts(data):
-        return ForecastUtils.generate_forecasts(data=data, project_name=project_id, bucket_name= bucket,frequency='hourly')
+        return ForecastUtils.generate_forecasts(
+            data=data, project_name=project_id, bucket_name=bucket, frequency="hourly"
+        )
 
     @task()
     def save_hourly_forecasts_to_bigquery(data):
@@ -69,12 +71,11 @@ def make_forecasts():
 
     @task()
     def feature_engineer_daily_historical_data(data):
-        return ForecastUtils.feature_eng_data(data, 'pm2_5', 'daily', 'predict')
+        return ForecastUtils.feature_eng_data(data, "pm2_5", "daily", "predict")
 
     @task()
     def make_daily_forecasts(data):
-        return ForecastUtils.generate_forecasts(data, project_id, bucket, 'daily')
-
+        return ForecastUtils.generate_forecasts(data, project_id, bucket, "daily")
 
     @task()
     def save_daily_forecasts_to_bigquery(data):

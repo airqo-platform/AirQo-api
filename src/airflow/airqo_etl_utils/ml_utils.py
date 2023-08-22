@@ -59,6 +59,7 @@ def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
         mapping_dict = json.load(f)
     return mapping_dict
 
+
 def decode_categorical_features(df, frequency):
     columns = ["device_id", "site_id", "device_category"]
     for col in columns:
@@ -73,6 +74,7 @@ def decode_categorical_features(df, frequency):
 
         df[col] = df[col].map(mapping)
     return df
+
 
 class ForecastUtils:
     @staticmethod
@@ -176,8 +178,6 @@ class ForecastUtils:
             df1.drop(columns=attributes + ["week"], inplace=True)
             return df1
 
-
-
         df_tmp = data.copy()
         df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
         df_tmp = get_lag_features(df_tmp, target_column, frequency)
@@ -186,10 +186,10 @@ class ForecastUtils:
             df_tmp = encode_categorical_features(df_tmp, frequency)
         elif job_type == "predict":
             df_tmp = decode_categorical_features(df_tmp, frequency)
-            #convert the categorical columns to int
-            df_tmp['device_id'] = df_tmp['device_id'].astype(int)
-            df_tmp['site_id'] = df_tmp['site_id'].astype(int)
-            df_tmp['device_category'] = df_tmp['device_category'].astype(int)
+            df_tmp.dropna(subset=["device_id", "site_id", "device_category"], inplace=True)
+            df_tmp["device_id"] = df_tmp["device_id"].astype(int)
+            df_tmp["site_id"] = df_tmp["site_id"].astype(int)
+            df_tmp["device_category"] = df_tmp["device_category"].astype(int)
 
         return df_tmp
 
@@ -313,7 +313,10 @@ class ForecastUtils:
 
         alphas = [0.025, 0.975]
         models = []
-        names = [f'{frequency}_lower_quantile_model', f'{frequency}_upper_quantile_model']
+        names = [
+            f"{frequency}_lower_quantile_model",
+            f"{frequency}_upper_quantile_model",
+        ]
 
         for alpha in alphas:
             clf = LGBMRegressor(
@@ -337,15 +340,10 @@ class ForecastUtils:
             )
             models.append(clf)
         for n, m in zip(names, models):
-            upload_trained_model_to_gcs(
-                m, project_id, bucket, f"{n}.pkl"
-            )
-
+            upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
 
     @staticmethod
-    def generate_forecasts(
-        data, project_name, bucket_name, frequency
-    ):
+    def generate_forecasts(data, project_name, bucket_name, frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["pm2_5_lower"] = data["pm2_5_upper"] = data["margin_of_error"] = 0
 
@@ -355,83 +353,154 @@ class ForecastUtils:
             lower_quantile_model,
             upper_quantile_model,
             frequency,
-            horizon
+            horizon,
         ):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             df_tmp = df.copy()
             for i in range(int(horizon)):
-                    df_tmp = pd.concat([df_tmp, df.iloc[-1]], ignore_index=True)
-                    similar_columns = ['site_id', 'device_id', 'device_category', 'latitude', 'longitude']
-                    for col in similar_columns:
-                        df_tmp.iloc[-1, df_tmp.columns.get_loc(col)] = df_tmp.iloc[-2, df_tmp.columns.get_loc(col)]
+                df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]],ignore_index=True)
+                similar_columns = [
+                    "site_id",
+                    "device_id",
+                    "device_category",
+                    "latitude",
+                    "longitude",
+                ]
+                for col in similar_columns:
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc(col)] = df_tmp.iloc[
+                        -2, df_tmp.columns.get_loc(col)
+                    ]
 
-                    #daily frequency
-                    if frequency == 'daily':
-                        df_tmp.iloc[-1, df_tmp.columns.get_loc('timestamp')] = df.iloc[-2, df_tmp.columns.get_loc('timestamp')] + pd.Timedelta(days=1)
+                # daily frequency
+                if frequency == "daily":
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df.iloc[
+                        -2, df_tmp.columns.get_loc("timestamp")
+                    ] + pd.Timedelta(days=1)
 
-                        #lag features
-                        shifts1 = [1,2,3,7,14]
-                        for s in shifts1:
-                            df_tmp.iloc[-1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_day")] = df_tmp['pm2_5'].shift(s)
+                    # lag features
+                    shifts1 = [1, 2, 3, 7, 14]
+                    for s in shifts1:
+                        df_tmp.iloc[
+                            -1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_day")
+                        ] = df_tmp["pm2_5"].shift(s)
 
-                        #rolling features
-                        shifts2 = [2,3,7,14]
-                        functions = ['mean', 'std', 'max', 'min']
-                        for s in shifts2:
-                            for f in functions:
-                                df_tmp.iloc[-1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_day")] = df_tmp['pm2_5'].shift(1).rolling(s).agg(f)
+                    # rolling features
+                    shifts2 = [2, 3, 7, 14]
+                    functions = ["mean", "std", "max", "min"]
+                    for s in shifts2:
+                        for f in functions:
+                            df_tmp.iloc[
+                                -1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_day")
+                            ] = (df_tmp["pm2_5"].shift(1).rolling(s).agg(f))
 
-                    # hourly frequency
-                    elif frequency == 'hourly':
-                        df_tmp.iloc[-1, df_tmp.columns.get_loc('timestamp')] = df.iloc[-2, df_tmp.columns.get_loc('timestamp')] + pd.Timedelta(hours=1)
+                # hourly frequency
+                elif frequency == "hourly":
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df.iloc[
+                        -2, df_tmp.columns.get_loc("timestamp")
+                    ] + pd.Timedelta(hours=1)
 
-                        #lag features
-                        shifts1 = [1,2,6,12]
-                        for s in shifts1:
-                            df_tmp.iloc[-1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_hour")] = df_tmp['pm2_5'].shift(s)
+                    # lag features
+                    shifts1 = [1, 2, 6, 12]
+                    for s in shifts1:
+                        df_tmp.iloc[
+                            -1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_hour")
+                        ] = df_tmp["pm2_5"].shift(s)
 
-                        #rolling features
-                        shifts2 = [3,6,12,24]
-                        functions = ['mean', 'std', 'median', 'skew']
-                        for s in shifts2:
-                            for f in functions:
-                                df_tmp.iloc[-1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_hour")] = df_tmp['pm2_5'].shift(1).rolling(s).agg(f)
+                    # rolling features
+                    shifts2 = [3, 6, 12, 24]
+                    functions = ["mean", "std", "median", "skew"]
+                    for s in shifts2:
+                        for f in functions:
+                            df_tmp.iloc[
+                                -1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_hour")
+                            ] = (df_tmp["pm2_5"].shift(1).rolling(s).agg(f))
 
-                    #time and cyclic features
-                    attributes = ['year', 'month', 'day', 'dayofweek']
-                    max_vals = [2023, 12, 30, 7]
-                    if frequency == 'hourly':
-                        attributes.append('hour')
-                        max_vals.append(23)
-                    for a, m in zip(attributes, max_vals):
-                        df_tmp.iloc[-1, df_tmp.columns.get_loc(f"{a}_sin")] = np.sin(2 * np.pi * df_tmp[-1, df_tmp.columns.get_loc('timestamp')].dt.__getattribute__(a) / m)
-                        df_tmp.iloc[-1, df_tmp.columns.get_loc(f"{a}_cos")] = np.cos(2 * np.pi * df_tmp[-1, df_tmp.columns.get_loc('timestamp')].dt.__getattribute__(a) / m)
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('week_sin')] = np.sin(2 * np.pi * df_tmp[-1, df_tmp.columns.get_loc('timestamp')].dt.isocalendar().week / 52)
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('week_cos')] = np.cos(2 * np.pi * df_tmp[-1, df_tmp.columns.get_loc('timestamp')].dt.isocalendar().week / 52)
-                    
+                # time and cyclic features
+                attributes = ["year", "month", "day", "dayofweek"]
+                max_vals = [2023, 12, 30, 7]
+                if frequency == "hourly":
+                    attributes.append("hour")
+                    max_vals.append(23)
+                for a, m in zip(attributes, max_vals):
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc(f"{a}_sin")] = np.sin(
+                        2
+                        * np.pi
+                        * df_tmp[
+                            -1, df_tmp.columns.get_loc("timestamp")
+                        ].dt.__getattribute__(a)
+                        / m
+                    )
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc(f"{a}_cos")] = np.cos(
+                        2
+                        * np.pi
+                        * df_tmp[
+                            -1, df_tmp.columns.get_loc("timestamp")
+                        ].dt.__getattribute__(a)
+                        / m
+                    )
+                df_tmp.iloc[-1, df_tmp.columns.get_loc("week_sin")] = np.sin(
+                    2
+                    * np.pi
+                    * df_tmp[-1, df_tmp.columns.get_loc("timestamp")]
+                    .dt.isocalendar()
+                    .week
+                    / 52
+                )
+                df_tmp.iloc[-1, df_tmp.columns.get_loc("week_cos")] = np.cos(
+                    2
+                    * np.pi
+                    * df_tmp[-1, df_tmp.columns.get_loc("timestamp")]
+                    .dt.isocalendar()
+                    .week
+                    / 52
+                )
 
-                    #make predictions
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('pm2_5')] = forecast_model.predict(df_tmp.iloc[-1, df_tmp.columns != 'pm2_5' and df_tmp.columns != 'timestamp' and df_tmp.columns != 'margin_of_error' and df_tmp.columns != 'pm2_5_lower' and df_tmp.columns != 'pm2_5_upper'].values.reshape(1, -1))
+                # make predictions
+                excluded_columns = ["pm2_5", "timestamp", "margin_of_error", "pm2_5_lower", "pm2_5_upper"]
+                df_tmp.iloc[
+                    -1, df_tmp.columns.get_loc("pm2_5")
+                ] = forecast_model.predict(
+                    df_tmp.iloc[
+                        -1,
+                        df_tmp.columns not in excluded_columns,
+                    ].values.reshape(1, -1)
+                )
 
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('pm2_5_lower')] = lower_quantile_model.predict(df_tmp.iloc[-1, df_tmp.columns != 'pm2_5' and df_tmp.columns != 'timestamp' and df_tmp.columns != 'margin_of_error' and df_tmp.columns != 'pm2_5_lower' and df_tmp.columns != 'pm2_5_upper'].values.reshape(1, -1))
+                df_tmp.iloc[
+                    -1, df_tmp.columns.get_loc("pm2_5_lower")
+                ] = lower_quantile_model.predict(
+                    df_tmp.iloc[
+                        -1,
+                      df_tmp.columns not in excluded_columns,
+                    ].values.reshape(1, -1)
+                )
 
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('pm2_5_upper')] = upper_quantile_model.predict(df_tmp.iloc[-1, df_tmp.columns != 'pm2_5' and df_tmp.columns != 'timestamp' and df_tmp.columns != 'margin_of_error' and df_tmp.columns != 'pm2_5_lower' and df_tmp.columns != 'pm2_5_upper'].values.reshape(1, -1))
+                df_tmp.iloc[
+                    -1, df_tmp.columns.get_loc("pm2_5_upper")
+                ] = upper_quantile_model.predict(
+                    df_tmp.iloc[
+                        -1,
+                        df_tmp.columns not in excluded_columns,
+                    ].values.reshape(1, -1)
+                )
 
-                    df_tmp.iloc[-1, df_tmp.columns.get_loc('margin_of_error')] = (df_tmp.iloc[-1, df_tmp.columns.get_loc('pm2_5_upper')] - df_tmp.iloc[-1, df_tmp.columns.get_loc('pm2_5_lower')]) / 2
+                df_tmp.iloc[-1, df_tmp.columns.get_loc("margin_of_error")] = (
+                    df_tmp.iloc[-1, df_tmp.columns.get_loc("pm2_5_upper")]
+                    - df_tmp.iloc[-1, df_tmp.columns.get_loc("pm2_5_lower")]
+                ) / 2
 
-            return df_tmp.iloc[-int(horizon):, :]
+            return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
         forecast_model = get_trained_model_from_gcs(
             project_name, bucket_name, f"{frequency}_forecast_model.pkl"
         )
         lower_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name,  f"{frequency}_lower_quantile_model.pkl"
+            project_name, bucket_name, f"{frequency}_lower_quantile_model.pkl"
         )
         upper_quantile_model = get_trained_model_from_gcs(
             project_name, bucket_name, f"{frequency}_upper_quantile_model.pkl"
         )
-
 
         df_tmp = data.copy()
         for device in df_tmp["device_id"].unique():
@@ -442,16 +511,15 @@ class ForecastUtils:
                 else configuration.DAILY_FORECAST_HORIZON
             )
             device_forecasts = get_forecasts(
-                    test_copy,
-                    forecast_model,
-                    lower_quantile_model,
-                    upper_quantile_model,
-                    frequency,
-                    horizon,
-                )
+                test_copy,
+                forecast_model,
+                lower_quantile_model,
+                upper_quantile_model,
+                frequency,
+                horizon,
+            )
 
             forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
-
 
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         forecasts["pm2_5_lower"] = forecasts["pm2_5_lower"].astype(float)
