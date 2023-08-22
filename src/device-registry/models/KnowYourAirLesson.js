@@ -113,9 +113,12 @@ knowYourAirLessonSchema.statics = {
           as: "tasks",
         })
         .unwind("$tasks")
-        .sort({ "tasks.task_position": 1 }) 
+        .sort({ "tasks.task_position": 1 })
         .group({
           _id: "$_id",
+          title: { $first: "$title" },
+          completion_message: { $first: "$completion_message" },
+          image: { $first: "$image" },
           tasks: { $push: "$tasks" }
         })
         .lookup({
