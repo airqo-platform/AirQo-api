@@ -220,7 +220,50 @@ const createUser = {
   },
 
   verify: (req, res) => {
-    return res.status(httpStatus.OK).send("this token is valid");
+    logText("..................................");
+    logText("user verify......");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      logObject("req.user", req.user);
+      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+
+      if (req.auth.success === true) {
+        return res.status(httpStatus.OK).send("this token is valid");
+      } else {
+        if (req.auth.error) {
+          return res.status(httpStatus.BAD_REQUEST).json({
+            success: req.auth.success,
+            error: req.auth.error,
+            message: req.auth.message,
+          });
+        }
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: req.auth.success,
+          message: req.auth.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        success: false,
+      });
+    }
   },
   verifyEmail: async (req, res) => {
     try {
