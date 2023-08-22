@@ -960,6 +960,10 @@ const createUser = {
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
+
+      return res
+        .status(httpStatus.OK)
+        .json({ success: true, message: "logout successful" });
     } catch (error) {
       logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
