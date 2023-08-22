@@ -31,9 +31,13 @@ AQCSV_DATA_STATUS_MAPPER = {
     "pm10_raw_value": 0,
     "no2_raw_value": 0,
     # only used when frequency is raw
-    "pm2_5": 0,
-    "pm10": 0,
     "no2": 0,
+    "pm2_5": 0,
+    "s1_pm2_5": 0,
+    "pm10": 0,
+    "s1_pm10": 0,
+    "s2_pm2_5": 0,
+    "s2_pm10": 0,
 }
 
 
@@ -154,7 +158,6 @@ def get_pollutant_category(value, pollutant):
         raise Exception(f"Unknown category {pollutant}")
 
     for key, (min_value, max_value) in category_mapper.items():
-
         if min_value < value <= max_value:
             return key
 

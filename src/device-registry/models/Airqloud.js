@@ -1,4 +1,5 @@
 const { Schema } = require("mongoose");
+const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
@@ -6,12 +7,11 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { stringify } = require("qs");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
 
-const polygonSchema = new Schema(
+const polygonSchema = new mongoose.Schema(
   {
     type: {
       type: String,
@@ -22,59 +22,6 @@ const polygonSchema = new Schema(
       type: [[[Number]]],
       required: true,
     },
-  },
-  { _id: false }
-);
-
-const pointSchema = new Schema(
-  {
-    type: {
-      type: String,
-      enum: ["Point"],
-      required: true,
-    },
-    coordinates: {
-      type: [Number],
-      required: true,
-    },
-  },
-  { _id: false }
-);
-
-const multiPolygonSchema = new Schema(
-  {
-    type: {
-      type: String,
-      enum: ["MultiPolygon"],
-      required: true,
-    },
-    coordinates: {
-      type: [[[[Number]]]],
-      required: true,
-    },
-  },
-  { _id: false }
-);
-
-const geometrySchema = new Schema(
-  {
-    type: {
-      type: String,
-      enum: ["GeometryCollection"],
-      required: true,
-    },
-    geometries: [
-      {
-        type: polygonSchema,
-      },
-
-      {
-        type: pointSchema,
-      },
-      {
-        type: multiPolygonSchema,
-      },
-    ],
   },
   { _id: false }
 );
@@ -174,6 +121,7 @@ airqloudSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  this.airqloud_codes = [this._id, this.name];
   return next();
 });
 
@@ -188,307 +136,238 @@ airqloudSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
 
-airqloudSchema.methods = {
-  toJSON() {
-    return {
-      _id: this._id,
-      name: this.name,
-      long_name: this.long_name,
-      description: this.description,
-      airqloud_tags: this.airqloud_tags,
-      admin_level: this.admin_level,
-      isCustom: this.isCustom,
-      location: this.location,
-      metadata: this.metadata,
-      sites: this.sites,
-      airqloud_codes: this.airqloud_codes,
-      center_point: this.center_point,
-    };
-  },
+airqloudSchema.methods.toJSON = function() {
+  return {
+    _id: this._id,
+    name: this.name,
+    long_name: this.long_name,
+    description: this.description,
+    airqloud_tags: this.airqloud_tags,
+    admin_level: this.admin_level,
+    isCustom: this.isCustom,
+    location: this.location,
+    metadata: this.metadata,
+    sites: this.sites,
+    airqloud_codes: this.airqloud_codes,
+    center_point: this.center_point,
+  };
 };
 
-airqloudSchema.statics = {
-  sanitiseName: (name) => {
-    try {
-      let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
-      let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
-      let trimmedName = shortenedName.trim();
-      return trimmedName.toLowerCase();
-    } catch (error) {
-      logger.error(`sanitiseName -- create airqloud model -- ${error.message}`);
+airqloudSchema.statics.sanitiseName = function(name) {
+  try {
+    let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
+    let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+    let trimmedName = shortenedName.trim();
+    return trimmedName.toLowerCase();
+  } catch (error) {
+    logger.error(`sanitiseName -- create airqloud model -- ${error.message}`);
+  }
+};
+
+airqloudSchema.statics.register = async function(args) {
+  try {
+    const body = {
+      ...args,
+      name: this.sanitiseName(args.long_name),
+    };
+
+    if (!args.location_id) {
+      body.isCustom = true;
+    } else {
+      body.isCustom = false;
     }
-  },
-  async register(args) {
-    try {
-      let body = args;
-      body["name"] = this.sanitiseName(args.long_name);
-      if (args.location_id && !args.isCustom) {
-        body["isCustom"] = false;
-      }
-      if (!args.location_id && !args.isCustom) {
-        body["isCustom"] = true;
-      }
-      let createdAirQloud = await this.create({
-        ...body,
-      });
-      if (!isEmpty(createdAirQloud)) {
-        let data = createdAirQloud._doc;
-        return {
-          success: true,
-          data,
-          message: "airqloud created",
-          status: HTTPStatus.OK,
-        };
-      }
-      if (isEmpty(createdAirQloud)) {
-        return {
-          success: true,
-          message: "airqloud not created despite successful operation",
-          status: HTTPStatus.NO_CONTENT,
-        };
-      }
-    } catch (err) {
-      let e = err;
-      let response = {};
-      // logObject("the err in the model", err);
-      message = "validation errors for some of the provided fields";
-      const status = HTTPStatus.CONFLICT;
+
+    const createdAirQloud = await this.create({ ...body });
+
+    if (!isEmpty(createdAirQloud)) {
+      const data = createdAirQloud._doc;
+      return {
+        success: true,
+        data,
+        message: "Airqloud created",
+        status: HTTPStatus.OK,
+      };
+    }
+  } catch (err) {
+    let response = {};
+    message = "validation errors for some of the provided fields";
+    const status = HTTPStatus.CONFLICT;
+    if (err.errors) {
       Object.entries(err.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[value.path] = value.message;
         return response;
       });
+    }
 
+    return {
+      errors: response,
+      message,
+      success: false,
+      status,
+    };
+  }
+};
+
+airqloudSchema.statics.list = async function({
+  filter = {},
+  limit = 1000,
+  skip = 0,
+} = {}) {
+  try {
+    const { summary, dashboard } = filter;
+    let filterCategory = "";
+    if (!isEmpty(summary)) {
+      filterCategory = "summary";
+      delete filter.summary;
+    }
+    if (!isEmpty(dashboard)) {
+      filterCategory = "dashboard";
+      delete filter.dashboard;
+    }
+
+    const inclusionProjection = constants.AIRQLOUDS_INCLUSION_PROJECTION;
+    const exclusionProjection = constants.AIRQLOUDS_EXCLUSION_PROJECTION(
+      filterCategory ? filterCategory : "none"
+    );
+
+    const data = await this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "sites",
+        localField: "sites",
+        foreignField: "_id",
+        as: "sites",
+      })
+      .sort({ createdAt: -1 })
+      .project(inclusionProjection)
+      .project(exclusionProjection)
+      .skip(skip ? skip : 0)
+      .limit(limit ? limit : 1000)
+      .allowDiskUse(true);
+
+    if (!isEmpty(data)) {
       return {
-        errors: response,
-        message,
-        success: false,
-        status,
+        success: true,
+        message: "Successfull Operation",
+        data,
+        status: HTTPStatus.OK,
+      };
+    } else if (isEmpty(data)) {
+      return {
+        success: true,
+        message: "There are no records for this search",
+        data: [],
+        status: HTTPStatus.OK,
       };
     }
-  },
-  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
-    try {
-      logElement("the limit in the model", _limit);
-      const { summary, dashboard } = filter;
+  } catch (err) {
+    return {
+      errors: { message: err.message },
+      message: "Internal Server Error",
+      success: false,
+      status: HTTPStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
 
-      let projectAll = {
+airqloudSchema.statics.modify = async function({
+  filter = {},
+  update = {},
+} = {}) {
+  try {
+    const options = {
+      new: true,
+      useFindAndModify: false,
+      projection: { location: 0, __v: 0 },
+    };
+
+    if (update._id) {
+      delete update._id;
+    }
+
+    if (update.name) {
+      delete update.name;
+    }
+
+    if (update.sites) {
+      update.$addToSet = {
+        sites: { $each: update.sites },
+      };
+      delete update.sites;
+    }
+
+    const updatedAirQloud = await this.findOneAndUpdate(
+      filter,
+      update,
+      options
+    );
+
+    if (!isEmpty(updatedAirQloud)) {
+      return {
+        success: true,
+        message: "Successfully modified the airqloud",
+        data: updatedAirQloud._doc,
+        status: HTTPStatus.OK,
+      };
+    } else {
+      return {
+        success: false,
+        message: "Airqloud does not exist, please crosscheck",
+        status: HTTPStatus.BAD_REQUEST,
+        errors: filter,
+      };
+    }
+  } catch (err) {
+    return {
+      errors: { message: err.message },
+      message: "Internal Server Error",
+      success: false,
+      status: HTTPStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+airqloudSchema.statics.remove = async function({ filter = {} } = {}) {
+  try {
+    const options = {
+      projection: {
         _id: 1,
         name: 1,
         long_name: 1,
-        description: 1,
         airqloud_tags: 1,
-        location: 1,
+        description: 1,
         admin_level: 1,
         isCustom: 1,
         metadata: 1,
-        center_point: 1,
-        airqloud_codes: 1,
-        sites: "$sites",
-      };
+      },
+    };
 
-      const projectSummary = {
-        _id: 1,
-        name: 1,
-        long_name: 1,
-        admin_level: 1,
-        airqloud_codes: 1,
-        numberOfSites: {
-          $cond: {
-            if: { $isArray: "$sites" },
-            then: { $size: "$sites" },
-            else: "NA",
-          },
-        },
-      };
+    const removedAirqloud = await this.findOneAndRemove(filter, options);
 
-      const projectDashboard = {
-        _id: 1,
-        name: 1,
-        long_name: 1,
-        description: 1,
-        airqloud_tags: 1,
-        admin_level: 1,
-        isCustom: 1,
-        metadata: 1,
-        center_point: 1,
-        airqloud_codes: 1,
-        sites: "$sites",
-      };
-
-      let projection = projectAll;
-
-      if (!isEmpty(summary)) {
-        projection = projectSummary;
-        delete filter.summary;
-      }
-
-      if (!isEmpty(dashboard)) {
-        projection = projectDashboard;
-        delete filter.dashboard;
-      }
-
-      let data = await this.aggregate()
-        .match(filter)
-        .lookup({
-          from: "sites",
-          localField: "sites",
-          foreignField: "_id",
-          as: "sites",
-        })
-        .sort({ createdAt: -1 })
-        .project(projection)
-        .project({
-          "sites.altitude": 0,
-          "sites.greenness": 0,
-          "sites.landform_90": 0,
-          "sites.landform_270": 0,
-          "sites.aspect": 0,
-          "sites.distance_to_nearest_road": 0,
-          "sites.distance_to_nearest_primary_road": 0,
-          "sites.distance_to_nearest_secondary_road": 0,
-          "sites.distance_to_nearest_tertiary_road": 0,
-          "sites.distance_to_nearest_unclassified_road": 0,
-          "sites.distance_to_nearest_residential_road": 0,
-          "sites.bearing_to_kampala_center": 0,
-          "sites.distance_to_kampala_center": 0,
-          "sites.updatedAt": 0,
-          "sites.nearest_tahmo_station": 0,
-          "sites.formatted_name": 0,
-          "sites.geometry": 0,
-          "sites.google_place_id": 0,
-          "sites.site_tags": 0,
-          "sites.street": 0,
-          "sites.town": 0,
-          "sites.village": 0,
-          "sites.airqlouds": 0,
-          "sites.description": 0,
-          "sites.__v": 0,
-          "sites.airqloud_id": 0,
-          "sites.createdAt": 0,
-          "sites.lat_long": 0,
-        })
-        .skip(_skip)
-        .limit(_limit)
-        .allowDiskUse(true);
-
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          message: "successfully fetched the AirQloud(s)",
-          data,
-          status: HTTPStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "there are no records for this search",
-          data: [],
-          status: HTTPStatus.OK,
-        };
-      }
-    } catch (err) {
+    if (!isEmpty(removedAirqloud)) {
       return {
-        errors: { message: err.message },
-        message: "Internal Server Error",
-        success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        success: true,
+        message: "Successfully removed the airqloud",
+        data: removedAirqloud._doc,
+        status: HTTPStatus.OK,
       };
-    }
-  },
-  async modify({ filter = {}, update = {} } = {}) {
-    try {
-      let options = {
-        new: true,
-        useFindAndModify: false,
-        projection: { location: 0, __v: 0 },
-      };
-      let modifiedUpdateBody = update;
-      if (update._id) {
-        delete modifiedUpdateBody._id;
-      }
-      if (update.name) {
-        delete modifiedUpdateBody.name;
-      }
-      if (update.sites) {
-        modifiedUpdateBody["$addToSet"] = {};
-        modifiedUpdateBody["$addToSet"]["sites"] = {};
-        modifiedUpdateBody["$addToSet"]["sites"]["$each"] = update.sites;
-        delete modifiedUpdateBody["sites"];
-      }
-      const updatedAirQloud = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdateBody,
-        options
-      ).exec();
-
-      if (!isEmpty(updatedAirQloud)) {
-        return {
-          success: true,
-          message: "successfully modified the airqloud",
-          data: updatedAirQloud._doc,
-          status: HTTPStatus.OK,
-        };
-      } else if (isEmpty(updatedAirQloud)) {
-        return {
-          success: false,
-          message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: filter,
-        };
-      }
-    } catch (err) {
-      return {
-        errors: { message: err.message },
-        message: "Internal Server Error",
-        success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  async remove({ filter = {} } = {}) {
-    try {
-      let options = {
-        projection: {
-          _id: 1,
-          name: 1,
-          long_name: 1,
-          airqloud_tags: 1,
-          description: 1,
-          admin_level: 1,
-          isCustom: 1,
-          metadata: 1,
-        },
-      };
-      const removedAirqloud = await this.findOneAndRemove(
-        filter,
-        options
-      ).exec();
-
-      if (!isEmpty(removedAirqloud)) {
-        return {
-          success: true,
-          message: "successfully removed the airqloud",
-          data: removedAirqloud._doc,
-          status: HTTPStatus.OK,
-        };
-      } else if (isEmpty(removedAirqloud)) {
-        return {
-          success: false,
-          message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: filter,
-        };
-      }
-    } catch (err) {
+    } else {
       return {
         success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        message: "Airqloud does not exist, please crosscheck",
+        status: HTTPStatus.BAD_REQUEST,
+        errors: filter,
       };
     }
-  },
+  } catch (err) {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: err.message },
+      status: HTTPStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
 };
 
 module.exports = airqloudSchema;

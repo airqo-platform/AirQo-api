@@ -90,20 +90,6 @@ class Utils:
         return data
 
     @staticmethod
-    def get_dag_date_time_config(interval_in_days: int = 1, **kwargs):
-        try:
-            dag_run = kwargs.get("dag_run")
-            start_date_time = dag_run.conf["start_date_time"]
-            end_date_time = dag_run.conf["end_date_time"]
-        except KeyError:
-            end_date = datetime.utcnow()
-            start_date = end_date - timedelta(days=interval_in_days)
-            start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
-            end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
-
-        return start_date_time, end_date_time
-
-    @staticmethod
     def get_hourly_date_time_values():
         from airqo_etl_utils.date import date_to_str_hours
         from datetime import datetime, timedelta
@@ -190,13 +176,12 @@ class Utils:
     @staticmethod
     def handle_api_error(response: Response):
         try:
-            print(response.request.url)
-            print(response.request.body)
+            print("URL:", response._request_url)
+            print("Response:", response.data)
         except Exception as ex:
-            print(ex)
+            print("Error while handling API error:", ex)
         finally:
-            print(response.content)
-            print(f"API request failed with status code {response.status_code}")
+            print("API request failed with status code:", response.status)
 
     @staticmethod
     def query_dates_array(

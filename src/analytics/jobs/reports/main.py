@@ -328,7 +328,6 @@ def filter_sites_to_use(data_unique, omitted_sites):
 
 
 def get_site_summarised_stats(data, expected_hourly_records):
-
     site_summarised_data = aggregate_data(
         data,
         "pm2_5_calibrated_value",
@@ -436,7 +435,6 @@ def generate_site_stats_dictionaries_for_saving_to_file(
     sites_to_omit,
     sorted_sites,
 ):
-
     site_overall_raw_data_completeness_ = {
         "title": "Table showing overall data completeness based on raw measurements",
         "data": overall_site_raw,
@@ -588,7 +586,6 @@ def get_site_data_completenness_stats(site_summarised_data):
 
 
 def save_monthly_and_annual_analysis_for_location(report_path, location_data):
-
     for location_df in location_data:
         location_name = location_df["site"].iat[0]
         location_name_heading_ = {
@@ -687,7 +684,6 @@ def write_city_analysis_to_word_file(file_path=None, city=None, *args_df, **kwar
         document.add_heading(city, level=2)
 
     for dic in args_df:
-
         content_df = dic.get("data")
         title = dic.get("title")
 

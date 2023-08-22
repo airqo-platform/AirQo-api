@@ -4,7 +4,7 @@ const SiteSchema = require("@models/Site");
 const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -22,7 +22,6 @@ const SiteModel = (tenant) => {
 };
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
-const httpStatus = require("http-status");
 const geolib = require("geolib");
 const DeviceSchema = require("@models/Device");
 const SiteActivitySchema = require("@models/SiteActivity");
@@ -51,9 +50,10 @@ const createSite = {
       );
     }
   },
-
   checkStringLength: (name) => {
     try {
+      //check if name has only white spaces
+      name = name.trim();
       let length = name.length;
       if (length >= 5 && length <= 50) {
         return true;
@@ -185,7 +185,6 @@ const createSite = {
       };
     }
   },
-
   listWeatherStations: async () => {
     try {
       const url = constants.TAHMO_API_GET_STATIONS_URL;
@@ -224,7 +223,14 @@ const createSite = {
             };
           }
           if (isEmpty(responseJSON.data)) {
-            logElement("unable to list stations");
+            logElement("Unable to list stations, List of stations is empty.");
+            return {
+              success: false,
+              message: "List of stations is empty",
+              status: HTTPStatus.NOT_FOUND,
+              errors: { message: "unable to list stations" },
+              data: [],
+            };
           }
         })
         .catch((error) => {
@@ -237,7 +243,7 @@ const createSite = {
             success: false,
             errors: { message: error },
             message: "Bad Gateway Error",
-            status: httpStatus.BAD_GATEWAY,
+            status: HTTPStatus.BAD_GATEWAY,
           };
         });
     } catch (error) {
@@ -252,7 +258,6 @@ const createSite = {
       };
     }
   },
-
   validateSiteName: (name) => {
     try {
       // let nameHasWhiteSpace = createSite.hasWhiteSpace(name);
@@ -267,7 +272,6 @@ const createSite = {
       );
     }
   },
-
   generateName: async (tenant) => {
     try {
       let filter = {
@@ -324,7 +328,6 @@ const createSite = {
       };
     }
   },
-
   create: async (tenant, req) => {
     try {
       const { body, query } = req;
@@ -441,7 +444,6 @@ const createSite = {
       };
     }
   },
-
   update: async (tenant, filter, update) => {
     try {
       let responseFromModifySite = await getModelByTenant(
@@ -464,7 +466,6 @@ const createSite = {
       };
     }
   },
-
   sanitiseName: (name) => {
     try {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
@@ -475,7 +476,6 @@ const createSite = {
       logger.error(`internal server error -- sanitiseName-- ${error.message}`);
     }
   },
-
   getRoadMetadata: async (latitude, longitude) => {
     try {
       let response = {};
@@ -519,7 +519,7 @@ const createSite = {
                 success: false,
                 errors: { message: error },
                 message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
               };
             })
         );
@@ -548,11 +548,10 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-
   generateMetadata: async (req) => {
     try {
       let { query, body } = req;
@@ -629,6 +628,7 @@ const createSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
+          data_provider: constants.DATA_PROVIDER_MAPPINGS(body.network),
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
@@ -651,13 +651,11 @@ const createSite = {
       };
     }
   },
-
   pickAvailableValue: (valuesInObject) => {
     let arrayOfSiteNames = Object.values(valuesInObject);
     let availableName = arrayOfSiteNames.find(Boolean);
     return availableName;
   },
-
   refresh: async (tenant, req) => {
     try {
       const { id } = req.query;
@@ -757,6 +755,26 @@ const createSite = {
         );
       }
 
+      // if (
+      //   !isEmpty(request["body"]["site_codes"]) &&
+      //   request["body"]["site_codes"].length < 7
+      // ) {
+      //   const siteCodeValues = [
+      //     "site_id",
+      //     "name",
+      //     "_id",
+      //     "lat_long",
+      //     "generated name",
+      //     "location_name",
+      //     "search_name",
+      //     "formatted_name",
+      //   ];
+
+      //   for (const siteCode of siteCodeValues) {
+      //     request["body"]["site_codes"].push(siteCode);
+      //   }
+      // }
+
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await createSite.generateMetadata(
         request
@@ -803,7 +821,6 @@ const createSite = {
       };
     }
   },
-
   delete: async (tenant, filter) => {
     try {
       return {
@@ -864,14 +881,14 @@ const createSite = {
       };
     }
   },
-
   formatSiteName: (name) => {
     try {
+      let nameWithoutWhiteSpace = name.replace(/\s/g, "");
+      return nameWithoutWhiteSpace.toLowerCase();
     } catch (e) {
       logElement("server error", { message: e.message });
     }
   },
-
   retrieveInformationFromAddress: (address) => {
     try {
       let results = address.results[0];
@@ -904,11 +921,25 @@ const createSite = {
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
+          retrievedAddress.search_name = object.long_name;
         }
         retrievedAddress.formatted_name = formatted_name;
         retrievedAddress.geometry = geometry;
         retrievedAddress.site_tags = types;
         retrievedAddress.google_place_id = google_place_id;
+        retrievedAddress.location_name =
+          retrievedAddress.country !== "Uganda"
+            ? `${retrievedAddress.region}, ${retrievedAddress.country}`
+            : `${retrievedAddress.district}, ${retrievedAddress.country}`;
+        if (!retrievedAddress.search_name) {
+          retrievedAddress.search_name = retrievedAddress.town
+            ? retrievedAddress.town
+            : retrievedAddress.street
+            ? retrievedAddress.street
+            : retrievedAddress.city
+            ? retrievedAddress.city
+            : retrievedAddress.district;
+        }
       });
       return {
         success: true,
@@ -924,7 +955,6 @@ const createSite = {
       };
     }
   },
-
   reverseGeoCode: async (latitude, longitude) => {
     try {
       logText("reverseGeoCode...........");
@@ -971,21 +1001,6 @@ const createSite = {
       };
     }
   },
-
-  getDistance: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getLandform: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
   getAltitude: (lat, long) => {
     try {
       return client
@@ -1030,56 +1045,6 @@ const createSite = {
       };
     }
   },
-
-  getTrafficFactor: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getGreenness: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getTerrain: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getAspect: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getRoadIntesity: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getRoadStatus: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
-  getLandUse: (lat, long) => {
-    try {
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-
   generateLatLong: (lat, long) => {
     try {
       return `${lat}_${long}`;
@@ -1087,7 +1052,6 @@ const createSite = {
       logger.error(`internal server error -- ${e.message}`);
     }
   },
-
   findNearestSitesByCoordinates: async (request) => {
     try {
       let { radius, latitude, longitude, tenant } = request;
@@ -1135,340 +1099,6 @@ const createSite = {
       };
     }
   },
-
-  getGpsCoordinates: async (locationName, tenant) => {
-    logText("...................................");
-    logText("Getting the GPS coordinates...");
-
-    let location = await getModelByTenant(
-      tenant.toLowerCase(),
-      "location_registry",
-      SiteSchema
-    )
-      .find({ name: locationName })
-      .exec();
-    if (location) {
-      const lat = `${location.latitude}`;
-      const lon = `${location.longitude}`;
-      if (lat && lon) {
-        logText(
-          "Successfully retrieved the GPS coordinates from the location..."
-        );
-        return { lat, lon };
-      } else {
-        logText("Unable to retrieve the GPS coordinates from location...");
-      }
-    } else {
-      logText(`Unable to find location ${locationName}`);
-    }
-  },
-  carryOutActivity: async (
-    res,
-    tenant,
-    deviceName,
-    deviceBody,
-    activityBody,
-    options
-  ) => {
-    const deviceFilter = { name: deviceName };
-    return getModelByTenant(
-      tenant.toLowerCase(),
-      "device",
-      DeviceSchema
-    ).findOneAndUpdate(
-      deviceFilter,
-      deviceBody,
-      { new: true },
-      async (error, updatedDevice) => {
-        if (error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            message: (options && options.errorMsg) || "Operation failed",
-            error,
-            success: false,
-          });
-        }
-        if (updatedDevice) {
-          let createdActivity = {};
-          await getModelByTenant(
-            tenant.toLowerCase(),
-            "activity",
-            SiteActivitySchema
-          )
-            .register(activityBody)
-            .then((log) => (createdActivity = log));
-
-          const data = createdActivity.data;
-
-          return res.status(HTTPStatus.OK).json({
-            message:
-              (options && options.successMsg) ||
-              "Operation successfully carried out",
-            createdActivity: data,
-            updatedDevice,
-            success: true,
-          });
-        }
-        return res.status(HTTPStatus.NOT_FOUND).json({
-          message: `device does not exist, please first create the device`,
-          success: false,
-          errors: {
-            message: `device does not exist, please first create the device`,
-          },
-        });
-      }
-    );
-  },
-  doesLocationExist: async (locationName, tenant) => {
-    let location = await getModelByTenant(
-      tenant.toLowerCase(),
-      "location_registry",
-      SiteSchema
-    )
-      .find({ name: locationName })
-      .exec();
-    if (location) {
-      return true;
-    } else {
-      return false;
-    }
-  },
-
-  siteActivityRequestBodies: (req, res, type = null) => {
-    try {
-      type = req.query.type || type;
-      logText("....................");
-      logText("siteActivityRequestBodies...");
-      logElement("activityType", type);
-      let siteActivityBody = {};
-      let deviceBody = {};
-      const {
-        deviceName,
-        siteName,
-        height,
-        mountType,
-        powerType,
-        description,
-        latitude,
-        longitude,
-        date,
-        tags,
-        isPrimaryInLocation,
-        maintenanceType,
-        site_id,
-      } = req.body;
-
-      if (type === "deploy") {
-        /****** deploy bodies ******/
-        let deployment_date = new Date(date);
-        siteActivityBody = {
-          device: deviceName || req.query.deviceName,
-          date: (date && new Date(date)) || new Date(),
-          description: "device deployed",
-          activityType: "deployment",
-          site_id: site_id,
-        };
-
-        deviceBody = {
-          height: height,
-          mountType: mountType,
-          powerType: powerType,
-          isPrimaryInLocation: isPrimaryInLocation,
-          nextMaintenance: threeMonthsFromNow(date),
-          isActive: true,
-          status: "deployed",
-          latitude: latitude,
-          longitude: longitude,
-          site_id: site_id,
-          deployment_date,
-        };
-        logObject("siteActivityBody", siteActivityBody);
-        logObject("deviceBody", deviceBody);
-        return { siteActivityBody, deviceBody };
-      } else if (type === "recall") {
-        /****** recalling bodies ******/
-        let recall_date = new Date();
-        siteActivityBody = {
-          device: deviceName || req.query.deviceName,
-          date: new Date(),
-          description: "device recalled",
-          activityType: "recallment",
-          site_id: site_id,
-        };
-        deviceBody = {
-          height: 0,
-          mountType: "",
-          powerType: "",
-          isPrimaryInLocation: false,
-          nextMaintenance: "",
-          longitude: "",
-          latitude: "",
-          isActive: false,
-          status: "recalled",
-          site_id: null,
-          description: "",
-          siteName: "",
-          locationName: "",
-          recall_date,
-        };
-        logObject("siteActivityBody", siteActivityBody);
-        logObject("deviceBody", deviceBody);
-        return { siteActivityBody, deviceBody };
-      } else if (type === "maintain") {
-        /******** maintaining bodies *************/
-        let maintenance_date = date && new Date(date);
-        logObject("the tags", tags);
-        siteActivityBody = {
-          site: siteName,
-          site_id: site_id,
-          device: deviceName || req.query.deviceName,
-          date: (date && new Date(date)) || new Date(),
-          description: description,
-          activityType: "maintenance",
-          nextMaintenance: threeMonthsFromNow(date),
-          maintenanceType: maintenanceType,
-          tags: tags,
-        };
-        deviceBody = {
-          nextMaintenance: threeMonthsFromNow(date),
-          maintenance_date,
-        };
-
-        logObject("siteActivityBody", siteActivityBody);
-        logObject("deviceBody", deviceBody);
-        return { siteActivityBody, deviceBody };
-      } else {
-        /****incorrect query parameter....... */
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          message: "incorrect query parameter",
-          success: false,
-          errors: { message: "incorrect query parameter" },
-        });
-      }
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-  isDeviceRecalled: async (name, tenant) => {
-    try {
-      logText("....................");
-      logText("checking isDeviceRecalled....");
-
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
-
-      const responseFromListDevice = await createDeviceUtil.list(request);
-
-      let device = {};
-
-      if (responseFromListDevice.success === true) {
-        if (responseFromListDevice.data.length === 1) {
-          device = responseFromListDevice.data[0];
-        }
-      } else if (responseFromListDevice.success === false) {
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-      }
-      logObject("device", device);
-      const isRecalled = !device.isActive;
-      logElement("locationName", device.locationName);
-      logElement("isRecalled", isRecalled);
-      return isRecalled;
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-  isDeviceDeployed: async (name, tenant) => {
-    try {
-      logText("....................");
-      logText("checking isDeviceNotDeployed....");
-
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
-
-      const responseFromListDevice = await createDeviceUtil.list(request);
-
-      let device = {};
-
-      if (responseFromListDevice.success === true) {
-        if (responseFromListDevice.data.length === 1) {
-          device = responseFromListDevice.data[0];
-        }
-      } else if (responseFromListDevice.success === false) {
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-      }
-      logObject("device", device);
-      const isDeployed = device.isActive;
-      logElement("isDeployed", isDeployed);
-      return isDeployed;
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-    }
-  },
-  queryFilterOptions: async (req, res) => {
-    try {
-      const { location, type, device, next, id } = req.query;
-
-      let filter = {
-        ...(!isEmpty(location) && { location: location }),
-        ...(!isEmpty(type) && { type: type }),
-        ...(!isEmpty(device) && { device: device }),
-        ...(!isEmpty(next) && { next: next }),
-        ...(!isEmpty(id) && { _id: id }),
-        ...!isEmpty(),
-      };
-      return { filter };
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
-    }
-  },
-  bodyFilterOptions: async (req, res) => {
-    try {
-      const {
-        location,
-        device,
-        date,
-        description,
-        activityType,
-        nextMaintenance,
-        tags,
-        maintenanceType,
-      } = req.body;
-
-      let activityBody = {
-        ...(!isEmpty(location) && { location }),
-        ...(!isEmpty(date) && { date }),
-        ...(!isEmpty(device) && { device }),
-        ...(!isEmpty(description) && { description }),
-        ...(!isEmpty(activityType) && { activityType }),
-        ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
-        ...(!isEmpty(maintenanceType) && { maintenanceType }),
-        ...(!isEmpty(tags) && { tags }),
-      };
-      return { activityBody };
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
-    }
-  },
-
   createApproximateCoordinates: ({
     latitude,
     longitude,

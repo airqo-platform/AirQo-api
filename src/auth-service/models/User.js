@@ -20,7 +20,7 @@ function oneMonthFromNow() {
   }
   return d;
 }
-const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 
 const UserSchema = new Schema(
   {
@@ -28,6 +28,7 @@ const UserSchema = new Schema(
     status: { type: String },
     address: { type: String },
     country: { type: String },
+    firebase_uid: { type: String },
     city: { type: String },
     department_id: {
       type: ObjectId,
@@ -80,15 +81,21 @@ const UserSchema = new Schema(
         message: "{VALUE} is not a valid password, please check documentation!",
       },
     },
-    privilege: { type: String, required: [true, "the role is required!"] },
+    privilege: {
+      type: String,
+      default: "user",
+    },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-      },
-    ],
+    networks: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "network",
+        },
+      ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
     groups: [
       {
         type: ObjectId,
@@ -98,6 +105,7 @@ const UserSchema = new Schema(
     role: {
       type: ObjectId,
       ref: "role",
+      default: constants.DEFAULT_ROLE,
     },
     permissions: [
       {
@@ -107,14 +115,24 @@ const UserSchema = new Schema(
     ],
     organization: {
       type: String,
-      required: [true, "the organization is required!"],
+      default: "airqo",
     },
     long_organization: {
       type: String,
-      required: [true, "the long_organization is required!"],
+      default: "airqo",
     },
-    phoneNumber: { type: Number },
-    locationCount: { type: Number, default: 5 },
+    rateLimit: {
+      type: Number,
+    },
+    phoneNumber: {
+      type: Number,
+      validate: {
+        validator(phoneNumber) {
+          return !!phoneNumber || this.email;
+        },
+        message: "Phone number or email is required!",
+      },
+    },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     jobTitle: {
@@ -143,6 +161,20 @@ UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
   }
+  if (!this.email && !this.phoneNumber) {
+    return next(new Error("Phone number or email is required!"));
+  }
+
+  // Check for duplicate values in the networks array
+  const duplicateValues = this.networks.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in networks array.");
+    return next(error);
+  }
+
   return next();
 });
 
@@ -247,26 +279,10 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      logText("we are inside the model/collection....");
-      const projectAll = {
-        _id: 1,
-        firstName: 1,
-        lastName: 1,
-        userName: 1,
-        email: 1,
-        verified: 1,
-        country: 1,
-        privilege: 1,
-        profilePicture: 1,
-        phoneNumber: 1,
-        role: { $arrayElemAt: ["$role", 0] },
-        networks: "$networks",
-        access_tokens: "$access_tokens",
-        permissions: "$permissions",
-      };
-
-      const projectSummary = {};
-
+      const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -274,6 +290,12 @@ UserSchema.statics = {
           localField: "networks",
           foreignField: "_id",
           as: "networks",
+        })
+        .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
         })
         .lookup({
           from: "access_tokens",
@@ -299,54 +321,29 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "role",
         })
+        .unwind("$role")
+        .lookup({
+          from: "permissions",
+          localField: "role.role_permissions",
+          foreignField: "_id",
+          as: "role.role_permissions",
+        })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
         .sort({ createdAt: -1 })
-        .project(projectAll)
-        .project({
-          "networks.__v": 0,
-          "networks.net_status": 0,
-          "networks.net_acronym": 0,
-          "networks.createdAt": 0,
-          "networks.updatedAt": 0,
-          "networks.net_users": 0,
-          "networks.net_roles": 0,
-          "networks.net_groups": 0,
-          "networks.net_description": 0,
-          "networks.net_departments": 0,
-          "networks.net_permissions": 0,
-          "networks.net_email": 0,
-          "networks.net_category": 0,
-          "networks.net_phoneNumber": 0,
-          "networks.net_manager": 0,
-        })
-        .project({
-          "access_tokens.__v": 0,
-          "access_tokens.user_id": 0,
-          "access_tokens.createdAt": 0,
-          "access_tokens.updatedAt": 0,
-        })
-        .project({
-          "permissions.__v": 0,
-          "permissions._id": 0,
-          "permissions.createdAt": 0,
-          "permissions.updatedAt": 0,
-        })
-
-        .project({
-          "role.__v": 0,
-          "role._id": 0,
-          "role.createdAt": 0,
-          "role.updatedAt": 0,
-        })
-        .project({
-          "groups.__v": 0,
-          "groups._id": 0,
-          "groups.createdAt": 0,
-          "groups.updatedAt": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
+      logObject("response in the model", response);
       if (!isEmpty(response)) {
         return {
           success: true,
@@ -375,6 +372,8 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      const fieldNames = Object.keys(update);
+      const fieldsString = fieldNames.join(" ");
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
 
@@ -408,26 +407,26 @@ UserSchema.statics = {
         delete modifiedUpdate["groups"];
       }
 
-      let updatedUser = await this.findOneAndUpdate(
+      const updatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
-      ).exec();
+      ).select(fieldsString);
 
       if (!isEmpty(updatedUser)) {
-        let data = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
-          data,
+          data: updatedUser._doc,
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedUser)) {
         return {
-          success: true,
+          success: false,
           message: "user does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
           data: [],
+          errors: { message: "user does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -442,10 +441,10 @@ UserSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
@@ -456,17 +455,17 @@ UserSchema.statics = {
         };
       } else if (isEmpty(removedUser)) {
         return {
-          success: true,
+          success: false,
           message: "user does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
           data: [],
+          errors: { message: "user does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -502,19 +501,19 @@ UserSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully deleted the user",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: true,
+          success: false,
           message: "no users exist",
           data: [],
           status: httpStatus.BAD_REQUEST,
+          errors: { message: "no users exist for this operation" },
         };
       }
     } catch (error) {
@@ -537,17 +536,21 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
-        locationCount: this.locationCount,
-        organization: this.organization,
-        long_organization: this.long_organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        organization: this.organization,
+        long_organization: this.long_organization,
         privilege: this.privilege,
+        role: this.role,
+        networks: this.networks,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        rateLimit: this.rateLimit,
       },
       constants.JWT_SECRET
     );
@@ -576,13 +579,12 @@ UserSchema.methods = {
       userName: this.userName,
       email: this.email,
       firstName: this.firstName,
-      lastName: this.lastName,
-      locationCount: this.locationCount,
-      privilege: this.privilege,
-      country: this.country,
-      website: this.website,
       organization: this.organization,
       long_organization: this.long_organization,
+      privilege: this.privilege,
+      lastName: this.lastName,
+      country: this.country,
+      website: this.website,
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
@@ -592,6 +594,8 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      networks: this.networks,
+      rateLimit: this.rateLimit,
     };
   },
 };

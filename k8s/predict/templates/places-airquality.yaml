@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.jobs.predictPlaces.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 0
+  schedule: '{{ .Values.jobs.predictPlaces.schedule }}'
+  suspend: false
+  jobTemplate:
+    metadata:
+      name: {{ .Values.jobs.predictPlaces.name }}
+    spec:
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+          containers:
+            - name: {{ .Values.jobs.predictPlaces.name }}
+              image: "{{ .Values.images.repositories.predictPlaces }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.jobs.predictPlaces.configmap }} 
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.jobs.predictPlaces.resources | nindent 16 }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

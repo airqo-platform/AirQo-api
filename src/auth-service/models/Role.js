@@ -11,6 +11,9 @@ const RoleSchema = new mongoose.Schema(
       required: [true, "name is required"],
       unique: true,
     },
+    role_description: {
+      type: String,
+    },
     role_status: {
       type: String,
       required: [true, "name is required"],
@@ -21,41 +24,29 @@ const RoleSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
-    role_permissions: {
-      type: Array,
-      default: [],
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      required: [true, "network_id is required"],
     },
-    role_users: [
+    role_permissions: [
       {
         type: ObjectId,
-        ref: "user",
+        ref: "permission",
+        unique: true,
       },
     ],
   },
-  { timestamps: false }
+  { timestamps: true }
 );
 
-RoleSchema.pre("save", function (next) {
-  return next();
-});
-
-RoleSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
+RoleSchema.pre("save", async function (next) {
+  try {
+    return next();
+  } catch (err) {
+    // Handle errors
+    next(err);
   }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 RoleSchema.pre("update", function (next) {
@@ -63,6 +54,12 @@ RoleSchema.pre("update", function (next) {
 });
 
 RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
+RoleSchema.index(
+  { role_name: 1, role_code: 1, network_id: 1 },
+  { unique: true }
+);
+RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
+RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args) {
@@ -98,7 +95,7 @@ RoleSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        logObject("JSON.parse(err)", JSON.parse(err));
+        logObject("err", err);
         const duplicate_record = args.role_name
           ? args.role_name
           : args.role_code;
@@ -117,10 +114,22 @@ RoleSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      const inclusionProjection = constants.ROLES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.ROLES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : ""
+      );
+      logObject("inclusionProjection", inclusionProjection);
+      logObject("exclusionProjection", exclusionProjection);
+
+      let filterCopy = Object.assign({}, filter);
+      if (!isEmpty(filterCopy.category)) {
+        delete filterCopy.category;
+      }
+
       const roles = await this.aggregate()
-        .match(filter)
+        .match(filterCopy)
         .lookup({
           from: "networks",
           localField: "network_id",
@@ -130,13 +139,26 @@ RoleSchema.statics = {
         .lookup({
           from: "permissions",
           localField: "role_permissions",
-          foreignField: "permission",
+          foreignField: "_id",
           as: "role_permissions",
         })
-        .sort({ createdAt: -1 })
-        .project({
-          "network.__v": 0,
+        .lookup({
+          from: "users",
+          localField: "_id",
+          foreignField: "role",
+          as: "role_users",
         })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -153,13 +175,13 @@ RoleSchema.statics = {
           success: true,
           message: "roles not found for this operation",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - list",
+        message: "Internal Server Error",
         error: error.message,
         errors: { message: error.message },
       };
@@ -171,11 +193,17 @@ RoleSchema.statics = {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
-      if (modifiedUpdate.permissions) {
+      if (modifiedUpdate.role_permissions) {
         modifiedUpdate["$addToSet"]["role_permissions"] = {};
         modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
-          modifiedUpdate.permissions;
-        delete modifiedUpdate.permissions;
+          modifiedUpdate.role_permissions;
+        delete modifiedUpdate.role_permissions;
+      }
+      if (modifiedUpdate.role_name) {
+        delete modifiedUpdate.role_name;
+      }
+      if (modifiedUpdate.role_code) {
+        delete modifiedUpdate.role_code;
       }
       const updatedRole = await this.findOneAndUpdate(
         filter,
@@ -195,13 +223,13 @@ RoleSchema.statics = {
           success: true,
           message: "role not found",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server errors",
+        message: "Internal Server Errors",
         error: error.message,
         errors: { message: "internal server errors" },
         status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -227,17 +255,15 @@ RoleSchema.statics = {
       } else {
         return {
           success: false,
-          message: "Role does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.NOT_FOUND,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
           errors: { message: "Role does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server errors",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -253,6 +279,9 @@ RoleSchema.methods = {
       role_code: this.role_code,
       role_status: this.role_status,
       role_permissions: this.role_permissions,
+      role_description: this.role_description,
+      network_id: this.network_id,
+      role_users: this.role_users,
     };
   },
 };

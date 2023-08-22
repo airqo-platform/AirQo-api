@@ -1,13 +1,35 @@
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { logObject, logElement, logText } = require("@utils/log");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
+const validator = require("validator");
+const constants = require("@config/constants");
+
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- site-activities-model`
+);
 
 const activitySchema = new Schema(
   {
+    firstName: { type: String, trim: true },
+    lastName: { type: String, trim: true },
+    userName: { type: String, trim: true },
+    email: {
+      type: String,
+      unique: true,
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
+      },
+    },
     device: { type: String, trim: true },
     site_id: { type: ObjectId },
+    host_id: { type: ObjectId },
     date: { type: Date },
     description: { type: String, trim: true },
     network: {
@@ -24,6 +46,7 @@ const activitySchema = new Schema(
     tags: [{ type: String }],
     nextMaintenance: { type: Date },
     maintenanceType: { type: String },
+    recallType: { type: String },
     createdAt: {
       type: Date,
     },
@@ -44,11 +67,17 @@ activitySchema.methods = {
       activityType: this.activityType,
       activity_codes: this.activity_codes,
       maintenanceType: this.maintenanceType,
+      recallType: this.recallType,
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       tags: this.tags,
       site_id: this.site_id,
+      host_id: this.host_id,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      userName: this.userName,
+      email: this.email,
     };
   },
 };
@@ -69,20 +98,20 @@ activitySchema.statics = {
           success: true,
           data,
           message: "Activity created",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdActivity)) {
         return {
           success: false,
           message: "Activity not created despite successful operation",
-          status: HTTPStatus.ACCEPTED,
+          status: httpStatus.ACCEPTED,
         };
       }
     } catch (err) {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[key] = value.message;
@@ -99,24 +128,16 @@ activitySchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      const inclusionProjection =
+        constants.SITE_ACTIVITIES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITE_ACTIVITIES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
       const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          device: 1,
-          date: 1,
-          description: 1,
-          network: 1,
-          activityType: 1,
-          maintenanceType: 1,
-          nextMaintenance: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          activity_codes: 1,
-          tags: 1,
-          site_id: 1,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -126,21 +147,25 @@ activitySchema.statics = {
           success: true,
           message: "successfully retrieved the activities",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "no activities exist, please crosscheck",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: [],
         };
       }
     } catch (error) {
+      logObject("the error", error);
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -170,22 +195,25 @@ activitySchema.statics = {
           success: true,
           message: "successfully modified the activity",
           data: updatedActivity._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedActivity)) {
         return {
           success: false,
           message: "activity does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           errors: filter,
         };
       }
-    } catch (err) {
+    } catch (error) {
+      logObject("the error", error);
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
-        errors: { message: err.message },
+        errors: { message: error.message },
         message: "Internal Server Error",
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -196,6 +224,7 @@ activitySchema.statics = {
           _id: 1,
           device: 1,
           site_id: 1,
+          host_id: 1,
           network: 1,
           date: 1,
           description: 1,
@@ -210,22 +239,25 @@ activitySchema.statics = {
           success: true,
           message: "successfully removed the activity",
           data: removedActivity._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedActivity)) {
         return {
           success: false,
           message: "activity does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           errors: filter,
         };
       }
-    } catch (err) {
+    } catch (error) {
+      logObject("the error", error);
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

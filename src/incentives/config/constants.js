@@ -1,31 +1,104 @@
 const devConfig = {
-    MONGO_URL: 'mongodb://localhost/incentives-devs',
-    JWT_SECRET: 'thisisasecret',
-    MOMO_URL_DISBURSEMENTS: "https://sandbox.momodeveloper.mtn.com/disbursement"
+  MONGO_URI: process.env.DEV_MONGO_URI,
+  DB_NAME: process.env.DEV_MONGO_DB,
+  ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
+  REDIS_PORT: process.env.DEV_REDIS_PORT,
+  XENTE_BASE_URL: process.env.DEV_XENTE_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.DEV_XENTE_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.DEV_XENTE_PASSWORD,
+  XENTE_USERNAME: process.env.DEV_XENTE_USERNAME,
+  XENTE_COLLECTIONS_PRODUCT_ITEM:
+    process.env.DEV_XENTE_COLLECTIONS_PRODUCT_ITEM,
+  XENTE_COLLECTIONS_PRODUCT_REFERENCE:
+    process.env.DEV_XENTE_COLLECTIONS_PRODUCT_REFERENCE,
+  XENTE_C0LLECTIONS_TYPE: process.env.DEV_XENTE_C0LLECTIONS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_REFERENCE:
+    process.env.DEV_XENTE_PAYOUTS_PAYMENT_REFERENCE,
+  XENTE_PAYOUTS_TYPE: process.env.DEV_XENTE_PAYOUTS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_PROVIDER:
+    process.env.DEV_XENTE_PAYOUTS_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_PROVIDER: process.env.DEV_XENTE_DATA_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_REFERENCE: process.env.DEV_XENTE_DATA_PAYMENT_REFERENCE,
+  XENTE_DATA_TYPE: process.env.DEV_XENTE_DATA_TYPE,
 };
-const testConfig = {
-    MONGO_URL: 'mongodb://localhost/incentives-test',
-    JWT_SECRET: 'thisisasecret',
-    MOMO_URL_DISBURSEMENTS: "https://sandbox.momodeveloper.mtn.com/disbursement"
+const stageConfig = {
+  MONGO_URI: process.env.STAGE_MONGO_URI,
+  ENVIRONMENT: "STAGING ENVIRONMENT",
+  DB_NAME: process.env.STAGE_MONGO_DB,
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_PORT: process.env.STAGE_REDIS_PORT,
+  XENTE_BASE_URL: process.env.STAGE_XENTE_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.STAGE_XENTE_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.STAGE_XENTE_PASSWORD,
+  XENTE_USERNAME: process.env.STAGE_XENTE_USERNAME,
+  XENTE_COLLECTIONS_PRODUCT_ITEM:
+    process.env.STAGE_XENTE_COLLECTIONS_PRODUCT_ITEM,
+  XENTE_COLLECTIONS_PRODUCT_REFERENCE:
+    process.env.STAGE_XENTE_COLLECTIONS_PRODUCT_REFERENCE,
+  XENTE_C0LLECTIONS_TYPE: process.env.STAGE_XENTE_C0LLECTIONS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_REFERENCE:
+    process.env.STAGE_XENTE_PAYOUTS_PAYMENT_REFERENCE,
+  XENTE_PAYOUTS_TYPE: process.env.STAGE_XENTE_PAYOUTS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_PROVIDER:
+    process.env.STAGE_XENTE_PAYOUTS_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_PROVIDER: process.env.STAGE_XENTE_DATA_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_REFERENCE: process.env.STAGE_XENTE_DATA_PAYMENT_REFERENCE,
+  XENTE_DATA_TYPE: process.env.STAGE_XENTE_DATA_TYPE,
 };
 const prodConfig = {
-    MONGO_URL: process.env.MLAB_URI,
-    JWT_SECRET: 'thisisasecret',
-    MOMO_URL_DISBURSEMENTS: "https://sandbox.momodeveloper.mtn.com/disbursement"
+  MONGO_URI: process.env.PROD_MONGO_URI,
+  DB_NAME: process.env.PROD_MONGO_DB,
+  ENVIRONMENT: "PRODUCTION ENVIRONMENT",
+  REDIS_SERVER: process.env.PROD_REDIS_SERVER,
+  REDIS_PORT: process.env.PROD_REDIS_PORT,
+  XENTE_BASE_URL: process.env.PROD_XENTE_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.PROD_XENTE_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.PROD_XENTE_PASSWORD,
+  XENTE_USERNAME: process.env.PROD_XENTE_USERNAME,
+  XENTE_COLLECTIONS_PRODUCT_ITEM:
+    process.env.PROD_XENTE_COLLECTIONS_PRODUCT_ITEM,
+  XENTE_COLLECTIONS_PRODUCT_REFERENCE:
+    process.env.PROD_XENTE_COLLECTIONS_PRODUCT_REFERENCE,
+  XENTE_C0LLECTIONS_TYPE: process.env.PROD_XENTE_C0LLECTIONS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_REFERENCE:
+    process.env.PROD_XENTE_PAYOUTS_PAYMENT_REFERENCE,
+  XENTE_PAYOUTS_TYPE: process.env.PROD_XENTE_PAYOUTS_TYPE,
+  XENTE_PAYOUTS_PAYMENT_PROVIDER:
+    process.env.PROD_XENTE_PAYOUTS_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_PROVIDER: process.env.PROD_XENTE_DATA_PAYMENT_PROVIDER,
+  XENTE_DATA_PAYMENT_REFERENCE: process.env.PROD_XENTE_DATA_PAYMENT_REFERENCE,
+  XENTE_DATA_TYPE: process.env.PROD_XENTE_DATA_TYPE,
 };
 const defaultConfig = {
-    PORT: process.env.PORT || 3000,
+  XENTE_PAYMENT_PROVIDER: process.env.XENTE_PAYMENT_PROVIDER,
+  XENTE_METADATA: process.env.XENTE_METADATA,
+  XENTE_BATCH_ID: process.env.XENTE_BATCH_ID,
+  XENTE_REQUEST_ID: process.env.XENTE_REQUEST_ID,
+  XENTE_MEMO: process.env.XENTE_MEMO,
+  XENTE_CHANNEL_ID: process.env.XENTE_CHANNEL_ID,
+  XENTE_CUSTOMER_ID: process.env.XENTE_CUSTOMER_ID,
+  XENTE_CUSTOMER_PHONE: process.env.XENTE_CUSTOMER_PHONE,
+  XENTE_CUSTOMER_EMAIL: process.env.XENTE_CUSTOMER_EMAIL,
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
+  PORT: process.env.PORT || 3000,
+  JWT_SECRET: process.env.JWT_SECRET,
 };
 
 function envConfig(env) {
-    switch (env) {
-        case 'development':
-            return devConfig;
-        case 'test':
-            return testConfig;
-        default:
-            return prodConfig;
-    }
+  switch (env) {
+    case "development":
+      return devConfig;
+    case "staging":
+      return stageConfig;
+    default:
+      return prodConfig;
+  }
 }
 
-module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV), };
+module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV) };

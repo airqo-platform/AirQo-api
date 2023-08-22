@@ -11,48 +11,9 @@ const errors = require("@utils/errors");
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/create-event");
-
-const { Kafka } = require("kafkajs");
-const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
-
-const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
-const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
-const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
-const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
-const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
-
-const kafka = new Kafka({
-  clientId: KAFKA_CLIENT_ID,
-  brokers: [BOOTSTRAP_SERVERS],
-});
-const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
-const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP });
+const commonUtil = require("@utils/common");
 
 const createEvent = {
-  rawMeasurementsConsumer: async () => {
-    await consumer.connect();
-
-    const topics = RAW_MEASUREMENTS_TOPICS.split(",");
-
-    for (const topic of topics) {
-      await consumer.subscribe({
-        topic: topic.trim().toLowerCase(),
-        fromBeginning: true,
-      });
-    }
-
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const decodedValue = await registry.decode(message.value);
-          const measurements = decodedValue.measurements;
-          // insertMeasurtements.addValuesArray(measurements);
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-      },
-    });
-  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -188,38 +149,12 @@ const createEvent = {
         );
       }
 
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        recent,
-        skip,
-        limit,
-        page,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["recent"] = recent;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -277,9 +212,29 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      logText("we are listing events...");
       const { query } = req;
-      const { skip, limit, page } = query;
+      const { siteId, deviceId } = req.params;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       let request = Object.assign({}, req);
+
+      if (!isEmpty(siteId)) {
+        request["query"]["site_id"] = siteId;
+        request["query"]["recent"] = "no";
+      }
+
+      if (!isEmpty(deviceId)) {
+        request["query"]["device_id"] = deviceId;
+        request["query"]["recent"] = "no";
+      }
+
+      request["query"]["tenant"] = tenant;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -308,9 +263,10 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Internal Server Error",
+        message: "Internal Server Error!",
         errors: { message: error.message },
       });
     }
@@ -398,14 +354,13 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant, network, skip, limit, page } = query;
+
+      let { tenant, skip, limit, page } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      let request = {};
-      request["query"] = {};
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
@@ -418,12 +373,38 @@ const createEvent = {
         logObject("the result for listing events", result);
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
+            }
+          );
+
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
             meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            measurements: measurementsForDeployedDevices,
           });
         } else if (result.success === false) {
           const status = result.status
@@ -468,49 +449,16 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+
       request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "good";
-      request["query"]["external"] = "no";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
       request["query"]["running"] = "yes";
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -539,6 +487,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -568,49 +517,15 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
-      request["query"]["tenant"] = tenant;
+      let { skip, limit, page, tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["index"] = "good";
-      request["query"]["external"] = "no";
+      request["query"]["tenant"] = tenant;
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -668,49 +583,15 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "moderate";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -769,48 +650,17 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "u4sg";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -868,49 +718,16 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "unhealthy";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -968,49 +785,17 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "very_unhealthy";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -1069,48 +854,17 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "hazardous";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -1150,12 +904,13 @@ const createEvent = {
 
   transform: async (req, res) => {
     try {
-      const { query, body } = req;
-      let request = {};
-      request["query"] = {};
-      request["body"] = {};
-      request["query"] = query;
-      request["body"] = body;
+      const { tenant } = req.query;
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request["query"]["tenant"] = tenant;
 
       const responseFromTransformEvents = await createEventUtil.transformManyEvents(
         request
@@ -1211,10 +966,13 @@ const createEvent = {
         );
       }
 
-      const { query, body } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request["query"]["tenant"] = tenant;
       const responseFromCreateEvents = await createEventUtil.create(request);
       logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
@@ -1267,15 +1025,15 @@ const createEvent = {
         );
       }
 
-      const { body, query } = req;
-      const { name, device_number, chid, tenant } = query;
+      let { device_number, chid, tenant } = req.query;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-      request["body"] = body;
+      request["query"]["device_number"] = device_number || chid;
 
       const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
         request
@@ -1333,15 +1091,15 @@ const createEvent = {
         );
       }
 
-      const { body, query } = req;
-      const { name, device_number, chid, tenant } = query;
+      let { device_number, chid, tenant } = req.query;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-      request["body"] = body;
+      request["query"]["device_number"] = device_number || chid;
 
       const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
         request
@@ -1500,7 +1258,6 @@ const createEvent = {
 
   addEvents: async (req, res) => {
     try {
-      // logger.info(`adding values...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -1519,25 +1276,19 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      // logger.info(`adding values...`);
-      const { device, tenant } = req.query;
-      const { body } = req;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
+      let { tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["body"] = body;
 
       let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
 
       logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
-
-      // logger.info(
-      //   `responseFromAddEventsUtil -- ${JSON.stringify(
-      //     responseFromAddEventsUtil
-      //   )}`
-      // );
 
       if (responseFromAddEventsUtil.success === false) {
         const status = responseFromAddEventsUtil.status
@@ -1569,9 +1320,13 @@ const createEvent = {
       });
     }
   },
-  viewEvents: async (req, res) => {
+
+  /**
+   * new controllers
+   */
+
+  listByAirQloud: async (req, res) => {
     try {
-      // logger.info(`viewing events...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -1591,34 +1346,166 @@ const createEvent = {
         );
       }
 
-      let responseFromEventsUtil = await createEventUtil.viewEvents(req);
-      logObject("responseFromEventsUtil", responseFromEventsUtil);
-      // logger.info(
-      //   `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
-      // );
-      if (responseFromEventsUtil.success === true) {
-        res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromEventsUtil.message,
-          measurements: responseFromEventsUtil.data,
-        });
-      } else if (responseFromEventsUtil.success === false) {
-        const status = responseFromEventsUtil.status
-          ? responseFromEventsUtil.status
-          : HTTPStatus.BAD_GATEWAY;
-        res.status(status).json({
-          success: false,
-          message: responseFromEventsUtil.message,
-          errors: responseFromEventsUtil.error
-            ? responseFromEventsUtil.error
-            : { message: "" },
-        });
+      let { airqloudId } = req.params;
+      let { skip, limit, page, tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["external"] = "no";
+      request["query"]["tenant"] = tenant;
+      request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
+      request["query"]["skip"] = parseInt(skip);
+      request["query"]["limit"] = parseInt(limit);
+      request["query"]["page"] = parseInt(page);
+
+      const responseFromGetSitesOfAirQloud = await commonUtil.getSitesFromAirQloud(
+        { airqloudId }
+      );
+
+      if (responseFromGetSitesOfAirQloud.success === false) {
+        const status = responseFromGetSitesOfAirQloud.status
+          ? responseFromGetSitesOfAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json(responseFromGetSitesOfAirQloud);
+      } else if (responseFromGetSitesOfAirQloud.success === true) {
+        request["query"]["site_id"] = responseFromGetSitesOfAirQloud.data.join(
+          ","
+        );
+      }
+
+      await createEventUtil.list(request, (result) => {
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : HTTPStatus.OK;
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: result.data[0].data,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          res.status(status).json({
+            success: false,
+            errors: result.errors ? result.errors : { message: "" },
+            message: result.message,
+          });
+        }
+      });
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listByLatLong: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { latitude, longitude } = req.params;
+
+      let { tenant, skip, limit, page, radius } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      logObject("lati", latitude);
+      logObject("longi", longitude);
+      let request = Object.assign({}, req);
+      request["query"]["external"] = "no";
+      request["query"]["tenant"] = tenant;
+      request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
+      request["query"]["latitude"] = "latitude";
+      request["query"]["longitude"] = "longitude";
+      request["query"]["skip"] = parseInt(skip);
+      request["query"]["limit"] = parseInt(limit ? limit : 1);
+      request["query"]["page"] = parseInt(page);
+
+      const responseFromGetSitesFromLatitudeAndLongitude = await commonUtil.getSitesFromLatitudeAndLongitude(
+        { latitude, longitude, tenant, radius }
+      );
+      logObject(
+        "responseFromGetSitesFromLatitudeAndLongitude",
+        responseFromGetSitesFromLatitudeAndLongitude
+      );
+      if (responseFromGetSitesFromLatitudeAndLongitude.success === false) {
+        const status = responseFromGetSitesFromLatitudeAndLongitude.status
+          ? responseFromGetSitesFromLatitudeAndLongitude.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res
+          .status(status)
+          .json(responseFromGetSitesFromLatitudeAndLongitude);
+      } else if (
+        responseFromGetSitesFromLatitudeAndLongitude.success === true
+      ) {
+        const status = responseFromGetSitesFromLatitudeAndLongitude.status
+          ? responseFromGetSitesFromLatitudeAndLongitude.status
+          : HTTPStatus.OK;
+        if (isEmpty(responseFromGetSitesFromLatitudeAndLongitude.data)) {
+          res.status(status).json(responseFromGetSitesFromLatitudeAndLongitude);
+        } else {
+          request["query"][
+            "site_id"
+          ] = responseFromGetSitesFromLatitudeAndLongitude.data.join(",");
+
+          await createEventUtil.list(request, (result) => {
+            logObject("the result for listing events", result);
+            if (result.success === true) {
+              const status = result.status ? result.status : HTTPStatus.OK;
+              res.status(status).json({
+                success: true,
+                isCache: result.isCache,
+                message: result.message,
+                meta: result.data[0].meta,
+                measurements: result.data[0].data,
+              });
+            } else if (result.success === false) {
+              const status = result.status
+                ? result.status
+                : HTTPStatus.INTERNAL_SERVER_ERROR;
+              res.status(status).json({
+                success: false,
+                errors: result.errors ? result.errors : { message: "" },
+                message: result.message,
+              });
+            }
+          });
+        }
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
       });
     }

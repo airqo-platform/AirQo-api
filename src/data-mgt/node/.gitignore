@@ -8,3 +8,4 @@ npm-debug.log
 .env
 *.rdb
 redis.conf
+log

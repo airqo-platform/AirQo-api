@@ -7,7 +7,7 @@ spec:
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
-  schedule: "*/30 * * * *"
+  schedule: "0 * * * *"
   suspend: false
   jobTemplate:
     metadata:
@@ -32,7 +32,7 @@ spec:
           containers:
             - name: {{ .Values.app.name }}
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              imagePullPolicy: IfNotPresent
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               envFrom:

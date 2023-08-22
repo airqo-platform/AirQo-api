@@ -1,19 +1,18 @@
-# Inherit from the Python Docker image
-FROM python:3.9-slim as base
+FROM python:3.10.12-slim-bullseye as base
 
   
 COPY . /app/
 WORKDIR /app/
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip --no-cache-dir
+RUN pip install -r requirements.txt --no-cache-dir
 
 ENV PYTHONDONWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
+
 
 EXPOSE 5000
 

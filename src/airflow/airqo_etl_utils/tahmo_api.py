@@ -1,5 +1,9 @@
 import pandas as pd
-import requests
+
+import json
+
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
 from .utils import Utils
@@ -28,7 +32,7 @@ class TahmoApi:
         for code in stations:
             try:
                 response = self.__request(
-                    f"services/measurements/v2/stations/{code}/measurements/controlled",
+                    f"/services/measurements/v2/stations/{code}/measurements/controlled",
                     params,
                 )
 
@@ -50,15 +54,32 @@ class TahmoApi:
         return measurements.to_dict(orient="records")
 
     def __request(self, endpoint, params):
-        api_request = requests.get(
-            "%s/%s" % (self.BASE_URL, endpoint),
-            params=params,
-            auth=requests.auth.HTTPBasicAuth(self.API_KEY, self.API_SECRET),
+
+        url = f"{self.BASE_URL}{endpoint}"
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=5,
         )
-
-        print("Tahmo API request: %s" % api_request.request.url)
-
-        if api_request.status_code == 200:
-            return api_request.json()
-        else:
+        
+        http = urllib3.PoolManager(retries=retry_strategy)
+        
+        try:
+            headers = urllib3.util.make_headers(basic_auth=f"{self.API_KEY}:{self.API_SECRET}")
+            response = http.request(
+                "GET", 
+                url, 
+                fields=params,
+                headers=headers)
+            
+            response_data = response.data
+            print("Tahmo API request: %s" % response._request_url)
+            
+            if response.status == 200:
+                return json.loads(response_data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+            
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None

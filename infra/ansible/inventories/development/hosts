@@ -1,0 +1,18 @@
+# Dynamic hosts source at /opt/ansible/inventory/gcp.yaml
+all:
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    haproxy:
+      hosts:
+        10.240.0.27:
+    k8s_cluster:
+      children:
+        k8s_master:
+          hosts:
+            10.240.0.23:
+        k8s_workers:
+          hosts:
+            10.240.0.24:
+            10.240.0.25:
+            10.240.0.26:

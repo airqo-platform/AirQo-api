@@ -10,12 +10,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-model`);
 const HTTPStatus = require("http-status");
 const maxLength = [
-  15,
+  40,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
 ];
 
 const minLength = [
-  7,
+  3,
   "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
 ];
 
@@ -25,6 +25,14 @@ const accessCodeGenerator = require("generate-password");
 
 const deviceSchema = new mongoose.Schema(
   {
+    cohorts: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+        },
+      ],
+    },
     latitude: {
       type: Number,
     },
@@ -51,12 +59,13 @@ const deviceSchema = new mongoose.Schema(
     access_code: {
       type: String,
     },
-    name_id: {
+    alias: {
       type: String,
-      unique: true,
       trim: true,
+      maxlength: maxLength,
+      unique: true,
+      minlength: minLength,
       match: noSpaces,
-      lowercase: true,
     },
     name: {
       type: String,
@@ -71,6 +80,7 @@ const deviceSchema = new mongoose.Schema(
     long_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     visibility: {
       type: Boolean,
@@ -110,6 +120,13 @@ const deviceSchema = new mongoose.Schema(
     device_codes: [
       {
         type: String,
+        trim: true,
+      },
+    ],
+
+    previous_sites: [
+      {
+        type: ObjectId,
         trim: true,
       },
     ],
@@ -155,8 +172,6 @@ const deviceSchema = new mongoose.Schema(
     device_number: {
       type: Number,
       trim: true,
-      unique: true,
-      required: false,
     },
     category: {
       type: String,
@@ -178,6 +193,8 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
+deviceSchema.post("save", async function(doc) {});
+
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
     if (this.writeKey && this.readKey) {
@@ -186,6 +203,24 @@ deviceSchema.pre("save", function(next) {
     }
     let n = this.name;
   }
+
+  this.device_codes = [this._id, this.name];
+  if (this.device_number) {
+    this.device_codes.push(this.device_number);
+  }
+  if (this.alias) {
+    this.device_codes.push(this.alias);
+  }
+
+  // Check for duplicate values in the grids array
+  const duplicateValues = this.cohorts.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in cohorts array.");
+    return next(error);
+  }
+
   return next();
 });
 
@@ -216,6 +251,7 @@ deviceSchema.methods = {
     return {
       id: this._id,
       name: this.name,
+      alias: this.alias,
       mobility: this.mobility,
       network: this.network,
       long_name: this.long_name,
@@ -244,10 +280,12 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       site_id: this.site_id,
+      host_id: this.host_id,
       height: this.height,
       device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
+      cohorts: this.cohorts,
     };
   },
 };
@@ -268,10 +306,64 @@ deviceSchema.statics = {
         modifiedArgs.name = `aq_g${modifiedArgs.generation_version}_${modifiedArgs.generation_count}`;
       }
 
+      if (!isEmpty(modifiedArgs.name) || !isEmpty(modifiedArgs.long_name)) {
+        try {
+          let alias = modifiedArgs.long_name
+            ? modifiedArgs.long_name
+            : modifiedArgs.name;
+          if (!isEmpty(alias)) {
+            modifiedArgs.alias = alias.trim().replace(/ /g, "_");
+          } else if (isEmpty(alias)) {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message: "unable to generate the ALIAS for the device",
+              },
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitise ALIAS -- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
       if (!isEmpty(modifiedArgs.name)) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(/\s/g, "");
-          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
+          modifiedArgs.name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitise NAME -- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
+      if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.long_name.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
           modifiedArgs.name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(
@@ -286,14 +378,9 @@ deviceSchema.statics = {
         }
       }
 
-      if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
+      if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.long_name.replace(
-            /\s/g,
-            ""
-          );
-          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
-          modifiedArgs.name = shortenedName.trim().toLowerCase();
+          modifiedArgs.long_name = modifiedArgs.name;
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
@@ -328,15 +415,18 @@ deviceSchema.statics = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      logObject("the error", err);
+      logObject("the error in the Device Model", err);
+      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
+      if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
+        });
+      }
 
       return {
         errors: response,
@@ -348,13 +438,14 @@ deviceSchema.statics = {
   },
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
-      // logger.info(
-      //   `the filter received in the model -- ${JSON.stringify(filter)}`
-      // );
-      // logger.info(
-      //   `the type of filter received in the model -- ${typeof filter}`
-      // );
-      let response = await this.aggregate()
+      const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -362,80 +453,32 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "site",
         })
+        .lookup({
+          from: "hosts",
+          localField: "host_id",
+          foreignField: "_id",
+          as: "host",
+        })
+        .lookup({
+          from: "sites",
+          localField: "previous_sites",
+          foreignField: "_id",
+          as: "previous_sites",
+        })
+        .lookup({
+          from: "cohorts",
+          localField: "cohorts",
+          foreignField: "_id",
+          as: "cohorts",
+        })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          name: 1,
-          long_name: 1,
-          latitude: 1,
-          longitude: 1,
-          approximate_distance_in_km: 1,
-          bearing_in_radians: 1,
-          createdAt: 1,
-          ISP: 1,
-          phoneNumber: 1,
-          visibility: 1,
-          description: 1,
-          isPrimaryInLocation: 1,
-          nextMaintenance: 1,
-          deployment_date: 1,
-          name_id: 1,
-          recall_date: 1,
-          maintenance_date: 1,
-          device_number: 1,
-          powerType: 1,
-          mountType: 1,
-          isActive: 1,
-          writeKey: 1,
-          readKey: 1,
-          access_code: 1,
-          pictures: 1,
-          device_codes: 1,
-          height: 1,
-          mobility: 1,
-          status: 1,
-          network: 1,
-          category: 1,
-          site: { $arrayElemAt: ["$site", 0] },
-        })
-        .project({
-          "site.lat_long": 0,
-          "site.country": 0,
-          "site.district": 0,
-          "site.sub_county": 0,
-          "site.parish": 0,
-          "site.county": 0,
-          "site.altitude": 0,
-          "site.altitude": 0,
-          "site.greenness": 0,
-          "site.landform_90": 0,
-          "site.landform_270": 0,
-          "site.aspect": 0,
-          "site.distance_to_nearest_road": 0,
-          "site.distance_to_nearest_primary_road": 0,
-          "site.distance_to_nearest_secondary_road": 0,
-          "site.distance_to_nearest_tertiary_road": 0,
-          "site.distance_to_nearest_unclassified_road": 0,
-          "site.distance_to_nearest_residential_road": 0,
-          "site.bearing_to_kampala_center": 0,
-          "site.distance_to_kampala_center": 0,
-          "site.generated_name": 0,
-          "site.updatedAt": 0,
-          "site.updatedAt": 0,
-          "site.city": 0,
-          "site.formatted_name": 0,
-          "site.geometry": 0,
-          "site.google_place_id": 0,
-          "site.region": 0,
-          "site.site_tags": 0,
-          "site.street": 0,
-          "site.town": 0,
-          "site.nearest_tahmo_station": 0,
-          "site.__v": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      const response = await pipeline;
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
@@ -454,6 +497,8 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to retrieve devices",
@@ -464,7 +509,7 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
-      let modifiedUpdate = update;
+      let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
@@ -488,7 +533,21 @@ deviceSchema.statics = {
         delete modifiedUpdate["device_codes"];
       }
 
-      let updatedDevice = await this.findOneAndUpdate(
+      if (modifiedUpdate.previous_sites) {
+        modifiedUpdate["$addToSet"]["previous_sites"] = {};
+        modifiedUpdate["$addToSet"]["previous_sites"]["$each"] =
+          modifiedUpdate.previous_sites;
+        delete modifiedUpdate["previous_sites"];
+      }
+
+      if (modifiedUpdate.pictures) {
+        modifiedUpdate["$addToSet"]["pictures"] = {};
+        modifiedUpdate["$addToSet"]["pictures"]["$each"] =
+          modifiedUpdate.pictures;
+        delete modifiedUpdate["pictures"];
+      }
+
+      const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options

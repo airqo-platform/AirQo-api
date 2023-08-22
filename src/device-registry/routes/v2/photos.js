@@ -7,6 +7,32 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -101,28 +127,60 @@ router.post(
     ],
   ]),
   oneOf([
+    body("site_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding a site_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("site_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("device_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding a device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("device_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("airqloud_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding a airqloud_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("airqloud_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
     [
       body("device_number")
-        .exists()
-        .withMessage("the device number is missing in request")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_number cannot be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("device_id")
-        .exists()
-        .withMessage("the device ID is missing in request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       body("device_name")
-        .exists()
-        .withMessage("the device name is missing in request")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_name cannot be empty if provided")
         .bail()
         .trim()
         .isLowercase()
@@ -157,19 +215,10 @@ router.put(
     ],
   ]),
   oneOf([
-    query("device_number")
+    query("id")
       .exists()
       .withMessage(
-        "the device identifier is missing in request, consider using the device_number"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the device_number should be an integer value"),
-    query("device_id")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device_id"
+        "the photo unique identifier is missing in request, consider using the id"
       )
       .bail()
       .trim()
@@ -179,25 +228,13 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("device_name")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the unique device_name"
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
   ]),
   oneOf([
     [
       body("device_number")
         .optional()
         .notEmpty()
-        .withMessage("the device number is missing in the request")
+        .withMessage("the device_number cannot be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -205,7 +242,7 @@ router.put(
       body("device_id")
         .optional()
         .notEmpty()
-        .withMessage("the device ID is missing in request")
+        .withMessage("the device_id cannot be empty if provided")
         .bail()
         .trim()
         .isMongoId()
@@ -214,10 +251,34 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the airqloud_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("site_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the site_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("device_name")
         .optional()
         .notEmpty()
-        .withMessage("the device name is missing in request")
+        .withMessage("the device_name cannot be empty if provided")
         .bail()
         .trim()
         .isLowercase()
@@ -228,7 +289,7 @@ router.put(
       body("photos")
         .optional()
         .notEmpty()
-        .withMessage("the photos are missing in your request")
+        .withMessage("the photos cannot be empty if provided")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
@@ -257,7 +318,7 @@ router.get(
       query("device_number")
         .optional()
         .notEmpty()
-        .withMessage("this device identifier cannot be empty")
+        .withMessage("this device_number cannot be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -265,22 +326,34 @@ router.get(
       query("device_name")
         .optional()
         .notEmpty()
-        .withMessage("this device identifier cannot be empty")
+        .withMessage("this device_name cannot be empty if provided")
         .bail()
         .trim()
         .isLowercase()
-        .withMessage("device name should be lower case")
+        .withMessage("device_name should be lower case")
         .bail()
         .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device names do not have spaces in them"),
+        .withMessage("the device_names do not have spaces in them"),
       query("device_id")
         .optional()
         .notEmpty()
-        .withMessage("this device identifier cannot be empty")
+        .withMessage("this device_id cannot be empty if provided")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("id must be an object ID")
+        .withMessage("device_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("airqloud_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the airqloud_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("airqloud_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -288,7 +361,7 @@ router.get(
       query("id")
         .optional()
         .notEmpty()
-        .withMessage("this device identifier cannot be empty")
+        .withMessage("the id cannot be empty if provided")
         .bail()
         .trim()
         .isMongoId()
@@ -317,36 +390,68 @@ router.post(
     ],
   ]),
   oneOf([
+    body("site_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding either device_name (preferred) or airqloud_id, or device_id or site_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("site_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("device_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding either device_name (preferred), airqloud_id or device_id or site_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("device_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("airqloud_id")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding either device_name (preferred) or airqloud_id or device_id or site_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("airqloud_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("device_name")
+      .exists()
+      .withMessage(
+        "a key photo identifier is missing in the request, consider adding either  device_name (preferred) or airqloud_id or device_id or site_id"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device_name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device_names do not have spaces in them"),
+  ]),
+  oneOf([
     [
       body("device_number")
         .optional()
         .notEmpty()
-        .withMessage("the device number cannot be empty")
+        .withMessage("the device_number cannot be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("device_id")
-        .exists()
-        .withMessage("the device ID is missing in request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("device_name")
-        .exists()
-        .withMessage("the device name is missing in request")
-        .bail()
-        .trim()
-        .isLowercase()
-        .withMessage("device name should be lower case")
-        .bail()
-        .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device names do not have spaces in them"),
       body("image_url")
         .exists()
         .withMessage("the image_url is missing in request")
@@ -447,7 +552,7 @@ router.put(
       body("device_number")
         .optional()
         .notEmpty()
-        .withMessage("the device number is missing in the request")
+        .withMessage("the device_number cannot be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -455,7 +560,7 @@ router.put(
       body("device_id")
         .optional()
         .notEmpty()
-        .withMessage("the device ID is missing in request")
+        .withMessage("the device_id cannot be empty if provided")
         .bail()
         .trim()
         .isMongoId()
@@ -464,10 +569,34 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the airqloud_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("site_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the site_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("device_name")
         .optional()
         .notEmpty()
-        .withMessage("the device name is missing in request")
+        .withMessage("the device_name cannot be empty if provided")
         .bail()
         .trim()
         .matches(constants.WHITE_SPACES_REGEX, "i")
@@ -475,7 +604,7 @@ router.put(
       body("image_url")
         .optional()
         .notEmpty()
-        .withMessage("the image_url cannot be empty")
+        .withMessage("the image_url cannot be empty if provided")
         .bail()
         .isURL()
         .withMessage("the image_url is not a valid URL"),
@@ -488,7 +617,7 @@ router.put(
       body("tags")
         .optional()
         .notEmpty()
-        .withMessage("the tags cannot be empty")
+        .withMessage("the tags cannot be empty if provided")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
@@ -510,7 +639,7 @@ router.put(
       body("metadata.url")
         .optional()
         .notEmpty()
-        .withMessage("metadata should not be empty")
+        .withMessage("metadata should not be empty if provided")
         .bail()
         .isURL()
         .withMessage("metadata should be a valid URL")
@@ -519,13 +648,13 @@ router.put(
       body("metadata.public_id")
         .optional()
         .notEmpty()
-        .withMessage("public_id should not be empty")
+        .withMessage("public_id should not be empty if provided")
         .bail()
         .trim(),
       body("metadata.version")
         .optional()
         .notEmpty()
-        .withMessage("version should not be empty")
+        .withMessage("version should not be empty if provided")
         .bail()
         .isFloat()
         .withMessage("version should be a number")
@@ -539,7 +668,7 @@ router.put(
       body("metadata.width")
         .optional()
         .notEmpty()
-        .withMessage("width should not be empty")
+        .withMessage("width should not be empty if provided")
         .isFloat()
         .withMessage("the width should be a number")
         .bail()
@@ -547,7 +676,7 @@ router.put(
       body("metadata.height")
         .optional()
         .notEmpty()
-        .withMessage("height should not be empty")
+        .withMessage("height should not be empty if provided")
         .isFloat()
         .withMessage("the height should be a number")
         .bail()
@@ -564,7 +693,7 @@ router.put(
       body("metadata.bytes")
         .optional()
         .notEmpty()
-        .withMessage("bytes should not be empty")
+        .withMessage("bytes should not be empty if provided")
         .isFloat()
         .withMessage("the bytes should be a number")
         .bail()
@@ -575,7 +704,7 @@ router.put(
       body("metadata.secure_url")
         .optional()
         .notEmpty()
-        .withMessage("secure_url should not be empty")
+        .withMessage("secure_url should not be empty if provided")
         .bail()
         .isURL()
         .withMessage("secure_url should be a valid URL")

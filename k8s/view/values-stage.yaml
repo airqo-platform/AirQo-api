@@ -1,0 +1,31 @@
+nameOverride: ''
+fullnameOverride: ''
+namespace: staging
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-stage-view-api
+  tag: stage-9d508314-1690207748
+api:
+  name: airqo-stage-view-api
+  label: view-api
+  configmap: stage-view-api-config
+  replicaCount: 1
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 100m
+      memory: 1000Mi
+    requests:
+      cpu: 5m
+      memory: 420Mi
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8080
+  protocol: TCP
+  targetPort: 8080
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80

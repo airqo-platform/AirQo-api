@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: staging-analytics-virtual-server
+  namespace: staging
+spec:
+  host: staging-analytics.airqo.net
+  upstreams:
+    - name: analytics
+      service: airqo-stage-next-platform-svc
+      port: 3000
+  routes:
+    - path: /
+      action:
+        pass: analytics

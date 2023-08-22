@@ -4,10 +4,17 @@ app:
   configmap: env-device-uptime-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-uptime-job
-  tag: prod-bbc70236-1680071543
+  tag: prod-4a531814-1692683297
 nameOverride: ''
 fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m
     memory: 4000Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-uptime-v2-files

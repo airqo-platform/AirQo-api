@@ -4,13 +4,8 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-// const saltRounds = constants.SALT_ROUNDS;
-// const bcrypt = require("bcrypt");
-
-/**
- * belongs to a user
- * a User has many access tokens
- */
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
 
 const toMilliseconds = (hrs, min, sec) =>
   (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -21,22 +16,15 @@ const sec = parseInt(constants.EMAIL_VERIFICATION_SEC);
 
 const AccessTokenSchema = new mongoose.Schema(
   {
-    user_id: {
-      type: ObjectId,
-      ref: "user",
-      required: [true, "user is required!"],
-    },
     client_id: {
-      type: String,
+      type: ObjectId,
+      ref: "client",
+      unique: true,
       required: [true, "client_id is required!"],
     },
     permissions: [{ type: ObjectId, ref: "permission" }],
     scopes: [{ type: ObjectId, ref: "scope" }],
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-    },
-    name: { type: String },
+    name: { type: String, required: [true, "name is required!"] },
     token: {
       type: String,
       unique: true,
@@ -55,9 +43,6 @@ const AccessTokenSchema = new mongoose.Schema(
 );
 
 AccessTokenSchema.pre("save", function (next) {
-  // if (this.isModified("token")) {
-  //   this.token = bcrypt.hashSync(this.token, saltRounds);
-  // }
   return next();
 });
 
@@ -81,13 +66,11 @@ AccessTokenSchema.pre("findOneAndUpdate", function () {
 });
 
 AccessTokenSchema.pre("update", function (next) {
-  // if (this.isModified("token")) {
-  //   this.token = bcrypt.hashSync(this.token, saltRounds);
-  // }
   return next();
 });
 
 AccessTokenSchema.index({ token: 1 }, { unique: true });
+AccessTokenSchema.index({ client_id: 1 }, { unique: true });
 
 AccessTokenSchema.statics = {
   async findToken(authorizationToken) {
@@ -120,6 +103,7 @@ AccessTokenSchema.statics = {
       }
       return { user: null, currentAccessToken: null };
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("an error", error);
     }
   },
@@ -145,6 +129,7 @@ AccessTokenSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -161,22 +146,21 @@ AccessTokenSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logObject("filtering here", filter);
-      /**
-       * if the filter has a token in it
-       * then just use hashcompare from here accordinglys
-       * or just hash it the same way in order to make the comparisons
-       */
+      const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
 
       const response = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "users",
-          localField: "user_id",
+          from: "clients",
+          localField: "client_id",
           foreignField: "_id",
-          as: "users",
+          as: "client",
         })
         .lookup({
           from: "permissions",
@@ -190,43 +174,19 @@ AccessTokenSchema.statics = {
           foreignField: "_id",
           as: "scopes",
         })
+        .lookup({
+          from: "users",
+          localField: "client.user_id",
+          foreignField: "_id",
+          as: "user",
+        })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          user_id: 1,
-          name: 1,
-          token: 1,
-          network_id: 1,
-          last_used_at: 1,
-          expires: 1,
-          last_ip_address: 1,
-          user: { $arrayElemAt: ["$users", 0] },
-        })
-        .project({
-          "user._id": 0,
-          "user.notifications": 0,
-          "user.verified": 0,
-          "user.networks": 0,
-          "user.groups": 0,
-          "user.roles": 0,
-          "user.permissions": 0,
-          "user.locationCount": 0,
-          "user.userName": 0,
-          "user.password": 0,
-          "user.long_organization": 0,
-          "user.privilege": 0,
-          "user.duration": 0,
-          "user.createdAt": 0,
-          "user.updatedAt": 0,
-          "user.__v": 0,
-          "user.resetPasswordExpires": 0,
-          "user.resetPasswordToken": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : 300)
         .allowDiskUse(true);
 
-      logObject("the response", response);
       if (!isEmpty(response)) {
         return {
           success: true,
@@ -237,12 +197,13 @@ AccessTokenSchema.statics = {
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "not found, please crosscheck provided details",
+          message: "No tokens found, please crosscheck provided details",
           status: httpStatus.NOT_FOUND,
           data: [],
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -256,14 +217,14 @@ AccessTokenSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
-      delete modifiedUpdate.user_id;
-      // if (modifiedUpdate.token) {
-      //   modifiedUpdate.token = bcrypt.hashSync(
-      //     modifiedUpdate.token,
-      //     saltRounds
-      //   );
-      // }
-      let updatedToken = await this.findOneAndUpdate(
+      if (!isEmpty(modifiedUpdate.user_id)) {
+        delete modifiedUpdate.user_id;
+      }
+      if (!isEmpty(modifiedUpdate.client_id)) {
+        delete modifiedUpdate.client_id;
+      }
+
+      const updatedToken = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -277,19 +238,20 @@ AccessTokenSchema.statics = {
         };
       } else if (isEmpty(updatedToken)) {
         return {
-          success: true,
+          success: false,
           message: "Token does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Token does not exist, please crosscheck" },
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "internal server error",
+        message: "Internal Server Error",
         error: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "internal server error" },
+        errors: { message: error.message },
       };
     }
   },
@@ -318,17 +280,18 @@ AccessTokenSchema.statics = {
         };
       } else if (isEmpty(removedToken)) {
         return {
-          success: true,
+          success: false,
           message: "Token does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Token does not exist, please crosscheck" },
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "internal server error",
-        errors: { message: "internal server error", error: error.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -340,8 +303,6 @@ AccessTokenSchema.methods = {
     return {
       _id: this._id,
       token: this.token,
-      user_id: this.user_id,
-      network_id: this.network_id,
       client_id: this.client_id,
       permissions: this.permissions,
       scopes: this.scopes,

@@ -10,6 +10,32 @@ const createSiteUtil = require("@utils/create-site");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const decimalPlaces = require("decimal-places");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -32,8 +58,9 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -41,6 +68,22 @@ router.get(
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   siteController.list
+);
+
+router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  siteController.listSummary
 );
 
 router.get("/weather", siteController.listWeatherStations);
@@ -531,6 +574,11 @@ router.put(
       body("description")
         .optional()
         .notEmpty()
+        .trim(),
+      body("data_provider")
+        .optional()
+        .notEmpty()
+        .withMessage("the data_provider should not be empty")
         .trim(),
       body("airqlouds")
         .optional()

@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-BASE_URL = "/api/v1/analytics"
+API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
@@ -29,11 +29,6 @@ class Config:
     CACHE_REDIS_PORT = env_var("REDIS_PORT")
     CACHE_REDIS_URL = f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}"
 
-    CLARITY_API_BASE_URL = env_var("CLARITY_API_BASE_URL")
-    CLARITY_API_KEY = env_var("CLARITY_API_KEY")
-
-    BIGQUERY_LATEST_EVENTS = env_var("BIGQUERY_LATEST_EVENTS")
-
     BIGQUERY_DEVICES = env_var("BIGQUERY_DEVICES")
     BIGQUERY_SITES = env_var("BIGQUERY_SITES")
     BIGQUERY_AIRQLOUDS_SITES = env_var("BIGQUERY_AIRQLOUDS_SITES")
@@ -45,6 +40,14 @@ class Config:
     BIGQUERY_BAM_DATA = env_var("BIGQUERY_BAM_DATA")
     BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
     DATA_EXPORT_LIMIT = os.getenv("DATA_EXPORT_LIMIT", 2000)
+    DATA_SUMMARY_DAYS_INTERVAL = os.getenv("DATA_SUMMARY_DAYS_INTERVAL", 2)
+
+    DEVICES_SUMMARY_TABLE = env_var("DEVICES_SUMMARY_TABLE")
+
+    DATA_EXPORT_BUCKET = env_var("DATA_EXPORT_BUCKET")
+    DATA_EXPORT_DATASET = env_var("DATA_EXPORT_DATASET")
+    DATA_EXPORT_GCP_PROJECT = env_var("DATA_EXPORT_GCP_PROJECT")
+    DATA_EXPORT_COLLECTION = env_var("DATA_EXPORT_COLLECTION", "data_export")
 
     SWAGGER = {
         "swagger": "2.0",
@@ -64,7 +67,7 @@ class Config:
         "ui_params_text": """{
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
         }""",
-        "url_prefix": f"{BASE_URL}",
+        "url_prefix": f"{API_V2_BASE_URL}",
     }
 
 

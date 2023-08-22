@@ -1,9 +1,9 @@
 const InquirySchema = require("@models/Inquiry");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");
-constants = require("@config/constants");
+const constants = require("@config/constants");
 
 const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);

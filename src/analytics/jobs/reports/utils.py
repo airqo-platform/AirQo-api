@@ -70,7 +70,6 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
 def upload_csv_file_to_gcs(
     project_name, credential, bucket_name, source_blob_name, source_file_name
 ):
-
     storage_client = storage.Client.from_service_account_json(
         json_credentials_path=credential
     )
@@ -95,7 +94,6 @@ def upload_csv_file_to_gcs(
 def upload_trained_model_to_gcs(
     trained_model, project_name, bucket_name, source_blob_name
 ):
-
     fs = gcsfs.GCSFileSystem(project=project_name)
 
     # backup previous model

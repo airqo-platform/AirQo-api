@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: staging-airqalibrate-virtual-server
+  namespace: staging
+spec:
+  host: staging-airqalibrate.airqo.net
+  upstreams:
+    - name: airqalibrate
+      service: airqo-stage-calibrate-app-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: airqalibrate

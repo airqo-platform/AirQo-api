@@ -9,6 +9,32 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -36,6 +62,38 @@ router.post(
       .trim(),
   ]),
   deviceController.decryptKey
+);
+
+router.post(
+  "/decrypt/bulk",
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.encrypted_key")
+        .exists()
+        .trim()
+        .withMessage("encrypted_key is missing")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the encrypted_key should not be empty for all provided entries"
+        ),
+      body("*.device_number")
+        .exists()
+        .trim()
+        .withMessage("device_number is missing in one of the inputs")
+        .bail()
+        .isInt()
+        .withMessage(
+          "the device_number in some of the inputs should be an integer value"
+        ),
+    ],
+  ]),
+  deviceController.decryptManyKeys
 );
 
 router.put(
@@ -340,36 +398,68 @@ router.get(
 router.post(
   "/",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
+      body("network")
+        .optional()
         .trim()
+        .notEmpty()
+        .withMessage("the network should not be empty if provided")
+        .bail()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("long_name")
-        .exists()
-        .withMessage("the device long_name should be provided")
-        .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -378,15 +468,30 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
@@ -396,6 +501,8 @@ router.post(
       body("latitude")
         .optional()
         .notEmpty()
+        .withMessage("the latitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
@@ -418,6 +525,8 @@ router.post(
       body("longitude")
         .optional()
         .notEmpty()
+        .withMessage("the longitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
@@ -440,36 +549,50 @@ router.post(
       body("description")
         .optional()
         .notEmpty()
+        .withMessage("the description should not be empty if provided")
+        .bail()
         .trim(),
       body("product_name")
         .optional()
         .notEmpty()
+        .withMessage("the product_name should not be empty if provided")
+        .bail()
         .trim(),
       body("device_manufacturer")
         .optional()
         .notEmpty()
+        .withMessage("the device_manufacturer should not be empty if provided")
+        .bail()
         .trim(),
       body("isActive")
         .optional()
         .notEmpty()
+        .withMessage("the isActive should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
         .optional()
         .notEmpty()
+        .withMessage("the isRetired should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
         .optional()
         .notEmpty()
+        .withMessage("the mobility should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
         .optional()
         .notEmpty()
+        .withMessage("the nextMaintenance should not be empty if provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
@@ -477,18 +600,24 @@ router.post(
       body("isPrimaryInLocation")
         .optional()
         .notEmpty()
+        .withMessage("the isPrimaryInLocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
         .optional()
         .notEmpty()
+        .withMessage("the isUsedForCollocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
         .optional()
         .notEmpty()
+        .withMessage("the owner should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the owner must be an object ID")
@@ -499,6 +628,8 @@ router.post(
       body("host_id")
         .optional()
         .notEmpty()
+        .withMessage("the host_id should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the host_id must be an object ID")
@@ -509,6 +640,8 @@ router.post(
       body("phoneNumber")
         .optional()
         .notEmpty()
+        .withMessage("the phoneNumber should not be empty if provided")
+        .bail()
         .trim()
         .custom((value) => {
           let parsedPhoneNumber = phoneUtil.parse(value);
@@ -520,6 +653,8 @@ router.post(
       body("height")
         .optional()
         .notEmpty()
+        .withMessage("the height should not be empty if provided")
+        .bail()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
         .withMessage("height must be a number between 0 and 100")
@@ -528,6 +663,8 @@ router.post(
       body("elevation")
         .optional()
         .notEmpty()
+        .withMessage("the elevation should not be empty if provided")
+        .bail()
         .trim()
         .isFloat()
         .withMessage("elevation must be a float")
@@ -536,10 +673,14 @@ router.post(
       body("writeKey")
         .optional()
         .notEmpty()
+        .withMessage("the writeKey should not be empty if provided")
+        .bail()
         .trim(),
       body("readKey")
         .optional()
         .notEmpty()
+        .withMessage("the readKey should not be empty if provided")
+        .bail()
         .trim(),
     ],
   ]),
@@ -651,16 +792,22 @@ router.put(
       body("visibility")
         .optional()
         .notEmpty()
+        .withMessage("the visibility field should not be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("long_name")
         .optional()
         .notEmpty()
+        .withMessage("the long_name field should not be empty IF provided")
+        .bail()
         .trim(),
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType field should not be empty IF provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
@@ -670,6 +817,8 @@ router.put(
       body("status")
         .optional()
         .notEmpty()
+        .withMessage("the status field should not be empty IF provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn([
@@ -688,6 +837,8 @@ router.put(
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType field should not be empty IF provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
@@ -697,18 +848,24 @@ router.put(
       body("isActive")
         .optional()
         .notEmpty()
+        .withMessage("the isActive field should not be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
         .optional()
         .notEmpty()
+        .withMessage("the isRetired field should not be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
         .optional()
         .notEmpty()
+        .withMessage("the mobility field should not be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
@@ -724,18 +881,18 @@ router.put(
       body("isPrimaryInLocation")
         .optional()
         .notEmpty()
+        .withMessage(
+          "the isPrimaryInLocation field should not be empty IF provided"
+        )
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
-      body("isUsedForCollocation")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isBoolean()
-        .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
         .optional()
         .notEmpty()
+        .withMessage("the owner field should not be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the owner must be an object ID")
@@ -746,6 +903,8 @@ router.put(
       body("host_id")
         .optional()
         .notEmpty()
+        .withMessage("the host_id field should not be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the host_id must be an object ID")
@@ -756,6 +915,8 @@ router.put(
       body("phoneNumber")
         .optional()
         .notEmpty()
+        .withMessage("the phoneNumber field should not be empty IF provided")
+        .bail()
         .trim()
         .custom((value) => {
           let parsedPhoneNumber = phoneUtil.parse(value);
@@ -767,6 +928,8 @@ router.put(
       body("height")
         .optional()
         .notEmpty()
+        .withMessage("the height field should not be empty IF provided")
+        .bail()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
         .withMessage("height must be a number between 0 and 100")
@@ -775,6 +938,8 @@ router.put(
       body("elevation")
         .optional()
         .notEmpty()
+        .withMessage("the elevation field should not be empty IF provided")
+        .bail()
         .trim()
         .isFloat()
         .withMessage("elevation must be a float")
@@ -783,14 +948,20 @@ router.put(
       body("writeKey")
         .optional()
         .notEmpty()
+        .withMessage("the writeKey field should not be empty IF provided")
+        .bail()
         .trim(),
       body("readKey")
         .optional()
         .notEmpty()
+        .withMessage("the readKey field should not be empty IF provided")
+        .bail()
         .trim(),
       body("latitude")
         .optional()
         .notEmpty()
+        .withMessage("the latitude field should not be empty IF provided")
+        .bail()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
@@ -813,6 +984,8 @@ router.put(
       body("longitude")
         .optional()
         .notEmpty()
+        .withMessage("the longitude field should not be empty IF provided")
+        .bail()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
@@ -838,14 +1011,72 @@ router.put(
       body("product_name")
         .optional()
         .notEmpty()
+        .withMessage("the product_name field should not be empty IF provided")
+        .bail()
         .trim(),
       body("device_manufacturer")
         .optional()
         .notEmpty()
+        .withMessage(
+          "the device_manufacturer field should not be empty IF provided"
+        )
+        .bail()
         .trim(),
     ],
   ]),
   deviceController.update
+);
+
+router.put(
+  "/refresh",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  deviceController.refresh
 );
 /** return nearest coordinates */
 router.get(
@@ -856,18 +1087,51 @@ router.get(
 router.post(
   "/soft",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+      body("network")
+        .optional()
+        .notEmpty()
+        .withMessage("network should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the visibility should not be empty if provided")
         .bail()
         .trim()
         .isBoolean()
@@ -875,24 +1139,24 @@ router.post(
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("long_name")
-        .exists()
-        .withMessage("the device long_name should be provided")
-        .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -901,15 +1165,30 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])

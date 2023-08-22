@@ -1,0 +1,32 @@
+app:
+  name: airqo-bigquery-connectors
+  label: bigquery-connectors
+  namespace: production
+  configmap: bigquery-connectors
+replicaCount: 0
+image:
+  repository: eu.gcr.io/airqo-250220/bigquery-connectors
+  tag: prod-e24240cd-1689953067
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 1000m
+    memory: 500Mi
+  requests:
+    cpu: 100m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: bigquery-connectors-files
+ingress:
+  enabled: false
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70

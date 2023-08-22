@@ -127,8 +127,18 @@ function monthsInfront(number) {
 function addDays(number) {
   try {
     let d = new Date();
-    let target = d.setDate(d.getDate() + number);
+    d.setDate(d.getDate() + number);
     return d;
+  } catch (e) {
+    logger.error(`internal server error -- ${e.message}`);
+  }
+}
+
+function addHours(number) {
+  try {
+    const currentTime = new Date();
+    const newTime = new Date(currentTime.getTime() + number * 60 * 60 * 1000);
+    return newTime;
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
@@ -137,7 +147,7 @@ function addDays(number) {
 function addMinutes(number) {
   try {
     let d = new Date();
-    let target = d.setMinutes(d.getMinutes() + number);
+    d.setMinutes(d.getMinutes() + number);
     return d;
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
@@ -156,7 +166,7 @@ function getDifferenceInMonths(d1, d2) {
 
 function threeMonthsFromNow(date) {
   d = new Date(date);
-  var targetMonth = d.getMonth() + 3;
+  let targetMonth = d.getMonth() + 3;
   d.setMonth(targetMonth);
   if (d.getMonth() !== targetMonth % 12) {
     d.setDate(0); // last day of previous month
@@ -175,4 +185,5 @@ module.exports = {
   addDays,
   addMinutes,
   formatDate,
+  addHours,
 };

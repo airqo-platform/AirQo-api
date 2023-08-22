@@ -6,12 +6,14 @@ const Validator = require("validator");
 const UserSchema = require("@models/User");
 const AccessTokenSchema = require("@models/AccessToken");
 const constants = require("@config/constants");
-const { logElement, logText, logObject, winstonLogger } = require("@utils/log");
+const winstonLogger = require("@utils/log-winston");
+const { logElement, logText, logObject } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
+const accessCodeGenerator = require("generate-password");
 
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -115,7 +117,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     async (email, password, done) => {
       try {
         const service = req.headers["service"];
-        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
@@ -139,12 +140,10 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -183,12 +182,9 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -202,61 +198,316 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
       callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
-      passReqToCallback: true,
     },
-    function (accessToken, refreshToken, profile, cb) {
-      req.auth = {};
-      UserModel(tenant.toLowerCase())
-        .findOneAndUpdate(
-          { google_id: profile.id },
-          {
-            google_id: profile.id,
-            firstName: profile.givenName,
-            lastName: profile.familyName,
-            profilePicture: profile.photos[0].value,
-            email: profile.emails[0].value,
-            userName: profile.displayName,
-          },
-          { upsert: true, new: true }
-        )
-        .then((user) => {
+    async (accessToken, refreshToken, profile, cb) => {
+      logObject("Google profile Object", profile._json);
+
+      try {
+        const service = req.headers["service"];
+        let user = await UserModel(tenant.toLowerCase())
+          .findOne({
+            email: profile._json.email,
+          })
+          .exec();
+
+        req.auth = {};
+        if (user) {
           req.auth.success = true;
-          req.auth.message = "successful login or registration";
-          return cb(null, user);
-        })
-        .catch((error) => {
-          req.auth.success = false;
-          req.auth.message = "Server Error";
-          req.auth.error = error.message;
-          next();
-        });
+          req.auth.message = "successful login";
+
+          winstonLogger.info(
+            `successful login through ${service ? service : "unknown"} service`,
+            {
+              username: user.userName,
+              email: user.email,
+              service: service ? service : "none",
+            }
+          );
+          cb(null, user);
+          return next();
+        } else {
+          const responseFromRegisterUser = await UserModel(tenant).register({
+            google_id: profile._json.sub,
+            firstName: profile._json.given_name,
+            lastName: profile._json.family_name,
+            email: profile._json.email,
+            userName: profile._json.email,
+            profilePicture: profile._json.picture,
+            website: profile._json.hd,
+            password: accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            ),
+          });
+          if (responseFromRegisterUser.success === false) {
+            req.auth.success = false;
+            req.auth.message = "unable to create user";
+            cb(responseFromRegisterUser.errors, false);
+            next();
+          } else {
+            logObject("the newly created user", responseFromRegisterUser.data);
+            user = responseFromRegisterUser.data;
+            cb(null, user);
+
+            return next();
+          }
+        }
+      } catch (error) {
+        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logObject("error", error);
+        req.auth = {};
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = error.message;
+        next();
+      }
     }
   );
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      const service = req.headers["service"];
+      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
+      logObject(
+        "req.headers[x-original-method]",
+        req.headers["x-original-method"]
+      );
+
+      let service = req.headers["service"];
+      let userAction = "Unknown Action";
+
+      const specificRoutes = [
+        {
+          uri: ["/api/v2/devices/events"],
+          service: "events-registry",
+          action: "Events API Access via JWT",
+        },
+        {
+          uri: ["/api/v1/devices"],
+          service: "device-registry",
+          action: "deprecated-version-number",
+        },
+      ];
+
+      specificRoutes.forEach((route) => {
+        const uri = req.headers["x-original-uri"];
+        if (uri && route.uri.some((routeUri) => uri.includes(routeUri))) {
+          service = route.service;
+          userAction = route.action;
+          return done(null, false);
+        }
+      });
+
+      const routesWithService = [
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v2/analytics/data-download",
+            "api/v1/analytics/data-download",
+          ],
+          service: "data-export-download",
+          action: "Export Data",
+        },
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/analytics/data-export",
+            "api/v2/analytics/data-export",
+          ],
+          service: "data-export-scheduling",
+          action: "Schedule Data Download",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Creation",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Update",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "Site Deletion",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Deletion",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Deletion",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Update",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Update",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "Device Creation",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/soft?"],
+          service: "device-registry",
+          action: "Device SOFT Creation",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Creation",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Update",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqlouds-registry",
+          action: "AirQloud Deletion",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/maintain"],
+          service: "device-maintenance",
+          action: "Maintain Device",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/recall"],
+          service: "device-recall",
+          action: "Recall Device",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/activities/deploy"],
+          service: "device-deployment",
+          action: "Deploy Device",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Create User",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Update User",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "Delete User",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/incentives/transactions/accounts/payments",
+            "api/v2/incentives/transactions/accounts/payments",
+          ],
+          service: "incentives",
+          action: "Add Money to Organizational Account",
+        },
+        {
+          method: "POST",
+          uriIncludes: [
+            "api/v1/incentives/transactions/hosts",
+            "api/v2/incentives/transactions/hosts",
+          ],
+          service: "incentives",
+          action: "Send Money to Host",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
+          service: "calibrate",
+          action: "calibrate device",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
+          service: "locate",
+          action: "Identify Suitable Device Locations",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
+          service: "fault-detection",
+          action: "Detect Faults",
+        },
+      ];
+
+      routesWithService.forEach((route) => {
+        const uri = req.headers["x-original-uri"];
+        const method = req.headers["x-original-method"];
+
+        if (
+          method &&
+          route.method === method &&
+          uri &&
+          (!route.uriEndsWith ||
+            route.uriEndsWith.some((suffix) => uri.endsWith(suffix))) &&
+          (!route.uriIncludes ||
+            route.uriIncludes.some((substring) => uri.includes(substring)))
+        ) {
+          service = route.service;
+          userAction = route.action;
+        }
+      });
+
+      // ... other route checks
       logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
         .exec();
+
       if (!user) {
         return done(null, false);
       }
 
-      winstonLogger.info(
-        `successful login through ${service ? service : "unknown"} service`,
-        {
-          username: user.userName,
-          email: user.email,
-          service: service ? service : "unknown",
-        }
-      );
+      winstonLogger.info(userAction, {
+        username: user.userName,
+        email: user.email,
+        service: service ? service : "unknown",
+      });
+
       return done(null, user);
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return done(e, false);
     }
   });
+
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -319,7 +570,17 @@ const setLocalStrategy = (tenant, req, res, next) => {
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
-  passport.use("google", useGoogleStrategy(tenant, req, res, next));
+  passport.use(useGoogleStrategy(tenant, req, res, next));
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+  passport.deserializeUser(async (user, done) => {
+    await UserModel(tenant.toLowerCase())
+      .findById(id)
+      .then((user) => {
+        done(null, user);
+      });
+  });
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -332,10 +593,6 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    /**
-     * do input validations and then just call the set
-     * set local strategy afterwards -- the function is called from here
-     */
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -363,6 +620,8 @@ function setGoogleAuth(req, res, next) {
      * do input validations and then just call the set
      * set local strategy afterwards -- the function is called from here
      */
+
+    logText("we are setting the Google Auth");
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -379,6 +638,7 @@ function setGoogleAuth(req, res, next) {
     setGoogleStrategy(tenant, req, res, next);
     next();
   } catch (e) {
+    logObject("e", e);
     console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
@@ -422,10 +682,12 @@ const authLocal = passport.authenticate("user-local", {
   failureFlash: true,
 });
 
-const authGoogle = passport.authenticate("google", { scope: ["profile"] });
+const authGoogle = passport.authenticate("google", {
+  scope: ["profile", "email"],
+});
 
 const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: "/login",
+  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
 });
 
 const authGuest = (req, res, next) => {
@@ -456,4 +718,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  useJWTStrategy,
 };

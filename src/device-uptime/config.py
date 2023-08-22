@@ -13,12 +13,19 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = os.getenv("SECRET_KEY")
-    DB_NAME = os.getenv("DB_NAME_PROD")
-    REGISTRY_MONGO_URI = os.getenv("REGISTRY_MONGO_GCE_URI")
-    MONITORING_MONGO_URI = os.getenv("MONITORING_MONGO_GCE_URI")
     MONITOR_FREQUENCY_MINUTES = int(os.getenv("MONITOR_FREQUENCY_MINUTES", 60))
     BASE_API_URL = os.getenv("BASE_API_URL")
     DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/feeds/transform/recent"
+
+    # Mongo Connections
+    REGISTRY_MONGO_URI = os.getenv("REGISTRY_MONGO_GCE_URI")
+    MONITORING_MONGO_URI = os.getenv("MONITORING_MONGO_GCE_URI")
+    DB_NAME_DEVICE_REGISTRY = os.getenv("DB_NAME_DEVICE_REGISTRY")
+    DB_NAME_DEVICE_MONITORING = os.getenv("DB_NAME_DEVICE_MONITORING")
+
+    BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
+    BIGQUERY_DEVICE_UPTIME_TABLE = os.getenv("BIGQUERY_DEVICE_UPTIME_TABLE")
+    UPTIME_HOURLY_THRESHOLD = os.getenv("UPTIME_HOURLY_THRESHOLD")
 
 
 class ProductionConfig(Config):
@@ -32,14 +39,12 @@ class DevelopmentConfig(Config):
     DEBUG = True
     REGISTRY_MONGO_URI = os.getenv("REGISTRY_MONGO_DEV_URI")
     MONITORING_MONGO_URI = os.getenv("MONITORING_MONGO_DEV_URI")
-    DB_NAME = os.getenv("DB_NAME_DEV")
 
 
 class TestingConfig(Config):
     TESTING = True
     REGISTRY_MONGO_URI = os.getenv("REGISTRY_MONGO_GCE_URI")
     MONITORING_MONGO_URI = os.getenv("MONITORING_MONGO_GCE_URI")
-    DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
 app_config = {
@@ -55,16 +60,22 @@ print("ENVIRONMENT", environment or "staging")
 configuration = app_config.get(environment, TestingConfig)
 
 DB_HOSTS = {
-    "device_registry": configuration.REGISTRY_MONGO_URI,
-    "device_monitoring": configuration.MONITORING_MONGO_URI,
+    "device_registry": {
+        "mongo_uri": configuration.REGISTRY_MONGO_URI,
+        "database": configuration.DB_NAME_DEVICE_REGISTRY,
+    },
+    "device_monitoring": {
+        "mongo_uri": configuration.MONITORING_MONGO_URI,
+        "database": configuration.DB_NAME_DEVICE_MONITORING,
+    },
 }
 
 
 def connect_mongo(tenant, db_host):
     try:
-        mongo_uri = DB_HOSTS[db_host]
+        mongo_uri = DB_HOSTS[db_host]["mongo_uri"]
         client = MongoClient(mongo_uri)
-        return client[f"{configuration.DB_NAME}_{tenant.lower()}"]
+        return client[f"{DB_HOSTS[db_host]['database']}_{tenant.lower()}"]
 
     except KeyError:
         raise Exception(f'Unknown db host "{db_host}"')

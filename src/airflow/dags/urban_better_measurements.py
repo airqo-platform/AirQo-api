@@ -15,11 +15,13 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def extract_measures(**kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return PlumeLabsUtils.extract_sensor_measures(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -42,11 +44,13 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def extract_sensor_positions(**kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return PlumeLabsUtils.extract_sensor_positions(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -84,11 +88,13 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def extract_measures(**kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return PlumeLabsUtils.extract_sensor_measures(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -111,11 +117,13 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def extract_sensor_positions(**kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return PlumeLabsUtils.extract_sensor_positions(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -331,20 +339,24 @@ def historical_measurements_etl__air_beam():
 
     @task()
     def extract_stream_ids(**kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return UrbanBetterUtils.extract_stream_ids_from_air_beam(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
     def extract_measurements(ids: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
         return UrbanBetterUtils.extract_measurements_from_air_beam(
             start_date_time=start_date_time, end_date_time=end_date_time, stream_ids=ids
         )

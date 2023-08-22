@@ -35,6 +35,40 @@ const distance = {
     }
   },
 
+  getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const distance = R * c; // Distance in meters
+    return distance;
+  },
+
+  filterSitesByRadius({ sites, lat, lon, radius } = {}) {
+    // logObject("sites we are using", sites);
+    const filteredSites = sites.filter((site) => {
+      // logObject("site.latitude", site.latitude);
+      // logObject("lat", lat);
+      // logObject("site.longitude", site.longitude);
+      // logObject("lon", lon);
+      const distanceBetween = distance.getDistance(
+        lat,
+        lon,
+        site.latitude,
+        site.longitude
+      );
+      return distanceBetween <= radius;
+    });
+    return filteredSites;
+  },
+
   calculateDistance: (latitude1, longitude1, latitude2, longitude2) => {
     // getting distance between latitudes and longitudes
     const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
@@ -140,41 +174,52 @@ const distance = {
     longitude = 0,
     approximate_distance_in_km = 0.5,
   } = {}) => {
-    const radiusOfEarth = 6378.1;
-    const bearingInRadians = distance.generateRandomNumbers();
-    const latitudeInRadians = distance.degreesToRadians(latitude);
-    const longitudeInRadians = distance.degreesToRadians(longitude);
+    try {
+      const radiusOfEarth = 6378.1;
+      const bearingInRadians = distance.generateRandomNumbers();
+      const latitudeInRadians = distance.degreesToRadians(latitude);
+      const longitudeInRadians = distance.degreesToRadians(longitude);
 
-    let approximateLatitudeInRadians = Math.asin(
-      Math.sin(latitudeInRadians) *
+      let approximateLatitudeInRadians = Math.asin(
+        Math.sin(latitudeInRadians) *
         Math.cos(approximate_distance_in_km / radiusOfEarth) +
         Math.cos(latitudeInRadians) *
-          Math.sin(approximate_distance_in_km / radiusOfEarth) *
-          Math.cos(bearingInRadians)
-    );
-
-    let approximateLongitudeInRadians =
-      longitudeInRadians +
-      Math.atan2(
-        Math.sin(bearingInRadians) *
-          Math.sin(approximate_distance_in_km / radiusOfEarth) *
-          Math.cos(latitudeInRadians),
-        Math.cos(approximate_distance_in_km / radiusOfEarth) -
-          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+        Math.sin(approximate_distance_in_km / radiusOfEarth) *
+        Math.cos(bearingInRadians)
       );
 
-    return {
-      approximate_latitude: distance.radiansToDegrees(
-        approximateLatitudeInRadians
-      ),
-      approximate_longitude: distance.radiansToDegrees(
-        approximateLongitudeInRadians
-      ),
-      approximate_distance_in_km,
-      bearing_in_radians: parseFloat(bearingInRadians),
-      provided_latitude: parseFloat(latitude),
-      provided_longitude: parseFloat(longitude),
-    };
+      let approximateLongitudeInRadians =
+        longitudeInRadians +
+        Math.atan2(
+          Math.sin(bearingInRadians) *
+          Math.sin(approximate_distance_in_km / radiusOfEarth) *
+          Math.cos(latitudeInRadians),
+          Math.cos(approximate_distance_in_km / radiusOfEarth) -
+          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+        );
+
+      return {
+        approximate_latitude: distance.radiansToDegrees(
+          approximateLatitudeInRadians
+        ),
+        approximate_longitude: distance.radiansToDegrees(
+          approximateLongitudeInRadians
+        ),
+        approximate_distance_in_km,
+        bearing_in_radians: parseFloat(bearingInRadians),
+        provided_latitude: parseFloat(latitude),
+        provided_longitude: parseFloat(longitude),
+      };
+    } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: "Error in createApproximateCoordinates",
+        },
+      };
+    }
   },
 };
 

@@ -50,7 +50,7 @@ class BaseMongoOperations:
         if not filter_cond:
             raise Exception("filter_cond has to be specified")
 
-        return self.collection.update_one(filter_cond, {'$set': update_fields})
+        return self.collection.update_one(filter_cond, {"$set": update_fields})
 
     def delete_one(self, filter_cond):
         """Deletes a document from a collection
@@ -90,7 +90,7 @@ class ChainableMongoOperations(BaseMongoOperations):
         if raise_exc:
             for v in init_cond:
                 if expression in v.keys():
-                    raise Exception(f'the {expression} expression already set')
+                    raise Exception(f"the {expression} expression already set")
 
         init_cond.append(new_filters)
         self.match_stage[self.init_match_expr] = init_cond
@@ -107,7 +107,7 @@ class ChainableMongoOperations(BaseMongoOperations):
 
         Returns: the class instance (self) to enable further chaining
         """
-        expression = '$and'
+        expression = "$and"
         if args:
             raise Exception("positional arguments are not allowed")
 
@@ -131,13 +131,14 @@ class ChainableMongoOperations(BaseMongoOperations):
         Returns:
 
         """
-        expression = '$in'
+        expression = "$in"
         # modified_filters = {}
         for key, value in filters.items():
-
             if not isinstance(value, list):
                 raise Exception("keys must be instance of list")
-            self._update_match_stage(expression, raise_exc=False, **{key: {"$in": value}})
+            self._update_match_stage(
+                expression, raise_exc=False, **{key: {"$in": value}}
+            )
         #     modified_filters[key] = {"$in": value}
         #
         # self._update_filter_dict(**modified_filters)
@@ -146,12 +147,14 @@ class ChainableMongoOperations(BaseMongoOperations):
 
     def date_range(self, field, start_date, end_date):
         expression = None
-        start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S.%fZ')
-        end = end_date and datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ') or datetime.now()
+        start = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+        end = (
+            end_date
+            and datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+            or datetime.now()
+        )
         self._update_match_stage(
-            expression,
-            raise_exc=False,
-            **{field: {"$gte": start, "$lt": end}}
+            expression, raise_exc=False, **{field: {"$gte": start, "$lt": end}}
         )
         return self
 
@@ -171,7 +174,7 @@ class ChainableMongoOperations(BaseMongoOperations):
         Returns:
 
         """
-        expression = '$or'
+        expression = "$or"
         modified_filters = []
         for key, value in filters.items():
             modified_filters.append({key: value})
@@ -179,7 +182,9 @@ class ChainableMongoOperations(BaseMongoOperations):
 
         return self
 
-    def lookup(self, collection, *args, local_field=None, foreign_field=None, col_as=None):
+    def lookup(
+        self, collection, *args, local_field=None, foreign_field=None, col_as=None
+    ):
         """
         A filter method that maps to mongodb's $lookup (https://docs.mongodb.com/manual/reference/operator/aggregation/lookup/)
 
@@ -201,7 +206,7 @@ class ChainableMongoOperations(BaseMongoOperations):
                     "from": collection,
                     "localField": local_field,
                     "foreignField": foreign_field,
-                    "as": col_as or collection
+                    "as": col_as or collection,
                 },
             }
         )
@@ -222,11 +227,11 @@ class ChainableMongoOperations(BaseMongoOperations):
         return self.add_stages([{"$replaceRoot": {"newRoot": f"${new_root}"}}])
 
     def unwind(self, field):
-        return self.add_stages([{"$unwind": f'${field}'}])
+        return self.add_stages([{"$unwind": f"${field}"}])
 
     def project(self, **fields):
         if fields.get("_id"):
-            fields['_id'] = {"$toString": "$_id"}
+            fields["_id"] = {"$toString": "$_id"}
         return self.add_stages([{"$project": fields}])
 
     def match(self, **conditions):
@@ -244,13 +249,17 @@ class ChainableMongoOperations(BaseMongoOperations):
     def match_in(self, **condition):
         for field, value in condition.items():
             if isinstance(value, str) and not isinstance(value, Sequence):
-                raise Exception(f'{value} is not a list or tuple (sequence)')
-            self.match(**{field: {'$in': value}})
+                raise Exception(f"{value} is not a list or tuple (sequence)")
+            self.match(**{field: {"$in": value}})
             # self.add_stages([{"$in": [f'${field}', value]}])
         return self
 
     def _aggregate_exec(self, projections):
-        stages = [{"$match": self.match_stage}] if self.match_stage.get(self.init_match_expr) else []
+        stages = (
+            [{"$match": self.match_stage}]
+            if self.match_stage.get(self.init_match_expr)
+            else []
+        )
         stages.extend(self.stages)
 
         if projections:
@@ -278,7 +287,6 @@ class ChainableMongoOperations(BaseMongoOperations):
 
 
 class ModelOperations(ChainableMongoOperations):
-
     def __init__(self):
         super().__init__()
 
@@ -287,9 +295,8 @@ class ModelOperations(ChainableMongoOperations):
 
         for document in docs:
             for k, v in dict(document).items():
-                if k == '_id':
+                if k == "_id":
                     document[k] = str(v)
                 if v and isinstance(v, list) and isinstance(v[0], dict):
                     self.convert_model_ids(v)
         return docs
-
