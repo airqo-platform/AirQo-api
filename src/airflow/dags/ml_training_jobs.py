@@ -29,7 +29,7 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
-        return ForecastUtils.preprocess__data(data, "hourly")
+        return ForecastUtils.preprocess_data(data, "hourly")
 
     @task()
     def feature_engineer_training_data_for_hourly_forecast_model(data):
@@ -53,7 +53,7 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):
-        return ForecastUtils.preprocess__data(data, "daily")
+        return ForecastUtils.preprocess_data(data, "daily")
 
     @task()
     def feature_engineer_data_for_daily_forecast_model(data):
