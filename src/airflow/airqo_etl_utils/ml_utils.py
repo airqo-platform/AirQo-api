@@ -85,10 +85,11 @@ class ForecastUtils:
     @staticmethod
     def feature_eng_data(data, target_column, frequency, job_type):
         def get_lag_features(df, target_col, freq):
+            df1 = df.copy()
             if freq == "daily":
                 shifts = [1, 2, 3, 7, 14]
                 for s in shifts:
-                    df[f"pm2_5_last_{s}_day"] = df.groupby(["device_id"])[
+                    df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
                         target_col
                     ].shift(s)
 
@@ -96,8 +97,8 @@ class ForecastUtils:
                 functions = ["mean", "std", "max", "min"]
                 for s in shifts:
                     for f in functions:
-                        df[f"pm2_5_{f}_{s}_day"] = (
-                            df.groupby(["device_id"])[target_col]
+                        df1[f"pm2_5_{f}_{s}_day"] = (
+                            df1.groupby(["device_id"])[target_col]
                             .shift(1)
                             .rolling(s)
                             .agg(f)
@@ -105,7 +106,7 @@ class ForecastUtils:
             elif freq == "hourly":
                 shifts = [1, 2, 6, 12]
                 for s in shifts:
-                    df[f"pm2_5_last_{s}_hour"] = df.groupby(["device_id"])[
+                    df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
                         target_col
                     ].shift(s)
 
@@ -113,8 +114,8 @@ class ForecastUtils:
                 functions = ["mean", "std", "median", "skew"]
                 for s in shifts:
                     for f in functions:
-                        df[f"pm2_5_{f}_{s}_hour"] = (
-                            df.groupby(["device_id"])[target_col]
+                        df1[f"pm2_5_{f}_{s}_hour"] = (
+                            df1.groupby(["device_id"])[target_col]
                             .shift(1)
                             .rolling(s)
                             .agg(f)
@@ -122,42 +123,44 @@ class ForecastUtils:
             else:
                 raise ValueError("Invalid frequency")
 
-            return df
+            return df1
 
         def encode_categorical_features(df, frequency):
+            df1 = df.copy()
             columns = ["device_id", "site_id", "device_category"]
             mappings = []
             for col in columns:
                 mapping = {}
-                for val in df[col].unique():
+                for val in df1[col].unique():
                     num = random.randint(0, 10000)
                     while num in mapping.values():
                         num = random.randint(0, 10000)
                     mapping[val] = num
-                df[col] = df[col].map(mapping)
+                df1[col] = df1[col].map(mapping)
                 mappings.append(mapping)
             for i, col in enumerate(columns):
                 upload_mapping_to_gcs(
                     mappings[i], project_id, bucket, f"{frequency}_{col}_mapping.json"
                 )
-            return df
+            return df1
 
         def get_time_and_cyclic_features(df, freq):
+            df1 = df.copy()
             attributes = ["year", "month", "day", "dayofweek"]
             max_vals = [2023, 12, 30, 7]
             if freq == "hourly":
-                attributes.extend(["hour", "minute"])
-                max_vals.append([23, 59])
+                attributes.append("hour")
+                max_vals.append(23)
             for a, m in zip(attributes, max_vals):
-                df[a] = df["timestamp"].dt.__getattribute__(a)
-                df[a + "_sin"] = np.sin(2 * np.pi * df[a] / m)
-                df[a + "_cos"] = np.cos(2 * np.pi * df[a] / m)
+                df1[a] = df1["timestamp"].dt.__getattribute__(a)
+                df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
+                df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
 
-            df["week"] = df["timestamp"].dt.isocalendar().week
-            df["week_sin"] = np.sin(2 * np.pi * df["week"] / 52)
-            df["week_cos"] = np.cos(2 * np.pi * df["week"] / 52)
-            df.drop(columns=attributes + ["week"], inplace=True)
-            return df
+            df1["week"] = df1["timestamp"].dt.isocalendar().week
+            df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
+            df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
+            df1.drop(columns=attributes + ["week"], inplace=True)
+            return df1
 
         def decode_categorical_features(df, frequency):
             columns = ["device_id", "site_id", "device_category"]
@@ -174,11 +177,12 @@ class ForecastUtils:
                 df[col] = df[col].map(mapping)
             return df
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        df_tmp = get_lag_features(data, target_column, frequency)
+        df_tmp = data.copy()
+        df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
+        df_tmp = get_lag_features(df_tmp, target_column, frequency)
         df_tmp = get_time_and_cyclic_features(df_tmp, frequency)
         if job_type == "train":
-            df_tmp = encode_categorical_features(df_tmp)
+            df_tmp = encode_categorical_features(df_tmp, frequency)
         elif job_type == "predict":
             df_tmp = decode_categorical_features(df_tmp)
 
@@ -199,9 +203,9 @@ class ForecastUtils:
             months = device_df["timestamp"].dt.month.unique()
             train_months = val_months = test_months = []
             if frequency == "hourly":
-                train_months = months[:8]
-                val_months = months[9]
-                test_months = months[10]
+                train_months = months[:4]
+                val_months = months[4:5]
+                test_months = months[5:]
             elif frequency == "daily":
                 train_months = months[:8]
                 val_months = months[8:9]
