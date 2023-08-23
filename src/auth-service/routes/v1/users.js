@@ -331,7 +331,7 @@ router.post(
 /**
  * version one of verification
  */
-router.post("/verify", setJWTAuth, createUserController.verify);
+router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
   "/verify/:user_id/:token",
