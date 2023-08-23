@@ -1,3 +1,4 @@
+require("module-alias/register");
 const httpStatus = require("http-status");
 const chai = require("chai");
 const sinon = require("sinon");
@@ -232,11 +233,9 @@ describe("createHealthTips", () => {
       kafkaProducerStub.send.resolves();
       kafkaProducerStub.disconnect.resolves();
 
-      const getModelByTenantStub = sinon
-        .stub()
-        .returns({
-          register: sinon.stub().resolves(responseFromRegisterHealthTip),
-        });
+      const getModelByTenantStub = sinon.stub().returns({
+        register: sinon.stub().resolves(responseFromRegisterHealthTip),
+      });
 
       const KafkaStub = sinon
         .stub(Kafka, "producer")
@@ -309,11 +308,9 @@ describe("createHealthTips", () => {
       kafkaProducerStub.send.rejects(new Error("Kafka error"));
       kafkaProducerStub.disconnect.resolves();
 
-      const getModelByTenantStub = sinon
-        .stub()
-        .returns({
-          register: sinon.stub().resolves(responseFromRegisterHealthTip),
-        });
+      const getModelByTenantStub = sinon.stub().returns({
+        register: sinon.stub().resolves(responseFromRegisterHealthTip),
+      });
 
       const KafkaStub = sinon
         .stub(Kafka, "producer")
