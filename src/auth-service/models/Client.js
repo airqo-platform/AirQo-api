@@ -7,6 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
+const { getModelByTenant } = require("@config/database");
 
 const ClientSchema = new Schema(
   {
@@ -227,4 +228,14 @@ ClientSchema.methods = {
   },
 };
 
-module.exports = ClientSchema;
+const ClientModel = (tenant) => {
+  try {
+    let clients = mongoose.model("clients");
+    return clients;
+  } catch (error) {
+    let clients = getModelByTenant(tenant, "client", ClientSchema);
+    return clients;
+  }
+};
+
+module.exports = ClientModel;

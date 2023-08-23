@@ -279,6 +279,19 @@ const defaultConfig = {
   DEVICE_MAPPINGS: {},
   SITE_MAPPINGS: {},
   PHOTO_MAPPINGS: {},
+  DATA_PROVIDER_MAPPINGS: (network) => {
+    switch (network) {
+      case "airqo":
+        return "AirQo"
+        break;
+      case "usembassy":
+        return "US Embassy"
+        break;
+      default:
+        return "AirQo"
+
+    }
+  },
   EVENT_MAPPINGS: {
     item: {
       time: "timestamp",
@@ -736,6 +749,7 @@ const defaultConfig = {
     lat_long: 1,
     country: 1,
     network: 1,
+    data_provider: 1,
     district: 1,
     sub_county: 1,
     parish: 1,

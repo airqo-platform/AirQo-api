@@ -1,7 +1,0 @@
-.gitignore
-app.yaml
-__pycache__/
-env/
-.gitkeep
-.vscode
-.DS_Store

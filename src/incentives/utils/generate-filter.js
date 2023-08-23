@@ -3,6 +3,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const constants = require("@config/constants");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -33,26 +34,35 @@ const generateFilter = {
     }
   },
   transactions: (req) => {
-    let { id, status, transaction_id, host_id } = req.query;
-    let filter = {};
+    try {
+      let { id, status, transaction_id, host_id } = req.params;
+      let filter = {};
 
-    if (host_id) {
-      filter["host_id"] = ObjectId(host_id);
+      if (host_id) {
+        filter["host_id"] = ObjectId(host_id);
+      }
+
+      if (transaction_id) {
+        filter["transaction_id"] = transaction_id;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (status) {
+        filter["status"] = status;
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
-
-    if (transaction_id) {
-      filter["transaction_id"] = transaction_id;
-    }
-
-    if (id) {
-      filter["_id"] = ObjectId(id);
-    }
-
-    if (status) {
-      filter["status"] = status;
-    }
-
-    return filter;
   },
   sims: (req) => {
     try {

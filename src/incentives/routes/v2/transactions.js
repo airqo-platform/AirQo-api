@@ -284,6 +284,33 @@ router.post(
 );
 
 router.get(
+  "/payments/hosts/:host_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      param("host_id")
+        .exists()
+        .withMessage("the host_id should exist")
+        .bail()
+        .notEmpty()
+        .withMessage("the host_id cannot be empty")
+        .trim(),
+    ],
+  ]),
+  createTransactionController.listTransactions
+);
+
+router.get(
   "/payments/:transaction_id",
   oneOf([
     query("tenant")

@@ -7,7 +7,6 @@ import requests
 import xgboost as xgb
 from google.cloud import bigquery, storage
 from pymongo import MongoClient
-from shapely import Polygon, MultiPolygon
 from sqlalchemy import create_engine
 
 from configure import Config
@@ -115,7 +114,17 @@ def get_shapefiles_gdf_from_mongo() -> gpd.GeoDataFrame:
 
 def predict_air_quality(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     df = pd.DataFrame(
-        data[["parish", "pm2_5", "square_kilometres", "population_density", "geometry"]]
+        data[
+            [
+                "parish",
+                "pm2_5",
+                "district",
+                "square_kilometres",
+                "population_density",
+                "geometry",
+                "centroid",
+            ]
+        ]
     )
 
     train_data = df[df["pm2_5"].notna()]
@@ -137,24 +146,24 @@ def predict_air_quality(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return data
 
 
-def format_geometry(formatted_data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    for index, row in formatted_data.iterrows():
-        if row.geometry.geom_type == "Polygon":
-            corrected_polygon = Polygon(row.geometry.exterior, row.geometry.interiors)
-            formatted_data.at[index, "geometry"] = corrected_polygon
-        elif row.geometry.geom_type == "MultiPolygon":
-            polygons = []
-            for polygon in row.geometry.geoms:
-                polygons.append(Polygon(polygon.exterior, polygon.interiors))
-            corrected_multipolygon = MultiPolygon(polygons)
-            formatted_data.at[index, "geometry"] = corrected_multipolygon
-
-    return formatted_data
-
-
-def save_predicted_air_quality(data: gpd.GeoDataFrame):
+def save_predicted_air_quality_in_postgresql(data: gpd.GeoDataFrame):
     engine = create_engine(Config.POSTGRES_CONNECTION_URL)
 
     data.to_postgis(name=Config.POSTGRES_TABLE, con=engine, if_exists="replace")
 
     print(f"Successfully saved data on PostgresSQL")
+
+
+def save_predicted_air_quality_in_bigquery(data: gpd.GeoDataFrame):
+    client = bigquery.Client()
+    job_config = bigquery.LoadJobConfig(
+        write_disposition="WRITE_APPEND",
+    )
+
+    data["geometry"] = None
+    job = client.load_table_from_dataframe(
+        data, Config.BIGQUERY_HOURLY_PREDICTIONS, job_config=job_config
+    )
+    job.result()
+
+    print(f"Successfully saved data on BigQuery")
