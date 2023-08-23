@@ -214,11 +214,15 @@ cohortSchema.statics.list = async function({
       cohort_codes: cohort.cohort_codes,
       name: cohort.name,
       network: cohort.network,
+      numberOfDevices: cohort.numberOfDevices,
       devices: cohort.devices.map((device) => ({
         _id: device._id,
         status: device.status,
         name: device.name,
         network: device.network,
+        device_number: device.device_number,
+        description: device.description,
+        long_name: device.long_name,
         createdAt: device.createdAt,
         host_id: device.host_id,
         site: device.site &&
