@@ -380,19 +380,17 @@ class ForecastUtils:
                     # lag features
                     shifts1 = [1, 2, 3, 7, 14]
                     for s in shifts1:
-                        df_tmp.iloc[
-                            -1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_day")
-                        ] = df_tmp["pm2_5"].shift(s)
+                        df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.shift(s, axis=0)["pm2_5"]
+
 
                     # rolling features
                     shifts2 = [2, 3, 7, 14]
                     functions = ["mean", "std", "max", "min"]
                     for s in shifts2:
                         for f in functions:
-                            df_tmp.iloc[
-                                -1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_day")
-                            ] = (df_tmp["pm2_5"].shift(1).rolling(s).agg(f))
+                            df_tmp[f"pm2_5_{f}_{s}_day"] = (df_tmp.shift(1, axis=0).rolling(s).agg(f))["pm2_5"]
 
+                    print('done')
                 # hourly frequency
                 elif frequency == "hourly":
                     df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df.iloc[
@@ -402,20 +400,17 @@ class ForecastUtils:
                     # lag features
                     shifts1 = [1, 2, 6, 12]
                     for s in shifts1:
-                        df_tmp.iloc[
-                            -1, df_tmp.columns.get_loc(f"pm2_5_last_{s}_hour")
-                        ] = df_tmp["pm2_5"].shift(s)
+                        df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.shift(s, axis=0)["pm2_5"]
+
 
                     # rolling features
                     shifts2 = [3, 6, 12, 24]
                     functions = ["mean", "std", "median", "skew"]
                     for s in shifts2:
                         for f in functions:
-                            df_tmp.iloc[
-                                -1, df_tmp.columns.get_loc(f"pm2_5_{f}_{s}_hour")
-                            ] = (df_tmp["pm2_5"].shift(1).rolling(s).agg(f))
+                            df_tmp[f"pm2_5_{f}_{s}_hour"] = (df_tmp.shift(1, axis=0).rolling(s).agg(f))["pm2_5"]
 
-                # time and cyclic features
+
                 attributes = ["year", "month", "day", "dayofweek"]
                 max_vals = [2023, 12, 30, 7]
                 if frequency == "hourly":
