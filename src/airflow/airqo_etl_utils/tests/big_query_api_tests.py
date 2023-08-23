@@ -81,3 +81,14 @@ def test_fetch_daily_forecast_training_data_date_range(mock_bigquery_client):
     )
     df = api.fetch_daily_forecast_training_data()
     assert df["created_at"].min() >= pd.Timestamp.now() - pd.DateOffset(months=12)
+
+
+def test_fetch_raw_readings_empty(mock_bigquery_client):
+    api = BigQueryApi()
+    api.client = mock_bigquery_client
+    api.client.query.return_value.result.return_value.to_dataframe.return_value = (
+        pd.DataFrame()
+    )
+    with pytest.raises(Exception) as e:
+        df = api.fetch_raw_readings()
+        assert "No data found" in str(e.value)
