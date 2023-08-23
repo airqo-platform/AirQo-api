@@ -10,7 +10,7 @@ const axios = require("axios");
 const xml2js = require("xml2js");
 const thingsMobile = require("@config/things-mobile");
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 
 const createSim = {
   createLocal: async (request) => {
@@ -24,7 +24,7 @@ const createSim = {
           logObject("createdSim", createdSim);
           return {
             success: true,
-            message: "successfully created document",
+            message: "successfully created SIM",
             data: createdSim,
             status: httpStatus.OK,
           };
@@ -137,8 +137,9 @@ const createSim = {
   checkStatus: async (request) => {
     try {
       const { tenant } = request.query;
-      const { sim_id } = req.params;
-      const sim = await SimModel(tenant).findById(ObjectId(sim_id));
+      const { sim_id } = request.params;
+      const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
+      logObject("the sim", sim);
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_STATUS_URL)
@@ -175,6 +176,8 @@ const createSim = {
             mergeAttrs: true,
           });
 
+          logObject("parsedResponse", parsedResponse);
+
           const simInfo = parsedResponse.result.sims.sim;
 
           const jsonOutput = {
@@ -189,16 +192,15 @@ const createSim = {
 
           logObject("jsonOutput", jsonOutput);
 
-          const updatedSim = await SimModel(tenant).findByIdAndUpdate(
-            ObjectId(sim_id),
-            jsonOutput
-          );
+          const updatedSim = await SimModel(tenant)
+            .findByIdAndUpdate(ObjectId(sim_id), jsonOutput)
+            .lean();
           if (!isEmpty(updatedSim)) {
             return {
               success: true,
               message: "Successfully retrieved the SIM status",
               status: httpStatus.OK,
-              data: jsonOutput,
+              data: updatedSim,
             };
           } else {
             return {
@@ -210,7 +212,7 @@ const createSim = {
           }
         })
         .catch((error) => {
-          logObject("error", error);
+          logObject("the error inside the checkStatus util", error);
           logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
           return {
             success: false,
@@ -232,6 +234,12 @@ const createSim = {
   },
   activateSim: async (request) => {
     try {
+      return {
+        success: false,
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        message: "service temporarily unavailable",
+        errors: { message: "service temporarily unavailable" },
+      };
       const { tenant } = request.query;
       const { sim_id } = req.params;
       const sim = await SimModel(tenant).findById(ObjectId(sim_id));
@@ -311,6 +319,13 @@ const createSim = {
   },
   deactivateSim: async (request) => {
     try {
+      return {
+        success: false,
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        message: "service temporarily unavailable",
+        errors: { message: "service temporarily unavailable" },
+      };
+      s;
       const { tenant } = request.query;
       const { sim_id } = req.params;
       const sim = await SimModel(tenant).findById(ObjectId(sim_id));
@@ -390,6 +405,12 @@ const createSim = {
   },
   updateSimName: async (request) => {
     try {
+      return {
+        success: false,
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        message: "service temporarily unavailable",
+        errors: { message: "service temporarily unavailable" },
+      };
       const { tenant } = request.query;
       const { name } = request.body;
       const { sim_id } = req.params;
@@ -471,6 +492,12 @@ const createSim = {
   },
   rechargeSim: async (request) => {
     try {
+      return {
+        success: false,
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        message: "service temporarily unavailable",
+        errors: { message: "service temporarily unavailable" },
+      };
       const { tenant } = request.query;
       const { amount } = request.body;
       const { sim_id } = req.params;
