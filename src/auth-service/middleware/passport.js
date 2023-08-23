@@ -3,8 +3,8 @@ const LocalStrategy = require("passport-local");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
-const UserSchema = require("@models/User");
-const AccessTokenSchema = require("@models/AccessToken");
+const UserModel = require("@models/User");
+const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
 const winstonLogger = require("@utils/log-winston");
 const { logElement, logText, logObject } = require("@utils/log");
@@ -12,16 +12,6 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-
-const { getModelByTenant } = require("@config/database");
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
-};
-
-const AccessTokenModel = (tenant) => {
-  return getModelByTenant(tenant, "token", AccessTokenSchema);
-};
 
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");

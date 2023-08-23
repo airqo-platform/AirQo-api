@@ -1,42 +1,23 @@
-const LocationHistorySchema = require("@models/LocationHistory");
-const UserSchema = require("@models/User");
+const LocationHistoryModel = require("@models/LocationHistory");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
-const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
-const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-
 const log4js = require("log4js");
 const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-history-util`
 );
 
-const LocationHistoryModel = (tenant) => {
-  try {
-    let locationHistories = mongoose.model("locationHistories");
-    return locationHistories;
-  } catch (error) {
-    let locationHistories = getModelByTenant(
-      tenant,
-      "locationHistory",
-      LocationHistorySchema
-    );
-    return locationHistories;
-  }
-};
-
 const locationHistories = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

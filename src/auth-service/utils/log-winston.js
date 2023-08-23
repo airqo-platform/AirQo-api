@@ -1,16 +1,7 @@
 const winston = require("winston");
 const { combine, timestamp, printf } = winston.format;
 const MongoDB = require("winston-mongodb").MongoDB;
-const LogSchema = require("@models/log");
-const { getTenantDB, getModelByTenant } = require("@config/database");
-
-const LogDB = (tenant) => {
-  return getTenantDB(tenant, "log", LogSchema);
-};
-
-const LogModel = (tenant) => {
-  return getModelByTenant(tenant, "log", LogSchema);
-};
+const { LogModel, LogDB, logSchema } = require("@models/log");
 
 const winstonLogger = winston.createLogger({
   level: "info",
@@ -27,7 +18,7 @@ const winstonLogger = winston.createLogger({
       ),
       metaKey: "metadata",
       level: "info",
-      schema: LogSchema,
+      schema: logSchema,
       model: LogModel("airqo"),
     }),
   ],

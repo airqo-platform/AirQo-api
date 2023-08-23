@@ -223,41 +223,9 @@ const createUser = {
     logText("..................................");
     logText("user verify......");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      logObject("req.user", req.user);
-      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
-
-      if (req.auth.success === true) {
-        return res.status(httpStatus.OK).send("this token is valid");
-      } else {
-        if (req.auth.error) {
-          return res.status(httpStatus.BAD_REQUEST).json({
-            success: req.auth.success,
-            error: req.auth.error,
-            message: req.auth.message,
-          });
-        }
-        return res.status(httpStatus.BAD_REQUEST).json({
-          success: req.auth.success,
-          message: req.auth.message,
-        });
-      }
+      return res.status(httpStatus.OK).send("this token is valid");
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
