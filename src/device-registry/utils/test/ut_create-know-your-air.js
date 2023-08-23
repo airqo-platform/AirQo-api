@@ -14,7 +14,7 @@ const generateFilter = require("../generate-filter");
 chai.use(chaiHttp);
 const expect = chai.expect;
 
-const generateFilter = {
+const generateFilterStub = {
   kyaprogress: sinon.stub().returns({}), // You can add the expected filter here
 };
 
@@ -588,7 +588,7 @@ describe("createKnowYourAir", () => {
 
     it("should return the list of user lesson progress", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
+      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
 
       // Act
       const result = await createKnowYourAir.listUserLessonProgress(
@@ -611,7 +611,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle filter error", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({
+      generateFilterStub.kyaprogress.returns({
         success: false,
         message: "Invalid filter",
       }); // Mock the filter error
@@ -629,7 +629,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle internal server error", async () => {
       // Arrange
-      generateFilter.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
+      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
 
       // Act
       const result = await createKnowYourAir.listUserLessonProgress(
@@ -656,7 +656,7 @@ describe("createKnowYourAir", () => {
 
     it("should delete user lesson progress and return success", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
+      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
 
       // Act
       const result = await createKnowYourAir.deleteUserLessonProgress(
@@ -672,7 +672,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle filter error", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({
+      generateFilterStub.kyaprogress.returns({
         success: false,
         message: "Invalid filter",
       }); // Mock the filter error
@@ -690,7 +690,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle internal server error", async () => {
       // Arrange
-      generateFilter.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
+      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
 
       // Act
       const result = await createKnowYourAir.deleteUserLessonProgress(
@@ -717,7 +717,7 @@ describe("createKnowYourAir", () => {
 
     it("should update user lesson progress and return success", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
+      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
 
       // Act
       const result = await createKnowYourAir.updateUserLessonProgress(
@@ -733,7 +733,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle filter error", async () => {
       // Arrange
-      generateFilter.kyaprogress.returns({
+      generateFilterStub.kyaprogress.returns({
         success: false,
         message: "Invalid filter",
       }); // Mock the filter error
@@ -751,7 +751,7 @@ describe("createKnowYourAir", () => {
 
     it("should handle internal server error", async () => {
       // Arrange
-      generateFilter.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
+      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
 
       // Act
       const result = await createKnowYourAir.updateUserLessonProgress(
@@ -1841,13 +1841,13 @@ describe("KYA QUIZ", () => {
     },
   }
 
-
+  const mongooseStub = sinon.stub(mongoose, "model");
   describe("Quiz", () => {
     describe("List Quizzes", () => {
 
-      const mongooseStub = sinon.stub(mongoose, "model");
+
       it("should return the list of quizzes", async () => {
-        const generateFilterStubQuiz = sinon.stub(generateFilter, "kyaquizzes").returns({
+        const generateFilterStubQuiz = sinon.stub(generateFilterStub, "kyaquizzes").returns({
           _id: quizStubValue._id
         });
         const listStub = sinon.stub().resolves(quizStubValue);
@@ -1880,11 +1880,11 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Delete Quiz", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should delete the quiz", async () => {
         const generateFilterStubQuiz = sinon
-          .stub(generateFilter, "kyaquizzes")
+          .stub(generateFilterStub, "kyaquizzes")
           .returns({
             _id: quizStubValue._id,
           });
@@ -1926,11 +1926,11 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Update Quiz", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should update the quiz", async () => {
         const generateFilterStubQuiz = sinon
-          .stub(generateFilter, "kyaquizzes")
+          .stub(generateFilterStub, "kyaquizzes")
           .returns({
             _id: quizStubValue._id,
           });
@@ -1971,7 +1971,7 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Create Quiz", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should create a quiz and publish it to Kafka", async () => {
         const mockResponse = { success: true, data: quizStubValue };
@@ -2037,9 +2037,9 @@ describe("KYA QUIZ", () => {
     sinon.restore();
     describe("List Questions", () => {
 
-      const mongooseStub = sinon.stub(mongoose, "model");
+
       it("should return the list of questions", async () => {
-        const generateFilterStubQuestions = sinon.stub(generateFilter, "kyaquestions").returns({
+        const generateFilterStubQuestions = sinon.stub(generateFilterStub, "kyaquestions").returns({
           _id: questionStubValue._id
         });
         const listStub = sinon.stub().resolves(questionStubValue);
@@ -2072,11 +2072,11 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Delete Question", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should delete the question", async () => {
         const generateFilterStubQuestion = sinon
-          .stub(generateFilter, "kyaquestions")
+          .stub(generateFilterStub, "kyaquestions")
           .returns({
             _id: questionStubValue._id,
           });
@@ -2118,11 +2118,11 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Update Question", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should update the question", async () => {
         const generateFilterStubQuestion = sinon
-          .stub(generateFilter, "kyaquestions")
+          .stub(generateFilterStub, "kyaquestions")
           .returns({
             _id: questionStubValue._id,
           });
@@ -2163,7 +2163,7 @@ describe("KYA QUIZ", () => {
     });
 
     describe("Create Question", () => {
-      const mongooseStub = sinon.stub(mongoose, "model");
+
 
       it("should create a question and publish it to Kafka", async () => {
         const mockResponse = { success: true, data: questionStubValue };
@@ -2226,9 +2226,9 @@ describe("KYA QUIZ", () => {
     sinon.restore();
     describe("List Answers", () => {
 
-      const mongooseStub = sinon.stub(mongoose, "model");
+
       it("should return the list of answers", async () => {
-        const generateFilterStubAnswers = sinon.stub(generateFilter, "kyaanswers").returns({
+        const generateFilterStubAnswers = sinon.stub(generateFilterStub, "kyaanswers").returns({
           _id: answerStubValue._id
         });
         const listStub = sinon.stub().resolves(answerStubValue);
@@ -2260,11 +2260,11 @@ describe("KYA QUIZ", () => {
       });
 
       describe("Delete Answer", () => {
-        const mongooseStub = sinon.stub(mongoose, "model");
+
 
         it("should delete the answer", async () => {
           const generateFilterStubAnswer = sinon
-            .stub(generateFilter, "kyaanswers")
+            .stub(generateFilterStub, "kyaanswers")
             .returns({
               _id: answerStubValue._id,
             });
@@ -2306,11 +2306,11 @@ describe("KYA QUIZ", () => {
       });
 
       describe("Update Answer", () => {
-        const mongooseStub = sinon.stub(mongoose, "model");
+
 
         it("should update the answer", async () => {
           const generateFilterStubAnswer = sinon
-            .stub(generateFilter, "kyaanswers")
+            .stub(generateFilterStub, "kyaanswers")
             .returns({
               _id: answerStubValue._id,
             });
@@ -2351,7 +2351,7 @@ describe("KYA QUIZ", () => {
       });
 
       describe("Create Answer", () => {
-        const mongooseStub = sinon.stub(mongoose, "model");
+
 
         it("should create a answer and publish it to Kafka", async () => {
           const mockResponse = { success: true, data: answerStubValue };
@@ -2414,9 +2414,9 @@ describe("KYA QUIZ", () => {
       sinon.restore();
       describe("List UserQuizProgress", () => {
 
-        const mongooseStub = sinon.stub(mongoose, "model");
+
         it("should return the list of UserProgress", async () => {
-          const generateFilterStubProgress = sinon.stub(generateFilter, "kyaprogress").returns({
+          const generateFilterStubProgress = sinon.stub(generateFilterStub, "kyaprogress").returns({
             _id: kyaProgressStubValue._id
           });
           const listStub = sinon.stub().resolves(kyaProgressStubValue);

@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const cohortSchema = require("@models/cohort"); // Replace with the actual path to your cohortSchema.js file
+const cohortSchema = require("@models/Cohort"); // Replace with the actual path to your cohortSchema.js file
 
 describe("Cohort Model", () => {
   let Cohort;
