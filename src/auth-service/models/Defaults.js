@@ -4,6 +4,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -274,4 +275,14 @@ DefaultsSchema.statics = {
   },
 };
 
-module.exports = DefaultsSchema;
+const DefaultModel = (tenant) => {
+  try {
+    let defaults = mongoose.model("defaults");
+    return defaults;
+  } catch (error) {
+    let defaults = getModelByTenant(tenant, "default", DefaultsSchema);
+    return defaults;
+  }
+};
+
+module.exports = DefaultModel;

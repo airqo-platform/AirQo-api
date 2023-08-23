@@ -354,4 +354,14 @@ GroupSchema.statics = {
   },
 };
 
-module.exports = GroupSchema;
+const GroupModel = (tenant) => {
+  try {
+    let groups = mongoose.model("groups");
+    return groups;
+  } catch (error) {
+    let groups = getModelByTenant(tenant, "group", GroupSchema);
+    return groups;
+  }
+};
+
+module.exports = GroupModel;

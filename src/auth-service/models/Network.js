@@ -6,6 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const NetworkSchema = new Schema(
   {
@@ -501,4 +502,14 @@ NetworkSchema.statics = {
   },
 };
 
-module.exports = NetworkSchema;
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+module.exports = NetworkModel;

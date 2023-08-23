@@ -65,11 +65,10 @@ const operationForNewMobileAppUser = async (messageData) => {
       }
     }
   } catch (error) {
-    logObject("KAFKA error: inside operationForNewMobileAppUser()", error);
     logger.error(
-      `KAFKA error: inside operationForNewMobileAppUser() -- ${JSON.stringify(
+      `KAFKA: internal server error -- operationForNewMobileAppUser() -- ${JSON.stringify(
         error
-      )} `
+      )}`
     );
   }
 };
@@ -96,7 +95,6 @@ const kafkaConsumer = async () => {
       // topic2: operationFunction2,
       // Add more topics and their corresponding functions as needed
     };
-
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(

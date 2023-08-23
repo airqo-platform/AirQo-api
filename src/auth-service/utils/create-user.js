@@ -1,7 +1,7 @@
-const UserSchema = require("@models/User");
-const LogSchema = require("@models/log");
-const NetworkSchema = require("@models/Network");
-const RoleSchema = require("@models/Role");
+const UserModel = require("@models/User");
+const LogModel = require("@models/log");
+const NetworkModel = require("@models/Network");
+const RoleModel = require("@models/Role");
 const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
@@ -42,43 +42,7 @@ function generateNumericToken(length) {
 
   return token;
 }
-const UserModel = (tenant) => {
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
-const LogModel = (tenant) => {
-  try {
-    const logs = mongoose.model("logs");
-    return logs;
-  } catch (error) {
-    const logs = getModelByTenant(tenant, "log", LogSchema);
-    return logs;
-  }
-};
 
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-const RoleModel = (tenant) => {
-  try {
-    let roles = mongoose.model("roles");
-    return roles;
-  } catch (error) {
-    let roles = getModelByTenant(tenant, "role", RoleSchema);
-    return roles;
-  }
-};
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);

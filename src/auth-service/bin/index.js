@@ -23,15 +23,21 @@ try {
 const main = async () => {
   try {
     await kafkaConsumer().catch((error) => {
-      logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+      logObject("KAFKA error in the main()", error);
+      logger.error(
+        `KAFKA: internal server error in the main() -- ${JSON.stringify(error)}`
+      );
+      logger.error(
+        `KAFKA error message: internal server error in the main() -- ${error.message}`
+      );
     });
     createServer();
   } catch (error) {
-    logger.error(`Unable to start the application -- ${JSON.stringify(error)}`);
+    logger.error(`error in the main() -- ${JSON.stringify(error)}`);
   }
 };
 
 main().catch((error) => {
   console.error("Error starting the application: ", error);
-  logger.error(`Unable to start the application -- ${JSON.stringify(error)}`);
+  logger.error(`Error starting the application -- ${JSON.stringify(error)}`);
 });

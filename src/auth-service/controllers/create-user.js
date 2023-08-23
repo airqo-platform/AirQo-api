@@ -220,7 +220,18 @@ const createUser = {
   },
 
   verify: (req, res) => {
-    return res.status(httpStatus.OK).send("this token is valid");
+    logText("..................................");
+    logText("user verify......");
+    try {
+      return res.status(httpStatus.OK).send("this token is valid");
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        success: false,
+      });
+    }
   },
   verifyEmail: async (req, res) => {
     try {

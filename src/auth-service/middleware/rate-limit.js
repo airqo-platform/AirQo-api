@@ -1,35 +1,14 @@
 const { client1 } = require("@config/redis");
 const redisClient = client1;
 const httpStatus = require("http-status");
-const { getModelByTenant } = require("@config/database");
-const AccessTokenSchema = require("@models/AccessToken");
-const ClientSchema = require("@models/Client");
+const AccessTokenModel = require("@models/AccessToken");
+const ClientModel = require("@models/Client");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- middleware/rate-limit`);
-
-const AccessTokenModel = (tenant) => {
-  try {
-    let tokens = mongoose.model("access_tokens");
-    return tokens;
-  } catch (error) {
-    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
-    return tokens;
-  }
-};
-
-const ClientModel = (tenant) => {
-  try {
-    let clients = mongoose.model("clients");
-    return clients;
-  } catch (error) {
-    let clients = getModelByTenant(tenant, "client", ClientSchema);
-    return clients;
-  }
-};
 
 const getClientLimit = (client) => {
   return client.rateLimit || 100;

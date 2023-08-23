@@ -3,6 +3,7 @@ const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { getModelByTenant } = require("@config/database");
 
 const ScopeSchema = new mongoose.Schema(
   {
@@ -228,4 +229,14 @@ ScopeSchema.methods = {
   },
 };
 
-module.exports = ScopeSchema;
+const ScopeModel = (tenant) => {
+  try {
+    const scopes = mongoose.model("scopes");
+    return scopes;
+  } catch (error) {
+    const scopes = getModelByTenant(tenant, "scope", ScopeSchema);
+    return scopes;
+  }
+};
+
+module.exports = ScopeModel;
