@@ -370,7 +370,6 @@ class ForecastUtils:
                     # rolling features
                     shifts2 = [2, 3, 7, 14]
                     functions = ["mean", "std", "max", "min"]
-                     #review this
                     for s in shifts2:
                         for f in functions:
                             df_tmp[f"pm2_5_{f}_{s}_day"] = (df_tmp_no_ts.shift(1, axis=0).rolling(s).agg(f))[
@@ -467,22 +466,8 @@ class ForecastUtils:
         forecasts["pm2_5_lower"] = forecasts["pm2_5_lower"].astype(float)
         forecasts["pm2_5_upper"] = forecasts["pm2_5_upper"].astype(float)
         forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
-        current_time_utc = pd.Timestamp(datetime.utcnow(), tz="UTC")
-        forecasts.rename(columns={"timestamp": "time"}, inplace=True)
-        result = forecasts[
-            [
-                "timestamp",
-                "pm2_5",
-                "pm2_5_lower",
-                "pm2_5_upper",
-                "margin_of_error",
-                "device_id",
-                "site_id",
-            ]
-        ][forecasts["time"] >= current_time_utc]
-
-        decode_categorical_features(result, frequency)
-        return result
+        decode_categorical_features(forecasts, frequency)
+        return forecasts
 
     @staticmethod
     def save_forecasts_to_mongo(data, frequency):
