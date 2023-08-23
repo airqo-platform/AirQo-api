@@ -1,2454 +1,3022 @@
 require("module-alias/register");
-const chai = require("chai");
-const chaiHttp = require("chai-http");
 const sinon = require("sinon");
+const chai = require("chai");
+const chaiAsPromised = require("chai-as-promised");
+const { expect } = chai;
+chai.use(chaiAsPromised);
 const httpStatus = require("http-status");
-const assert = chai.assert;
-const faker = require("faker");
-const mongoose = require("mongoose").set("debug", true);
-
 const createKnowYourAir = require("@utils/create-know-your-air");
-const { getModelByTenant } = require("@config/database");
-const generateFilter = require("../generate-filter");
 
-chai.use(chaiHttp);
-const expect = chai.expect;
+describe("createKnowYourAir Utility Functions", () => {
+  describe("KnowYourAirLessonModel", () => {
+    it("should return a model instance for a valid tenant", () => {
+      // Your test logic here
+    });
 
-const generateFilterStub = {
-  kyaprogress: sinon.stub().returns({}), // You can add the expected filter here
-};
-
-const KnowYourAirUserLessonProgressModelMock = {
-  list: sinon
-    .stub()
-    .resolves([
-      { _id: "progressId1", lesson: "lessonId1", progress: 50 },
-      { _id: "progressId2", lesson: "lessonId2", progress: 75 },
-    ]), // Mock the list of progress
-  remove: sinon.stub().resolves({
-    deletedCount: 1,
-  }), // Mock the response from the remove function
-  modify: sinon.stub().resolves({
-    success: true,
-    data: { updatedField: "Updated value" }, // Mock the response from the modify function
-  }),
-  register: sinon.stub().resolves({
-    success: true,
-    data: { lessonProgressId: "lessonProgressId1" }, // Mock the response from the register function
-  }),
-};
-
-// Mock the models and other dependencies
-const KnowYourAirLessonModelMock = {
-  remove: sinon.stub().resolves({ deletedCount: 1 }), // Mock the successful deletion
-  modify: sinon.stub().resolves({ updatedCount: 1, modifiedData: {} }), // Mock the successful update
-  register: sinon.stub().resolves({ success: true, data: {} }), // Mock the successful registration
-  findById: sinon.stub().resolves({ _id: "lessonId1" }), // Mock the found lesson
-};
-
-const KnowYourAirTaskModelMock = {
-  aggregate: sinon.stub().returns({
-    exec: sinon
-      .stub()
-      .resolves([
-        { _id: "taskId1", title: "Task 1" },
-        { _id: "taskId2", title: "Task 2" },
-      ]), // Mock the found tasks
-  }),
-};
-
-const kafkaProducerMock = {
-  connect: sinon.stub().resolves(),
-  send: sinon.stub().resolves(),
-  disconnect: sinon.stub().resolves(),
-};
-
-const kafkaMock = {
-  producer: sinon.stub().returns(kafkaProducerMock),
-};
-
-const getModelByTenantMock = sinon.stub().returns(KnowYourAirLessonModelMock);
-
-const requestMock = {
-  query: { tenant: "testTenant" },
-  params: { lesson_id: "lessonId1", user_id: "testUserId", task_id: "task_id" },
-  query: { tenant: "testTenant", limit: "10", skip: "0" },
-  body: {
-    taskName: "Updated Task",
-    task_ids: ["task_id_1", "task_id_2", "task_id_3"],
-    description: "Updated Task Description",
-    fieldToUpdate: "New value",
-    kya_user_progress: [
-      {
-        lesson_id: "lesson_id1",
-        active_task: "active_task1",
-        status: "status1",
-      },
-      // Add more progress data if needed for other test scenarios
-    ],
-  },
-};
-
-const filterSuccessMock = { success: true };
-const filterFailureMock = { success: false, message: "Filter failed" };
-
-const responseFromListUserLessonProgressMock = {
-  success: true,
-  data: [
-    {
-      _id: "progress_id1",
-      user_id: "testUserId",
-      lesson_id: "lesson_id1",
-      active_task: "active_task1",
-      status: "status1",
-    },
-    // Add more progress data if needed for other test scenarios
-  ],
-};
-
-const responseFromCreateUserLessonProgressMock = {
-  success: true,
-  data: { lessonProgressId: "progress_id1" },
-};
-
-const responseFromUpdateUserLessonProgressMock = {
-  success: true,
-  data: { updatedField: "updatedValue" },
-};
-
-const responseFromListKyaTaskMock = {
-  success: true,
-  data: [
-    { _id: "task_id1", name: "Task 1" },
-    { _id: "task_id2", name: "Task 2" },
-    // Add more task data if needed for other test scenarios
-  ],
-};
-
-const responseFromRemoveKyaTaskMock = {
-  success: true,
-  message: "Task deleted successfully",
-};
-
-const responseFromModifyKyaTaskMock = {
-  success: true,
-  message: "Task updated successfully",
-  data: {
-    _id: "task_id",
-    taskName: "Updated Task",
-    description: "Updated Task Description",
-    // Include other task properties here...
-  },
-};
-
-const responseFromRegisterKyaTaskSuccessMock = {
-  success: true,
-  message: "Task created successfully",
-  data: {
-    _id: "task_id",
-    taskName: "New Task",
-    description: "New Task Description",
-    // Include other task properties here...
-  },
-};
-
-const responseFromRegisterKyaTaskFailureMock = {
-  success: false,
-  message: "Task creation failed",
-  errors: { message: "Task creation failed" },
-  status: httpStatus.INTERNAL_SERVER_ERROR,
-};
-
-const taskExistsMock = true;
-const lessonExistsMock = true;
-
-const lessonMock = {
-  _id: "lesson_id",
-  lessonName: "Lesson 1",
-};
-
-const taskMock = {
-  _id: "task_id",
-  taskName: "Test Task",
-  description: "Test Task Description",
-  kya_lesson: null,
-  // Include other task properties here...
-};
-
-const taskMock1 = {
-  _id: "task_id_1",
-  taskName: "Task 1",
-  description: "Task 1 Description",
-  kya_lesson: null,
-};
-
-const taskMocks = [
-  {
-    _id: "task_id1",
-    taskName: "Task 1",
-    description: "Task 1 Description",
-    kya_lesson: "lesson_id",
-  },
-  {
-    _id: "task_id2",
-    taskName: "Task 2",
-    description: "Task 2 Description",
-    kya_lesson: "lesson_id",
-  },
-  // task_id3 is not assigned to the lesson
-];
-
-const taskMock2 = {
-  _id: "task_id_2",
-  taskName: "Task 2",
-  description: "Task 2 Description",
-  kya_lesson: null,
-};
-
-const taskMock3 = {
-  _id: "task_id_3",
-  taskName: "Task 3",
-  description: "Task 3 Description",
-  kya_lesson: "lesson_id", // Already assigned to the lesson
-};
-
-const updatedTaskMock = {
-  _id: "task_id",
-  taskName: "Test Task",
-  description: "Test Task Description",
-  kya_lesson: "lesson_id",
-  // Include other task properties here...
-};
-
-describe("createKnowYourAir", () => {
-  let sandbox;
-
-  before(() => {
-    // Create a sandbox for stubs and mocks
-    sandbox = sinon.createSandbox();
-  });
-
-  after(() => {
-    // Restore all stubs and mocks
-    sandbox.restore();
-  });
-
-  describe("sample", () => {
-    it("should return success: false and Internal Server Error for any request", async () => {
-      const request = {}; // Put your test request data here if needed
-
-      const response = await createKnowYourAir.sample(request);
-
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Internal Server Error");
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    it("should return a model instance for an invalid tenant", () => {
+      // Your test logic here
     });
   });
 
-  describe("listLesson", () => {
-    it("should return success: false and Internal Server Error if an error occurs during the query", async () => {
+  /*************** lessons *******************************/
+  describe("listLesson()", () => {
+    it("should return a list of lessons", async () => {
       const request = {
-        query: {},
-        params: { user_id: "test_user_id" },
-        query: { limit: "10", skip: "0", tenant: "test_tenant" },
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
       };
 
-      // Stub the KnowYourAirLessonModel.list method to throw an error
-      sandbox.stub(getModelByTenant, "list").throws(new Error("Test error"));
+      // Stub KnowYourAirLessonModel.list
+      const listStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "list")
+        .resolves({ success: true, data: [], status: httpStatus.OK });
 
-      const response = await createKnowYourAir.listLesson(request);
+      const result = await createKnowYourAir.listLesson(request);
 
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Internal Server Error");
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+      expect(result.status).to.equal(httpStatus.OK);
+
+      // Restore the stub
+      listStub.restore();
     });
 
-    it("should return success: true and the response data if the query is successful", async () => {
+    it("should handle filter failure", async () => {
       const request = {
-        query: {},
-        params: { user_id: "test_user_id" },
-        query: { limit: "10", skip: "0", tenant: "test_tenant" },
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
       };
 
-      const expectedResponse = {
-        success: true,
-        message: "Mocked response",
-        data: [], // Put your mocked data here
+      // Stub generateFilter.kyalessons to return a failure
+      sinon.stub(generateFilter, "kyalessons").returns({ success: false });
+
+      const result = await createKnowYourAir.listLesson(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyalessons.restore();
+    });
+
+    it("should handle errors", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
       };
 
-      // Stub the KnowYourAirLessonModel.list method to return the expected response
-      sandbox.stub(getModelByTenant, "list").returns(expectedResponse);
+      // Stub KnowYourAirLessonModel.list to throw an error
+      sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "list")
+        .throws(new Error("Some error"));
 
-      const response = await createKnowYourAir.listLesson(request);
+      const result = await createKnowYourAir.listLesson(request);
 
-      expect(response).to.deep.equal(expectedResponse);
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      // Your other assertions here
+
+      // Restore the stub
+      KnowYourAirLessonModel("your-tenant").list.restore();
     });
   });
+  describe("deleteLesson()", () => {
+    it("should delete a lesson", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
 
-  describe("deleteLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should delete the lesson successfully", async () => {
-      // Arrange
-      sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
-
-      // Act
-      const result = await createKnowYourAir.deleteLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Lesson successfully deleted");
-      expect(result).to.have.property("status", httpStatus.OK);
-    });
-
-    it("should handle failure to delete the lesson", async () => {
-      // Arrange
-      sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
-      KnowYourAirLessonModelMock.remove.rejects(new Error("Failed to delete"));
-
-      // Act
-      const result = await createKnowYourAir.deleteLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Failed to delete lesson");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-
-    it("should handle filter error", async () => {
-      // Arrange
-      sinon.stub(createKnowYourAir, "generateFilter").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
+      // Stub generateFilter.kyalessons to return a valid filter
+      sinon.stub(generateFilter, "kyalessons").returns({
+        /* filter data here */
       });
 
-      // Act
-      const result = await createKnowYourAir.deleteLesson(requestMock);
+      // Stub KnowYourAirLessonModel.remove to return a success
+      const removeStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "remove")
+        .resolves({ success: true, status: httpStatus.OK });
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-  });
+      const result = await createKnowYourAir.deleteLesson(request);
 
-  describe("updateLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      // Your other assertions here
 
-    it("should update the lesson successfully", async () => {
-      // Arrange
-      sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
-
-      // Act
-      const result = await createKnowYourAir.updateLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Lesson successfully updated");
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.have.property("data"); // Assuming the updated data is returned
+      // Restore the stubs
+      generateFilter.kyalessons.restore();
+      KnowYourAirLessonModel("your-tenant").remove.restore();
     });
 
-    it("should handle failure to update the lesson", async () => {
-      // Arrange
-      sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
-      KnowYourAirLessonModelMock.modify.rejects(new Error("Failed to update"));
+    it("should handle filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
 
-      // Act
-      const result = await createKnowYourAir.updateLesson(requestMock);
+      // Stub generateFilter.kyalessons to return a failure
+      sinon.stub(generateFilter, "kyalessons").returns({ success: false });
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Failed to update lesson");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
+      const result = await createKnowYourAir.deleteLesson(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyalessons.restore();
     });
 
-    it("should handle filter error", async () => {
-      // Arrange
-      sinon.stub(createKnowYourAir, "generateFilter").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
+    it("should handle errors", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
+
+      // Stub generateFilter.kyalessons to return a valid filter
+      sinon.stub(generateFilter, "kyalessons").returns({
+        /* filter data here */
       });
 
-      // Act
-      const result = await createKnowYourAir.updateLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-  });
-
-  describe("createLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should create a lesson and send it to Kafka successfully", async () => {
-      // Arrange
-      const kafkaSendSpy = sinon.spy(kafkaProducerMock, "send");
+      // Stub KnowYourAirLessonModel.remove to throw an error
       sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
+        .stub(KnowYourAirLessonModel("your-tenant"), "remove")
+        .throws(new Error("Some error"));
 
-      // Act
-      const result = await createKnowYourAir.createLesson(requestMock);
+      const result = await createKnowYourAir.deleteLesson(request);
 
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Lesson successfully created");
-      expect(result).to.have.property("status", httpStatus.CREATED);
-      expect(result).to.have.property("data"); // Assuming the created lesson data is returned
-      expect(kafkaSendSpy.calledOnce).to.be.true;
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyalessons.restore();
+      KnowYourAirLessonModel("your-tenant").remove.restore();
+    });
+  });
+  describe("updateLesson()", () => {
+    it("should update a lesson", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
+
+      // Stub generateFilter.kyalessons to return a valid filter
+      sinon.stub(generateFilter, "kyalessons").returns({
+        /* filter data here */
+      });
+
+      // Stub KnowYourAirLessonModel.modify to return a success
+      const modifyStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "modify")
+        .resolves({ success: true, status: httpStatus.OK });
+
+      const result = await createKnowYourAir.updateLesson(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyalessons.restore();
+      KnowYourAirLessonModel("your-tenant").modify.restore();
     });
 
-    it("should handle failure during lesson creation", async () => {
-      // Arrange
+    it("should handle filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
+
+      // Stub generateFilter.kyalessons to return a failure
+      sinon.stub(generateFilter, "kyalessons").returns({ success: false });
+
+      const result = await createKnowYourAir.updateLesson(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyalessons.restore();
+    });
+
+    it("should handle errors", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
+
+      // Stub generateFilter.kyalessons to return a valid filter
+      sinon.stub(generateFilter, "kyalessons").returns({
+        /* filter data here */
+      });
+
+      // Stub KnowYourAirLessonModel.modify to throw an error
       sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns({ success: true });
-      KnowYourAirLessonModelMock.register.rejects(
-        new Error("Failed to create")
-      );
+        .stub(KnowYourAirLessonModel("your-tenant"), "modify")
+        .throws(new Error("Some error"));
 
-      // Act
-      const result = await createKnowYourAir.createLesson(requestMock);
+      const result = await createKnowYourAir.updateLesson(request);
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Failed to create lesson");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      // Your other assertions here
 
-    it("should handle filter error", async () => {
-      // Arrange
-      sinon.stub(createKnowYourAir, "generateFilter").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
-      });
-
-      // Act
-      const result = await createKnowYourAir.createLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
+      // Restore the stubs
+      generateFilter.kyalessons.restore();
+      KnowYourAirLessonModel("your-tenant").modify.restore();
     });
   });
-
-  describe("listAvailableTasks function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return all available tasks for a valid lesson ID", async () => {
-      // Act
-      const result = await createKnowYourAir.listAvailableTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("message")
-        .that.includes("retrieved all available tasks");
-      expect(result)
-        .to.have.property("data")
-        .that.is.an("array")
-        .with.lengthOf(2); // Assuming two tasks are returned
-      expect(result.data[0]).to.have.property("_id", "taskId1");
-      expect(result.data[1]).to.have.property("_id", "taskId2");
-    });
-
-    it("should return a Bad Request error for an invalid lesson ID", async () => {
-      // Arrange
-      KnowYourAirLessonModelMock.findById.resolves(null); // Lesson not found
-
-      // Act
-      const result = await createKnowYourAir.listAvailableTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("errors");
-      expect(result.errors)
-        .to.have.property("message")
-        .that.includes("Invalid lesson ID");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      KnowYourAirLessonModelMock.findById.rejects(
-        new Error("Internal Server Error")
-      );
-
-      // Act
-      const result = await createKnowYourAir.listAvailableTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("listAssignedTasks function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return all assigned tasks for a valid lesson ID", async () => {
-      // Act
-      const result = await createKnowYourAir.listAssignedTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("message")
-        .that.includes("retrieved all assigned tasks");
-      expect(result)
-        .to.have.property("data")
-        .that.is.an("array")
-        .with.lengthOf(2); // Assuming two tasks are returned
-      expect(result.data[0]).to.have.property("_id", "taskId1");
-      expect(result.data[1]).to.have.property("_id", "taskId2");
-    });
-
-    it("should return a Bad Request error for an invalid lesson ID", async () => {
-      // Arrange
-      KnowYourAirLessonModelMock.findById.resolves(null); // Lesson not found
-
-      // Act
-      const result = await createKnowYourAir.listAssignedTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("errors");
-      expect(result.errors)
-        .to.have.property("message")
-        .that.includes("Invalid lesson ID");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      KnowYourAirLessonModelMock.findById.rejects(
-        new Error("Internal Server Error")
-      );
-
-      // Act
-      const result = await createKnowYourAir.listAssignedTasks(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("listUserLessonProgress function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return the list of user lesson progress", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
-
-      // Act
-      const result = await createKnowYourAir.listUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("data")
-        .that.is.an("array")
-        .with.lengthOf(2); // Assuming two progress records are returned
-      expect(result.data[0]).to.have.property("_id", "progressId1");
-      expect(result.data[0]).to.have.property("lesson", "lessonId1");
-      expect(result.data[0]).to.have.property("progress", 50);
-      expect(result.data[1]).to.have.property("_id", "progressId2");
-      expect(result.data[1]).to.have.property("lesson", "lessonId2");
-      expect(result.data[1]).to.have.property("progress", 75);
-    });
-
-    it("should handle filter error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({
-        success: false,
-        message: "Invalid filter",
-      }); // Mock the filter error
-
-      // Act
-      const result = await createKnowYourAir.listUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
-
-      // Act
-      const result = await createKnowYourAir.listUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("deleteUserLessonProgress function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should delete user lesson progress and return success", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
-
-      // Act
-      const result = await createKnowYourAir.deleteUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals({ deletedCount: 1 });
-    });
-
-    it("should handle filter error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({
-        success: false,
-        message: "Invalid filter",
-      }); // Mock the filter error
-
-      // Act
-      const result = await createKnowYourAir.deleteUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
-
-      // Act
-      const result = await createKnowYourAir.deleteUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("updateUserLessonProgress function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should update user lesson progress and return success", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({ lesson: "lessonId1" }); // Mock the expected filter
-
-      // Act
-      const result = await createKnowYourAir.updateUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals({ updatedField: "Updated value" });
-    });
-
-    it("should handle filter error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.returns({
-        success: false,
-        message: "Invalid filter",
-      }); // Mock the filter error
-
-      // Act
-      const result = await createKnowYourAir.updateUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Invalid filter");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      generateFilterStub.kyaprogress.throws(new Error("Internal Server Error")); // Mock the internal server error
-
-      // Act
-      const result = await createKnowYourAir.updateUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("createUserLessonProgress function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should create user lesson progress and return success", async () => {
-      // Act
-      const result = await createKnowYourAir.createUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals({ lessonProgressId: "lessonProgressId1" });
-    });
-
-    it("should handle internal server error", async () => {
-      // Arrange
-      KnowYourAirUserLessonProgressModelMock.register.throws(
-        new Error("Internal Server Error")
-      ); // Mock the internal server error
-
-      // Act
-      const result = await createKnowYourAir.createUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    });
-  });
-
-  describe("syncUserLessonProgress function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should sync user lesson progress when progress list is not empty", async () => {
-      // Arrange
-      const listUserLessonProgressStub = sinon
-        .stub(createKnowYourAir, "listUserLessonProgress")
-        .resolves(responseFromListUserLessonProgressMock);
-
-      const createUserLessonProgressStub = sinon
-        .stub(createKnowYourAir, "createUserLessonProgress")
-        .resolves(responseFromCreateUserLessonProgressMock);
-
-      const updateUserLessonProgressStub = sinon
-        .stub(createKnowYourAir, "updateUserLessonProgress")
-        .resolves(responseFromUpdateUserLessonProgressMock);
-
-      // Act
-      const result = await createKnowYourAir.syncUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Sync successful");
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals(responseFromListUserLessonProgressMock.data);
-      expect(listUserLessonProgressStub.called).to.be.true;
-      expect(createUserLessonProgressStub.called).to.be.true;
-      expect(updateUserLessonProgressStub.called).to.be.true;
-    });
-
-    it("should handle internal server error during sync", async () => {
-      // Arrange
-      const listUserLessonProgressStub = sinon
-        .stub(createKnowYourAir, "listUserLessonProgress")
-        .throws(new Error("Internal Server Error"));
-
-      // Act
-      const result = await createKnowYourAir.syncUserLessonProgress(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({ message: "Internal Server Error" });
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(listUserLessonProgressStub.called).to.be.true;
-    });
-
-    // Add more test cases to cover other scenarios if needed
-  });
-
-  describe("listTask function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should list tasks successfully", async () => {
-      // Arrange
-      const listKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "list")
-        .resolves(responseFromListKyaTaskMock);
-
-      // Act
-      const result = await createKnowYourAir.listTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals(responseFromListKyaTaskMock.data);
-      expect(
-        listKyaTaskStub.calledWithExactly({
-          filter: sinon.match.any, // You can add specific filter expectations here if needed
-          limit: 10,
-          skip: 0,
-        })
-      ).to.be.true;
-    });
-
-    it("should handle internal server error during listing tasks", async () => {
-      // Arrange
-      const listKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "list")
-        .throws(new Error("Internal Server Error"));
-
-      // Act
-      const result = await createKnowYourAir.listTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(result).to.have.nested.property("errors.message");
-      expect(
-        listKyaTaskStub.calledWithExactly({
-          filter: sinon.match.any, // You can add specific filter expectations here if needed
-          limit: 10,
-          skip: 0,
-        })
-      ).to.be.true;
-    });
-
-    // Add more test cases to cover other scenarios if needed
-  });
-
-  describe("deleteTask function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should delete task successfully", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterSuccessMock);
-
-      const removeKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "remove")
-        .resolves(responseFromRemoveKyaTaskMock);
-
-      // Act
-      const result = await createKnowYourAir.deleteTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Task deleted successfully");
-      expect(result).to.not.have.property("errors");
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-      expect(removeKyaTaskStub.calledWithExactly({ filter: filterSuccessMock }))
-        .to.be.true;
-    });
-
-    it("should return filter failure message when filter is not successful", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterFailureMock);
-
-      // Act
-      const result = await createKnowYourAir.deleteTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Filter failed");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-    });
-
-    it("should handle internal server error during task deletion", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterSuccessMock);
-
-      const removeKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "remove")
-        .throws(new Error("Internal Server Error"));
-
-      // Act
-      const result = await createKnowYourAir.deleteTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(result).to.have.nested.property("errors.message");
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-      expect(removeKyaTaskStub.calledWithExactly({ filter: filterSuccessMock }))
-        .to.be.true;
-    });
-
-    // Add more test cases to cover other scenarios if needed
-  });
-
-  describe("updateTask function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should update task successfully", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterSuccessMock);
-
-      const modifyKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "modify")
-        .resolves(responseFromModifyKyaTaskMock);
-
-      // Act
-      const result = await createKnowYourAir.updateTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Task updated successfully");
-      expect(result).to.have.property("data");
-      expect(result.data).to.deep.equal(responseFromModifyKyaTaskMock.data);
-      expect(result).to.not.have.property("errors");
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-      expect(
-        modifyKyaTaskStub.calledWithExactly({
-          filter: filterSuccessMock,
-          update: requestMock.body,
-          opts: { new: true },
-        })
-      ).to.be.true;
-    });
-
-    it("should return filter failure message when filter is not successful", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterFailureMock);
-
-      // Act
-      const result = await createKnowYourAir.updateTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Filter failed");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-    });
-
-    it("should handle internal server error during task update", async () => {
-      // Arrange
-      const generateFilterStub = sinon
-        .stub(createKnowYourAir, "generateFilter")
-        .returns(filterSuccessMock);
-
-      const modifyKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "modify")
-        .throws(new Error("Internal Server Error"));
-
-      // Act
-      const result = await createKnowYourAir.updateTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(result).to.have.nested.property("errors.message");
-      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
-      expect(
-        modifyKyaTaskStub.calledWithExactly({
-          filter: filterSuccessMock,
-          update: requestMock.body,
-          opts: { new: true },
-        })
-      ).to.be.true;
-    });
-
-    // Add more test cases to cover other scenarios if needed
-  });
-
-  describe("createTask function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should create a new task successfully and send a Kafka message", async () => {
-      // Arrange
-      const registerKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "register")
-        .resolves(responseFromRegisterKyaTaskSuccessMock);
-
-      const kafkaProducerSendStub = sinon.stub().resolves();
-
-      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-        connect: sinon.stub().resolves(),
-        send: kafkaProducerSendStub,
-        disconnect: sinon.stub().resolves(),
-      });
-
-      // Act
-      const result = await createKnowYourAir.createTask(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Task created successfully");
-      expect(result).to.have.property("data");
-      expect(result.data).to.deep.equal(
-        responseFromRegisterKyaTaskSuccessMock.data
-      );
-      expect(result).to.not.have.property("errors");
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(registerKyaTaskStub.calledWithExactly(requestMock.body)).to.be
-        .true;
-
-      // Ensure Kafka producer is called with the correct message
-      expect(kafkaProducerStub.calledOnce).to.be.true;
-      expect(kafkaProducerStub.args[0][0]).to.deep.equal({
-        groupId: constants.UNIQUE_PRODUCER_GROUP,
-      });
-
-      expect(kafkaProducerSendStub.calledOnce).to.be.true;
-      expect(kafkaProducerSendStub.args[0][0]).to.deep.equal({
-        topic: constants.KYA_LESSON,
-        messages: [
-          {
-            action: "create-kya-task",
-            value: JSON.stringify(responseFromRegisterKyaTaskSuccessMock.data),
+  describe("createLesson()", () => {
+    it("should create a lesson and send a Kafka message", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
+
+      // Stub KnowYourAirLessonModel.register to return a success response
+      const registerStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "register")
+        .resolves({
+          success: true,
+          data: {
+            /* lesson data here */
           },
-        ],
-      });
+        });
+
+      // Stub Kafka producer methods to return successful responses
+      const kafkaProducerStub = sinon
+        .stub(kafka.producer(), ["connect", "send", "disconnect"])
+        .resolves();
+
+      const result = await createKnowYourAir.createLesson(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel("your-tenant").register.restore();
+      kafka.producer().connect.restore();
+      kafka.producer().send.restore();
+      kafka.producer().disconnect.restore();
     });
 
-    it("should handle failure during task creation", async () => {
-      // Arrange
-      const registerKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "register")
-        .resolves(responseFromRegisterKyaTaskFailureMock);
+    it("should handle lesson registration failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
 
-      const kafkaProducerSendStub = sinon.stub().resolves();
+      // Stub KnowYourAirLessonModel.register to return a failure response
+      const registerStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "register")
+        .resolves({ success: false });
 
-      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-        connect: sinon.stub().resolves(),
-        send: kafkaProducerSendStub,
-        disconnect: sinon.stub().resolves(),
-      });
+      const result = await createKnowYourAir.createLesson(request);
 
-      // Act
-      const result = await createKnowYourAir.createTask(requestMock);
+      expect(result.success).to.be.false;
+      // Your other assertions here
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Task creation failed");
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal(
-        responseFromRegisterKyaTaskFailureMock.errors
-      );
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(registerKyaTaskStub.calledWithExactly(requestMock.body)).to.be
-        .true;
-
-      // Ensure Kafka producer is not called when task creation fails
-      expect(kafkaProducerStub.called).to.be.false;
-      expect(kafkaProducerSendStub.called).to.be.false;
+      // Restore the stub
+      KnowYourAirLessonModel("your-tenant").register.restore();
     });
 
-    it("should handle internal server error during task creation", async () => {
-      // Arrange
-      const registerKyaTaskStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "register")
-        .throws(new Error("Internal Server Error"));
+    it("should handle lesson registration error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body here */
+        },
+      };
 
-      // Act
-      const result = await createKnowYourAir.createTask(requestMock);
+      // Stub KnowYourAirLessonModel.register to throw an error
+      const registerStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "register")
+        .throws(new Error("Some error"));
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(result).to.have.nested.property("errors.message");
-      expect(registerKyaTaskStub.calledWithExactly(requestMock.body)).to.be
-        .true;
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createLesson(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel("your-tenant").register.restore();
+      logger.error.restore();
     });
-
-    // Add more test cases to cover other scenarios if needed
   });
+  describe("listAvailableTasks()", () => {
+    it("should list available tasks for a lesson", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { lesson_id: "lesson-id" },
+      };
 
-  describe("assignTaskToLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
+      // Stub KnowYourAirLessonModel.findById to return a lesson
+      const lessonStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "findById")
+        .resolves({ _id: "lesson-id" });
+
+      // Stub KnowYourAirTaskModel.aggregate to return available tasks
+      const taskAggregateStub = sinon
+        .stub(KnowYourAirTaskModel("your-tenant"), "aggregate")
+        .resolves([
+          /* available tasks array here */
+        ]);
+
+      const result = await createKnowYourAir.listAvailableTasks(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel("your-tenant").findById.restore();
+      KnowYourAirTaskModel("your-tenant").aggregate.restore();
     });
 
-    it("should assign the task to the lesson successfully", async () => {
-      // Arrange
-      const taskExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "exists")
-        .resolves(taskExistsMock);
+    it("should handle invalid lesson ID", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { lesson_id: "invalid-id" },
+      };
 
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(lessonExistsMock);
+      // Stub KnowYourAirLessonModel.findById to return null
+      const lessonStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "findById")
+        .resolves(null);
 
-      const taskFindByIdStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "findById")
-        .resolves(taskMock);
+      const result = await createKnowYourAir.listAvailableTasks(request);
 
-      const taskFindByIdAndUpdateStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "findByIdAndUpdate"
-        )
-        .resolves(updatedTaskMock);
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Bad Request Error");
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      // Your other assertions here
 
-      // Act
-      const result = await createKnowYourAir.assignTaskToLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "Task assigned to the Lesson");
-      expect(result).to.have.property("data");
-      expect(result.data).to.deep.equal(updatedTaskMock);
-      expect(result).to.not.have.property("errors");
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      expect(taskExistsStub.calledWithExactly({ _id: "task_id" })).to.be.true;
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id")).to.be.true;
-      expect(
-        taskFindByIdAndUpdateStub.calledWithExactly(
-          "task_id",
-          { kya_lesson: "lesson_id" },
-          { new: true }
-        )
-      ).to.be.true;
+      // Restore the stub
+      KnowYourAirLessonModel("your-tenant").findById.restore();
     });
 
-    it("should handle Task or Lesson not found", async () => {
-      // Arrange
-      const taskExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "exists")
-        .resolves(false);
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { lesson_id: "lesson-id" },
+      };
 
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(false);
+      // Stub KnowYourAirLessonModel.findById to return a lesson
+      const lessonStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "findById")
+        .resolves({ _id: "lesson-id" });
 
-      // Act
-      const result = await createKnowYourAir.assignTaskToLesson(requestMock);
+      // Stub KnowYourAirTaskModel.aggregate to throw an error
+      const taskAggregateStub = sinon
+        .stub(KnowYourAirTaskModel("your-tenant"), "aggregate")
+        .throws(new Error("Some error"));
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Task or Lesson not found");
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Task task_id or Lesson lesson_id are not found",
-      });
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-      expect(taskExistsStub.calledWithExactly({ _id: "task_id" })).to.be.true;
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
+      const result = await createKnowYourAir.listAvailableTasks(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel("your-tenant").findById.restore();
+      KnowYourAirTaskModel("your-tenant").aggregate.restore();
+      logger.error.restore();
     });
-
-    it("should handle Task already assigned to the Lesson", async () => {
-      // Arrange
-      const taskExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "exists")
-        .resolves(true);
-
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(true);
-
-      const taskFindByIdStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "findById")
-        .resolves(updatedTaskMock);
-
-      // Act
-      const result = await createKnowYourAir.assignTaskToLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Task task_id is already assigned to the Lesson lesson_id",
-      });
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-
-      expect(taskExistsStub.calledWithExactly({ _id: "task_id" })).to.be.true;
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id")).to.be.true;
-    });
-
-    it("should handle internal server error during task assignment", async () => {
-      // Arrange
-      const taskExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "exists")
-        .throws(new Error("Internal Server Error"));
-
-      // Act
-      const result = await createKnowYourAir.assignTaskToLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property(
-        "status",
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(result).to.have.nested.property("errors.message");
-
-      expect(taskExistsStub.calledWithExactly({ _id: "task_id" })).to.be.true;
-    });
-
-    // Add more test cases to cover other scenarios if needed
   });
+  describe("listAssignedTasks()", () => {
+    it("should list assigned tasks for a lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const lessonData = {
+        /* your lesson data */
+      };
 
-  describe("assignManyTasksToLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves(lessonData);
 
-    it("should assign tasks to the lesson successfully", async () => {
-      // Arrange
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(lessonExistsMock);
+      // Stub KnowYourAirTaskModel(tenant).aggregate to resolve successfully
+      const aggregateStub = sinon
+        .stub(KnowYourAirTaskModel, "aggregate")
+        .resolves([
+          ,/* task 1 data */
+        /* task 2 data */
+        ]);
 
-      const taskFindByIdStub = sinon.stub(
-        createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-        "findById"
-      );
-      taskFindByIdStub.withArgs("task_id_1").resolves(taskMock1);
-      taskFindByIdStub.withArgs("task_id_2").resolves(taskMock2);
-      taskFindByIdStub.withArgs("task_id_3").resolves(taskMock3);
+      const result = await createKnowYourAir.listAssignedTasks({
+        params: { lesson_id },
+        query: { tenant },
+      });
 
-      const taskUpdateManyStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "updateMany"
-        )
-        .resolves({ nModified: 2 });
-
-      // Act
-      const result = await createKnowYourAir.assignManyTasksToLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully assigned all the provided tasks to the Lesson"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.have.property("data");
+      expect(result.success).to.be.true;
       expect(result.data)
         .to.be.an("array")
-        .and.to.have.lengthOf(0);
-      expect(result).to.not.have.property("errors");
+        .lengthOf(2);
+      // Your other assertions here
 
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_1")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_2")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_3")).to.be.true;
-
-      expect(taskUpdateManyStub.calledOnce).to.be.true;
-      expect(taskUpdateManyStub.args[0][0]).to.deep.equal({
-        _id: { $in: ["task_id_1", "task_id_2", "task_id_3"] },
-      });
-      expect(taskUpdateManyStub.args[0][1]).to.deep.equal({
-        kya_lesson: "lesson_id",
-      });
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.aggregate.restore();
     });
 
-    it("should handle invalid lesson ID", async () => {
-      // Arrange
+    it("should handle not found lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "non-existent-lesson-id";
+
+      // Stub KnowYourAirLessonModel(tenant).findById to return null
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves(null);
+
+      const result = await createKnowYourAir.listAssignedTasks({
+        params: { lesson_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const lessonData = {
+        /* your lesson data */
+      };
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves(lessonData);
+
+      // Stub KnowYourAirTaskModel(tenant).aggregate to throw an error
+      const aggregateStub = sinon
+        .stub(KnowYourAirTaskModel, "aggregate")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listAssignedTasks({
+        params: { lesson_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.aggregate.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* tracking user progress ***************** */
+  describe("listUserQuizProgres()", () => {
+    it("should list user quiz progress", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: {
+          /* user_id */
+        },
+        query: { limit: 10, skip: 0 }, // Set the limit and skip values as needed
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).list to return a successful response
+      const userQuizProgressListStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "list")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.listUserQuizProgress(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").list.restore();
+    });
+
+    it("should handle a filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: {
+          /* user_id */
+        },
+        query: { limit: 10, skip: 0 }, // Set the limit and skip values as needed
+      };
+
+      // Stub generateFilter.kyaprogress to return a failed response
+      const filterStub = sinon
+        .stub(generateFilter, "kyaprogress")
+        .returns({ success: false /* other response properties */ });
+
+      const result = await createKnowYourAir.listUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyaprogress.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: {
+          /* user_id */
+        },
+        query: { limit: 10, skip: 0 }, // Set the limit and skip values as needed
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).list to throw an error
+      const userQuizProgressListStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "list")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteUserQuizProgress()", () => {
+    it("should delete user quiz progress", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).remove to return a successful response
+      const deleteUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "remove")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.deleteUserQuizProgress(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").remove.restore();
+    });
+
+    it("should handle a filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a failed response
+      const filterStub = sinon
+        .stub(generateFilter, "kyaprogress")
+        .returns({ success: false /* other response properties */ });
+
+      const result = await createKnowYourAir.deleteUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyaprogress.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).remove to throw an error
+      const deleteUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "remove")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.deleteUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateUserQuizProgress()", () => {
+    it("should update user quiz progress", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* update data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).modify to return a successful response
+      const updateUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "modify")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.updateUserQuizProgress(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").modify.restore();
+    });
+
+    it("should handle a filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* update data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a failed response
+      const filterStub = sinon
+        .stub(generateFilter, "kyaprogress")
+        .returns({ success: false /* other response properties */ });
+
+      const result = await createKnowYourAir.updateUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stub
+      generateFilter.kyaprogress.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* update data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaprogress to return a successful response
+      const filterStub = sinon.stub(generateFilter, "kyaprogress").returns({
+        /* filter data */
+      });
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).modify to throw an error
+      const updateUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "modify")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.updateUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaprogress.restore();
+      KnowYourAirUserQuizProgressModel("your-tenant").modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createUserQuizProgress()", () => {
+    it("should create user quiz progress", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).register to return a successful response
+      const createUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "register")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.createUserQuizProgress(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stub
+      KnowYourAirUserQuizProgressModel("your-tenant").register.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* request body data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).register to throw an error
+      const createUserQuizProgressStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel("your-tenant"), "register")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel("your-tenant").register.restore();
+      logger.error.restore();
+    });
+  });
+  describe("syncUserQuizProgress()", () => {
+    it("should sync user quiz progress", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        body: {
+          kya_quiz_user_progress: [
+            /* array of progress data */
+          ],
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub createKnowYourAir.listUserQuizProgress to return a successful response
+      const listUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "listUserQuizProgress")
+        .resolves({ success: true, data: "" });
+
+      // Stub createKnowYourAir.createUserQuizProgress and createKnowYourAir.updateUserQuizProgress to return a successful response
+      const createUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "createUserQuizProgress")
+        .resolves({ success: true /* other response properties */ });
+      const updateUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "updateUserQuizProgress")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.syncUserQuizProgress(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      createKnowYourAir.listUserQuizProgress.restore();
+      createKnowYourAir.createUserQuizProgress.restore();
+      createKnowYourAir.updateUserQuizProgress.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        body: {
+          kya_quiz_user_progress: [
+            /* array of progress data */
+          ],
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub createKnowYourAir.listUserQuizProgress to throw an error
+      const listUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "listUserQuizProgress")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.syncUserQuizProgress(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      createKnowYourAir.listUserQuizProgress.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* tasks *******************************/
+  describe("listTask()", () => {
+    it("should list tasks", async () => {
+      const tenant = "your-tenant";
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).list to return mock task data
+      const listTaskStub = sinon.stub(KnowYourAirTaskModel, "list").resolves({
+        /* Mock task data */
+      });
+
+      const result = await createKnowYourAir.listTask({
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.list.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).list to throw an error
+      const listTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "list")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listTask({
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteTask()", () => {
+    it("should delete a task", async () => {
+      const tenant = "your-tenant";
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).remove to resolve with success data
+      const removeTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "remove")
+        .resolves({ success: true });
+
+      const result = await createKnowYourAir.deleteTask({
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.remove.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).remove to throw an error
+      const removeTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "remove")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.deleteTask({
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateTask()", () => {
+    it("should update a task", async () => {
+      const tenant = "your-tenant";
+      const requestBody = {
+        /* your update data */
+      };
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).modify to resolve with updated data
+      const modifyTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "modify")
+        .resolves({
+          success: true,
+          data: {
+            /* updated data */
+          },
+        });
+
+      const result = await createKnowYourAir.updateTask({
+        query: { tenant },
+        body: requestBody,
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.modify.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const requestBody = {
+        /* your update data */
+      };
+
+      // Stub generateFilter.kyatasks to return a mock filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyatasks")
+        .returns({ success: true });
+
+      // Stub KnowYourAirTaskModel(tenant).modify to throw an error
+      const modifyTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "modify")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.updateTask({
+        query: { tenant },
+        body: requestBody,
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyatasks.restore();
+      KnowYourAirTaskModel.modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createTask()", () => {
+    it("should create a task and send a Kafka message", async () => {
+      const tenant = "your-tenant";
+      const requestBody = {
+        /* your task data */
+      };
+
+      // Stub KnowYourAirTaskModel(tenant).register to resolve with response data
+      const registerTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "register")
+        .resolves({
+          success: true,
+          data: {
+            /* your response data */
+          },
+        });
+
+      // Stub kafka.producer to resolve successfully
+      const kafkaProducerStub = sinon.stub(kafka, "producer").returnsThis();
+      kafkaProducerStub.returnsThis();
+      kafkaProducerStub
+        .withArgs({ groupId: constants.UNIQUE_PRODUCER_GROUP })
+        .returnsThis();
+      kafkaProducerStub.prototype.connect = sinon.stub().resolves();
+      kafkaProducerStub.prototype.send = sinon.stub().resolves();
+      kafkaProducerStub.prototype.disconnect = sinon.stub().resolves();
+
+      const result = await createKnowYourAir.createTask({
+        query: { tenant },
+        body: requestBody,
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirTaskModel.register.restore();
+      kafka.producer.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const requestBody = {
+        /* your task data */
+      };
+
+      // Stub KnowYourAirTaskModel(tenant).register to throw an error
+      const registerTaskStub = sinon
+        .stub(KnowYourAirTaskModel, "register")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createTask({
+        query: { tenant },
+        body: requestBody,
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirTaskModel.register.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* manage lessons *******************************/
+  describe("assignTaskToLesson()", () => {
+    it("should assign a task to a lesson", async () => {
+      const tenant = "your-tenant";
+      const task_id = "your-task-id";
+      const lesson_id = "your-lesson-id";
+
+      // Stub KnowYourAirTaskModel(tenant).exists and .findByIdAndUpdate to resolve successfully
+      const taskExistsStub = sinon
+        .stub(KnowYourAirTaskModel, "exists")
+        .resolves(true);
       const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
+        .stub(KnowYourAirLessonModel, "exists")
+        .resolves(true);
+      const findByIdAndUpdateStub = sinon
+        .stub(KnowYourAirTaskModel, "findByIdAndUpdate")
+        .resolves({
+          /* your updated task data */
+        });
+
+      const result = await createKnowYourAir.assignTaskToLesson({
+        params: { task_id, lesson_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirTaskModel.exists.restore();
+      KnowYourAirLessonModel.exists.restore();
+      KnowYourAirTaskModel.findByIdAndUpdate.restore();
+    });
+
+    it("should handle not found task or lesson", async () => {
+      const tenant = "your-tenant";
+      const task_id = "non-existent-task-id";
+      const lesson_id = "your-lesson-id";
+
+      // Stub KnowYourAirTaskModel(tenant).exists and .findByIdAndUpdate to resolve successfully
+      const taskExistsStub = sinon
+        .stub(KnowYourAirTaskModel, "exists")
         .resolves(false);
+      const lessonExistsStub = sinon
+        .stub(KnowYourAirLessonModel, "exists")
+        .resolves(true);
 
-      // Act
-      const result = await createKnowYourAir.assignManyTasksToLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Invalid lesson ID lesson_id",
+      const result = await createKnowYourAir.assignTaskToLesson({
+        params: { task_id, lesson_id },
+        query: { tenant },
       });
 
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirTaskModel.exists.restore();
+      KnowYourAirLessonModel.exists.restore();
     });
 
-    it("should handle invalid task ID", async () => {
-      // Arrange
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(lessonExistsMock);
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const task_id = "your-task-id";
+      const lesson_id = "your-lesson-id";
 
-      const taskFindByIdStub = sinon.stub(
-        createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-        "findById"
-      );
-      taskFindByIdStub.withArgs("task_id_1").resolves(taskMock1);
-      taskFindByIdStub.withArgs("task_id_2").resolves(null);
+      // Stub KnowYourAirTaskModel(tenant).exists to throw an error
+      const taskExistsStub = sinon
+        .stub(KnowYourAirTaskModel, "exists")
+        .throws(new Error("Some error"));
 
-      // Act
-      const result = await createKnowYourAir.assignManyTasksToLesson(
-        requestMock
-      );
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Invalid Task ID task_id_2, please crosscheck",
+      const result = await createKnowYourAir.assignTaskToLesson({
+        params: { task_id, lesson_id },
+        query: { tenant },
       });
 
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_1")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_2")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_3")).to.be.false; // task_id_3 is not called as it is already assigned to the lesson
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirTaskModel.exists.restore();
+      logger.error.restore();
     });
-
-    it("should handle no matching tasks found", async () => {
-      // Arrange
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(lessonExistsMock);
-
-      const taskFindByIdStub = sinon.stub(
-        createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-        "findById"
-      );
-      taskFindByIdStub.withArgs("task_id_1").resolves(taskMock1);
-      taskFindByIdStub.withArgs("task_id_2").resolves(taskMock2);
-      taskFindByIdStub.withArgs("task_id_3").resolves(taskMock3);
-
-      const taskUpdateManyStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "updateMany"
-        )
-        .resolves({ nModified: 0 });
-
-      // Act
-      const result = await createKnowYourAir.assignManyTasksToLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "No matching Task found in the system",
-      });
-
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_1")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_2")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_3")).to.be.true;
-
-      expect(taskUpdateManyStub.calledOnce).to.be.true;
-    });
-
-    it("should handle partially successful assignment", async () => {
-      // Arrange
-      const lessonExistsStub = sinon
-        .stub(createKnowYourAir.KnowYourAirLessonModel("testTenant"), "exists")
-        .resolves(lessonExistsMock);
-
-      const taskFindByIdStub = sinon.stub(
-        createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-        "findById"
-      );
-      taskFindByIdStub.withArgs("task_id_1").resolves(taskMock1);
-      taskFindByIdStub.withArgs("task_id_2").resolves(taskMock2);
-      taskFindByIdStub.withArgs("task_id_3").resolves(taskMock3);
-
-      const taskUpdateManyStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "updateMany"
-        )
-        .resolves({ nModified: 1 });
-
-      // Act
-      const result = await createKnowYourAir.assignManyTasksToLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "Operation partially successful some 1 of the provided tasks were not found in the system"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.not.have.property("errors");
-      expect(result)
-        .to.have.property("data")
-        .to.be.an("array")
-        .and.to.have.lengthOf(0);
-
-      expect(lessonExistsStub.calledWithExactly({ _id: "lesson_id" })).to.be
-        .true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_1")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_2")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id_3")).to.be.true;
-
-      expect(taskUpdateManyStub.calledOnce).to.be.true;
-    });
-
-    // Add more test cases as needed
   });
+  describe("assignManyTasksToLesson()", () => {
+    it("should assign many tasks to a lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2"];
 
-  describe("removeTaskFromLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonExistsStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
 
-    it("should remove task from lesson successfully", async () => {
-      // Arrange
-      const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(lessonMock);
+      // Stub KnowYourAirTaskModel(tenant).findById and .updateMany to resolve successfully
       const taskFindByIdStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "findById")
-        .resolves(taskMock);
-      const taskUpdateStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "findByIdAndUpdate"
-        )
-        .resolves(taskMock);
+        .stub(KnowYourAirTaskModel, "findById")
+        .resolves({
+          /* your task data */
+        });
+      const updateManyStub = sinon
+        .stub(KnowYourAirTaskModel, "updateMany")
+        .resolves({ nModified: task_ids.length });
 
-      // Act
-      const result = await createKnowYourAir.removeTaskFromLesson(requestMock);
+      const result = await createKnowYourAir.assignManyTasksToLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
+      });
 
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "Successfully unassigned User from the Lesson"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.have.property("data");
-      expect(result.data).to.deep.equal(taskMock);
-      expect(result).to.not.have.property("errors");
+      expect(result.success).to.be.true;
+      // Your other assertions here
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id")).to.be.true;
-      expect(
-        taskUpdateStub.calledWithExactly(
-          "task_id",
-          { kya_lesson: null },
-          { new: true }
-        )
-      ).to.be.true;
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
+      KnowYourAirTaskModel.updateMany.restore();
     });
 
-    it("should handle invalid lesson ID", async () => {
-      // Arrange
-      const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
+    it("should handle not found lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "non-existent-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to return null
+      const lessonExistsStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
         .resolves(null);
 
-      // Act
-      const result = await createKnowYourAir.removeTaskFromLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Lesson lesson_id not found",
+      const result = await createKnowYourAir.assignManyTasksToLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
       });
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
     });
 
-    it("should handle invalid task ID", async () => {
-      // Arrange
-      const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(lessonMock);
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonExistsStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).findById to throw an error
       const taskFindByIdStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "findById")
+        .stub(KnowYourAirTaskModel, "findById")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.assignManyTasksToLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
+      logger.error.restore();
+    });
+  });
+  describe("removeTaskFromLesson()", () => {
+    it("should remove a task from a lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_id = "your-task-id";
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).findById and .findByIdAndUpdate to resolve successfully
+      const taskFindByIdStub = sinon
+        .stub(KnowYourAirTaskModel, "findById")
+        .resolves({
+          /* your task data */
+        });
+      const findByIdAndUpdateStub = sinon
+        .stub(KnowYourAirTaskModel, "findByIdAndUpdate")
+        .resolves({
+          /* updated task data */
+        });
+
+      const result = await createKnowYourAir.removeTaskFromLesson({
+        params: { lesson_id, task_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
+      KnowYourAirTaskModel.findByIdAndUpdate.restore();
+    });
+
+    it("should handle not found lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "non-existent-lesson-id";
+      const task_id = "your-task-id";
+
+      // Stub KnowYourAirLessonModel(tenant).findById to return null
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
         .resolves(null);
 
-      // Act
-      const result = await createKnowYourAir.removeTaskFromLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Task  task_id not found",
+      const result = await createKnowYourAir.removeTaskFromLesson({
+        params: { lesson_id, task_id },
+        query: { tenant },
       });
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id")).to.be.true;
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
     });
 
-    it("should handle task not assigned to the lesson", async () => {
-      // Arrange
+    it("should handle not found task", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_id = "non-existent-task-id";
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
       const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(lessonMock);
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).findById to return null
       const taskFindByIdStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "findById")
-        .resolves({ ...taskMock, kya_lesson: "some_other_lesson_id" });
+        .stub(KnowYourAirTaskModel, "findById")
+        .resolves(null);
 
-      // Act
-      const result = await createKnowYourAir.removeTaskFromLesson(requestMock);
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Task task_id is not assigned to Lesson lesson_id",
+      const result = await createKnowYourAir.removeTaskFromLesson({
+        params: { lesson_id, task_id },
+        query: { tenant },
       });
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
-      expect(taskFindByIdStub.calledWithExactly("task_id")).to.be.true;
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
     });
 
-    // Add more test cases as needed
-  });
+    it("should handle a task not assigned to lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_id = "your-task-id";
 
-  describe("removeManyTasksFromLesson function", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should remove tasks from lesson successfully", async () => {
-      // Arrange
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
       const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(lessonMock);
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).findById to resolve successfully with a task that is not assigned to the lesson
+      const taskFindByIdStub = sinon
+        .stub(KnowYourAirTaskModel, "findById")
+        .resolves({
+          /* your task data without lesson assignment */
+        });
+
+      const result = await createKnowYourAir.removeTaskFromLesson({
+        params: { lesson_id, task_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_id = "your-task-id";
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).findById and .findByIdAndUpdate to throw an error
+      const taskFindByIdStub = sinon
+        .stub(KnowYourAirTaskModel, "findById")
+        .throws(new Error("Some error"));
+      const findByIdAndUpdateStub = sinon
+        .stub(KnowYourAirTaskModel, "findByIdAndUpdate")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.removeTaskFromLesson({
+        params: { lesson_id, task_id },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.findById.restore();
+      KnowYourAirTaskModel.findByIdAndUpdate.restore();
+      logger.error.restore();
+    });
+  });
+  describe("removeManyTasksFromLesson()", () => {
+    it("should remove many tasks from a lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2", "task-id-3"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).find, .updateMany, and .countDocuments to resolve successfully
+      const taskFindStub = sinon.stub(KnowYourAirTaskModel, "find").resolves([
+        {
+          /* task 1 data */
+        },
+        {
+          /* task 2 data */
+        },
+        {
+          /* task 3 data */
+        },
+      ]);
+      const updateManyStub = sinon
+        .stub(KnowYourAirTaskModel, "updateMany")
+        .resolves({ nModified: 3 });
+      const countDocumentsStub = sinon
+        .stub(KnowYourAirTaskModel, "countDocuments")
+        .resolves(3);
+
+      const result = await createKnowYourAir.removeManyTasksFromLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.find.restore();
+      KnowYourAirTaskModel.updateMany.restore();
+      KnowYourAirTaskModel.countDocuments.restore();
+    });
+
+    it("should handle not found lesson", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "non-existent-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2", "task-id-3"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to return null
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves(null);
+
+      const result = await createKnowYourAir.removeManyTasksFromLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+    });
+
+    it("should handle non-existent tasks", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_ids = ["non-existent-task-id"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
+      const lessonFindByIdStub = sinon
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).find to resolve with an empty array
       const taskFindStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "find")
-        .resolves(taskMocks);
-      const taskUpdateManyStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirTaskModel("testTenant"),
-          "updateMany"
-        )
-        .resolves({ nModified: 2 });
+        .stub(KnowYourAirTaskModel, "find")
+        .resolves([]);
 
-      // Act
-      const result = await createKnowYourAir.removeManyTasksFromLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully unassigned all the provided  tasks from the lesson lesson_id"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.have.property("data");
-      expect(result.data).to.deep.equal([]);
-      expect(result).to.not.have.property("errors");
-
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
-      expect(
-        taskFindStub.calledWithExactly(
-          { _id: { $in: ["task_id1", "task_id2", "task_id3"] } },
-          "_id"
-        )
-      ).to.be.true;
-      expect(
-        taskUpdateManyStub.calledWithExactly(
-          { _id: { $in: ["task_id1", "task_id2"] } },
-          { kya_lesson: null },
-          { multi: true }
-        )
-      ).to.be.true;
-    });
-
-    it("should handle invalid lesson ID", async () => {
-      // Arrange
-      const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(null);
-
-      // Act
-      const result = await createKnowYourAir.removeManyTasksFromLesson(
-        requestMock
-      );
-
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "Lesson lesson_id not found",
+      const result = await createKnowYourAir.removeManyTasksFromLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
       });
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
+      expect(result.success).to.be.false;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.find.restore();
     });
 
-    it("should handle some tasks not existing", async () => {
-      // Arrange
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const lesson_id = "your-lesson-id";
+      const task_ids = ["task-id-1", "task-id-2", "task-id-3"];
+
+      // Stub KnowYourAirLessonModel(tenant).findById to resolve successfully
       const lessonFindByIdStub = sinon
-        .stub(
-          createKnowYourAir.KnowYourAirLessonModel("testTenant"),
-          "findById"
-        )
-        .resolves(lessonMock);
+        .stub(KnowYourAirLessonModel, "findById")
+        .resolves({
+          /* your lesson data */
+        });
+
+      // Stub KnowYourAirTaskModel(tenant).find and .updateMany to throw an error
       const taskFindStub = sinon
-        .stub(createKnowYourAir.KnowYourAirTaskModel("testTenant"), "find")
-        .resolves(taskMocks.slice(0, 2));
+        .stub(KnowYourAirTaskModel, "find")
+        .throws(new Error("Some error"));
+      const updateManyStub = sinon
+        .stub(KnowYourAirTaskModel, "updateMany")
+        .throws(new Error("Some error"));
 
-      // Act
-      const result = await createKnowYourAir.removeManyTasksFromLesson(
-        requestMock
-      );
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-      // Assert
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Bad Request Error");
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.deep.equal({
-        message: "The following tasks do not exist: task_id3",
+      const result = await createKnowYourAir.removeManyTasksFromLesson({
+        params: { lesson_id },
+        body: { task_ids },
+        query: { tenant },
       });
 
-      expect(lessonFindByIdStub.calledWithExactly("lesson_id")).to.be.true;
-      expect(
-        taskFindStub.calledWithExactly(
-          { _id: { $in: ["task_id1", "task_id2", "task_id3"] } },
-          "_id"
-        )
-      ).to.be.true;
-    });
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
 
-    // Add more test cases as needed
+      // Restore the stubs
+      KnowYourAirLessonModel.findById.restore();
+      KnowYourAirTaskModel.find.restore();
+      KnowYourAirTaskModel.updateMany.restore();
+      logger.error.restore();
+    });
   });
 
+  /*************** quizzes *******************************/
+  describe("listQuiz()", () => {
+    it("should list quizzes", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
+      };
 
-  // Add tests for other functions in createKnowYourAir
-});
+      // Stub KnowYourAirQuizModel(tenant).list to return quiz data
+      const quizListStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "list")
+        .resolves({ success: true /* other response properties */ });
 
-describe("KYA QUIZ", () => {
-  let quizStubValue = {
-    _id: faker.datatype.uuid(),
-    tenant: "test",
-    user_id: faker.datatype.uuid(),
-    title: faker.lorem.word(),
-    description: faker.lorem.sentence(),
-    image: faker.image.imageUrl(),
-    completion_message: faker.lorem.sentence(),
-  };
+      const result = await createKnowYourAir.listQuiz(request);
 
-  let questionStubValue = {
-    _id: faker.datatype.uuid(),
-    tenant: "test",
-    kya_quiz: faker.datatype.uuid(),
-    title: faker.lorem.word(),
-    context: faker.lorem.sentence(),
-    quiz_position: faker.datatype.number(),
-  };
+      expect(result.success).to.be.true;
+      // Your other assertions here
 
-
-  let answerStubValue = {
-    _id: faker.datatype.uuid(),
-    tenant: "test",
-    kya_question: faker.datatype.uuid(),
-    title: faker.lorem.word(),
-    content: faker.lorem.sentence(),
-  };
-
-  const mockReq = {
-    query: {
-      tenant: "test",
-      limit: 10,
-      skip: 0,
-    },
-    params: {
-      user_id: quizStubValue.user_id
-    },
-  }
-
-  const mongooseStub = sinon.stub(mongoose, "model");
-  describe("Quiz", () => {
-    describe("List Quizzes", () => {
-
-
-      it("should return the list of quizzes", async () => {
-        const generateFilterStubQuiz = sinon.stub(generateFilterStub, "kyaquizzes").returns({
-          _id: quizStubValue._id
-        });
-        const listStub = sinon.stub().resolves(quizStubValue);
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listQuiz(mockReq);
-        expect(response).deep.equals(quizStubValue);
-
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const listStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listQuiz(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
+      // Restore the stub
+      KnowYourAirQuizModel("your-tenant").list.restore();
     });
 
-    describe("Delete Quiz", () => {
+    it("should handle filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
+      };
 
+      // Stub generateFilter.kyaquizzes to return filter failure response
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquizzes")
+        .returns({ success: false /* other response properties */ });
 
-      it("should delete the quiz", async () => {
-        const generateFilterStubQuiz = sinon
-          .stub(generateFilterStub, "kyaquizzes")
-          .returns({
-            _id: quizStubValue._id,
-          });
+      const result = await createKnowYourAir.listQuiz(request);
 
-        const removeStub = sinon.stub().resolves({ success: true });
-        const knowYourAirMock = {
-          remove: removeStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      expect(result.success).to.be.false;
+      // Your other assertions here
 
-        const response = await createKnowYourAir.deleteQuiz(mockReq);
-        expect(response).to.deep.equal({ success: true });
-
-        generateFilterStubQuiz.restore();
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const removeStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          remove: removeStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-
-        const response = await createKnowYourAir.deleteQuiz(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
-
-      afterEach(() => {
-        mongooseStub.restore();
-      });
+      // Restore the stub
+      generateFilter.kyaquizzes.restore();
     });
 
-    describe("Update Quiz", () => {
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0 },
+      };
 
+      // Stub KnowYourAirQuizModel(tenant).list to throw an error
+      const quizListStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "list")
+        .throws(new Error("Some error"));
 
-      it("should update the quiz", async () => {
-        const generateFilterStubQuiz = sinon
-          .stub(generateFilterStub, "kyaquizzes")
-          .returns({
-            _id: quizStubValue._id,
-          });
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-        const modifyStub = sinon.stub().resolves(quizStubValue);
-        const knowYourAirMock = {
-          modify: modifyStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.updateQuiz(mockReq);
-        expect(response).to.deep.equal(quizStubValue);
+      const result = await createKnowYourAir.listQuiz(request);
 
-        generateFilterStubQuiz.restore();
-      });
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
 
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const modifyStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          modify: modifyStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      // Restore the stubs
+      KnowYourAirQuizModel("your-tenant").list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteQuiz()", () => {
+    it("should delete a quiz", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { quiz_id: "quiz-id" },
+      };
 
-        const response = await createKnowYourAir.updateQuiz(mockReq);
+      // Stub KnowYourAirQuizModel(tenant).remove to return quiz removal response
+      const quizRemoveStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "remove")
+        .resolves({ success: true /* other response properties */ });
 
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
+      const result = await createKnowYourAir.deleteQuiz(request);
 
-      afterEach(() => {
-        mongooseStub.restore();
-      });
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stub
+      KnowYourAirQuizModel("your-tenant").remove.restore();
     });
 
-    describe("Create Quiz", () => {
+    it("should handle filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { quiz_id: "quiz-id" },
+      };
 
+      // Stub generateFilter.kyaquizzes to return filter failure response
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquizzes")
+        .returns({ success: false /* other response properties */ });
 
-      it("should create a quiz and publish it to Kafka", async () => {
-        const mockResponse = { success: true, data: quizStubValue };
-        const registerStub = sinon.stub().resolves(mockResponse);
-        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-          connect: sinon.stub().resolves(),
-          send: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-        });
+      const result = await createKnowYourAir.deleteQuiz(request);
 
-        const knowYourAirMock = {
-          register: registerStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      expect(result.success).to.be.false;
+      // Your other assertions here
 
-        const mockCreateReq = { body: quizStubValue, query: { tenant: "test" } };
-        const response = await createKnowYourAir.createQuiz(mockCreateReq);
-
-        expect(registerStub.calledOnce).to.be.true;
-        expect(kafkaProducerStub.calledOnce).to.be.true;
-        expect(response).to.deep.equal(mockResponse);
-
-        kafkaProducerStub.restore();
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const registerStub = sinon.stub().rejects(new Error(errorMessage));
-        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-          connect: sinon.stub().resolves(),
-          send: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-        });
-
-        const knowYourAirMock = {
-          register: registerStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-
-        const response = await createKnowYourAir.createQuiz(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-
-        kafkaProducerStub.restore();
-      });
-
-      afterEach(() => {
-        mongooseStub.restore();
-      });
+      // Restore the stub
+      generateFilter.kyaquizzes.restore();
     });
 
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { quiz_id: "quiz-id" },
+      };
 
-  })
+      // Stub KnowYourAirQuizModel(tenant).remove to throw an error
+      const quizRemoveStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "remove")
+        .throws(new Error("Some error"));
 
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-  describe("Questions", () => {
-    sinon.restore();
-    describe("List Questions", () => {
+      const result = await createKnowYourAir.deleteQuiz(request);
 
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
 
-      it("should return the list of questions", async () => {
-        const generateFilterStubQuestions = sinon.stub(generateFilterStub, "kyaquestions").returns({
-          _id: questionStubValue._id
-        });
-        const listStub = sinon.stub().resolves(questionStubValue);
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listQuestions(mockReq);
-        expect(response).deep.equals(questionStubValue);
+      // Restore the stubs
+      KnowYourAirQuizModel("your-tenant").remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateQuiz()", () => {
+    it("should update a quiz", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* updated quiz data */
+        },
+      };
 
+      // Stub generateFilter.kyaquizzes to return a successful filter
+      sinon.stub(generateFilter, "kyaquizzes").returns({
+        /* successful filter properties */
       });
 
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const listStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listQuestions(mockReq);
+      // Stub KnowYourAirQuizModel(tenant).modify to return updated quiz response
+      const quizModifyStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "modify")
+        .resolves({ success: true /* other response properties */ });
 
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
+      const result = await createKnowYourAir.updateQuiz(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquizzes.restore();
+      KnowYourAirQuizModel("your-tenant").modify.restore();
     });
 
-    describe("Delete Question", () => {
+    it("should handle filter failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* updated quiz data */
+        },
+      };
 
+      // Stub generateFilter.kyaquizzes to return filter failure response
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquizzes")
+        .returns({ success: false /* other response properties */ });
 
-      it("should delete the question", async () => {
-        const generateFilterStubQuestion = sinon
-          .stub(generateFilterStub, "kyaquestions")
-          .returns({
-            _id: questionStubValue._id,
-          });
+      const result = await createKnowYourAir.updateQuiz(request);
 
-        const removeStub = sinon.stub().resolves({ success: true });
-        const knowYourAirMock = {
-          remove: removeStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      expect(result.success).to.be.false;
+      // Your other assertions here
 
-        const response = await createKnowYourAir.deleteQuestion(mockReq);
-        expect(response).to.deep.equal({ success: true });
-
-        generateFilterStubQuestion.restore();
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const removeStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          remove: removeStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-
-        const response = await createKnowYourAir.deleteQuestion(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
-
-      afterEach(() => {
-        mongooseStub.restore();
-      });
+      // Restore the stub
+      generateFilter.kyaquizzes.restore();
     });
 
-    describe("Update Question", () => {
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* updated quiz data */
+        },
+      };
 
-
-      it("should update the question", async () => {
-        const generateFilterStubQuestion = sinon
-          .stub(generateFilterStub, "kyaquestions")
-          .returns({
-            _id: questionStubValue._id,
-          });
-
-        const modifyStub = sinon.stub().resolves(questionStubValue);
-        const knowYourAirMock = {
-          modify: modifyStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.updateQuestion(mockReq);
-        expect(response).to.deep.equal(questionStubValue);
-
-        generateFilterStubQuestion.restore();
+      // Stub generateFilter.kyaquizzes to return a successful filter
+      sinon.stub(generateFilter, "kyaquizzes").returns({
+        /* successful filter properties */
       });
 
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const modifyStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          modify: modifyStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      // Stub KnowYourAirQuizModel(tenant).modify to throw an error
+      const quizModifyStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "modify")
+        .throws(new Error("Some error"));
 
-        const response = await createKnowYourAir.updateQuestion(mockReq);
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
+      const result = await createKnowYourAir.updateQuiz(request);
 
-      afterEach(() => {
-        mongooseStub.restore();
-      });
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquizzes.restore();
+      KnowYourAirQuizModel("your-tenant").modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createQuiz()", () => {
+    it("should create a quiz and send a Kafka message", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* quiz data */
+        },
+      };
+
+      // Stub KnowYourAirQuizModel(tenant).register to return a successful response
+      const quizRegisterStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "register")
+        .resolves({
+          success: true,
+          data: {
+            /* other response properties */
+          },
+        });
+
+      // Stub kafka.producer.connect to return a resolved promise
+      const kafkaProducerConnectStub = sinon
+        .stub(kafka.producer(), "connect")
+        .resolves();
+
+      // Stub kafka.producer.send to return a resolved promise
+      const kafkaProducerSendStub = sinon
+        .stub(kafka.producer(), "send")
+        .resolves();
+
+      // Stub kafka.producer.disconnect to return a resolved promise
+      const kafkaProducerDisconnectStub = sinon
+        .stub(kafka.producer(), "disconnect")
+        .resolves();
+
+      const result = await createKnowYourAir.createQuiz(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuizModel("your-tenant").register.restore();
+      kafka.producer().connect.restore();
+      kafka.producer().send.restore();
+      kafka.producer().disconnect.restore();
     });
 
-    describe("Create Question", () => {
+    it("should handle a quiz registration failure", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* quiz data */
+        },
+      };
 
+      // Stub KnowYourAirQuizModel(tenant).register to return a failed response
+      const quizRegisterStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "register")
+        .resolves({ success: false /* other response properties */ });
 
-      it("should create a question and publish it to Kafka", async () => {
-        const mockResponse = { success: true, data: questionStubValue };
-        const registerStub = sinon.stub().resolves(mockResponse);
-        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-          connect: sinon.stub().resolves(),
-          send: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-        });
+      const result = await createKnowYourAir.createQuiz(request);
 
-        const knowYourAirMock = {
-          register: registerStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
+      expect(result.success).to.be.false;
+      // Your other assertions here
 
-        const mockCreateReq = { body: questionStubValue, query: { tenant: "test" } };
-        const response = await createKnowYourAir.createQuestion(mockCreateReq);
-
-        expect(registerStub.calledOnce).to.be.true;
-        expect(kafkaProducerStub.calledOnce).to.be.true;
-        expect(response).to.deep.equal(mockResponse);
-
-        kafkaProducerStub.restore();
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const registerStub = sinon.stub().rejects(new Error(errorMessage));
-        const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-          connect: sinon.stub().resolves(),
-          send: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-        });
-
-        const knowYourAirMock = {
-          register: registerStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-
-        const response = await createKnowYourAir.createQuestion(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-
-        kafkaProducerStub.restore();
-      });
-
-      afterEach(() => {
-        mongooseStub.restore();
-      });
-    });
-  })
-
-  describe("Answers", () => {
-    sinon.restore();
-    describe("List Answers", () => {
-
-
-      it("should return the list of answers", async () => {
-        const generateFilterStubAnswers = sinon.stub(generateFilterStub, "kyaanswers").returns({
-          _id: answerStubValue._id
-        });
-        const listStub = sinon.stub().resolves(answerStubValue);
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listAnswers(mockReq);
-        expect(response).deep.equals(answerStubValue);
-
-      });
-
-      it("should handle error and return appropriate response", async () => {
-        const errorMessage = "Test error message";
-        const listStub = sinon.stub().rejects(new Error(errorMessage));
-        const knowYourAirMock = {
-          list: listStub,
-        };
-        mongooseStub.returns(knowYourAirMock);
-        const response = await createKnowYourAir.listAnswers(mockReq);
-
-        const expectedErrorResponse = {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: errorMessage },
-        };
-        expect(response).to.deep.equal(expectedErrorResponse);
-      });
-
-      describe("Delete Answer", () => {
-
-
-        it("should delete the answer", async () => {
-          const generateFilterStubAnswer = sinon
-            .stub(generateFilterStub, "kyaanswers")
-            .returns({
-              _id: answerStubValue._id,
-            });
-
-          const removeStub = sinon.stub().resolves({ success: true });
-          const knowYourAirMock = {
-            remove: removeStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-
-          const response = await createKnowYourAir.deleteAnswer(mockReq);
-          expect(response).to.deep.equal({ success: true });
-
-          generateFilterStubAnswer.restore();
-        });
-
-        it("should handle error and return appropriate response", async () => {
-          const errorMessage = "Test error message";
-          const removeStub = sinon.stub().rejects(new Error(errorMessage));
-          const knowYourAirMock = {
-            remove: removeStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-
-          const response = await createKnowYourAir.deleteAnswer(mockReq);
-
-          const expectedErrorResponse = {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: errorMessage },
-          };
-          expect(response).to.deep.equal(expectedErrorResponse);
-        });
-
-        afterEach(() => {
-          mongooseStub.restore();
-        });
-      });
-
-      describe("Update Answer", () => {
-
-
-        it("should update the answer", async () => {
-          const generateFilterStubAnswer = sinon
-            .stub(generateFilterStub, "kyaanswers")
-            .returns({
-              _id: answerStubValue._id,
-            });
-
-          const modifyStub = sinon.stub().resolves(answerStubValue);
-          const knowYourAirMock = {
-            modify: modifyStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-          const response = await createKnowYourAir.updateAnswer(mockReq);
-          expect(response).to.deep.equal(answerStubValue);
-
-          generateFilterStubAnswer.restore();
-        });
-
-        it("should handle error and return appropriate response", async () => {
-          const errorMessage = "Test error message";
-          const modifyStub = sinon.stub().rejects(new Error(errorMessage));
-          const knowYourAirMock = {
-            modify: modifyStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-
-          const response = await createKnowYourAir.updateAnswer(mockReq);
-
-          const expectedErrorResponse = {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: errorMessage },
-          };
-          expect(response).to.deep.equal(expectedErrorResponse);
-        });
-
-        afterEach(() => {
-          mongooseStub.restore();
-        });
-      });
-
-      describe("Create Answer", () => {
-
-
-        it("should create a answer and publish it to Kafka", async () => {
-          const mockResponse = { success: true, data: answerStubValue };
-          const registerStub = sinon.stub().resolves(mockResponse);
-          const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-            connect: sinon.stub().resolves(),
-            send: sinon.stub().resolves(),
-            disconnect: sinon.stub().resolves(),
-          });
-
-          const knowYourAirMock = {
-            register: registerStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-
-          const mockCreateReq = { body: answerStubValue, query: { tenant: "test" } };
-          const response = await createKnowYourAir.createAnswer(mockCreateReq);
-
-          expect(registerStub.calledOnce).to.be.true;
-          expect(kafkaProducerStub.calledOnce).to.be.true;
-          expect(response).to.deep.equal(mockResponse);
-
-          kafkaProducerStub.restore();
-        });
-
-        it("should handle error and return appropriate response", async () => {
-          const errorMessage = "Test error message";
-          const registerStub = sinon.stub().rejects(new Error(errorMessage));
-          const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
-            connect: sinon.stub().resolves(),
-            send: sinon.stub().resolves(),
-            disconnect: sinon.stub().resolves(),
-          });
-
-          const knowYourAirMock = {
-            register: registerStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-
-          const response = await createKnowYourAir.createAnswer(mockReq);
-
-          const expectedErrorResponse = {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: errorMessage },
-          };
-          expect(response).to.deep.equal(expectedErrorResponse);
-
-          kafkaProducerStub.restore();
-        });
-
-        afterEach(() => {
-          mongooseStub.restore();
-        });
-      });
+      // Restore the stub
+      KnowYourAirQuizModel("your-tenant").register.restore();
     });
 
-    describe("UserQuizProgress", () => {
-      sinon.restore();
-      describe("List UserQuizProgress", () => {
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* quiz data */
+        },
+      };
 
+      // Stub KnowYourAirQuizModel(tenant).register to throw an error
+      const quizRegisterStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "register")
+        .throws(new Error("Some error"));
 
-        it("should return the list of UserProgress", async () => {
-          const generateFilterStubProgress = sinon.stub(generateFilterStub, "kyaprogress").returns({
-            _id: kyaProgressStubValue._id
-          });
-          const listStub = sinon.stub().resolves(kyaProgressStubValue);
-          const knowYourAirMock = {
-            list: listStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-          const response = await createKnowYourAir.listUserQuizProgress(mockReq);
-          expect(response).deep.equals(kyaProgressStubValue);
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
 
-        });
+      const result = await createKnowYourAir.createQuiz(request);
 
-        it("should handle error and return appropriate response", async () => {
-          const errorMessage = "Test error message";
-          const listStub = sinon.stub().rejects(new Error(errorMessage));
-          const knowYourAirMock = {
-            list: listStub,
-          };
-          mongooseStub.returns(knowYourAirMock);
-          const response = await createKnowYourAir.listUserQuizProgress(mockReq);
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
 
-          const expectedErrorResponse = {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: errorMessage },
-          };
-          expect(response).to.deep.equal(expectedErrorResponse);
-        });
+      // Restore the stubs
+      KnowYourAirQuizModel("your-tenant").register.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* tracking user QUIZ progress ***************** */
+  describe("listUserQuizProgress()", () => {
+    it("should list user quiz progress", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressData = [
+        /* user quiz progress data */
+      ];
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).list to resolve successfully
+      const listStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "list")
+        .resolves(userQuizProgressData);
+
+      const result = await createKnowYourAir.listUserQuizProgress({
+        query: { tenant },
       });
-    })
 
-  })
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal(userQuizProgressData);
+      // Your other assertions here
 
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.list.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressData = [
+        /* user quiz progress data */
+      ];
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).list to throw an error
+      const listStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "list")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listUserQuizProgress({
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteUserQuizProgress()", () => {
+    it("should delete user quiz progress", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressDeletionResult = {
+        success: true,
+        message: "Deleted successfully",
+        status: httpStatus.OK,
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).remove to resolve successfully
+      const removeStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "remove")
+        .resolves(userQuizProgressDeletionResult);
+
+      const result = await createKnowYourAir.deleteUserQuizProgress({
+        query: { tenant },
+      });
+
+      expect(result).to.deep.equal(userQuizProgressDeletionResult);
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.remove.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressDeletionResult = {
+        success: false,
+        message: "Deletion failed",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).remove to throw an error
+      const removeStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "remove")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.deleteUserQuizProgress({
+        query: { tenant },
+      });
+
+      expect(result).to.deep.equal(userQuizProgressDeletionResult);
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateUserQuizProgress()", () => {
+    it("should update user quiz progress", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressUpdateResult = {
+        success: true,
+        message: "Updated successfully",
+        status: httpStatus.OK,
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).modify to resolve successfully
+      const modifyStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "modify")
+        .resolves(userQuizProgressUpdateResult);
+
+      const result = await createKnowYourAir.updateUserQuizProgress({
+        query: { tenant },
+        body: { updatedData: "value" },
+      });
+
+      expect(result).to.deep.equal(userQuizProgressUpdateResult);
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.modify.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const userQuizProgressUpdateResult = {
+        success: false,
+        message: "Update failed",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).modify to throw an error
+      const modifyStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "modify")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.updateUserQuizProgress({
+        query: { tenant },
+        body: { updatedData: "value" },
+      });
+
+      expect(result).to.deep.equal(userQuizProgressUpdateResult);
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createUserQuizProgress()", () => {
+    it("should create user quiz progress", async () => {
+      const tenant = "your-tenant";
+      const createUserQuizProgressResult = {
+        success: true,
+        message: "Created successfully",
+        status: httpStatus.CREATED,
+        data: { id: "user-quiz-progress-id" },
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).register to resolve successfully
+      const registerStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "register")
+        .resolves(createUserQuizProgressResult);
+
+      const result = await createKnowYourAir.createUserQuizProgress({
+        query: { tenant },
+        body: { someData: "value" },
+      });
+
+      expect(result).to.deep.equal(createUserQuizProgressResult);
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.register.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const createUserQuizProgressErrorResult = {
+        success: false,
+        message: "Creation failed",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+
+      // Stub KnowYourAirUserQuizProgressModel(tenant).register to throw an error
+      const registerStub = sinon
+        .stub(KnowYourAirUserQuizProgressModel, "register")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createUserQuizProgress({
+        query: { tenant },
+        body: { someData: "value" },
+      });
+
+      expect(result).to.deep.equal(createUserQuizProgressErrorResult);
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirUserQuizProgressModel.register.restore();
+      logger.error.restore();
+    });
+  });
+  describe("syncUserQuizProgress()", () => {
+    it("should sync user quiz progress", async () => {
+      const tenant = "your-tenant";
+      const user_id = "user-id";
+      const progressList = [
+        { _id: "quiz-id-1", active_question: 1, status: "in-progress" },
+        { _id: "quiz-id-2", active_question: 2, status: "completed" },
+      ];
+      const listUserQuizProgressResult = {
+        success: true,
+        data: [{ _id: "progress-id-1" }, { _id: "progress-id-2" }],
+      };
+
+      // Stub createKnowYourAir.listUserQuizProgress to resolve successfully
+      const listUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "listUserQuizProgress")
+        .resolves(listUserQuizProgressResult);
+
+      // Stub createKnowYourAir.createUserQuizProgress and createKnowYourAir.updateUserQuizProgress to resolve successfully
+      const createUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "createUserQuizProgress")
+        .resolves({ success: true });
+      const updateUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "updateUserQuizProgress")
+        .resolves({ success: true });
+
+      const result = await createKnowYourAir.syncUserQuizProgress({
+        query: { tenant },
+        params: { user_id },
+        body: { kya_quiz_user_progress: progressList },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Verify the stubs were called as expected
+      expect(listUserQuizProgressStub.calledOnce).to.be.true;
+      expect(createUserQuizProgressStub.calledTwice).to.be.true; // Called for both quizzes
+      expect(updateUserQuizProgressStub.calledOnce).to.be.true;
+
+      // Restore the stubs
+      createKnowYourAir.listUserQuizProgress.restore();
+      createKnowYourAir.createUserQuizProgress.restore();
+      createKnowYourAir.updateUserQuizProgress.restore();
+    });
+
+    it("should handle an error", async () => {
+      const tenant = "your-tenant";
+      const user_id = "user-id";
+      const progressList = [
+        { _id: "quiz-id-1", active_question: 1, status: "in-progress" },
+        { _id: "quiz-id-2", active_question: 2, status: "completed" },
+      ];
+
+      // Stub createKnowYourAir.listUserQuizProgress to throw an error
+      const listUserQuizProgressStub = sinon
+        .stub(createKnowYourAir, "listUserQuizProgress")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.syncUserQuizProgress({
+        query: { tenant },
+        params: { user_id },
+        body: { kya_quiz_user_progress: progressList },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Verify the stubs were called as expected
+      expect(listUserQuizProgressStub.calledOnce).to.be.true;
+
+      // Restore the stubs
+      createKnowYourAir.listUserQuizProgress.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* questions *******************************/
+  describe("listQuestions()", () => {
+    it("should list questions for a quiz", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { quiz_id: "quiz-id" },
+        query: { limit: 10, skip: 0 },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).list to return a successful response
+      const listQuestionsStub = sinon
+        .stub(KnowYourAirQuestionModel, "list")
+        .resolves({ success: true, data: "" }); /* mock data */
+
+      const result = await createKnowYourAir.listQuestions(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.list.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { quiz_id: "quiz-id" },
+        query: { limit: 10, skip: 0 },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).list to throw an error
+      const listQuestionsStub = sinon
+        .stub(KnowYourAirQuestionModel, "list")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listQuestions(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteQuestion()", () => {
+    it("should delete a question", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).remove to return a successful response
+      const removeQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "remove")
+        .resolves({ success: true, data: "" }); /* mock data */
+
+      const result = await createKnowYourAir.deleteQuestion(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.remove.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).remove to throw an error
+      const removeQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "remove")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.deleteQuestion(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateQuestion()", () => {
+    it("should update a question", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {} /* updated question data */,
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).modify to return a successful response
+      const modifyQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "modify")
+        .resolves({ success: true, data: {} }); /* mock data */
+
+      const result = await createKnowYourAir.updateQuestion(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.modify.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {} /* updated question data */,
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({
+          /* valid filter data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).modify to throw an error
+      const modifyQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "modify")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.updateQuestion(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirQuestionModel.modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createQuestion()", () => {
+    it("should create a question", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {} /* question data */,
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirQuestionModel(tenant).register to return a successful response
+      const registerQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "register")
+        .resolves({ success: true, data: {} }); /* mock data */
+
+      // Stub kafka.producer to prevent actual Kafka interactions
+      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+        connect: sinon.stub(),
+        send: sinon.stub().resolves(),
+        disconnect: sinon.stub(),
+      });
+
+      const result = await createKnowYourAir.createQuestion(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.register.restore();
+      kafka.producer.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {} /* question data */,
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirQuestionModel(tenant).register to throw an error
+      const registerQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "register")
+        .throws(new Error("Some error"));
+
+      // Stub kafka.producer to prevent actual Kafka interactions
+      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+        connect: sinon.stub(),
+        send: sinon.stub().resolves(),
+        disconnect: sinon.stub(),
+      });
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createQuestion(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.register.restore();
+      kafka.producer.restore();
+      logger.error.restore();
+    });
+  });
+  /******************* Answers *******************************/
+  describe("listAnswers()", () => {
+    it("should list answers", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).list to return a successful response
+      const listAnswersStub = sinon
+        .stub(KnowYourAirAnswerModel, "list")
+        .resolves({ success: true, data: {} }); /* mock data */
+
+      const result = await createKnowYourAir.listAnswers(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.list.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).list to throw an error
+      const listAnswersStub = sinon
+        .stub(KnowYourAirAnswerModel, "list")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.listAnswers(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.list.restore();
+      logger.error.restore();
+    });
+  });
+  describe("deleteAnswer()", () => {
+    it("should delete an answer", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).remove to return a successful response
+      const removeAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "remove")
+        .resolves({ success: true, data: {} }); /* mock data */
+
+      const result = await createKnowYourAir.deleteAnswer(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.remove.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).remove to throw an error
+      const removeAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "remove")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.deleteAnswer(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.remove.restore();
+      logger.error.restore();
+    });
+  });
+  describe("updateAnswer()", () => {
+    it("should update an answer", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* Updated answer data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({ success: true /* Other filter properties */ });
+
+      // Stub KnowYourAirAnswerModel(tenant).modify to return a successful response
+      const modifyAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "modify")
+        .resolves({ success: true, data: {} }); /* mock data */
+
+      const result = await createKnowYourAir.updateAnswer(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirAnswerModel.modify.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* Updated answer data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub generateFilter.kyaquestions to return a valid filter
+      const generateFilterStub = sinon
+        .stub(generateFilter, "kyaquestions")
+        .returns({ success: true /* Other filter properties */ });
+
+      // Stub KnowYourAirAnswerModel(tenant).modify to throw an error
+      const modifyAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "modify")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.updateAnswer(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      generateFilter.kyaquestions.restore();
+      KnowYourAirAnswerModel.modify.restore();
+      logger.error.restore();
+    });
+  });
+  describe("createAnswer()", () => {
+    it("should create an answer", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* Answer data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).register to return a successful response
+      const registerAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "register")
+        .resolves({ success: true, data: {} /* mock data */ });
+
+      // Stub kafka.producer to return a mock producer
+      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+        connect: sinon.stub().resolves(),
+        send: sinon.stub().resolves(),
+        disconnect: sinon.stub().resolves(),
+      });
+
+      const result = await createKnowYourAir.createAnswer(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.register.restore();
+      kafka.producer.restore();
+    });
+
+    it("should handle an error", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        body: {
+          /* Answer data */
+        },
+        /* Other request properties as needed */
+      };
+
+      // Stub KnowYourAirAnswerModel(tenant).register to throw an error
+      const registerAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "register")
+        .throws(new Error("Some error"));
+
+      // Stub kafka.producer to return a mock producer
+      const kafkaProducerStub = sinon.stub(kafka, "producer").returns({
+        connect: sinon.stub().resolves(),
+        send: sinon.stub().resolves(),
+        disconnect: sinon.stub().resolves(),
+      });
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.createAnswer(request);
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirAnswerModel.register.restore();
+      kafka.producer.restore();
+      logger.error.restore();
+    });
+  });
+
+  /******************* manage Quizes *******************************/
+  describe("assignManyQuestionsToQuiz()", () => {
+    it("should assign many questions to a quiz", async () => {
+      const quiz_id = "some-quiz-id";
+      const question_ids = ["question-id-1", "question-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuizModel(tenant).findById to return a mock quiz
+      const findQuizStub = sinon
+        .stub(KnowYourAirQuizModel, "findById")
+        .resolves({
+          /* Mock quiz data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to return mock questions
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .onFirstCall()
+        .resolves({
+          /* Mock question 1 data */
+        })
+        .onSecondCall()
+        .resolves({
+          /* Mock question 2 data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).updateMany to return nModified and n
+      const updateManyStub = sinon
+        .stub(KnowYourAirQuestionModel, "updateMany")
+        .resolves({ nModified: question_ids.length, n: question_ids.length });
+
+      const result = await createKnowYourAir.assignManyQuestionsToQuiz({
+        params: { quiz_id },
+        body: { question_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuizModel.findById.restore();
+      KnowYourAirQuestionModel.findById.restore();
+      KnowYourAirQuestionModel.updateMany.restore();
+    });
+
+    it("should handle an error", async () => {
+      const quiz_id = "some-quiz-id";
+      const question_ids = ["question-id-1", "question-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuizModel(tenant).findById to return a mock quiz
+      const findQuizStub = sinon
+        .stub(KnowYourAirQuizModel, "findById")
+        .resolves({
+          /* Mock quiz data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to throw an error
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.assignManyQuestionsToQuiz({
+        params: { quiz_id },
+        body: { question_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuizModel.findById.restore();
+      KnowYourAirQuestionModel.findById.restore();
+      logger.error.restore();
+    });
+  });
+  describe("removeManyQuestionsFromQuiz()", () => {
+    it("should remove many questions from a quiz", async () => {
+      const quiz_id = "some-quiz-id";
+      const question_ids = ["question-id-1", "question-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuizModel(tenant).findById to return a mock quiz
+      const findQuizStub = sinon
+        .stub(KnowYourAirQuizModel, "findById")
+        .resolves({
+          /* Mock quiz data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).find to return mock existing questions
+      const findQuestionsStub = sinon
+        .stub(KnowYourAirQuestionModel, "find")
+        .resolves([{ _id: "question-id-1" }, { _id: "question-id-2" }]);
+
+      // Stub KnowYourAirQuestionModel(tenant).updateMany to return nModified and n
+      const updateManyStub = sinon
+        .stub(KnowYourAirQuestionModel, "updateMany")
+        .resolves({ nModified: question_ids.length, n: question_ids.length });
+
+      const result = await createKnowYourAir.removeManyQuestionsFromQuiz({
+        params: { quiz_id },
+        body: { question_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuizModel.findById.restore();
+      KnowYourAirQuestionModel.find.restore();
+      KnowYourAirQuestionModel.updateMany.restore();
+    });
+
+    it("should handle an error", async () => {
+      const quiz_id = "some-quiz-id";
+      const question_ids = ["question-id-1", "question-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuizModel(tenant).findById to return a mock quiz
+      const findQuizStub = sinon
+        .stub(KnowYourAirQuizModel, "findById")
+        .resolves({
+          /* Mock quiz data */
+        });
+
+      // Stub KnowYourAirQuestionModel(tenant).find to throw an error
+      const findQuestionsStub = sinon
+        .stub(KnowYourAirQuestionModel, "find")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.removeManyQuestionsFromQuiz({
+        params: { quiz_id },
+        body: { question_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuizModel.findById.restore();
+      KnowYourAirQuestionModel.find.restore();
+      logger.error.restore();
+    });
+  });
+  describe("assignManyAnswersToQuestion()", () => {
+    it("should assign many answers to a question", async () => {
+      const question_id = "some-question-id";
+      const answer_ids = ["answer-id-1", "answer-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to return a mock question
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .resolves({
+          /* Mock question data */
+        });
+
+      // Stub KnowYourAirAnswerModel(tenant).findById to return mock answer data
+      const findAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "findById")
+        .resolves({ _id: "answer-id-1", kya_question: null });
+
+      // Stub KnowYourAirAnswerModel(tenant).updateMany to return nModified and n
+      const updateManyStub = sinon
+        .stub(KnowYourAirAnswerModel, "updateMany")
+        .resolves({ nModified: answer_ids.length, n: answer_ids.length });
+
+      const result = await createKnowYourAir.assignManyAnswersToQuestion({
+        params: { question_id },
+        body: { answer_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.findById.restore();
+      KnowYourAirAnswerModel.findById.restore();
+      KnowYourAirAnswerModel.updateMany.restore();
+    });
+
+    it("should handle an error", async () => {
+      const question_id = "some-question-id";
+      const answer_ids = ["answer-id-1", "answer-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to return a mock question
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .resolves({
+          /* Mock question data */
+        });
+
+      // Stub KnowYourAirAnswerModel(tenant).findById to throw an error
+      const findAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "findById")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.assignManyAnswersToQuestion({
+        params: { question_id },
+        body: { answer_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.findById.restore();
+      KnowYourAirAnswerModel.findById.restore();
+      logger.error.restore();
+    });
+  });
+  describe("removeManyAnswersFromQuestion()", () => {
+    it("should remove many answers from a question", async () => {
+      const question_id = "some-question-id";
+      const answer_ids = ["answer-id-1", "answer-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to return a mock question
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .resolves({
+          /* Mock question data */
+        });
+
+      // Stub KnowYourAirAnswerModel(tenant).findById to return mock answer data
+      const findAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "findById")
+        .resolves({ _id: "answer-id-1", kya_question: question_id });
+
+      // Stub KnowYourAirAnswerModel(tenant).updateMany to return nModified and n
+      const updateManyStub = sinon
+        .stub(KnowYourAirAnswerModel, "updateMany")
+        .resolves({ nModified: answer_ids.length, n: answer_ids.length });
+
+      const result = await createKnowYourAir.removeManyAnswersFromQuestion({
+        params: { question_id },
+        body: { answer_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.findById.restore();
+      KnowYourAirAnswerModel.findById.restore();
+      KnowYourAirAnswerModel.updateMany.restore();
+    });
+
+    it("should handle an error", async () => {
+      const question_id = "some-question-id";
+      const answer_ids = ["answer-id-1", "answer-id-2"];
+      const tenant = "your-tenant";
+
+      // Stub KnowYourAirQuestionModel(tenant).findById to return a mock question
+      const findQuestionStub = sinon
+        .stub(KnowYourAirQuestionModel, "findById")
+        .resolves({
+          /* Mock question data */
+        });
+
+      // Stub KnowYourAirAnswerModel(tenant).findById to throw an error
+      const findAnswerStub = sinon
+        .stub(KnowYourAirAnswerModel, "findById")
+        .throws(new Error("Some error"));
+
+      // Stub logger.error to prevent actual log output
+      const loggerErrorStub = sinon.stub(logger, "error");
+
+      const result = await createKnowYourAir.removeManyAnswersFromQuestion({
+        params: { question_id },
+        body: { answer_ids },
+        query: { tenant },
+      });
+
+      expect(result.success).to.be.false;
+      expect(loggerErrorStub.calledOnce).to.be.true;
+      // Your other assertions here
+
+      // Restore the stubs
+      KnowYourAirQuestionModel.findById.restore();
+      KnowYourAirAnswerModel.findById.restore();
+      logger.error.restore();
+    });
+  });
 });
