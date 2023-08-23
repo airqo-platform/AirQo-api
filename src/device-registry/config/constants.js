@@ -282,14 +282,13 @@ const defaultConfig = {
   DATA_PROVIDER_MAPPINGS: (network) => {
     switch (network) {
       case "airqo":
-        return "AirQo"
+        return "AirQo";
         break;
       case "usembassy":
-        return "US Embassy"
+        return "US Embassy";
         break;
       default:
-        return "AirQo"
-
+        return "AirQo";
     }
   },
   EVENT_MAPPINGS: {
@@ -1136,7 +1135,6 @@ const defaultConfig = {
       "devices.phoneNumber": 0,
       "devices.powerType": 0,
       "devices.product_name": 0,
-      "devices.siteName": 0,
       "devices.isRetired": 0,
       "devices.updatedAt": 0,
       "devices.visibility": 0,
@@ -1146,8 +1144,8 @@ const defaultConfig = {
       "devices.deployment_date": 0,
       "devices.isUsedForCollocation": 0,
       "devices.recall_date": 0,
+      "devices.siteName": 0,
       "devices.maintenance_date": 0,
-      "devices.status": 0,
       "devices.device_codes": 0,
       "devices.alias": 0,
       "devices.cohorts": 0,
@@ -1160,6 +1158,54 @@ const defaultConfig = {
       "devices.approximate_distance_in_km": 0,
       "devices.bearing_in_radians": 0,
       "devices.previous_sites": 0,
+      "devices.host_id": 0,
+      "devices.site.lat_long": 0,
+      "devices.site.country": 0,
+      "devices.site.district": 0,
+      "devices.site.sub_county": 0,
+      "devices.site.parish": 0,
+      "devices.site.county": 0,
+      "devices.site.altitude": 0,
+      "devices.site.altitude": 0,
+      "devices.site.greenness": 0,
+      "devices.site.landform_90": 0,
+      "devices.site.landform_270": 0,
+      "devices.site.aspect": 0,
+      "devices.site.distance_to_nearest_road": 0,
+      "devices.site.distance_to_nearest_primary_road": 0,
+      "devices.site.distance_to_nearest_secondary_road": 0,
+      "devices.site.distance_to_nearest_tertiary_road": 0,
+      "devices.site.distance_to_nearest_unclassified_road": 0,
+      "devices.site.distance_to_nearest_residential_road": 0,
+      "devices.site.bearing_to_kampala_center": 0,
+      "devices.site.distance_to_kampala_center": 0,
+      "devices.site.generated_name": 0,
+      "devices.site.updatedAt": 0,
+      "devices.site.updatedAt": 0,
+      "devices.site.city": 0,
+      "devices.site.formatted_name": 0,
+      "devices.site.geometry": 0,
+      "devices.site.google_place_id": 0,
+      "devices.site.region": 0,
+      "devices.site.site_tags": 0,
+      "devices.site.street": 0,
+      "devices.site.town": 0,
+      "devices.site.nearest_tahmo_station": 0,
+      "devices.site.images": 0,
+      "devices.site.airqlouds": 0,
+      "devices.site.site_codes": 0,
+      "devices.site.land_use": 0,
+      "devices.site.latitude": 0,
+      "devices.site.longitude": 0,
+      "devices.site.approximate_latitude": 0,
+      "devices.site.approximate_longitude": 0,
+      "devices.site.bearing_in_radians": 0,
+      "devices.site.approximate_distance_in_km": 0,
+      "devices.site.description": 0,
+      "devices.site.network": 0,
+      "devices.site.weather_stations": 0,
+      "devices.site.createdAt": 0,
+      "devices.site.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1265,7 +1311,9 @@ const defaultConfig = {
     completion_message: 1,
     image: 1,
     questions: 1,
-    active_question: { $arrayElemAt: ["$kya_user_quiz_progress.active_question", 0] },
+    active_question: {
+      $arrayElemAt: ["$kya_user_quiz_progress.active_question", 0],
+    },
     status: { $arrayElemAt: ["$kya_user_quiz_progress.status", 0] },
   },
   KYA_QUIZ_EXCLUSION_PROJECTION: (category) => {
@@ -1317,7 +1365,6 @@ const defaultConfig = {
     return projection;
   },
 
-
   KYA_LESSONS_INCLUSION_PROJECTION: {
     _id: 1,
     title: 1,
@@ -1335,7 +1382,6 @@ const defaultConfig = {
     }
     return projection;
   },
-
 
   KYA_QUIZ_PROGRESS_INCLUSION_PROJECTION: {
     user_id: 1,
