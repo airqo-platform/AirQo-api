@@ -181,20 +181,63 @@ cohortSchema.statics.list = async function({
         foreignField: "cohorts",
         as: "devices",
       })
+      .unwind("$devices")
+      .lookup({
+        from: "sites",
+        localField: "devices.site_id",
+        foreignField: "_id",
+        as: "devices.site",
+      })
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
+      .group({
+        _id: "$_id",
+        visibility: { $first: "$visibility" },
+        cohort_tags: { $first: "$cohort_tags" },
+        cohort_codes: { $first: "$cohort_codes" },
+        name: { $first: "$name" },
+        network: { $first: "$network" },
+        numberOfDevices: { $sum: 1 },
+        devices: { $push: "$devices" },
+      })
       .skip(skip ? skip : 0)
       .limit(limit ? limit : 1000)
       .allowDiskUse(true);
 
-    const data = await pipeline;
-    logObject("the data baby", data);
-    if (!isEmpty(data)) {
+    const cohorts = await pipeline.exec();
+
+    const result = cohorts.map((cohort) => ({
+      _id: cohort._id,
+      visibility: cohort.visibility,
+      cohort_tags: cohort.cohort_tags,
+      cohort_codes: cohort.cohort_codes,
+      name: cohort.name,
+      network: cohort.network,
+      numberOfDevices: cohort.numberOfDevices,
+      devices: cohort.devices.map((device) => ({
+        _id: device._id,
+        status: device.status,
+        name: device.name,
+        network: device.network,
+        device_number: device.device_number,
+        description: device.description,
+        long_name: device.long_name,
+        createdAt: device.createdAt,
+        host_id: device.host_id,
+        site: device.site &&
+          device.site[0] && {
+            _id: device.site[0]._id,
+            name: device.site[0].name,
+          },
+      })),
+    }));
+
+    if (result.length > 0) {
       return {
         success: true,
-        message: "Successfull Operation",
-        data,
+        message: "Successful Operation",
+        data: result,
         status: httpStatus.OK,
       };
     } else {

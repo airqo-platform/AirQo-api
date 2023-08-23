@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
+const { getModelByTenant } = require("@config/database");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -662,4 +663,14 @@ User.prototype.hasPermissionTo = async function hasPermissionTo(permission) {
   );
 };
 
-module.exports = UserSchema;
+const UserModel = (tenant) => {
+  try {
+    let users = mongoose.model("users");
+    return users;
+  } catch (error) {
+    let users = getModelByTenant(tenant, "user", UserSchema);
+    return users;
+  }
+};
+
+module.exports = UserModel;
