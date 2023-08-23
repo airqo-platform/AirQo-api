@@ -319,10 +319,10 @@ AccessTokenSchema.methods = {
 
 const AccessTokenModel = (tenant) => {
   try {
-    let tokens = mongoose.model("tokens");
+    let tokens = mongoose.model("access_tokens");
     return tokens;
   } catch (error) {
-    let tokens = getModelByTenant(tenant, "token", AccessTokenSchema);
+    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
     return tokens;
   }
 };
