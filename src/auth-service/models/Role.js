@@ -3,6 +3,7 @@ const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { getModelByTenant } = require("@config/database");
 
 const RoleSchema = new mongoose.Schema(
   {
@@ -286,4 +287,14 @@ RoleSchema.methods = {
   },
 };
 
-module.exports = RoleSchema;
+const RoleModel = (tenant) => {
+  try {
+    const roles = mongoose.model("roles");
+    return roles;
+  } catch (error) {
+    const roles = getModelByTenant(tenant, "role", RoleSchema);
+    return roles;
+  }
+};
+
+module.exports = RoleModel;

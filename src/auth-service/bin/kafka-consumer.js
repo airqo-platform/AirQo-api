@@ -64,7 +64,13 @@ const operationForNewMobileAppUser = async (messageData) => {
         );
       }
     }
-  } catch (error) {}
+  } catch (error) {
+    logger.error(
+      `KAFKA: internal server error -- operationForNewMobileAppUser() -- ${JSON.stringify(
+        error
+      )}`
+    );
+  }
 };
 
 const operationFunction2 = async (messageData) => {
@@ -73,21 +79,22 @@ const operationFunction2 = async (messageData) => {
 };
 
 const kafkaConsumer = async () => {
-  const kafka = new Kafka({
-    clientId: constants.KAFKA_CLIENT_ID,
-    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-  });
-
-  const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
-
-  // Define topic-to-operation function mapping
-  const topicOperations = {
-    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser,
-    // topic2: operationFunction2,
-    // Add more topics and their corresponding functions as needed
-  };
-
   try {
+    const kafka = new Kafka({
+      clientId: constants.KAFKA_CLIENT_ID,
+      brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+    });
+
+    const consumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+
+    // Define topic-to-operation function mapping
+    const topicOperations = {
+      [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser,
+      // topic2: operationFunction2,
+      // Add more topics and their corresponding functions as needed
+    };
     await consumer.connect();
     // Subscribe to all topics in the mapping
     await Promise.all(
@@ -106,7 +113,9 @@ const kafkaConsumer = async () => {
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic}: ${error}`
+                `Error processing Kafka message for topic ${topic}: ${JSON.stringify(
+                  error
+                )}`
               );
             }
           },
@@ -114,7 +123,8 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
-    logger.error(`Error connecting to Kafka: ${error}`);
+    logObject("Error connecting to Kafka", error);
+    logger.error(`Error connecting to Kafka: ${JSON.stringify(error)}`);
   }
 };
 
