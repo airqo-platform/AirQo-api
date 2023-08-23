@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const deviceSchema = require("@models/device"); // Replace with the actual path to your deviceSchema.js file
+const deviceSchema = require("@models/Device"); // Replace with the actual path to your deviceSchema.js file
 
 describe("Device Model", () => {
   let Device;

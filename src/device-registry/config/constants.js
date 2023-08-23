@@ -1309,6 +1309,7 @@ const defaultConfig = {
     _id: 1,
     title: 1,
     completion_message: 1,
+    description: 1,
     image: 1,
     questions: 1,
     active_question: {

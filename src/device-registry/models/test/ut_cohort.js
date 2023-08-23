@@ -3,7 +3,7 @@ const chai = require("chai");
 const { expect } = chai;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const cohortSchema = require("@models/cohort");
+const cohortSchema = require("@models/Cohort");
 const chaiAsPromised = require("chai-as-promised");
 chai.use(chaiAsPromised);
 const httpStatus = require("http-status");
