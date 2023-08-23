@@ -1,5 +1,5 @@
 const UserModel = require("@models/User");
-const LogModel = require("@models/log");
+const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
 const { getModelByTenant } = require("@config/database");
