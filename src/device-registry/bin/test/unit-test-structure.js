@@ -1,13 +1,7 @@
 // test-create-activity.js
 require("module-alias/register");
-/***
- * 
-generate a  unit test file for the following Schema using hierarchical describe blocks, Mocha, Chai, and Sinon:
- */
 const createActivity = require("@utils/create-activity");
 // Import any other necessary modules for testing
-
-// Mock dependencies using Jest auto-mocking or manual mocking
 
 describe("createActivity", () => {
   // Test list function

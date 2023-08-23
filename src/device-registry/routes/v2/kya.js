@@ -477,13 +477,7 @@ router.put(
         .notEmpty()
         .withMessage("the user_id should not be empty IF provided")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("lesson_id")
         .optional()
         .notEmpty()
@@ -545,13 +539,7 @@ router.post(
         .exists()
         .withMessage("the user_id is missing in request")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("lesson_id")
         .exists()
         .withMessage("the lesson_id is missing in request")
@@ -1489,13 +1477,7 @@ router.put(
         .notEmpty()
         .withMessage("the user_id should not be empty IF provided")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("quiz_id")
         .optional()
         .notEmpty()
@@ -1549,13 +1531,7 @@ router.post(
         .exists()
         .withMessage("the user_id is missing in request")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("quiz_id")
         .exists()
         .withMessage("the quiz_id is missing in request")
