@@ -181,6 +181,12 @@ cohortSchema.statics.list = async function({
         foreignField: "cohorts",
         as: "devices",
       })
+      .lookup({
+        from: "sites",
+        localField: "devices.site_id",
+        foreignField: "_id",
+        as: "site",
+      })
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
