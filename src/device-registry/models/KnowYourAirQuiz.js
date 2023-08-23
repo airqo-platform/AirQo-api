@@ -118,7 +118,7 @@ knowYourAirQuizSchema.statics = {
                     as: "questions",
                 })
                 .unwind("$questions")
-                .sort({ "questions.question_position": 1 }) 
+                .sort({ "questions.question_position": 1 })
                 .lookup({
                     from: "kyaanswers",
                     localField: "questions._id",
@@ -130,6 +130,10 @@ knowYourAirQuizSchema.statics = {
                 })
                 .group({
                     _id: "$_id",
+                    title: { $first: "$title" },
+                    description: { $first: "$description" },
+                    completion_message: { $first: "$completion_message" },
+                    image: { $first: "$image" },
                     questions: { $push: "$questions" }
                 })
                 .lookup({
