@@ -66,11 +66,7 @@ const KnowYourAirQuizModel = (tenant) => {
     let kyaquizzes = mongoose.model("kyaquizzes");
     return kyaquizzes;
   } catch (error) {
-    let kyaquizzes = getModelByTenant(
-      tenant,
-      "kyaquiz",
-      KnowYourAirQuizSchema
-    );
+    let kyaquizzes = getModelByTenant(tenant, "kyaquiz", KnowYourAirQuizSchema);
     return kyaquizzes;
   }
 };
@@ -80,7 +76,11 @@ const KnowYourAirQuestionModel = (tenant) => {
     let kyaquestions = mongoose.model("kyaquestions");
     return kyaquestions;
   } catch (error) {
-    let kyaquestions = getModelByTenant(tenant, "kyaquestion", KnowYourAirQuestionSchema);
+    let kyaquestions = getModelByTenant(
+      tenant,
+      "kyaquestion",
+      KnowYourAirQuestionSchema
+    );
     return kyaquestions;
   }
 };
@@ -90,7 +90,11 @@ const KnowYourAirAnswerModel = (tenant) => {
     let kyaanswers = mongoose.model("kyaanswers");
     return kyaanswers;
   } catch (error) {
-    let kyaanswers = getModelByTenant(tenant, "kyaanswer", KnowYourAirAnswerSchema);
+    let kyaanswers = getModelByTenant(
+      tenant,
+      "kyaanswer",
+      KnowYourAirAnswerSchema
+    );
     return kyaanswers;
   }
 };
@@ -108,7 +112,6 @@ const KnowYourAirUserQuizProgressModel = (tenant) => {
     return kyaprogress;
   }
 };
-
 
 const createKnowYourAir = {
   sample: async (request) => {
@@ -485,7 +488,6 @@ const createKnowYourAir = {
       };
     }
   },
-
   syncUserLessonProgress: async (request) => {
     try {
       const { query, body, params } = request;
@@ -494,14 +496,11 @@ const createKnowYourAir = {
       let progressList = body.kya_user_progress;
 
       if (progressList.length !== 0) {
-
         for (progress of progressList) {
-
-          let responseFromListProgress = await createKnowYourAir.listUserLessonProgress(request)
-          logObject(
-            "responseFromListProgress",
-            responseFromListProgress
+          let responseFromListProgress = await createKnowYourAir.listUserLessonProgress(
+            request
           );
+          logObject("responseFromListProgress", responseFromListProgress);
           if (responseFromListProgress.success === false) {
             return responseFromListProgress;
           }
@@ -511,15 +510,16 @@ const createKnowYourAir = {
               query: {
                 tenant: tenant,
               },
-              body:
-              {
+              body: {
                 user_id: user_id,
                 lesson_id: progress._id,
                 active_task: progress.active_task,
                 status: progress.status,
               },
             };
-            let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(requestBody);
+            let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(
+              requestBody
+            );
             logObject(
               "responseFromCreateUserLessonProgress",
               responseFromCreateUserLessonProgress
@@ -527,8 +527,7 @@ const createKnowYourAir = {
             if (responseFromCreateUserLessonProgress.success === false) {
               return responseFromCreateUserLessonProgress;
             }
-          }
-          else {
+          } else {
             let requestBody = {
               query: {
                 tenant: tenant,
@@ -537,8 +536,10 @@ const createKnowYourAir = {
                 progress_id: responseFromListProgress.data[0]._id,
               },
               body: progress,
-            }
-            let responseFromUpdateUserLessonProgress = await createKnowYourAir.updateUserLessonProgress(requestBody);
+            };
+            let responseFromUpdateUserLessonProgress = await createKnowYourAir.updateUserLessonProgress(
+              requestBody
+            );
             logObject(
               "responseFromUpdateUserLessonProgress",
               responseFromUpdateUserLessonProgress
@@ -546,7 +547,6 @@ const createKnowYourAir = {
             if (responseFromUpdateUserLessonProgress.success === false) {
               return responseFromUpdateUserLessonProgress;
             }
-
           }
         }
       }
@@ -556,20 +556,20 @@ const createKnowYourAir = {
         },
         params: {
           user_id: user_id,
-        }
+        },
       };
-      let syncResponse = await createKnowYourAir.listUserLessonProgress(requestBody)
+      let syncResponse = await createKnowYourAir.listUserLessonProgress(
+        requestBody
+      );
 
-      return syncResponse.success ?
-        {
-          success: true,
-          message: "Sync successful",
-          data: syncResponse.data,
-          status: httpStatus.OK,
-        } :
-        syncResponse;
-
-
+      return syncResponse.success
+        ? {
+            success: true,
+            message: "Sync successful",
+            data: syncResponse.data,
+            status: httpStatus.OK,
+          }
+        : syncResponse;
     } catch (error) {
       logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
@@ -1020,7 +1020,6 @@ const createKnowYourAir = {
     }
   },
 
-  /******************* Quiz *******************************/
   /*************** quizzes *******************************/
   listQuiz: async (request) => {
     try {
@@ -1034,14 +1033,12 @@ const createKnowYourAir = {
         return filter;
       }
       logObject("filter", filter);
-      const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-          user_id: user_id,
-        }
-      );
+      const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list({
+        filter,
+        limit,
+        skip,
+        user_id: user_id,
+      });
       logObject("responseFromListQuizzes", responseFromListQuizzes);
       return responseFromListQuizzes;
     } catch (error) {
@@ -1158,7 +1155,7 @@ const createKnowYourAir = {
     }
   },
 
-  /******************* tracking user progress ***************** */
+  /******************* tracking user QUIZ progress ***************** */
   listUserQuizProgress: async (request) => {
     try {
       const { query } = request;
@@ -1283,7 +1280,6 @@ const createKnowYourAir = {
       };
     }
   },
-
   syncUserQuizProgress: async (request) => {
     try {
       const { query, body, params } = request;
@@ -1292,14 +1288,11 @@ const createKnowYourAir = {
       let progressList = body.kya_quiz_user_progress;
 
       if (progressList.length !== 0) {
-
         for (progress of progressList) {
-
-          let responseFromListProgress = await createKnowYourAir.listUserQuizProgress(request)
-          logObject(
-            "responseFromListProgress",
-            responseFromListProgress
+          let responseFromListProgress = await createKnowYourAir.listUserQuizProgress(
+            request
           );
+          logObject("responseFromListProgress", responseFromListProgress);
           if (responseFromListProgress.success === false) {
             return responseFromListProgress;
           }
@@ -1309,15 +1302,16 @@ const createKnowYourAir = {
               query: {
                 tenant: tenant,
               },
-              body:
-              {
+              body: {
                 user_id: user_id,
                 quiz_id: progress._id,
                 active_question: progress.active_question,
                 status: progress.status,
               },
             };
-            let responseFromCreateUserQuizProgress = await createKnowYourAir.createUserQuizProgress(requestBody);
+            let responseFromCreateUserQuizProgress = await createKnowYourAir.createUserQuizProgress(
+              requestBody
+            );
             logObject(
               "responseFromCreateUserQuizProgress",
               responseFromCreateUserQuizProgress
@@ -1325,8 +1319,7 @@ const createKnowYourAir = {
             if (responseFromCreateUserQuizProgress.success === false) {
               return responseFromCreateUserQuizProgress;
             }
-          }
-          else {
+          } else {
             let requestBody = {
               query: {
                 tenant: tenant,
@@ -1335,8 +1328,10 @@ const createKnowYourAir = {
                 progress_id: responseFromListProgress.data[0]._id,
               },
               body: progress,
-            }
-            let responseFromUpdateUserQuizProgress = await createKnowYourAir.updateUserQuizProgress(requestBody);
+            };
+            let responseFromUpdateUserQuizProgress = await createKnowYourAir.updateUserQuizProgress(
+              requestBody
+            );
             logObject(
               "responseFromUpdateUserQuizProgress",
               responseFromUpdateUserQuizProgress
@@ -1344,7 +1339,6 @@ const createKnowYourAir = {
             if (responseFromUpdateUserQuizProgress.success === false) {
               return responseFromUpdateUserQuizProgress;
             }
-
           }
         }
       }
@@ -1354,20 +1348,20 @@ const createKnowYourAir = {
         },
         params: {
           user_id: user_id,
-        }
+        },
       };
-      let syncResponse = await createKnowYourAir.listUserQuizProgress(requestBody)
+      let syncResponse = await createKnowYourAir.listUserQuizProgress(
+        requestBody
+      );
 
-      return syncResponse.success ?
-        {
-          success: true,
-          message: "Sync successful",
-          data: syncResponse.data,
-          status: httpStatus.OK,
-        } :
-        syncResponse;
-
-
+      return syncResponse.success
+        ? {
+            success: true,
+            message: "Sync successful",
+            data: syncResponse.data,
+            status: httpStatus.OK,
+          }
+        : syncResponse;
     } catch (error) {
       logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
@@ -1393,7 +1387,9 @@ const createKnowYourAir = {
         return filter;
       }
 
-      const responseFromListKyaQuestion = await KnowYourAirQuestionModel(tenant).list({
+      const responseFromListKyaQuestion = await KnowYourAirQuestionModel(
+        tenant
+      ).list({
         filter,
         limit,
         skip,
@@ -1473,7 +1469,10 @@ const createKnowYourAir = {
         tenant
       ).register(body);
 
-      logObject("responseFromRegisterKyaQuestion", responseFromRegisterKyaQuestion);
+      logObject(
+        "responseFromRegisterKyaQuestion",
+        responseFromRegisterKyaQuestion
+      );
 
       if (responseFromRegisterKyaQuestion.success === true) {
         try {
@@ -1525,7 +1524,9 @@ const createKnowYourAir = {
         return filter;
       }
 
-      const responseFromListKyaAnswer = await KnowYourAirAnswerModel(tenant).list({
+      const responseFromListKyaAnswer = await KnowYourAirAnswerModel(
+        tenant
+      ).list({
         filter,
         limit,
         skip,
@@ -1644,7 +1645,7 @@ const createKnowYourAir = {
     }
   },
 
-  /******************* manage *******************************/
+  /******************* manage Quizes *******************************/
 
   assignManyQuestionsToQuiz: async (request) => {
     try {
@@ -1695,10 +1696,9 @@ const createKnowYourAir = {
       }
 
       const totalQuestions = question_ids.length;
-      const { nModified, n } = await KnowYourAirQuestionModel(tenant).updateMany(
-        { _id: { $in: question_ids } },
-        { kya_quiz: quiz_id }
-      );
+      const { nModified, n } = await KnowYourAirQuestionModel(
+        tenant
+      ).updateMany({ _id: { $in: question_ids } }, { kya_quiz: quiz_id });
 
       const notFoundCount = totalQuestions - nModified;
       if (nModified === 0) {
@@ -1757,7 +1757,8 @@ const createKnowYourAir = {
 
       if (existingQuestions.length !== question_ids.length) {
         const nonExistentQuestions = question_ids.filter(
-          (user_id) => !existingQuestions.find((user) => user._id.equals(user_id))
+          (user_id) =>
+            !existingQuestions.find((user) => user._id.equals(user_id))
         );
 
         return {
@@ -1772,7 +1773,9 @@ const createKnowYourAir = {
 
       try {
         const totalQuestions = question_ids.length;
-        const { nModified, n } = await KnowYourAirQuestionModel(tenant).updateMany(
+        const { nModified, n } = await KnowYourAirQuestionModel(
+          tenant
+        ).updateMany(
           { _id: { $in: question_ids } },
           { kya_quiz: null },
           { multi: true }
@@ -1821,15 +1824,15 @@ const createKnowYourAir = {
       };
     }
   },
-
-
   assignManyAnswersToQuestion: async (request) => {
     try {
       const { question_id } = request.params;
       const { answer_ids } = request.body;
       const { tenant } = request.query;
 
-      const question = await KnowYourAirQuestionModel(tenant).findById(question_id);
+      const question = await KnowYourAirQuestionModel(tenant).findById(
+        question_id
+      );
 
       if (!question) {
         return {
@@ -1897,7 +1900,8 @@ const createKnowYourAir = {
 
       return {
         success: true,
-        message: "successfully assigned all the provided answers to the Question",
+        message:
+          "successfully assigned all the provided answers to the Question",
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1916,7 +1920,9 @@ const createKnowYourAir = {
       const { tenant } = request.query;
 
       // Check if question exists
-      const question = await KnowYourAirQuestionModel(tenant).findById(question_id);
+      const question = await KnowYourAirQuestionModel(tenant).findById(
+        question_id
+      );
       if (!question) {
         return {
           success: false,
@@ -1949,7 +1955,9 @@ const createKnowYourAir = {
 
       try {
         const totalAnswers = answer_ids.length;
-        const { nModified, n } = await KnowYourAirAnswerModel(tenant).updateMany(
+        const { nModified, n } = await KnowYourAirAnswerModel(
+          tenant
+        ).updateMany(
           { _id: { $in: answer_ids } },
           { kya_question: null },
           { multi: true }
