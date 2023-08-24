@@ -1848,9 +1848,6 @@ router.post(
         .withMessage("content should be an array")
         .bail()
         .custom((value) => {
-          if (!Array.isArray(value)) {
-            throw new Error("content should be an array");
-          }
           for (const sentence of value) {
             if (typeof sentence !== "string") {
               throw new Error("Each element in content should be a string");
