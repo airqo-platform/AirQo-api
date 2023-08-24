@@ -155,10 +155,13 @@ const createSim = {
         };
       }
       const postUrl = `${constants.THINGS_MOBILE_BASE_URL}/${constants.THINGS_MOBILE_STATUS_URL}`;
+      logObject("the postUrl", postUrl);
       const formData = {
         ...thingsMobile,
         msisdn: sim.msisdn,
       };
+
+      logObject("formData", formData);
 
       const options = {
         headers: {
@@ -166,9 +169,10 @@ const createSim = {
         },
       };
 
-      await axios
-        .post(postUrl, new URLSearchParams(formData), options)
+      return await axios
+        .post(postUrl, formData, options)
         .then(async (response) => {
+          logObject("the response from the EXT sytem", response);
           const xmlResponse = response.data;
 
           const parsedResponse = await xml2js.parseStringPromise(xmlResponse, {
@@ -178,35 +182,65 @@ const createSim = {
 
           logObject("parsedResponse", parsedResponse);
 
-          const simInfo = parsedResponse.result.sims.sim;
-
-          const jsonOutput = {
-            balance: simInfo.balance,
-            activationDate: simInfo.activationDate,
-            msisdn: simInfo.msisdn,
-            name: simInfo.name,
-            status: simInfo.status,
-            plan: simInfo.plan,
-            totalTraffic: simInfo.totalTraffic,
-          };
-
-          logObject("jsonOutput", jsonOutput);
-
-          const updatedSim = await SimModel(tenant)
-            .findByIdAndUpdate(ObjectId(sim_id), jsonOutput)
-            .lean();
-          if (!isEmpty(updatedSim)) {
-            return {
-              success: true,
-              message: "Successfully retrieved the SIM status",
-              status: httpStatus.OK,
-              data: updatedSim,
-            };
-          } else {
+          if (isEmpty(parsedResponse.result)) {
             return {
               success: false,
               message: "Internal Server Error",
-              errors: { message: "unable to update the sim records" },
+              errors: { message: "Response from EXT system is undefined" },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          } else if (
+            parsedResponse.result.done === "true" &&
+            parsedResponse.result.sims
+          ) {
+            const simInfo = parsedResponse.result.sims.sim;
+
+            logObject("simInfo", simInfo);
+
+            const jsonOutput = {
+              balance: simInfo.balance,
+              activationDate: simInfo.activationDate,
+              msisdn: simInfo.msisdn,
+              name: simInfo.name,
+              status: simInfo.status,
+              plan: simInfo.plan,
+              totalTraffic: simInfo.totalTraffic,
+            };
+
+            logObject("jsonOutput", jsonOutput);
+
+            const updatedSim = await SimModel(tenant)
+              .findByIdAndUpdate(ObjectId(sim_id), jsonOutput)
+              .lean();
+
+            logObject("updatedSim", updatedSim);
+            if (!isEmpty(updatedSim)) {
+              return {
+                success: true,
+                message: "Successfully retrieved the SIM status",
+                status: httpStatus.OK,
+                data: updatedSim,
+              };
+            } else {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: { message: "unable to update the sim records" },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+          } else if (parsedResponse.result.done === "false") {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message: parsedResponse.result.errorMessage
+                  ? parsedResponse.result.errorMessage
+                  : "",
+                code: parsedResponse.result.errorCode
+                  ? parsedResponse.result.errorCode
+                  : "",
+              },
               status: httpStatus.INTERNAL_SERVER_ERROR,
             };
           }

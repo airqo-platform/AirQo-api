@@ -264,9 +264,10 @@ const createSim = {
       }
       request.query.tenant = tenant;
       const responseFromCheckStatus = await createSimUtil.checkStatus(request);
-      logElement(
-        "has the response for listing sims been successful?",
-        responseFromCheckStatus.success
+
+      logObject(
+        "responseFromCheckStatus in controller",
+        responseFromCheckStatus
       );
       if (responseFromCheckStatus.success === true) {
         const status = responseFromCheckStatus.status
