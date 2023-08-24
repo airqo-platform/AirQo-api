@@ -1844,12 +1844,17 @@ router.post(
         .withMessage("the title should not be empty")
         .trim(),
       body("content")
-        .exists()
-        .withMessage("the content is missing in request")
+        .isArray()
+        .withMessage("content should be an array")
         .bail()
-        .notEmpty()
-        .withMessage("the content should not be empty")
-        .trim(),
+        .custom((value) => {
+          for (const sentence of value) {
+            if (typeof sentence !== "string") {
+              throw new Error("Each element in content should be a string");
+            }
+          }
+          return true;
+        }),
     ],
   ]),
   knowYourAirController.createAnswer
@@ -1902,10 +1907,20 @@ router.put(
         .bail()
         .trim(),
       body("content")
-        .optional()
-        .notEmpty()
-        .withMessage("the content should not be empty")
-        .trim(),
+        .isArray()
+        .withMessage("content should be an array")
+        .bail()
+        .custom((value) => {
+          if (!Array.isArray(value)) {
+            throw new Error("content should be an array");
+          }
+          for (const sentence of value) {
+            if (typeof sentence !== "string") {
+              throw new Error("Each element in content should be a string");
+            }
+          }
+          return true;
+        }),
     ],
   ]),
   knowYourAirController.updateAnswer
