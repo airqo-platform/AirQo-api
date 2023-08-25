@@ -120,7 +120,15 @@ const createSim = {
       if (filter.success && filter.success === false) {
         return filter;
       }
-
+      delete update.msisdn;
+      delete update.balance;
+      delete update.activationDate;
+      delete update.name;
+      delete update.status;
+      delete update.plan;
+      delete update.totalTraffic;
+      delete update.simBarcode;
+      delete update.active;
       const responseFromModifySim = await SimModel(tenant).modify({
         filter,
         update,

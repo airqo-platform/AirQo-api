@@ -51,13 +51,13 @@ router.post(
         .notEmpty()
         .withMessage("the msisdn should not be empty")
         .bail()
-        // .custom((value) => {
-        //   let parsedPhoneNumber = phoneUtil.parse(value);
-        //   let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
-        //   return isValid;
-        // })
-        // .withMessage("msisdn must be a valid one")
-        .trim(),
+        .trim()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("msisdn must be a valid one"),
     ],
   ]),
   createSimController.create
@@ -132,20 +132,10 @@ router.put(
   ]),
   oneOf([
     [
-      body("first_name")
+      body("msisdn")
         .optional()
         .notEmpty()
-        .withMessage("the first_name should not be empty IF provided")
-        .trim(),
-      body("last_name")
-        .optional()
-        .notEmpty()
-        .withMessage("the last_name should not be empty IF provided")
-        .trim(),
-      body("phone_number")
-        .optional()
-        .notEmpty()
-        .withMessage("phone_number should not be empty IF provided")
+        .withMessage("msisdn should not be empty IF provided")
         .bail()
         .trim()
         .custom((value) => {
@@ -153,28 +143,17 @@ router.put(
           let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
           return isValid;
         })
-        .withMessage("phone_number must be a valid one")
-        .bail(),
-      body("email")
+        .withMessage("msisdn must be a valid one"),
+      body("dataBalanceThreshold")
         .optional()
-        .notEmpty()
-        .withMessage("the email should not be empty IF provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("site_id")
-        .optional()
-        .notEmpty()
-        .withMessage("the site_id should not be empty IF provided")
-        .bail()
         .trim()
-        .isMongoId()
-        .withMessage("the site_id should be an Object ID")
+        .notEmpty()
+        .withMessage("the dataBalanceThreshold should not be empty IF provided")
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .isInt()
+        .withMessage(
+          "the dataBalanceThreshold in some of the inputs should be an integer value"
+        ),
     ],
   ]),
   createSimController.update

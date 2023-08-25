@@ -28,6 +28,7 @@ const SimSchema = new Schema(
   {
     msisdn: { type: Number, trim: true, unique: true, required: true },
     balance: { type: Number, trim: true },
+    dataBalanceThreshold: { type: Number, trim: true },
     activationDate: { type: Date, trim: true },
     name: { type: String, trim: true },
     status: { type: String, trim: true },

@@ -26,6 +26,7 @@ const main = async () => {
   // await kafkaConsumer().catch((error) => {
   //   logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
   // });
+  require("./sim-alerts");
   createServer();
 };
 
