@@ -15,7 +15,7 @@ const knowYourAirAnswerSchema = new Schema(
         },
         content: {
             required: [true, "the content is required!"],
-            type: String,
+            type: [String],
             trim: true,
         },
         kya_question: {
