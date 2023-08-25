@@ -1,10 +1,12 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
-from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.ml_utils import ForecastUtils
+from airqo_etl_utils.date import date_to_str
+from dateutil.relativedelta import relativedelta
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from datetime import datetime
 
 
 @dag(
@@ -18,9 +20,6 @@ def train_forecasting_models():
     # Hourly forecast tasks
     @task()
     def fetch_training_data_for_hourly_forecast_model():
-        from dateutil.relativedelta import relativedelta
-        from datetime import datetime
-
         current_date = datetime.today()
         start_date = current_date - relativedelta(
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
@@ -33,7 +32,7 @@ def train_forecasting_models():
         return ForecastUtils.preprocess_data(data, "hourly")
 
     @task()
-    def feature_engineer_training_data_for_hourly_forecast_model(data):
+    def feat_engineer_training_data_for_hourly_forecast_model(data):
         return ForecastUtils.feature_eng_data(data, "pm2_5", "hourly", "train")
 
     @task()
@@ -69,7 +68,7 @@ def train_forecasting_models():
 
     hourly_data = fetch_training_data_for_hourly_forecast_model()
     hourly_data = preprocess_training_data_for_hourly_forecast_model(hourly_data)
-    hourly_data = feature_engineer_training_data_for_hourly_forecast_model(hourly_data)
+    hourly_data = feat_engineer_training_data_for_hourly_forecast_model(hourly_data)
     train_and_save_hourly_forecast_model(hourly_data)
 
     daily_data = fetch_training_data_for_daily_forecast_model()

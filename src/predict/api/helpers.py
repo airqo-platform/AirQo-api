@@ -186,7 +186,7 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts(
     db_name,
-        device_id=None,
+    device_id=None,
     site_id=None,
     site_name=None,
     parish=None,
@@ -218,13 +218,14 @@ def get_forecasts(
         for time, pm2_5, margin_of_error, adjusted_forecast in zip(
             site_forecasts[0]["timestamp"],
             site_forecasts[0]["pm2_5"],
-                site_forecasts[0]["margin_of_error"],
-                site_forecasts[0]["adjusted_forecast"],
+            site_forecasts[0]["margin_of_error"],
+            site_forecasts[0]["adjusted_forecast"],
         ):
             result = {
                 key: value
                 for key, value in zip(
-                    ["time", "pm2_5", "margin_of_error", "adjusted_forecast"], [time, pm2_5, margin_of_error, adjusted_forecast]
+                    ["time", "pm2_5", "margin_of_error", "adjusted_forecast"],
+                    [time, pm2_5, margin_of_error, adjusted_forecast],
                 )
             }
             results.append(result)

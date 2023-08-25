@@ -7,7 +7,7 @@ kafka-python
 simplejson~=3.19.1
 sentry-sdk
 geopy
-mlflow~=2.5.0
+mlflow
 lightgbm~=4.0.0
 setuptools~=68.0.0
 urllib3~=1.26.16

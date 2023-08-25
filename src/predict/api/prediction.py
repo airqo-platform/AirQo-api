@@ -77,10 +77,6 @@ def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-
-    """
-    Get forecasts for the next 1 week from specified start day.
-    """
     params = {
         name: request.args.get(name, default=None, type=str)
         for name in [
@@ -152,8 +148,8 @@ def get_next_1_week_forecasts():
             forecast["health_tips"] = list(
                 filter(
                     lambda x: x["aqi_category"]["max"]
-                              >= pm2_5
-                              >= x["aqi_category"]["min"],
+                    >= pm2_5
+                    >= x["aqi_category"]["min"],
                     health_tips,
                 )
             )

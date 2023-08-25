@@ -21,70 +21,115 @@ environment = configuration.ENVIRONMENT
 
 pd.options.mode.chained_assignment = None
 
-def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)
-    fs.ls(bucket_name)
-    with fs.open(bucket_name + "/" + source_blob_name, "rb") as handle:
-        job = joblib.load(handle)
-    return job
 
+class GCSUtils:
+    # TODO: In future, save and retrieve models from mlflow instead of GCS
+    @staticmethod
+    def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
+        fs = gcsfs.GCSFileSystem(project=project_name)
+        fs.ls(bucket_name)
+        with fs.open(bucket_name + "/" + source_blob_name, "rb") as handle:
+            job = joblib.load(handle)
+        return job
 
-def upload_trained_model_to_gcs(
-    trained_model, project_name, bucket_name, source_blob_name
-):
-    fs = gcsfs.GCSFileSystem(project=project_name)
-    try:
-        fs.rename(
-            f"{bucket_name}/{source_blob_name}",
-            f"{bucket_name}/{datetime.now()}-{source_blob_name}",
-        )
-        print("Bucket: previous model is backed up")
-    except:
-        print("Bucket: No file to updated")
-
-    # store new model
-    with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
-        job = joblib.dump(trained_model, handle)
-
-
-def upload_mapping_to_gcs(mapping_dict, project_name, bucket_name, source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)
-    mapping_dict = json.dumps(mapping_dict)
-    with fs.open(bucket_name + "/" + source_blob_name, "w") as f:
-        f.write(mapping_dict)
-
-
-def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)
-    with fs.open(bucket_name + "/" + source_blob_name, "r") as f:
-        mapping_dict = json.load(f)
-    return mapping_dict
-
-
-def decode_categorical_features(df, frequency):
-    columns = ["device_id", "site_id", "device_category"]
-    for col in columns:
-        if frequency == "hourly":
-            mapping = get_mapping_from_gcs(
-                project_id, bucket, f"hourly_{col}_mapping.json"
+    @staticmethod
+    def upload_trained_model_to_gcs(
+        trained_model, project_name, bucket_name, source_blob_name
+    ):
+        fs = gcsfs.GCSFileSystem(project=project_name)
+        try:
+            fs.rename(
+                f"{bucket_name}/{source_blob_name}",
+                f"{bucket_name}/{datetime.now()}-{source_blob_name}",
             )
-        elif frequency == "daily":
-            mapping = get_mapping_from_gcs(
-                project_id, bucket, f"daily_{col}_mapping.json"
-            )
+            print("Bucket: previous model is backed up")
+        except:
+            print("Bucket: No file to updated")
 
-        df[col] = df[col].map(mapping)
-    return df
+        with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
+            job = joblib.dump(trained_model, handle)
+
+    @staticmethod
+    def upload_mapping_to_gcs(
+        mapping_dict, project_name, bucket_name, source_blob_name
+    ):
+        fs = gcsfs.GCSFileSystem(project=project_name)
+        mapping_dict = json.dumps(mapping_dict)
+        with fs.open(bucket_name + "/" + source_blob_name, "w") as f:
+            f.write(mapping_dict)
+
+    @staticmethod
+    def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
+        fs = gcsfs.GCSFileSystem(project=project_name)
+        with fs.open(bucket_name + "/" + source_blob_name, "r") as f:
+            mapping_dict = json.load(f)
+        return mapping_dict
+
+
+class DecodingUtils:
+    @staticmethod
+    def decode_categorical_features_pred(df, frequency):
+        columns = ["device_id", "site_id", "device_category"]
+        mapping = {}
+        for col in columns:
+            if frequency == "hourly":
+                mapping = GCSUtils.get_mapping_from_gcs(
+                    project_id, bucket, f"hourly_{col}_mapping.json"
+                )
+            elif frequency == "daily":
+                mapping = GCSUtils.get_mapping_from_gcs(
+                    project_id, bucket, f"daily_{col}_mapping.json"
+                )
+            df[col] = df[col].map(mapping)
+        return df
+
+    @staticmethod
+    def decode_categorical_features_before_save(df, frequency):
+        columns = ["device_id", "site_id", "device_category"]
+        mapping = {}
+        for col in columns:
+            if frequency == "hourly":
+                mapping = GCSUtils.get_mapping_from_gcs(
+                    project_id, bucket, f"hourly_{col}_mapping.json"
+                )
+            elif frequency == "daily":
+                mapping = GCSUtils.get_mapping_from_gcs(
+                    project_id, bucket, f"daily_{col}_mapping.json"
+                )
+            df[col] = df[col].map({v: k for k, v in mapping.items()})
+        return df
+
+    def encode_categorical_training_features(df, freq):
+        df1 = df.copy()
+        columns = ["device_id", "site_id", "device_category"]
+        mappings = []
+        for col in columns:
+            mapping = {}
+            for val in df1[col].unique():
+                num = random.randint(0, 1000)
+                while num in mapping.values():
+                    num = random.randint(0, 1000)
+                mapping[val] = num
+            df1[col] = df1[col].map(mapping)
+            mappings.append(mapping)
+        for i, col in enumerate(columns):
+            GCSUtils.upload_mapping_to_gcs(
+                mappings[i],
+                project_id,
+                bucket,
+                f"{freq}_{col}_mapping.json",
+            )
+        return df1
 
 
 class ForecastUtils:
     @staticmethod
-    def preprocess_data(data, frequency):
+    def preprocess_data(data, data_frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
             "pm2_5"
         ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
-        if frequency == "daily":
+        if data_frequency == "daily":
             data = (
                 data.groupby(["device_id", "site_id", "device_category"])
                 .resample("D", on="timestamp")
@@ -100,9 +145,9 @@ class ForecastUtils:
         return data
 
     @staticmethod
-    def feature_eng_data(data, target_column, frequency, job_type):
+    def feature_eng_data(data, target_column, data_frequency, job_type):
         def get_lag_features(df, target_col, freq):
-            df1 = df.copy()
+            df1 = df.copy()  # use copy to prevent terminal warning
             if freq == "daily":
                 shifts = [1, 2, 3, 7, 14]
                 for s in shifts:
@@ -142,25 +187,6 @@ class ForecastUtils:
 
             return df1
 
-        def encode_categorical_features(df, frequency):
-            df1 = df.copy()
-            columns = ["device_id", "site_id", "device_category"]
-            mappings = []
-            for col in columns:
-                mapping = {}
-                for val in df1[col].unique():
-                    num = random.randint(0, 10000)
-                    while num in mapping.values():
-                        num = random.randint(0, 10000)
-                    mapping[val] = num
-                df1[col] = df1[col].map(mapping)
-                mappings.append(mapping)
-            for i, col in enumerate(columns):
-                upload_mapping_to_gcs(
-                    mappings[i], project_id, bucket, f"{frequency}_{col}_mapping.json"
-                )
-            return df1
-
         def get_time_and_cyclic_features(df, freq):
             df1 = df.copy()
             attributes = ["year", "month", "day", "dayofweek"]
@@ -181,13 +207,20 @@ class ForecastUtils:
 
         df_tmp = data.copy()
         df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
-        df_tmp = get_lag_features(df_tmp, target_column, frequency)
-        df_tmp = get_time_and_cyclic_features(df_tmp, frequency)
+        df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
+        df_tmp = get_time_and_cyclic_features(df_tmp, data_frequency)
         if job_type == "train":
-            df_tmp = encode_categorical_features(df_tmp, frequency)
+            df_tmp = DecodingUtils.encode_categorical_training_features(
+                df_tmp, data_frequency
+            )
         elif job_type == "predict":
-            df_tmp = decode_categorical_features(df_tmp, frequency)
-            df_tmp.dropna(subset=["device_id", "site_id", "device_category"], inplace=True)
+            df_tmp = DecodingUtils.decode_categorical_features_pred(
+                df_tmp, data_frequency
+            )
+            df_tmp.dropna(
+                subset=["device_id", "site_id", "device_category"], inplace=True
+            )  # only 1 row, not sure why
+
             df_tmp["device_id"] = df_tmp["device_id"].astype(int)
             df_tmp["site_id"] = df_tmp["site_id"].astype(int)
             df_tmp["device_category"] = df_tmp["device_category"].astype(int)
@@ -195,27 +228,27 @@ class ForecastUtils:
         return df_tmp
 
     @staticmethod
-    def train_and_save_forecast_models(train, frequency):
+    def train_and_save_forecast_models(training_data, frequency):
         """
         Perform the actual training for hourly data
         """
-        train["timestamp"] = pd.to_datetime(train["timestamp"])
-        features = [c for c in train.columns if c not in ["timestamp", "pm2_5"]]
+        training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
+        features = [c for c in training_data.columns if c not in ["timestamp", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
         train_data = validation_data = test_data = pd.DataFrame()
-        for device in train["device_id"].unique():
-            device_df = train[train["device_id"] == device]
+        for device in training_data["device_id"].unique():
+            device_df = training_data[training_data["device_id"] == device]
             months = device_df["timestamp"].dt.month.unique()
             train_months = val_months = test_months = []
             if frequency == "hourly":
-                train_months = months[:4]
-                val_months = months[4:5]
-                test_months = months[5:]
+                train_months = months[:2]
+                val_months = months[2:3]
+                test_months = months[3:]
             elif frequency == "daily":
-                train_months = months[:8]
-                val_months = months[8:9]
-                test_months = months[9:]
+                train_months = months[:6]
+                val_months = months[6:7]
+                test_months = months[7:]
 
             train_df = device_df[device_df["timestamp"].dt.month.isin(train_months)]
             val_df = device_df[device_df["timestamp"].dt.month.isin(val_months)]
@@ -308,52 +341,103 @@ class ForecastUtils:
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
 
-            upload_trained_model_to_gcs(
+            GCSUtils.upload_trained_model_to_gcs(
                 clf, project_id, bucket, f"{frequency}_forecast_model.pkl"
             )
 
-        alphas = [0.025, 0.975]
-        models = []
-        names = [
-            f"{frequency}_lower_quantile_model",
-            f"{frequency}_upper_quantile_model",
-        ]
+        def create_error_df(data, target, preds):
+            error_df = pd.DataFrame(
+                {
+                    "actual_values": target,
+                    "predicted_values": preds,
+                }
+            )
+            error_df["errors"] = (
+                error_df["predicted_values"] - error_df["actual_values"]
+            )
+            error_df = pd.concat([error_df, data], axis=1)
+            error_df.drop(["actual_values", "pm2_5"], axis=1, inplace=True)
+            error_df.rename(columns={"predicted_values": "pm2_5"}, inplace=True)
 
-        for alpha in alphas:
-            clf = LGBMRegressor(
-                n_estimators=best_params["n_estimators"],
-                learning_rate=best_params["learning_rate"],
-                colsample_bytree=best_params["colsample_bytree"],
-                reg_alpha=best_params["reg_alpha"],
-                reg_lambda=best_params["reg_lambda"],
-                max_depth=best_params["max_depth"],
-                random_state=42,
-                verbosity=2,
-                objective="quantile",
-                alpha=alpha,
-                metric="quantile",
-            )
-            clf.fit(
-                train_data[features],
-                train_target,
-                eval_set=[(test_data[features], test_target)],
-                categorical_feature=["device_id", "site_id", "device_category"],
-            )
-            models.append(clf)
-        for n, m in zip(names, models):
-            upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
+            return error_df
+
+        error_df1 = create_error_df(
+            train_data, train_target, clf.predict(train_data[features])
+        )
+        error_df2 = create_error_df(
+            test_data, test_target, clf.predict(test_data[features])
+        )
+
+        error_features1 = [c for c in error_df1.columns if c not in ["errors"]]
+        error_features2 = [c for c in error_df2.columns if c not in ["errors"]]
+
+        error_target1 = error_df1["errors"]
+        error_target2 = error_df2["errors"]
+
+        error_clf = LGBMRegressor(
+            n_estimators=31,
+            colsample_bytree=1,
+            learning_rate=0.1,
+            metric="rmse",
+            max_depth=5,
+            random_state=42,
+            verbosity=2,
+        )
+
+        error_clf.fit(
+            error_df1[error_features1],
+            error_target1,
+            eval_set=[(error_df2[error_features2], error_target2)],
+            categorical_feature=["device_id", "site_id", "device_category"],
+            callbacks=[early_stopping(stopping_rounds=150)],
+        )
+
+        GCSUtils.upload_trained_model_to_gcs(
+            error_clf, project_id, bucket, f"{frequency}_error_model.pkl"
+        )
+
+    # TODO: quantile regression approach
+    # alphas = [0.025, 0.975]
+    # models = []
+    # names = [
+    #     f"{frequency}_lower_quantile_model",
+    #     f"{frequency}_upper_quantile_model",
+    # ]
+    #
+    # for alpha in alphas:
+    #     clf = LGBMRegressor(
+    #         n_estimators=best_params["n_estimators"],
+    #         learning_rate=best_params["learning_rate"],
+    #         colsample_bytree=best_params["colsample_bytree"],
+    #         reg_alpha=best_params["reg_alpha"],
+    #         reg_lambda=best_params["reg_lambda"],
+    #         max_depth=best_params["max_depth"],
+    #         random_state=42,
+    #         verbosity=2,
+    #         objective="quantile",
+    #         alpha=alpha,
+    #         metric="quantile",
+    #     )
+    #     clf.fit(
+    #         train_data[features],
+    #         train_target,
+    #         eval_set=[(test_data[features], test_target)],
+    #         categorical_feature=["device_id", "site_id", "device_category"],
+    #     )
+    #     models.append(clf)
+    # for n, m in zip(names, models):
+    #     upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
 
     @staticmethod
     def generate_forecasts(data, project_name, bucket_name, frequency):
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
-        data["pm2_5_lower"] = data["pm2_5_upper"] = data["margin_of_error"] = data["adjusted_forecast"] = 0
+        data["margin_of_error"] = data["adjusted_forecast"] = 0
 
         def get_forecasts(
             df_tmp,
             forecast_model,
-            lower_quantile_model,
-            upper_quantile_model,
+            error_model,
             frequency,
             horizon,
         ):
@@ -363,7 +447,7 @@ class ForecastUtils:
                 df_tmp_no_ts = df_tmp.drop("timestamp", axis=1, inplace=False)
                 # daily frequency
                 if frequency == "daily":
-                    df_tmp.tail(1)['timestamp'] += timedelta(days=1)
+                    df_tmp.tail(1)["timestamp"] += timedelta(days=1)
                     shifts1 = [1, 2, 3, 7, 14]
                     for s in shifts1:
                         df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.shift(s, axis=0)["pm2_5"]
@@ -372,32 +456,32 @@ class ForecastUtils:
                     functions = ["mean", "std", "max", "min"]
                     for s in shifts2:
                         for f in functions:
-                            df_tmp[f"pm2_5_{f}_{s}_day"] = (df_tmp_no_ts.shift(1, axis=0).rolling(s).agg(f))[
-                                "pm2_5"
-                            ]
+                            df_tmp[f"pm2_5_{f}_{s}_day"] = (
+                                df_tmp_no_ts.shift(1, axis=0).rolling(s).agg(f)
+                            )["pm2_5"]
 
-                    print('done')
-
+                    print("done")
 
                 elif frequency == "hourly":
                     df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df_tmp.iloc[
-
                         -2, df_tmp.columns.get_loc("timestamp")
                     ] + pd.Timedelta(hours=1)
 
                     # lag features
                     shifts1 = [1, 2, 6, 12]
                     for s in shifts1:
-                        df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.shift(s, axis=0)["pm2_5"]
-
+                        df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.shift(s, axis=0)[
+                            "pm2_5"
+                        ]
 
                     # rolling features
                     shifts2 = [3, 6, 12, 24]
                     functions = ["mean", "std", "median", "skew"]
                     for s in shifts2:
                         for f in functions:
-                            df_tmp[f"pm2_5_{f}_{s}_hour"] = (df_tmp.shift(1, axis=0).rolling(s).agg(f))["pm2_5"]
-
+                            df_tmp[f"pm2_5_{f}_{s}_hour"] = (
+                                df_tmp.shift(1, axis=0).rolling(s).agg(f)
+                            )["pm2_5"]
 
                 attributes = ["year", "month", "day", "dayofweek"]
                 max_vals = [2023, 12, 30, 7]
@@ -405,40 +489,59 @@ class ForecastUtils:
                     attributes.append("hour")
                     max_vals.append(23)
                 for a, m in zip(attributes, max_vals):
-                    df_tmp.tail(1)[f"{a}_sin"] = np.sin(2 * np.pi * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a) / m)
-                    df_tmp.tail(1)[f"{a}_cos"] = np.cos(2 * np.pi * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a) / m)
-                df_tmp.tail(1)["week_sin"] = np.sin(2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52)
-                df_tmp.tail(1)["week_cos"] = np.cos(2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52)
+                    df_tmp.tail(1)[f"{a}_sin"] = np.sin(
+                        2
+                        * np.pi
+                        * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a)
+                        / m
+                    )
+                    df_tmp.tail(1)[f"{a}_cos"] = np.cos(
+                        2
+                        * np.pi
+                        * df_tmp.tail(1)["timestamp"].dt.__getattribute__(a)
+                        / m
+                    )
+                df_tmp.tail(1)["week_sin"] = np.sin(
+                    2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52
+                )
+                df_tmp.tail(1)["week_cos"] = np.cos(
+                    2 * np.pi * df_tmp.tail(1)["timestamp"].dt.isocalendar().week / 52
+                )
 
                 # make predictions
-                excluded_columns = ["pm2_5", "timestamp", "margin_of_error", "pm2_5_lower", "pm2_5_upper", "adjusted_forecast"]
+                excluded_columns = [
+                    "pm2_5",
+                    "timestamp",
+                    "margin_of_error",
+                    "adjusted_forecast",
+                ]
+                excluded_columns_2 = [
+                    "timestamp",
+                    "margin_of_error",
+                    "adjusted_forecast",
+                ]
                 print(df_tmp.tail(1))
-                # df_tmp.tail(1)['pm2_5'] = forecast_model.predict(df_tmp.tail(1).drop(excluded_columns).values.reshape(1, -1))
                 df_tmp.loc[df_tmp.index[-1], "pm2_5"] = forecast_model.predict(
                     df_tmp.drop(excluded_columns, axis=1).tail(1).values.reshape(1, -1)
                 )
-                df_tmp.loc[df_tmp.index[-1], "pm2_5_lower"] = lower_quantile_model.predict(
-                    df_tmp.drop(excluded_columns, axis=1).tail(1).values.reshape(1, -1)
+                df_tmp.loc[df_tmp.index[-1], "margin_of_error"] = error_model.predict(
+                    df_tmp.drop(excluded_columns_2, axis=1)
+                    .tail(1)
+                    .values.reshape(1, -1)
                 )
-                df_tmp.loc[df_tmp.index[-1], "pm2_5_upper"] = upper_quantile_model.predict(
-                    df_tmp.drop(excluded_columns, axis=1).tail(1).values.reshape(1, -1)
+                df_tmp.loc[df_tmp.index[-1], "adjusted_forecast"] = (
+                    df_tmp.loc[df_tmp.index[-1], "pm2_5"]
+                    + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
                 )
-                df_tmp.loc[df_tmp.index[-1], "margin_of_error"] = (df_tmp.loc[df_tmp.index[-1], "pm2_5_upper"] - df_tmp.loc[df_tmp.index[-1], "pm2_5_lower"])/2
-                df_tmp.loc[df_tmp.index[-1], "adjusted_forecast"] = df_tmp.loc[df_tmp.index[-1], "pm2_5"] + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
-
-
 
             return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
-        forecast_model = get_trained_model_from_gcs(
+        forecast_model = GCSUtils.get_trained_model_from_gcs(
             project_name, bucket_name, f"{frequency}_forecast_model.pkl"
         )
-        lower_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, f"{frequency}_lower_quantile_model.pkl"
-        )
-        upper_quantile_model = get_trained_model_from_gcs(
-            project_name, bucket_name, f"{frequency}_upper_quantile_model.pkl"
+        error_model = GCSUtils.get_trained_model_from_gcs(
+            project_name, bucket_name, f"{frequency}_error_model.pkl"
         )
 
         df_tmp = data.copy()
@@ -452,8 +555,7 @@ class ForecastUtils:
             device_forecasts = get_forecasts(
                 test_copy,
                 forecast_model,
-                lower_quantile_model,
-                upper_quantile_model,
+                error_model,
                 frequency,
                 horizon,
             )
@@ -461,33 +563,46 @@ class ForecastUtils:
             forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
             print(device)
 
-
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
-        forecasts["pm2_5_lower"] = forecasts["pm2_5_lower"].astype(float)
-        forecasts["pm2_5_upper"] = forecasts["pm2_5_upper"].astype(float)
         forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
-        decode_categorical_features(forecasts, frequency)
+
+        DecodingUtils.decode_categorical_features_before_save(forecasts, frequency)
+        forecasts = forecasts[
+            [
+                "device_id",
+                "site_id",
+                "timestamp",
+                "pm2_5",
+                "margin_of_error",
+                "adjusted_forecast",
+            ]
+        ]
         return forecasts
 
     @staticmethod
     def save_forecasts_to_mongo(data, frequency):
-        timestamp = pd.to_datetime(datetime.now()).isoformat()
-        device_numbers = data["device_number"].unique()
+        device_ids = data["device_id"].unique()
+        created_at = pd.to_datetime(datetime.now()).isoformat()
         forecast_results = [
             {
-                field: data[data["device_number"] == i][field].tolist()[0]
-                if field != "pm2_5" and field != "time" and field != "health_tips"
-                else data[data["device_number"] == i][field].tolist()
+                field: data[data["device_id"] == i][field].tolist()[0]
+                if field
+                not in ["pm2_5", "margin_of_error", "adjusted_forecast", "timestamp"]
+                else data[data["device_id"] == i][field].tolist()
                 for field in data.columns
             }
-            | {"timestamp": timestamp}
-            for i in device_numbers
+            | {"created_at": created_at}
+            for i in device_ids
         ]
         client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
         if frequency == "hourly":
+            db.daily_forecasts.delete_many({})
             db.hourly_forecasts.insert_many(forecast_results)
+            print(db.hourly_forecasts.find_one())  # confirm saving has worked
         elif frequency == "daily":
+            db.daily_forecasts.delete_many({})
             db.daily_forecasts.insert_many(forecast_results)
+            print(db.daily_forecasts.find_one())
         else:
             raise ValueError("Invalid frequency argument")
