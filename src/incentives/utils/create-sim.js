@@ -12,6 +12,10 @@ const thingsMobile = require("@config/things-mobile");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const convertFromBytesToMegaBytes = (bytes) => {
+  return bytes / (1000 * 1000);
+};
+
 const createSim = {
   createLocal: async (request) => {
     try {
@@ -198,7 +202,7 @@ const createSim = {
             logObject("simInfo", simInfo);
 
             const jsonOutput = {
-              balance: simInfo.balance,
+              balance: convertFromBytesToMegaBytes(simInfo.balance),
               activationDate: simInfo.activationDate,
               msisdn: simInfo.msisdn,
               name: simInfo.name,
@@ -210,7 +214,8 @@ const createSim = {
             logObject("jsonOutput", jsonOutput);
 
             const updatedSim = await SimModel(tenant)
-              .findByIdAndUpdate(ObjectId(sim_id), jsonOutput)
+              .findByIdAndUpdate(ObjectId(sim_id), jsonOutput, { new: true })
+              .select("_id msisdn balance name plan status")
               .lean();
 
             logObject("updatedSim", updatedSim);
