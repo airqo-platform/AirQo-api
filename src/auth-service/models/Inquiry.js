@@ -4,6 +4,7 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const InquirySchema = new mongoose.Schema(
   {
@@ -208,4 +209,14 @@ InquirySchema.methods = {
   },
 };
 
-module.exports = InquirySchema;
+const InquiryModel = (tenant) => {
+  try {
+    const inquiries = mongoose.model("inquiries");
+    return inquiries;
+  } catch (error) {
+    const inquiries = getModelByTenant(tenant, "inquiry", InquirySchema);
+    return inquiries;
+  }
+};
+
+module.exports = InquiryModel;

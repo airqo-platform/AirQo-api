@@ -775,7 +775,6 @@ const defaultConfig = {
       "user.role": 0,
       "user.permissions": 0,
       "user.locationCount": 0,
-      "user.userName": 0,
       "user.password": 0,
       "user.long_organization": 0,
       "user.privilege": 0,

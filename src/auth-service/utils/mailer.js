@@ -417,9 +417,11 @@ const mailer = {
         html: msgTemplates.afterEmailVerification(
           firstName,
           username,
-          password
+          password,
+          email
         ),
         bcc,
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -457,7 +459,8 @@ const mailer = {
         },
         to: email,
         subject: `Link To Reset Password`,
-        text: msgs.recovery_email(token, tenant),
+        html: msgs.recovery_email(token, tenant, email),
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -574,7 +577,8 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Changes to your AirQo email",
-        text: `${msgs.authenticate_email(token)}`,
+        html: `${msgs.authenticate_email(token, email)}`,
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -612,7 +616,8 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics account updated",
-        text: `${msgs.user_updated(firstName, lastName, updatedUserDetails)}`,
+        html: `${msgs.user_updated(firstName, lastName, updatedUserDetails, email)}`,
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -651,7 +656,8 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics Password Reset Successful",
-        text: `${msgs.forgotten_password_updated(firstName, lastName)}`,
+        html: `${msgs.forgotten_password_updated(firstName, lastName, email)}`,
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -690,7 +696,8 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics Password Update Successful",
-        text: `${msgs.known_password_updated(firstName, lastName)}`,
+        html: `${msgs.known_password_updated(firstName, lastName, email)}`,
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;

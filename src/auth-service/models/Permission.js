@@ -3,6 +3,7 @@ const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { getModelByTenant } = require("@config/database");
 
 const PermissionSchema = new mongoose.Schema(
   {
@@ -228,4 +229,18 @@ PermissionSchema.methods = {
   },
 };
 
-module.exports = PermissionSchema;
+const PermissionModel = (tenant) => {
+  try {
+    const permissions = mongoose.model("permissions");
+    return permissions;
+  } catch (error) {
+    const permissions = getModelByTenant(
+      tenant,
+      "permission",
+      PermissionSchema
+    );
+    return permissions;
+  }
+};
+
+module.exports = PermissionModel;

@@ -1,16 +1,15 @@
-const PermissionSchema = require("@models/Permission");
-const ScopeSchema = require("@models/Scope");
-const ClientSchema = require("@models/Client");
-const AccessTokenSchema = require("@models/AccessToken");
-const UserSchema = require("@models/User");
-const RoleSchema = require("@models/Role");
-const DepartmentSchema = require("@models/Department");
-const NetworkSchema = require("@models/Network");
-const GroupSchema = require("@models/Group");
+const PermissionModel = require("@models/Permission");
+const ScopeModel = require("@models/Scope");
+const ClientModel = require("@models/Client");
+const AccessTokenModel = require("@models/AccessToken");
+const UserModel = require("@models/User");
+const RoleModel = require("@models/Role");
+const DepartmentModel = require("@models/Department");
+const NetworkModel = require("@models/Network");
+const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
-const { getModelByTenant } = require("@config/database");
 const winstonLogger = require("@utils/log-winston");
 const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
@@ -32,96 +31,6 @@ const generateClientSecret = (length) => {
   const numBytes = length / 2;
   const clientSecret = crypto.randomBytes(numBytes).toString("hex");
   return clientSecret;
-};
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-
-const UserModel = (tenant) => {
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
-
-const AccessTokenModel = (tenant) => {
-  try {
-    let tokens = mongoose.model("access_tokens");
-    return tokens;
-  } catch (error) {
-    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
-    return tokens;
-  }
-};
-
-const PermissionModel = (tenant) => {
-  try {
-    let permissions = mongoose.model("permissions");
-    return permissions;
-  } catch (error) {
-    let permissions = getModelByTenant(tenant, "permission", PermissionSchema);
-    return permissions;
-  }
-};
-
-const ClientModel = (tenant) => {
-  try {
-    let clients = mongoose.model("clients");
-    return clients;
-  } catch (error) {
-    let clients = getModelByTenant(tenant, "client", ClientSchema);
-    return clients;
-  }
-};
-
-const ScopeModel = (tenant) => {
-  try {
-    let scopes = mongoose.model("scopes");
-    return scopes;
-  } catch (error) {
-    let scopes = getModelByTenant(tenant, "scope", ScopeSchema);
-    return scopes;
-  }
-};
-
-const RoleModel = (tenant) => {
-  try {
-    let roles = mongoose.model("roles");
-    return roles;
-  } catch (error) {
-    let roles = getModelByTenant(tenant, "role", RoleSchema);
-    return roles;
-  }
-};
-
-const DepartmentModel = (tenant) => {
-  try {
-    let departments = mongoose.model("departments");
-    return departments;
-  } catch (error) {
-    let departments = getModelByTenant(tenant, "department", DepartmentSchema);
-    return departments;
-  }
-};
-
-const GroupModel = (tenant) => {
-  try {
-    let groups = mongoose.model("groups");
-    return groups;
-  } catch (error) {
-    let groups = getModelByTenant(tenant, "group", GroupSchema);
-    return groups;
-  }
 };
 
 const routeDefinitions = [
@@ -457,6 +366,14 @@ const controlAccess = {
   },
   regenerateAccessToken: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service temporarily unavailable",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: {
+          message: "Service temporarily unavailable",
+        },
+      };
       const { query, body } = request;
       const { tenant } = query;
       let filter = {};
@@ -577,8 +494,13 @@ const controlAccess = {
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const client = responseFromListAccessToken.data[0].client;
+            const { user: { email = "", userName = "" } = {} } =
+              responseFromListAccessToken.data[0];
+            logObject("email", email);
+            logObject("userName", userName);
             winstonLogger.info(userAction, {
+              email,
+              userName,
               service: service,
             });
 
@@ -691,20 +613,6 @@ const controlAccess = {
           )
           .toUpperCase();
 
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(31)
-        );
-
-        const responseFromSaveClient = await ClientModel(tenant).register({
-          client_secret,
-        });
-        if (
-          responseFromSaveClient.success === false ||
-          responseFromSaveClient.status === httpStatus.ACCEPTED
-        ) {
-          return responseFromSaveClient;
-        }
-
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
@@ -714,8 +622,7 @@ const controlAccess = {
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
-          network_id,
-          client_id: responseFromSaveClient.data._id,
+
           user_id: responseFromCreateUser.data._id,
           expires: Date.now() + toMilliseconds(hrs, min, sec),
         });
@@ -882,9 +789,6 @@ const controlAccess = {
   /******** create clients ******************************************/
   updateClient: async (request) => {
     try {
-      /**
-       * Should we updating the client ID?
-       */
       const { query, body } = request;
       const { tenant } = query;
       let filter = {};
@@ -894,33 +798,15 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      let update = Object.assign({}, body);
-      if (update.client_id) {
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
-        update["client_id"] = client_id;
-      }
-      if (update.client_secret) {
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(
-            constants.CLIENT_SECRET_LENGTH
-          )
-        );
-        update["client_secret"] = client_secret;
-      }
 
-      const responseFromUpdateToken = await ClientModel(
+      let update = Object.assign({}, body);
+      if (update.client_secret) {
+        delete update.client_secret;
+      }
+      const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      return responseFromUpdateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -942,15 +828,10 @@ const controlAccess = {
       } else {
         filter = responseFromFilter;
       }
-      const responseFromDeleteToken = await ClientModel(
+      const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
       ).remove({ filter });
-
-      if (responseFromDeleteToken.success === true) {
-        return responseFromDeleteToken;
-      } else if (responseFromDeleteToken.success == false) {
-        return responseFromDeleteToken;
-      }
+      return responseFromDeleteClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -963,9 +844,6 @@ const controlAccess = {
   },
   listClient: async (request) => {
     try {
-      /**
-       * list client util
-       */
       const { query } = request;
       const { tenant } = query;
       const limit = parseInt(request.query.limit, 0);
@@ -1011,10 +889,10 @@ const controlAccess = {
       let modifiedBody = Object.assign({}, body);
       modifiedBody.client_secret = client_secret;
 
-      const responseFromCreateToken = await ClientModel(
+      const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
-      return responseFromCreateToken;
+      return responseFromCreateClient;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {

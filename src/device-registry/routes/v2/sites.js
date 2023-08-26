@@ -575,6 +575,11 @@ router.put(
         .optional()
         .notEmpty()
         .trim(),
+      body("data_provider")
+        .optional()
+        .notEmpty()
+        .withMessage("the data_provider should not be empty")
+        .trim(),
       body("airqlouds")
         .optional()
         .custom((value) => {

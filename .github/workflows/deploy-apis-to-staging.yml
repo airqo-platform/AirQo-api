@@ -48,15 +48,11 @@ jobs:
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
-      run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
-      run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
-      run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
-      run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
 
@@ -91,15 +87,11 @@ jobs:
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
-          echo "run_average_jobs=false" >>$GITHUB_OUTPUT
-          echo "run_notifications=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
           echo "run_airflow=false" >>$GITHUB_OUTPUT
-          echo "run_network_uptime=false" >>$GITHUB_OUTPUT
           echo "run_incentives=false" >>$GITHUB_OUTPUT
-          echo "run_channel_data=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
 
@@ -219,18 +211,6 @@ jobs:
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
             
-            if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
-              echo "run_average_jobs=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/notifications/* ]]; then
-              echo "run_notifications=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/notification-service/* ]]; then
-              echo "run_notifications=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == k8s/kafka/clusters/* ]]; then
               echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
             fi
@@ -255,14 +235,6 @@ jobs:
               echo "run_airflow=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/network-uptime/* ]]; then
-              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/network-uptime/* ]]; then
-              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT
             fi
@@ -271,22 +243,12 @@ jobs:
               echo "run_incentives=true" >>$GITHUB_OUTPUT              
             fi
 
-            if [[ $file == src/channel-data/* ]]; then
-              echo "run_channel_data=true" >>$GITHUB_OUTPUT
-            fi
-            
-            if [[ $file == k8s/channel-data/* ]]; then
-              echo "run_channel_data=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == k8s/nginx/staging/* ]]; then
               echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == workflow-trigger ]]; then
-              echo "run_notifications=true" >>$GITHUB_OUTPUT
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
-              echo "run_average_jobs=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
               echo "run_exceedances=true" >>$GITHUB_OUTPUT
               echo "run_gp_model=true" >>$GITHUB_OUTPUT
@@ -300,9 +262,7 @@ jobs:
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
               echo "run_airflow=true" >>$GITHUB_OUTPUT
-              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
               echo "run_incentives=true" >>$GITHUB_OUTPUT
-              echo "run_channel_data=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
               echo "run_nginx=true" >>$GITHUB_OUTPUT
@@ -1478,118 +1438,6 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
 
-  #### notification ######
-  notification:
-    name: build-push-deploy-notification
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_notifications == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/notifications/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:latest
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/notifications/
-          gcloud secrets versions access latest --secret="sta-env-notifications" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-notification-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-notifications-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-notification-api-config-files | kubectl replace -f - -n staging
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/notification-service/stage-notification-api.yaml
-          kubectl set image deployment/airqo-stage-notification-api sta-notification-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-notification-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-
-  ### network uptime ###
-  network-uptime:
-    name: build-push-network-uptime
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_network_uptime == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/network-uptime/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/network-uptime/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update network-uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/network-uptime/
-          gcloud secrets versions access latest --secret="sta-env-network-uptime" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-network-uptime-staging | kubectl replace -f - -n staging
-
   ### incentives ###
   incentives:
     name: build-push-incentives
@@ -1646,65 +1494,6 @@ jobs:
           cd src/incentives/
           gcloud secrets versions access latest --secret="sta-env-incentives" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-incentives-api-config | kubectl replace -f - -n staging
-
-  #### Channel data ######
-  channel-data:
-    name: build-push-deploy-channel-data-job
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_channel_data == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/channel-data/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/channel-data/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update channel-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/channel-data/
-          gcloud secrets versions access latest --secret="sta-env-channel-data" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-update-channel-data-staging | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-channel-data-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-staging-files | kubectl replace -f - -n staging
 
   ### apply nginx ###
   nginx:

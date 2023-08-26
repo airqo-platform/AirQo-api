@@ -1,48 +1,24 @@
-const FavoriteSchema = require("@models/Favorite");
-const UserSchema = require("@models/User");
+const FavoriteModel = require("@models/Favorite");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
-const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-
 const log4js = require("log4js");
 const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-util`
 );
 
-const UserModel = (tenant) => {
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
-
-const FavoriteModel = (tenant) => {
-  try {
-    let favorites = mongoose.model("favorites");
-    return favorites;
-  } catch (error) {
-    let favorites = getModelByTenant(tenant, "favorite", FavoriteSchema);
-    return favorites;
-  }
-};
-
 const favorites = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

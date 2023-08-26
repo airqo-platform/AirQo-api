@@ -1,9 +1,7 @@
-const UserSchema = require("@models/User");
-const LogSchema = require("@models/log");
-const AccessTokenSchema = require("@models/AccessToken");
-const ClientSchema = require("@models/Client");
-const NetworkSchema = require("@models/Network");
-const RoleSchema = require("@models/Role");
+const UserModel = require("@models/User");
+const { LogModel } = require("@models/log");
+const NetworkModel = require("@models/Network");
+const RoleModel = require("@models/Role");
 const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
@@ -44,60 +42,7 @@ function generateNumericToken(length) {
 
   return token;
 }
-const UserModel = (tenant) => {
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
-const LogModel = (tenant) => {
-  try {
-    const logs = mongoose.model("logs");
-    return logs;
-  } catch (error) {
-    const logs = getModelByTenant(tenant, "log", LogSchema);
-    return logs;
-  }
-};
-const AccessTokenModel = (tenant) => {
-  try {
-    let tokens = mongoose.model("access_tokens");
-    return tokens;
-  } catch (error) {
-    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
-    return tokens;
-  }
-};
-const ClientModel = (tenant) => {
-  try {
-    let clients = mongoose.model("clients");
-    return clients;
-  } catch (error) {
-    let clients = getModelByTenant(tenant, "client", ClientSchema);
-    return clients;
-  }
-};
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-const RoleModel = (tenant) => {
-  try {
-    let roles = mongoose.model("roles");
-    return roles;
-  } catch (error) {
-    let roles = getModelByTenant(tenant, "role", RoleSchema);
-    return roles;
-  }
-};
+
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -1044,7 +989,7 @@ const createUserModule = {
   },
   create: async (request) => {
     try {
-      const { tenant, firstName, email, network_id } = request;
+      const { tenant, firstName, email } = request;
       let { password } = request;
 
       const user = await UserModel(tenant).findOne({ email });
@@ -1072,83 +1017,37 @@ const createUserModule = {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
           return responseFromCreateUser;
         }
-        const token = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-          )
-          .toUpperCase();
 
-        const client_id = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
-          )
-          .toUpperCase();
+        let createdUser = await responseFromCreateUser.data;
+        logObject("created user in util", createdUser._doc);
+        const user_id = createdUser._doc._id;
 
-        const client_secret = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(31)
-        );
-
-        const responseFromSaveClient = await ClientModel(tenant).register({
-          client_id,
-          client_secret,
-          name: responseFromCreateUser.data.email,
-        });
-        if (
-          responseFromSaveClient.success === false ||
-          responseFromSaveClient.status === httpStatus.ACCEPTED
-        ) {
-          return responseFromSaveClient;
-        }
-
-        const toMilliseconds = (hrs, min, sec) =>
-          (hrs * 60 * 60 + min * 60 + sec) * 1000;
-
-        const hrs = constants.EMAIL_VERIFICATION_HOURS;
-        const min = constants.EMAIL_VERIFICATION_MIN;
-        const sec = constants.EMAIL_VERIFICATION_SEC;
-
-        const responseFromSaveToken = await AccessTokenModel(tenant).register({
+        const responseFromSendEmail = await mailer.verifyEmail({
+          user_id,
           token,
-          network_id,
-          client_id: responseFromSaveClient.data._id,
-          user_id: responseFromCreateUser.data._id,
-          expires: Date.now() + toMilliseconds(hrs, min, sec),
+          email,
+          firstName,
         });
 
-        if (responseFromSaveToken.success === true) {
-          let createdUser = await responseFromCreateUser.data;
-          logObject("created user in util", createdUser._doc);
-          const user_id = createdUser._doc._id;
-
-          const responseFromSendEmail = await mailer.verifyEmail({
-            user_id,
-            token,
-            email,
-            firstName,
-          });
-
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "An Email sent to your account please verify",
-              data: createdUser._doc,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else if (responseFromSaveToken.success === false) {
-          return responseFromSaveToken;
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "An Email sent to your account please verify",
+            data: createdUser._doc,
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "",
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
         }
       } else if (responseFromCreateUser.success === false) {
         return responseFromCreateUser;
       }
     } catch (e) {
       logObject("e", e);
-      logger.error(`Internal Server Error ${e.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
       return {
         success: false,
         message: "Internal Server Error",

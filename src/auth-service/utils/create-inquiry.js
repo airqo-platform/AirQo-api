@@ -1,14 +1,8 @@
-const InquirySchema = require("@models/Inquiry");
-const { getModelByTenant } = require("@config/database");
+const InquiryModel = require("@models/Inquiry");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-
-const InquiryModel = (tenant) => {
-  return getModelByTenant(tenant, "inquiry", InquirySchema);
-};
-
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);

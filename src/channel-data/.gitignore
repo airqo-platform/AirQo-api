@@ -1,8 +1,0 @@
-.env
-__pycache__/
-env/
-.gitkeep
-.vscode
-.DS_Store
-*.json
-*.csv

@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
+const { getModelByTenant } = require("@config/database");
 
 const toMilliseconds = (hrs, min, sec) =>
   (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -24,7 +25,7 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     permissions: [{ type: ObjectId, ref: "permission" }],
     scopes: [{ type: ObjectId, ref: "scope" }],
-    name: { type: String },
+    name: { type: String, required: [true, "name is required!"] },
     token: {
       type: String,
       unique: true,
@@ -316,4 +317,14 @@ AccessTokenSchema.methods = {
   },
 };
 
-module.exports = AccessTokenSchema;
+const AccessTokenModel = (tenant) => {
+  try {
+    let tokens = mongoose.model("access_tokens");
+    return tokens;
+  } catch (error) {
+    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
+    return tokens;
+  }
+};
+
+module.exports = AccessTokenModel;

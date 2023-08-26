@@ -8,7 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-model`
 );
-
+const { getModelByTenant } = require("@config/database");
 const FavoriteSchema = new mongoose.Schema(
   {
     place_id: {
@@ -233,4 +233,14 @@ FavoriteSchema.methods = {
   },
 };
 
-module.exports = FavoriteSchema;
+const FavoriteModel = (tenant) => {
+  try {
+    let favorites = mongoose.model("favorites");
+    return favorites;
+  } catch (error) {
+    let favorites = getModelByTenant(tenant, "favorite", FavoriteSchema);
+    return favorites;
+  }
+};
+
+module.exports = FavoriteModel;

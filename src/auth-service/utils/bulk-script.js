@@ -3,9 +3,23 @@ const isEmpty = require("is-empty");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
-/**
- * function to check for duplicates
- */
+function separateItemsByUserId(items) {
+  const tokenMap = new Map();
+  const duplicateItems = [];
+  const uniqueItems = [];
+
+  for (const item of items) {
+    if (tokenMap.has(item.user_id)) {
+      duplicateItems.push(item);
+    } else {
+      tokenMap.set(item.user_id, true);
+      uniqueItems.push(item);
+    }
+  }
+
+  return { duplicateItems, uniqueItems };
+}
+
 function findDuplicateObjects(arr) {
   const emailCounts = {}; // Object to store email counts
   const duplicateIds = []; // Array to store duplicate _id values
@@ -47,7 +61,7 @@ function findDuplicateObjects(arr) {
  */
 
 // Make a GET request
-const url = "http://localhost:3000/api/v1/users/roles";
+const url = "http://localhost:3000/api/v2/users/items";
 const config = {
   headers: {
     Authorization: "",
@@ -56,26 +70,34 @@ const config = {
 axios
   .get(url, config)
   .then((response) => {
+    const items = response.data.items;
+    const { duplicateItems, uniqueItems } = separateItemsByUserId(items);
+    console.log("Duplicate items:");
+    console.log(duplicateItems);
+
+    console.log("Unique items:");
+    console.log(uniqueItems);
+
     // console.log("GET response device name" + ": ");
     // console.dir(response.data);
-    for (let i = 0; i < response.data.roles.length; i += 10) {
-      const batch = response.data.roles.slice(i, i + 10);
+    for (let i = 0; i < response.data.items.length; i += 10) {
+      const batch = response.data.items.slice(i, i + 10);
       // Process batch of 10 items
-      batch.forEach(async (role) => {
-        // console.log("the device _id", role._id);
+      batch.forEach(async (item) => {
+        // console.log("the device _id", item._id);
 
-        const url = `http://localhost:3000/api/v1/users/roles/${role._id}`;
-        // console.dir(role);
+        const url = `http://localhost:3000/api/v1/users/items/${item._id}`;
+        // console.dir(item);
         /**
-         * Assign networks to the roles,
+         * Assign networks to the items,
          * more of an update operation using update endpoint
          */
         const data = {
           network_id: ObjectId("user_id"),
         };
 
-        // if (isEmpty(role.network)) {
-        //   console.log("this device does not have a network", role.name);
+        // if (isEmpty(item.network)) {
+        //   console.log("this device does not have a network", item.name);
         // }
 
         // console.log("data", data);

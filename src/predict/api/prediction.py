@@ -243,8 +243,9 @@ def parish_predictions():
         offset = (page - 1) * page_size
 
         parish = request.args.get("parish", None)
+        district = request.args.get("district", None)
         data, total_pages = get_parish_predictions(
-            parish, page_size=page_size, offset=offset
+            parish=parish, district=district, page_size=page_size, offset=offset
         )
         return {
             "success": True,

@@ -11,6 +11,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-transaction-util`
 );
 const axios = require("axios");
+const generateFilter = require("@utils/generate-filter");
 
 /*********************************** Helper Functions ***********************************/
 const createProductItemForMobileMoneyPayout = (phone_number) => {
@@ -336,6 +337,8 @@ const createTransaction = {
         metadata,
       } = request.body;
 
+      const { tenant } = request.query;
+
       const firstBearerToken = await getFirstBearerToken();
       const secondBearerToken = await getSecondBearerToken(firstBearerToken);
       const api = axios.create({
@@ -638,6 +641,35 @@ const createTransaction = {
         success: true,
         message: "Successfully retrieved the data",
         data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  listTransactions: async (request) => {
+    logText("listTransactions.............");
+    try {
+      const filter = generateFilter.transactions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      const { tenant } = request.query;
+      const transactionDetails = await TransactionModel(tenant)
+        .find(filter)
+        .lean();
+      return {
+        success: true,
+        message: "Successfully retrieved the transactions",
+        data: transactionDetails ? transactionDetails : [],
         status: httpStatus.OK,
       };
     } catch (error) {

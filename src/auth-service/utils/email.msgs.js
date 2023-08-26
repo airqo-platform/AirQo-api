@@ -6,13 +6,24 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token, tenant) => {
-    return (
-      "You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n" +
-      "Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n" +
-      `${constants.PWD_RESET}?token=${token}&tenant=${tenant}\n\n` +
-      "If you did not request this, please ignore this email and your password will remain unchanged.\n"
-    );
+  recovery_email: (token, tenant, email) => {
+
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    You are receiving this because you (or someone else) have requested the reset of the password for your account.
+                                    <br />
+                                    <br />
+                                    Please click on the following link, or paste this into your browser to complete the process within one hour of receiving
+                                    it: ${constants.PWD_RESET}?token=${token}&tenant=${tenant}
+                                    <br />
+                                    <br />
+                                    If you did not request this, please ignore this email and your password will remain unchanged.
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content);
   },
     joinRequest: (firstName, lastName, email) => {
         const name = firstName + " " + lastName;
@@ -182,36 +193,71 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-  user_updated: (firstName, lastName, updatedData) => {
+  user_updated: (firstName, lastName, updatedData, email) => {
     const updatedFields = Object.keys(updatedData)
       .map((field) => `• ${field}`)
       .join("\n");
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account details have been updated.
+                                    <br />
+                                    The following fields have been updated:
+                                    <ol>
+                                        ${updatedFields}
+                                    </ol>
+                                    <br />
+                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                    <br />
+                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    const name = firstName + " " + lastName;
 
-    return (
-      `Dear ${firstName} ${lastName},\n\n` +
-      "Your AirQo Analytics account details have been updated.\n\n" +
-      "The following fields have been updated:\n" +
-      `${updatedFields}\n\n` +
-      "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
-      `Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}\n`
-    );
+    return constants.EMAIL_BODY(email, content, name);
   },
 
-  forgotten_password_updated: (firstName, lastName) => {
-    return (
-      `Dear ${firstName} ${lastName},\n\n` +
-      "Your AirQo Analytics account password has been successfully reset.\n\n" +
-      "If you did not initiate this password reset, please reach out to your organization's administrator immediately.\n\n" +
-      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
-    );
+  forgotten_password_updated: (firstName, lastName, email) => {
+
+    const name = firstName + " " + lastName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account password has been successfully reset.
+                                <br />
+                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                    <br />
+                                    <br />
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    <br />
+                                    Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
   },
-  known_password_updated: (firstName, lastName) => {
-    return (
-      `Dear ${firstName} ${lastName},\n\n` +
-      "Your AirQo Analytics account password has been successfully updated.\n\n" +
-      "If you did not initiate this password change, please reach out to your organization's administrator immediately.\n\n" +
-      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
-    );
+  known_password_updated: (firstName, lastName, email) => {
+
+    const name = firstName + " " + lastName;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Your AirQo Analytics account password has been successfully updated.
+                                <br />
+                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                    <br />
+                                    <br />
+                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    <br />
+                                    Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
   },
     join_by_email: (email, token) => {
         const content = `<tr>
@@ -230,12 +276,21 @@ module.exports = {
                             </tr>`;
       return constants.EMAIL_BODY(email, content);
   },
-  authenticate_email: (token) => {
-    return (
-      `You are about to make changes to your email address. \n\n` +
-      `First, you need you to re-authenticate.\n\n` +
-      `Enter the code below in the app. \n\n` +
-      `The code: ${token}`
-    );
+  authenticate_email: (token, email) => {
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                You are about to make changes to your email address.
+                                <br />
+                                <br />
+                                First, you need you to re-authenticate.
+                                    <br />
+                                Enter the code below in the app.
+                                <br />
+                                The code: ${token}
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content);
   },
 };
