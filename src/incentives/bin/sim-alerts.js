@@ -32,7 +32,7 @@ const checkStatus = async (sim_id) => {
   if (responseFromCreateSim.success === true) {
     const simStatus = responseFromCreateSim.data;
     logObject("simStatus", simStatus);
-    if (simStatus.balance > dataBalanceThreshold) {
+    if (simStatus.balance < dataBalanceThreshold) {
       logger.error(
         `SIM with ID ${sim_id} has low data balance: ${simStatus.balance} MB`
       );
