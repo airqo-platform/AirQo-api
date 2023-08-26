@@ -1,8 +1,0 @@
-*.csv
-*.json
-.env
-venv/
-venv
-cache/*
-cache/
-.xslx
