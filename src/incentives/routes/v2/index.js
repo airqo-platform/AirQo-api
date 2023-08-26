@@ -1,7 +1,9 @@
-const transactions = require("@routes/v2/transactions");
-const hosts = require("@routes/v2/hosts");
+const express = require("express");
+const router = express.Router();
 
-module.exports = {
-  transactions,
-  hosts,
-};
+router.use("/transactions", require("@routes/v2/transactions"));
+router.use("/hosts", require("@routes/v2/hosts"));
+router.use("/sims", require("@routes/v2/sims"));
+router.use("/networks", require("@routes/v2/networks"));
+
+module.exports = router;

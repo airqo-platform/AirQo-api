@@ -7,7 +7,7 @@ const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- host-model`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- sim-model`);
 
 const successResponse = {
   success: true,
@@ -24,47 +24,25 @@ const badRequestResponse = {
   status: httpStatus.BAD_REQUEST,
 };
 
-const HostSchema = new Schema(
+const SimSchema = new Schema(
   {
-    first_name: {
-      type: String,
-      required: [true, "first_name is required!"],
-      trim: true,
-    },
-    last_name: {
-      type: String,
-      required: [true, "last_name is required"],
-      trim: true,
-    },
-    phone_number: {
-      type: Number,
-      required: [true, "phone_number is required"],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, "email is required"],
-      trim: true,
-    },
-    site_id: {
-      type: ObjectId,
-      required: [true, "site_id is required"],
-      trim: true,
-    },
-    network: {
-      type: String,
-      trim: true,
-      required: [true, "network is required!"],
-    },
+    msisdn: { type: Number, trim: true, unique: true, required: true },
+    balance: { type: Number, trim: true },
+    dataBalanceThreshold: { type: Number, trim: true },
+    activationDate: { type: Date, trim: true },
+    name: { type: String, trim: true },
+    status: { type: String, trim: true },
+    plan: { type: String, trim: true },
+    totalTraffic: { type: Number, trim: true },
+    simBarcode: { type: String, trim: true },
+    active: { type: Boolean },
   },
   { timestamps: true }
 );
 
-HostSchema.index(
+SimSchema.index(
   {
-    email: 1,
-    phone_number: 1,
-    site_id: 1,
+    msisdn: 1,
   },
   {
     unique: true,
@@ -76,42 +54,45 @@ const handleServerError = (error, message) => {
   const stingifiedMessage = JSON.stringify(error ? error : "");
   logger.error(`Internal Server Error -- ${stingifiedMessage}`);
   return {
-    ...errorResponse,
+    // ...errorRsesponse,
     message,
     errors: { message: error.message },
   };
 };
 
-HostSchema.pre("save", function (next) {
+SimSchema.pre("save", function (next) {
   if (this.isModified("password")) {
   }
   return next();
 });
 
-HostSchema.pre("update", function (next) {
+SimSchema.pre("update", function (next) {
   return next();
 });
 
-HostSchema.statics.register = async function (args) {
+SimSchema.statics.register = async function (args) {
   try {
+    logObject("inside the register function", args);
     const data = await this.create({ ...args });
+    logObject("data", data);
     return {
       ...successResponse,
       data,
-      message: "host created",
+      message: "sim created",
     };
   } catch (error) {
+    logObject("error", error);
     return handleServerError(error, "Internal Server Error");
   }
 };
 
-HostSchema.statics.list = async function ({
+SimSchema.statics.list = async function ({
   skip = 0,
   limit = 5,
   filter = {},
 } = {}) {
   try {
-    const hosts = await this.aggregate()
+    const sims = await this.aggregate()
       .match(filter)
       .addFields({
         createdAt: {
@@ -126,24 +107,25 @@ HostSchema.statics.list = async function ({
       .limit(limit)
       .exec();
 
-    if (!isEmpty(hosts)) {
+    if (!isEmpty(sims)) {
       return {
         ...successResponse,
-        data: hosts,
-        message: "successfully listed the hosts",
+        data: sims,
+        message: "successfully listed the sims",
       };
     }
 
     return {
       ...successResponse,
-      message: "no hosts exist for this search",
+      message: "no sims exist for this search",
+      data: [],
     };
   } catch (error) {
-    return handleServerError(error, "unable to retrieve hosts");
+    return handleServerError(error, "unable to retrieve sims");
   }
 };
 
-HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
+SimSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
   try {
     const modifiedUpdate = update;
     const projection = { _id: 1 };
@@ -161,14 +143,14 @@ HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
     if (!isEmpty(updatedHost)) {
       return {
         ...successResponse,
-        message: "successfully modified the host",
+        message: "successfully modified the sim",
         data: updatedHost,
       };
     } else {
       return {
         ...badRequestResponse,
-        message: "host does not exist, please crosscheck",
-        errors: { message: "host does not exist" },
+        message: "sim does not exist, please crosscheck",
+        errors: { message: "sim does not exist" },
       };
     }
   } catch (error) {
@@ -176,9 +158,9 @@ HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
   }
 };
 
-HostSchema.statics.remove = async function ({ filter = {} } = {}) {
+SimSchema.statics.remove = async function ({ filter = {} } = {}) {
   try {
-    const projection = { _id: 1, email: 1, first_name: 1, last_name: 1 };
+    const projection = { _id: 1, msisdn: 1 };
     const options = { projection };
     const removedHost = await this.findOneAndRemove(filter, options);
 
@@ -186,14 +168,14 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}) {
       const data = removedHost._doc;
       return {
         ...successResponse,
-        message: "successfully removed the host",
+        message: "successfully removed the sim",
         data,
       };
     } else {
       return {
         ...badRequestResponse,
-        message: "host does not exist, please crosscheck",
-        errors: { message: "host does not exist" },
+        message: "sim does not exist, please crosscheck",
+        errors: { message: "sim does not exist" },
       };
     }
   } catch (error) {
@@ -201,24 +183,35 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}) {
   }
 };
 
-HostSchema.methods.toJSON = function () {
-  const { _id, first_name, last_name, site_id, phone_number, network } = this;
+SimSchema.methods.toJSON = function () {
+  const {
+    _id,
+    balance,
+    activationDate,
+    msisdn,
+    name,
+    status,
+    plan,
+    totalTraffic,
+  } = this;
   return {
     _id,
-    first_name,
-    last_name,
-    site_id,
-    phone_number,
-    network,
+    balance,
+    activationDate,
+    msisdn,
+    name,
+    status,
+    plan,
+    totalTraffic,
   };
 };
 
-const HostModel = (tenant) => {
+const SimModel = (tenant) => {
   try {
-    return mongoose.model("hosts");
+    return mongoose.model("sims");
   } catch (error) {
-    return getModelByTenant(tenant, "host", HostSchema);
+    return getModelByTenant(tenant, "sim", SimSchema);
   }
 };
 
-module.exports = HostModel;
+module.exports = SimModel;
