@@ -11,14 +11,9 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-model`);
 const { getModelByTenant } = require("@config/database");
 
 const networkSchema = new Schema({
-  name: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  description: {
-    type: String,
-  },
+  name: { type: String, required: true, unique: true },
+  description: { type: String },
+  internet_data_threshold: { type: Number, default: 10 },
 });
 
 networkSchema.post("save", async function (doc) {});
@@ -42,11 +37,12 @@ networkSchema.plugin(uniqueValidator, {
 });
 
 networkSchema.methods.toJSON = function () {
-  const { _id, name, description } = this;
+  const { _id, name, description, internet_data_threshold } = this;
   return {
     _id,
     name,
     description,
+    internet_data_threshold,
   };
 };
 
