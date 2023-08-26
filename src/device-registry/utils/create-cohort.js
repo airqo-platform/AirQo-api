@@ -563,7 +563,7 @@ const createCohort = {
         success: true,
         message: "successfully assigned all the provided devices to the Cohort",
         status: httpStatus.OK,
-        data: [],
+        data: cohort,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);

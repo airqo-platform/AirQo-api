@@ -34,7 +34,6 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
 const validatePagination = (req, res, next) => {
   // Retrieve the limit and skip values from the query parameters
   const limit = parseInt(req.query.limit, 10);
