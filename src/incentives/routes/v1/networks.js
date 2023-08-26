@@ -29,8 +29,6 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -75,7 +73,7 @@ router.post(
 );
 router.put("/:net_id", createNetworkController.update);
 router.delete("/:net_id", createNetworkController.delete);
-router.get("/networks", createNetworkController.list);
+router.get("/", createNetworkController.list);
 router.get("/:net_id", createNetworkController.list);
 
 module.exports = router;

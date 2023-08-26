@@ -35,7 +35,7 @@ const createNetwork = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -102,7 +102,7 @@ const createNetwork = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -168,7 +168,7 @@ const createNetwork = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -232,7 +232,7 @@ const createNetwork = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);

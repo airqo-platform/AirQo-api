@@ -90,25 +90,23 @@ const generateFilter = {
   },
   networks: (req) => {
     try {
-      const { id, name, network_codes } = req.query;
-      const { net_id } = req.params;
       let filter = {};
-      if (name) {
-        filter["name"] = name;
+      if (req.query && req.query.name) {
+        filter["name"] = req.query.name;
       }
 
-      if (net_id) {
-        filter["_id"] = ObjectId(net_id);
+      if (req.params && req.params.net_id) {
+        filter["_id"] = ObjectId(req.params.net_id);
       }
 
-      if (network_codes) {
-        let networkCodesArray = network_codes.split(",");
+      if (req.query && req.query.network_codes) {
+        let networkCodesArray = req.query.network_codes.split(",");
         filter["network_codes"] = {};
         filter["network_codes"]["$in"] = networkCodesArray;
       }
 
-      if (id) {
-        filter["_id"] = ObjectId(id);
+      if (req.query && req.query.id) {
+        filter["_id"] = ObjectId(req.query.id);
       }
 
       return filter;
