@@ -88,6 +88,39 @@ const generateFilter = {
       };
     }
   },
+  networks: (req) => {
+    try {
+      const { id, name, network_codes } = req.query;
+      const { net_id } = req.params;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (net_id) {
+        filter["_id"] = ObjectId(net_id);
+      }
+
+      if (network_codes) {
+        let networkCodesArray = network_codes.split(",");
+        filter["network_codes"] = {};
+        filter["network_codes"]["$in"] = networkCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = generateFilter;

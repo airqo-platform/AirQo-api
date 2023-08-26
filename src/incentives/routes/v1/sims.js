@@ -3,11 +3,11 @@ const router = express.Router();
 const createSimController = require("@controllers/create-sim");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
 const phoneUtil =
   require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { logObject } = require("@utils/log");
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);

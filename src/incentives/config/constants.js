@@ -98,6 +98,19 @@ const prodConfig = {
   THINGS_MOBILE_USERNAME: process.env.PROD_THINGS_MOBILE_USERNAME,
 };
 const defaultConfig = {
+  NETWORK_INCLUSION_PROJECTION: {
+    description: 1,
+    name: 1,
+    _id: 1,
+  },
+  NETWORK_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
   SESSION_SECRET: process.env.SESSION_SECRET,
   XENTE_PAYMENT_PROVIDER: process.env.XENTE_PAYMENT_PROVIDER,
   XENTE_METADATA: process.env.XENTE_METADATA,
