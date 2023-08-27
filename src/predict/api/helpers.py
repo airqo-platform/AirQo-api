@@ -221,7 +221,7 @@ def get_forecasts(
 
     results = []
     if site_forecasts:
-        for time, pm2_5, health_tips in zip(
+        for time, pm2_5 in zip(
             site_forecasts[0]["time"],
             site_forecasts[0]["pm2_5"],
         ):
