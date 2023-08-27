@@ -5,6 +5,7 @@ const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const { getModelByTenant } = require("@config/database");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- candidate-model`);
@@ -244,4 +245,14 @@ CandidateSchema.methods = {
   },
 };
 
-module.exports = CandidateSchema;
+const CandidateModel = (tenant) => {
+  try {
+    let candidates = mongoose.model("candidates");
+    return candidates;
+  } catch (error) {
+    let candidates = getModelByTenant(tenant, "candidate", CandidateSchema);
+    return candidates;
+  }
+};
+
+module.exports = CandidateModel;

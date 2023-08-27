@@ -1,6 +1,6 @@
-const UserSchema = require("../models/User");
-const CandidateSchema = require("../models/Candidate");
-const { getModelByTenant } = require("@config/dbConnection");
+const UserModel = require("../models/User");
+const CandidateModel = require("../models/Candidate");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
@@ -10,14 +10,6 @@ const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
-};
-
-const CandidateModel = (tenant) => {
-  return getModelByTenant(tenant, "candidate", CandidateSchema);
-};
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(

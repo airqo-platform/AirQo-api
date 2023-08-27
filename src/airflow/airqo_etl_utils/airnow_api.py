@@ -1,12 +1,14 @@
 import json
 
-import requests
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
 
 from typing import List
 
 from .constants import Tenant, DataSource
+from .utils import Utils
 
 
 class AirNowApi:
@@ -48,37 +50,26 @@ class AirNowApi:
     def __request(self, endpoint, params, api_key):
         params["API_KEY"] = api_key
 
-        api_request = requests.get(
-            "%s%s" % (self.AIRNOW_BASE_URL, endpoint),
-            params=params,
-            verify=False,
+        url = f"{self.AIRNOW_BASE_URL}{endpoint}"
+
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=5,
         )
-
-        print(api_request.request.url)
-
-        if api_request.status_code == 200:
-            return api_request.json()
-        else:
-            handle_api_error(api_request)
+        
+        http = urllib3.PoolManager(retries=retry_strategy)
+        
+        try:
+            response = http.request("GET", url, fields=params)
+            response_data = response.data
+            print(response._request_url)
+            
+            if response.status == 200:
+                return json.loads(response_data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+            
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None
-
-    def get_tenants(self) -> List[dict]:
-        # TODO: Create endpoint to return networks
-        return [
-            {
-                "network": str(Tenant.US_EMBASSY),
-                "data_source": str(DataSource.AIRNOW),
-                "api_key": self.US_EMBASSY_API_KEY,
-            }
-        ]
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)

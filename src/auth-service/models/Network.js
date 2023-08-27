@@ -6,6 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const NetworkSchema = new Schema(
   {
@@ -38,6 +39,8 @@ const NetworkSchema = new Schema(
     net_manager_lastname: { type: String },
     has_children: { type: Number },
     net_children: [{ type: ObjectId, ref: "network" }],
+    net_data_source: { type: String },
+    net_api_key: { type: String },
     net_phoneNumber: {
       type: Number,
       unique: true,
@@ -112,6 +115,8 @@ NetworkSchema.methods = {
       net_description: this.net_description,
       net_acronym: this.net_acronym,
       net_createdAt: this.createdAt,
+      net_data_source: this.net_data_source,
+      net_api_key: this.net_api_key,
     };
   },
 };
@@ -497,4 +502,14 @@ NetworkSchema.statics = {
   },
 };
 
-module.exports = NetworkSchema;
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+module.exports = NetworkModel;

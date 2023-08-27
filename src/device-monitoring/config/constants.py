@@ -15,7 +15,7 @@ TWO_HOURS = 7200  # seconds
 
 
 class CollocationDefaults:
-    DataCompletenessThreshold = os.getenv("DATA_COMPLETENESS_THRESHOLD", 0.8)
+    DataCompletenessThreshold = os.getenv("DATA_COMPLETENESS_THRESHOLD", 80)
 
     IntraCorrelationThreshold = os.getenv("INTRA_CORRELATION_THRESHOLD", 0.98)
     IntraCorrelationR2Threshold = os.getenv("INTRA_CORRELATION_R2_THRESHOLD", 0.99)
@@ -62,6 +62,9 @@ class Config:
         os.getenv("COLLOCATION_CELERY_MINUTES_INTERVAL", 10)
     )
     BIGQUERY_DEVICE_UPTIME_TABLE = os.getenv("BIGQUERY_DEVICE_UPTIME_TABLE")
+
+    USERS_BASE_URL = os.getenv("USERS_BASE_URL")
+    JWT_TOKEN = os.getenv("JWT_TOKEN")
 
 
 class ProductionConfig(Config):

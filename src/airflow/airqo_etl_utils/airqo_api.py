@@ -1,8 +1,12 @@
 import traceback
+from urllib.parse import urlencode
 
 import pandas as pd
 import requests
 import simplejson
+
+import urllib3
+from urllib3.util.retry import Retry
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -12,20 +16,15 @@ from .utils import Utils
 class AirQoApi:
     def __init__(self):
         self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
-        self.AIRQO_BASE_URL = Utils.remove_suffix(
-            configuration.AIRQO_BASE_URL, suffix="/"
-        )
         self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
             configuration.AIRQO_BASE_URL_V2, suffix="/"
         )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
+        self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
     def save_events(self, measurements: list) -> None:
         #  Temporarily disabling usage of the API to store measurements.
-        if (
-            "staging" in self.AIRQO_BASE_URL.lower()
-            or "staging" in self.AIRQO_BASE_URL_V2.lower()
-        ):
+        if "staging" in self.AIRQO_BASE_URL_V2.lower():
             return
 
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
@@ -86,7 +85,7 @@ class AirQoApi:
         base_url = (
             self.CALIBRATION_BASE_URL
             if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL
+            else self.AIRQO_BASE_URL_V2
         )
 
         try:
@@ -179,9 +178,7 @@ class AirQoApi:
 
     def get_forecast(self, timestamp, channel_id) -> list:
         endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(
-            endpoint=endpoint, params={}, method="get", version="v2"
-        )
+        response = self.__request(endpoint=endpoint, params={}, method="get")
 
         if response is not None and "predictions" in response:
             return response["predictions"]
@@ -225,7 +222,7 @@ class AirQoApi:
                     method="get",
                 )
 
-                meta_data[key] = response["data"]
+                meta_data[key] = float(response["data"])
             except Exception as ex:
                 print(ex)
 
@@ -236,7 +233,7 @@ class AirQoApi:
 
         try:
             response = requests.put(
-                url=f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+                url=f"{self.AIRQO_BASE_URL_V2}/devices/airqlouds/refresh",
                 params=query_params,
             )
 
@@ -298,61 +295,77 @@ class AirQoApi:
             response = self.__request("devices/sites", params, site, "put")
             print(response)
 
-    def __request(
-        self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
-    ):
+    def get_tenants(self, data_source) -> list:
+        response = self.__request("users/networks")
+
+        return [
+            {
+                **network,
+                **{
+                    "network_id": network.get("_id", None),
+                    "network": network.get("net_name", None),
+                    "data_source": network.get("net_data_source", None),
+                    "api_key": network.get("net_api_key", None),
+                },
+            }
+            for network in response.get("networks", [])
+            if network.get("net_data_source") == str(data_source)
+        ]
+
+    def __request(self, endpoint, params=None, body=None, method=None, base_url=None):
         if base_url is None:
-            base_url = (
-                self.AIRQO_BASE_URL_V2
-                if version.lower() == "v2"
-                else self.AIRQO_BASE_URL
-            )
+            base_url = self.AIRQO_BASE_URL_V2
 
         headers = {"Authorization": self.AIRQO_API_KEY}
-        if method is None or method == "get":
-            api_request = requests.get(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                verify=False,
-            )
-        elif method == "put":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.put(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                data=simplejson.dumps(body, ignore_nan=True),
-                verify=False,
-            )
-        elif method == "post":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.post(
-                "%s/%s" % (base_url, endpoint),
-                params=params,
-                headers=headers,
-                data=simplejson.dumps(body, ignore_nan=True),
-                verify=False,
-            )
-        else:
-            handle_api_error("Invalid")
+        if params is None:
+            params = {}
+        params.update({"token": self.AIRQO_API_TOKEN})
+
+        retry_strategy = Retry(
+            total=5,       
+            backoff_factor=5,
+        )
+
+        http = urllib3.PoolManager(retries=retry_strategy)
+
+        url = f"{base_url}/{endpoint}"
+        print(url)
+        try:
+            if method is None or method == "get":
+                response = http.request("GET", url, fields=params, headers=headers)
+            elif method == "put":
+                headers["Content-Type"] = "application/json"
+                encoded_args = urlencode(params)
+                url = url + "?" + encoded_args
+                response = http.request(
+                    "PUT", 
+                    url,
+                    headers=headers, 
+                    body=simplejson.dumps(body, ignore_nan=True)
+                    )
+            elif method == "post":
+                headers["Content-Type"] = "application/json"
+                encoded_args = urlencode(params)
+                url = url + "?" + encoded_args
+                response = http.request(
+                    "POST", 
+                    url,
+                    headers=headers, 
+                    body=simplejson.dumps(body, ignore_nan=True)
+                    )
+            else:
+                handle_api_error("Invalid")
+                return None
+
+            print(response._request_url)
+
+            if response.status == 200 or response.status == 201:
+                return simplejson.loads(response.data)
+            else:
+                Utils.handle_api_error(response)
+                return None
+
+        except urllib3.exceptions.HTTPError as e:
+            print(f"HTTPError: {e}")
             return None
 
-        print(api_request.request.url)
-
-        if api_request.status_code == 200 or api_request.status_code == 201:
-            return api_request.json()
-        else:
-            handle_api_error(api_request)
-            return None
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)

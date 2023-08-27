@@ -1,7 +1,9 @@
 import os
+from datetime import datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
+from google.oauth2 import service_account
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
@@ -13,8 +15,14 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        # TODO: Remove later
+        self.hourly_measurements_table_prod = (
+            configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD
+        )
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
-        self.forecast_measurements_table = configuration.BIGQUERY_FORECAST_EVENTS_TABLE
+        self.hourly_forecasts_table = (
+            configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
+        )
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -37,8 +45,59 @@ class BigQueryApi:
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
 
         self.package_directory, _ = os.path.split(__file__)
+
+    def get_devices_hourly_data(
+        self,
+        day: datetime,
+    ) -> pd.DataFrame:
+        query = (
+            f" SELECT {self.hourly_measurements_table}.pm2_5_calibrated_value , "
+            f" {self.hourly_measurements_table}.pm2_5_raw_value ,"
+            f" {self.hourly_measurements_table}.site_id ,"
+            f" {self.hourly_measurements_table}.device_id AS device ,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {self.hourly_measurements_table}.timestamp) AS timestamp ,"
+            f" FROM {self.hourly_measurements_table} "
+            f" WHERE DATE({self.hourly_measurements_table}.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
+            f" AND {self.hourly_measurements_table}.pm2_5_raw_value is not null "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe
+
+    def save_devices_summary_data(
+        self,
+        data: pd.DataFrame,
+    ):
+        schema = [
+            bigquery.SchemaField("device", "STRING"),
+            bigquery.SchemaField("site_id", "STRING"),
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("uncalibrated_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_records", "INTEGER"),
+            bigquery.SchemaField("hourly_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_percentage", "FLOAT"),
+            bigquery.SchemaField("uncalibrated_percentage", "FLOAT"),
+        ]
+
+        job_config = self.client.LoadJobConfig(schema=schema)
+        job = bigquery.Client().load_table_from_dataframe(
+            dataframe=data,
+            destination=self.devices_summary_table,
+            job_config=job_config,
+        )
+        job.result()
 
     def validate_data(
         self,
@@ -100,8 +159,6 @@ class BigQueryApi:
             or table == self.daily_measurements_table
         ):
             schema_file = "measurements.json"
-        elif table == self.forecast_measurements_table:
-            schema_file = "forecast_measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
@@ -511,3 +568,78 @@ class BigQueryApi:
 
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")
+
+    def fetch_raw_readings(self) -> pd.DataFrame:
+        query = f"""
+        SELECT DISTINCT raw_device_data_table.timestamp
+           AS
+           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5
+           FROM
+           `{self.raw_measurements_table}` AS raw_device_data_table
+           WHERE
+           DATE(timestamp) >= DATE_SUB(
+               CURRENT_DATE(), INTERVAL 7 DAY) 
+            ORDER BY device_id, timestamp
+           """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = self.client.query(f"{query}", job_config).result().to_dataframe()
+        try:
+            if dataframe.empty:
+                raise Exception("No data found from bigquery")
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+            dataframe = dataframe.groupby(
+                ["device_name", pd.Grouper(key="timestamp", freq="H")]
+            ).mean(numeric_only=True)
+            dataframe = dataframe.reset_index()
+            dataframe.sort_values(by=["device_name", "timestamp"], inplace=True)
+            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            last_week = today - timedelta(days=7)
+            hourly_timestamps = pd.DataFrame(
+                pd.date_range(
+                    start=last_week, end=today, freq="H", name="timestamp", tz="UTC"
+                )
+            )
+            final_df = pd.DataFrame()
+            for device in dataframe["device_name"].unique():
+                device_df = dataframe[dataframe["device_name"] == device]
+                device_df = device_df.merge(
+                    hourly_timestamps, on="timestamp", how="right"
+                )
+                device_df = device_df.sort_values(by=["timestamp"])
+                final_df = pd.concat([final_df, device_df])
+
+            return final_df
+        except Exception as e:
+            raise e
+
+    def fetch_data(self, start_date_time: str, historical: bool = False):
+        # historical is for the actual jobs, not training
+        query = f"""
+                SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD}`
+                WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
+                ORDER BY created_at, device_number
+        """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        df = self.client.query(f"{query}", job_config).result().to_dataframe()
+        return df
+
+    @staticmethod
+    def save_forecasts_to_bigquery(df, table):
+        """saves the dataframes to the bigquery tables"""
+        credentials = service_account.Credentials.from_service_account_file(
+            configuration.GOOGLE_APPLICATION_CREDENTIALS
+        )
+        df.to_gbq(
+            destination_table=f"{table}",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists="append",
+            credentials=credentials,
+        )
+        print("Hourly data saved to bigquery")

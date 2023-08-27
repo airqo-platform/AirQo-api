@@ -1,15 +1,20 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
-const { isEmpty } = require("underscore");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
+  DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
@@ -20,11 +25,16 @@ const devConfig = {
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
 const prodConfig = {
+  DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_PROD,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
@@ -34,13 +44,17 @@ const prodConfig = {
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_PROD,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_PROD,
 };
-
 const stageConfig = {
+  DEFAULT_COHORT: process.env.STAGE_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_STAGE,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -53,12 +67,26 @@ const stageConfig = {
 };
 
 const defaultConfig = {
-  NETWORKS: process.env.NETWORKS.split(","),
-  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  SESSION_SECRET: process.env.SESSION_SECRET,
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES
+    ? process.env.ACTIVITY_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
+  RECALL_TYPES: process.env.RECALL_TYPES
+    ? process.env.RECALL_TYPES.split(",").filter((value) => value.trim() !== "")
+    : [],
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),
-  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
+  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES
+    ? process.env.MAINTENANCE_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -68,9 +96,15 @@ const defaultConfig = {
   SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
   MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
-  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
+  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST
+    ? process.env.DOMAIN_WHITELIST.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
-  TENANTS: process.env.TENANTS.split(","),
+  TENANTS: process.env.TENANTS
+    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
+    : [],
   SITES_TOPIC: process.env.SITES_TOPIC,
   DEVICES_TOPIC: process.env.DEVICES_TOPIC,
   LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
@@ -81,6 +115,11 @@ const defaultConfig = {
   TIPS_TOPIC: process.env.TIPS_TOPIC,
   KYA_TOPIC: process.env.KYA_TOPIC,
   KYA_LESSON: process.env.KYA_LESSON,
+  KYA_QUESTION: process.env.KYA_QUESTION,
+  KYA_ANSWER: process.env.KYA_ANSWER,
+  KYA_QUIZ: process.env.KYA_QUIZ,
+  GRID_TOPIC: process.env.GRID_TOPIC,
+  COHORT_TOPIC: process.env.COHORT_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -193,6 +232,12 @@ const defaultConfig = {
     process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS,
   DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_QUESTIONS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUESTIONS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_ANSWERS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_ANSWERS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_QUIZZES,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -234,6 +279,18 @@ const defaultConfig = {
   DEVICE_MAPPINGS: {},
   SITE_MAPPINGS: {},
   PHOTO_MAPPINGS: {},
+  DATA_PROVIDER_MAPPINGS: (network) => {
+    switch (network) {
+      case "airqo":
+        return "AirQo";
+        break;
+      case "usembassy":
+        return "US Embassy";
+        break;
+      default:
+        return "AirQo";
+    }
+  },
   EVENT_MAPPINGS: {
     item: {
       time: "timestamp",
@@ -678,6 +735,7 @@ const defaultConfig = {
     name: 1,
     latitude: 1,
     longitude: 1,
+    grids: 1,
     approximate_latitude: 1,
     approximate_longitude: 1,
     approximate_distance_in_km: 1,
@@ -690,6 +748,7 @@ const defaultConfig = {
     lat_long: 1,
     country: 1,
     network: 1,
+    data_provider: 1,
     district: 1,
     sub_county: 1,
     parish: 1,
@@ -756,6 +815,14 @@ const defaultConfig = {
       "devices.owner": 0,
       "devices.device_manufacturer": 0,
       "devices.channelID": 0,
+      "grids.network_id": 0,
+      "grids.geoHash": 0,
+      "grids.center_point": 0,
+      "grids.long_name": 0,
+      "grids.description": 0,
+      "grids.grid_tags": 0,
+      "grids.grid_codes": 0,
+      "grids.shape": 0,
     };
 
     let projection = Object.assign({}, initialProjection);
@@ -873,8 +940,10 @@ const defaultConfig = {
     status: 1,
     network: 1,
     category: 1,
+    cohorts: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
+    host: { $arrayElemAt: ["$host", 0] },
   },
   DEVICES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -952,10 +1021,268 @@ const defaultConfig = {
       "previous_sites.site_codes": 0,
       "previous_sites.site_tags": 0,
       "previous_sites.land_use": 0,
+      "cohorts.network_id": 0,
+      "cohorts.description": 0,
+      "cohorts.cohort_tags": 0,
+      "cohorts.cohort_codes": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  GRIDS_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    long_name: 1,
+    description: 1,
+    grid_tags: 1,
+    visibility: 1,
+    admin_level: 1,
+    grid_codes: 1,
+    centers: 1,
+    shape: 1,
+    network: 1,
+    sites: "$sites",
+    numberOfSites: {
+      $cond: {
+        if: { $isArray: "$sites" },
+        then: { $size: { $ifNull: ["$sites._id", []] } },
+        else: "NA",
+      },
+    },
+  },
+  GRIDS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "sites.altitude": 0,
+      "sites.greenness": 0,
+      "sites.landform_90": 0,
+      "sites.landform_270": 0,
+      "sites.aspect": 0,
+      "sites.distance_to_nearest_road": 0,
+      "sites.distance_to_nearest_primary_road": 0,
+      "sites.distance_to_nearest_secondary_road": 0,
+      "sites.distance_to_nearest_tertiary_road": 0,
+      "sites.distance_to_nearest_unclassified_road": 0,
+      "sites.distance_to_nearest_residential_road": 0,
+      "sites.bearing_to_kampala_center": 0,
+      "sites.distance_to_kampala_center": 0,
+      "sites.updatedAt": 0,
+      "sites.nearest_tahmo_station": 0,
+      "sites.formatted_name": 0,
+      "sites.geometry": 0,
+      "sites.google_place_id": 0,
+      "sites.site_tags": 0,
+      "sites.street": 0,
+      "sites.town": 0,
+      "sites.village": 0,
+      "sites.airqlouds": 0,
+      "sites.description": 0,
+      "sites.__v": 0,
+      "sites.airqloud_id": 0,
+      "sites.createdAt": 0,
+      "sites.lat_long": 0,
+      "sites.weather_stations": 0,
+      "sites.site_codes": 0,
+      "sites.network": 0,
+      "sites.grids": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(initialProjection, {
+        shape: 0,
+        grid_tags: 0,
+        grid_codes: 0,
+        centers: 0,
+      });
+    }
+    return projection;
+  },
+
+  COHORTS_INCLUSION_PROJECTION: {
+    network: 1,
+    name: 1,
+    description: 1,
+    cohort_tags: 1,
+    visibility: 1,
+    cohort_codes: 1,
+    devices: "$devices",
+    numberOfDevices: {
+      $cond: {
+        if: { $isArray: "$devices" },
+        then: { $size: { $ifNull: ["$devices._id", []] } },
+        else: "NA",
+      },
+    },
+  },
+  COHORTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      nothing: 0,
+      "devices.ISP": 0,
+      "devices.device_manufacturer": 0,
+      "devices.height": 0,
+      "devices.isActive": 0,
+      "devices.isPrimaryInLocation": 0,
+      "devices.latitude": 0,
+      "devices.locationName": 0,
+      "devices.longitude": 0,
+      "devices.mobility": 0,
+      "devices.mountType": 0,
+      "devices.nextMaintenance": 0,
+      "devices.owner": 0,
+      "devices.phoneNumber": 0,
+      "devices.powerType": 0,
+      "devices.product_name": 0,
+      "devices.isRetired": 0,
+      "devices.updatedAt": 0,
+      "devices.visibility": 0,
+      "devices.site_id": 0,
+      "devices.readKey": 0,
+      "devices.writeKey": 0,
+      "devices.deployment_date": 0,
+      "devices.isUsedForCollocation": 0,
+      "devices.recall_date": 0,
+      "devices.siteName": 0,
+      "devices.maintenance_date": 0,
+      "devices.device_codes": 0,
+      "devices.alias": 0,
+      "devices.cohorts": 0,
+      "devices.generation_version": 0,
+      "devices.generation_count": 0,
+      "devices.tags": 0,
+      "devices.category": 0,
+      "devices.pictures": 0,
+      "devices.__v": 0,
+      "devices.approximate_distance_in_km": 0,
+      "devices.bearing_in_radians": 0,
+      "devices.previous_sites": 0,
+      "devices.host_id": 0,
+      "devices.site.lat_long": 0,
+      "devices.site.country": 0,
+      "devices.site.district": 0,
+      "devices.site.sub_county": 0,
+      "devices.site.parish": 0,
+      "devices.site.county": 0,
+      "devices.site.altitude": 0,
+      "devices.site.altitude": 0,
+      "devices.site.greenness": 0,
+      "devices.site.landform_90": 0,
+      "devices.site.landform_270": 0,
+      "devices.site.aspect": 0,
+      "devices.site.distance_to_nearest_road": 0,
+      "devices.site.distance_to_nearest_primary_road": 0,
+      "devices.site.distance_to_nearest_secondary_road": 0,
+      "devices.site.distance_to_nearest_tertiary_road": 0,
+      "devices.site.distance_to_nearest_unclassified_road": 0,
+      "devices.site.distance_to_nearest_residential_road": 0,
+      "devices.site.bearing_to_kampala_center": 0,
+      "devices.site.distance_to_kampala_center": 0,
+      "devices.site.generated_name": 0,
+      "devices.site.updatedAt": 0,
+      "devices.site.updatedAt": 0,
+      "devices.site.city": 0,
+      "devices.site.formatted_name": 0,
+      "devices.site.geometry": 0,
+      "devices.site.google_place_id": 0,
+      "devices.site.region": 0,
+      "devices.site.site_tags": 0,
+      "devices.site.street": 0,
+      "devices.site.town": 0,
+      "devices.site.nearest_tahmo_station": 0,
+      "devices.site.images": 0,
+      "devices.site.airqlouds": 0,
+      "devices.site.site_codes": 0,
+      "devices.site.land_use": 0,
+      "devices.site.latitude": 0,
+      "devices.site.longitude": 0,
+      "devices.site.approximate_latitude": 0,
+      "devices.site.approximate_longitude": 0,
+      "devices.site.bearing_in_radians": 0,
+      "devices.site.approximate_distance_in_km": 0,
+      "devices.site.description": 0,
+      "devices.site.network": 0,
+      "devices.site.weather_stations": 0,
+      "devices.site.createdAt": 0,
+      "devices.site.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  AIRQLOUDS_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    long_name: 1,
+    admin_level: 1,
+    location: 1,
+    airqloud_codes: 1,
+    numberOfSites: {
+      $cond: {
+        if: { $isArray: "$sites" },
+        then: { $size: "$sites" },
+        else: "NA",
+      },
+    },
+    description: 1,
+    airqloud_tags: 1,
+    isCustom: 1,
+    metadata: 1,
+    center_point: 1,
+    sites: "$sites",
+  },
+  AIRQLOUDS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "sites.altitude": 0,
+      "sites.greenness": 0,
+      "sites.landform_90": 0,
+      "sites.landform_270": 0,
+      "sites.aspect": 0,
+      "sites.distance_to_nearest_road": 0,
+      "sites.distance_to_nearest_primary_road": 0,
+      "sites.distance_to_nearest_secondary_road": 0,
+      "sites.distance_to_nearest_tertiary_road": 0,
+      "sites.distance_to_nearest_unclassified_road": 0,
+      "sites.distance_to_nearest_residential_road": 0,
+      "sites.bearing_to_kampala_center": 0,
+      "sites.distance_to_kampala_center": 0,
+      "sites.updatedAt": 0,
+      "sites.nearest_tahmo_station": 0,
+      "sites.formatted_name": 0,
+      "sites.geometry": 0,
+      "sites.google_place_id": 0,
+      "sites.site_tags": 0,
+      "sites.street": 0,
+      "sites.town": 0,
+      "sites.village": 0,
+      "sites.airqlouds": 0,
+      "sites.description": 0,
+      "sites.__v": 0,
+      "sites.airqloud_id": 0,
+      "sites.createdAt": 0,
+      "sites.lat_long": 0,
+      "sites.weather_stations": 0,
+      "sites.site_codes": 0,
+      "sites.network": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(initialProjection, {
+        location: 0,
+        isCustom: 0,
+        metadata: 0,
+        center_point: 0,
+        airqloud_codes: 0,
+        description: 0,
+        airqloud_tags: 0,
+      });
+    }
+    if (category === "dashboard") {
+      projection = Object.assign(initialProjection, { location: 0 });
     }
     return projection;
   },
@@ -965,27 +1292,107 @@ const defaultConfig = {
     title: 1,
     content: 1,
     image: 1,
+    task_position: 1,
     kya_lesson: {
       $arrayElemAt: ["$kyalessons", 0],
     },
   },
   KYA_TASKS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
   },
+  KYA_QUIZ_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    completion_message: 1,
+    description: 1,
+    image: 1,
+    questions: 1,
+    active_question: {
+      $arrayElemAt: ["$kya_user_quiz_progress.active_question", 0],
+    },
+    status: { $arrayElemAt: ["$kya_user_quiz_progress.status", 0] },
+  },
+  KYA_QUIZ_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_QUESTIONS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    context: 1,
+    question_position: 1,
+    answers: 1,
+    kya_quiz_id: {
+      $arrayElemAt: ["$kyaquiz._id", 0],
+    },
+    kya_quiz_title: {
+      $arrayElemAt: ["$kyaquiz.title", 0],
+    },
+  },
+  KYA_QUESTIONS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_ANSWERS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    content: 1,
+    kya_question_id: {
+      $arrayElemAt: ["$kyaquestion._id", 0],
+    },
+    kya_question_title: {
+      $arrayElemAt: ["$kyaquestion.title", 0],
+    },
+  },
+  KYA_ANSWERS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
   KYA_LESSONS_INCLUSION_PROJECTION: {
     _id: 1,
     title: 1,
     completion_message: 1,
     image: 1,
     tasks: 1,
+    active_task: { $arrayElemAt: ["$kya_user_progress.active_task", 0] },
+    status: { $arrayElemAt: ["$kya_user_progress.status", 0] },
   },
   KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  KYA_QUIZ_PROGRESS_INCLUSION_PROJECTION: {
+    user_id: 1,
+    quiz_id: 1,
+    active_question: 1,
+    status: 1,
+    _id: 1,
+  },
+  KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -996,18 +1403,176 @@ const defaultConfig = {
   KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
     user_id: 1,
     lesson_id: 1,
-    progress: 1,
+    active_task: 1,
+    status: 1,
     completed: 1,
     _id: 1,
   },
   KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
   },
+  ADMIN_LEVEL_INCLUSION_PROJECTION: {
+    description: 1,
+    name: 1,
+    _id: 1,
+  },
+  ADMIN_LEVEL_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  NETWORK_INCLUSION_PROJECTION: {
+    description: 1,
+    name: 1,
+    _id: 1,
+  },
+  NETWORK_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  SITE_ACTIVITIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    device: 1,
+    date: 1,
+    description: 1,
+    network: 1,
+    activityType: 1,
+    maintenanceType: 1,
+    recallType: 1,
+    nextMaintenance: 1,
+    createdAt: 1,
+    updatedAt: 1,
+    activity_codes: 1,
+    tags: 1,
+    site_id: 1,
+    firstName: 1,
+    lastName: 1,
+    userName: 1,
+    email: 1,
+  },
+  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  GRID_SHAPE_FIELDS_TO_EXCLUDE: ["coordinates"],
+  SITE_FIELDS_TO_EXCLUDE: [
+    "altitude",
+    "greenness",
+    "landform_90",
+    "landform_270",
+    "aspect",
+    "altitude",
+    "greenness",
+    "landform_90",
+    "landform_270",
+    "aspect",
+    "distance_to_nearest_road",
+    "distance_to_nearest_primary_road",
+    "distance_to_nearest_secondary_road",
+    "distance_to_nearest_tertiary_road",
+    "distance_to_nearest_unclassified_road",
+    "distance_to_nearest_residential_road",
+    "bearing_to_kampala_center",
+    "distance_to_kampala_center",
+    "updatedAt",
+    "nearest_tahmo_station",
+    "formatted_name",
+    "geometry",
+    "google_place_id",
+    "site_tags",
+    "street",
+    "town",
+    "village",
+    "airqlouds",
+    "description",
+    "__v",
+    "airqloud_id",
+    "createdAt",
+    "lat_long",
+    "weather_stations",
+    "site_codes",
+    "network",
+    "grids",
+    "approximate_latitude",
+    "approximate_longitude",
+    "bearing_in_radians",
+    "approximate_distance_in_km",
+    "generated_name",
+    "location_name",
+    "search_name",
+    "sub_county",
+    "city",
+    "district",
+    "county",
+    "region",
+    "country",
+    "latitude",
+    "longitude",
+    "images",
+    "land_use",
+  ],
+  DEVICE_FIELDS_TO_EXCLUDE: [
+    "ISP",
+    "device_manufacturer",
+    "height",
+    "isActive",
+    "isPrimaryInLocation",
+    "latitude",
+    "locationName",
+    "longitude",
+    "mobility",
+    "mountType",
+    "nextMaintenance",
+    "owner",
+    "phoneNumber",
+    "powerType",
+    "product_name",
+    "siteName",
+    "isRetired",
+    "updatedAt",
+    "visibility",
+    "site_id",
+    "readKey",
+    "writeKey",
+    "deployment_date",
+    "isUsedForCollocation",
+    "recall_date",
+    "maintenance_date",
+    "status",
+    "device_codes",
+    "alias",
+    "cohorts",
+    "generation_version",
+    "generation_count",
+    "tags",
+    "category",
+    "pictures",
+    "__v",
+    "approximate_distance_in_km",
+    "bearing_in_radians",
+    "previous_sites",
+    "long_name",
+    "network",
+    "device_number",
+    "createdAt",
+    "description",
+  ],
 };
 
 function generateDateFormatWithoutHrs(ISODate) {

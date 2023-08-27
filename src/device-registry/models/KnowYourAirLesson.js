@@ -97,7 +97,7 @@ knowYourAirLessonSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {}, user_id } = {}) {
     try {
       const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
@@ -112,7 +112,39 @@ knowYourAirLessonSchema.statics = {
           foreignField: "kya_lesson",
           as: "tasks",
         })
+        .unwind("$tasks")
+        .sort({ "tasks.task_position": 1 })
+        .group({
+          _id: "$_id",
+          title: { $first: "$title" },
+          completion_message: { $first: "$completion_message" },
+          image: { $first: "$image" },
+          tasks: { $push: "$tasks" }
+        })
+        .lookup({
+          from: "kyaprogresses",
+          localField: "_id",
+          foreignField: "lesson_id",
+          let: {
+            lessonId: "$_id",
+            userId: user_id,
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$lesson_id", "$$lessonId"] },
+                    { $eq: ["$user_id", "$$userId"] },
+                  ]
+                }
+              }
+            }
+          ],
+          as: "kya_user_progress",
+        })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -120,10 +152,6 @@ knowYourAirLessonSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS)
         )
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
 
       const response = pipeline;
 

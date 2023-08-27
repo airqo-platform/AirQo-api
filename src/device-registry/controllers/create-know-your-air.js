@@ -558,6 +558,76 @@ const createKnowYourAir = {
     }
   },
 
+  syncUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromSyncUserLessonProgress = await createKnowYourAirUtil.syncUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromSyncUserLessonProgress in controller",
+        responseFromSyncUserLessonProgress
+      );
+
+      if (responseFromSyncUserLessonProgress.success === true) {
+        const status = responseFromSyncUserLessonProgress.status
+          ? responseFromSyncUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromSyncUserLessonProgress.message,
+          kya_user_progress: responseFromSyncUserLessonProgress.data,
+        });
+      } else if (responseFromSyncUserLessonProgress.success === false) {
+        const status = responseFromSyncUserLessonProgress.status
+          ? responseFromSyncUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromSyncUserLessonProgress.message,
+          errors: responseFromSyncUserLessonProgress.errors
+            ? responseFromSyncUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   /****************** tasks ********************************/
   listTask: async (req, res) => {
     try {
@@ -1224,6 +1294,1437 @@ const createKnowYourAir = {
       }
     } catch (error) {
       logElement("internal server error", error.message);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /******************* QUIZ ********************************/
+  listQuizzes: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromListKYAQuiz = await createKnowYourAirUtil.listQuiz(
+        request
+      );
+      logObject(
+        "responseFromListKYAQuiz in controller",
+        responseFromListKYAQuiz
+      );
+
+      if (responseFromListKYAQuiz.success === true) {
+        const status = responseFromListKYAQuiz.status
+          ? responseFromListKYAQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListKYAQuiz.message,
+          kya_quizzes: responseFromListKYAQuiz.data,
+        });
+      } else if (responseFromListKYAQuiz.success === false) {
+        const status = responseFromListKYAQuiz.status
+          ? responseFromListKYAQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListKYAQuiz.message,
+          errors: responseFromListKYAQuiz.errors
+            ? responseFromListKYAQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createQuiz: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateKYAQuiz = await createKnowYourAirUtil.createQuiz(
+        request
+      );
+      logObject("responseFromCreateKYAQuiz", responseFromCreateKYAQuiz);
+      if (responseFromCreateKYAQuiz.success === true) {
+        const status = responseFromCreateKYAQuiz.status
+          ? responseFromCreateKYAQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateKYAQuiz.message,
+          created_kya_quiz: responseFromCreateKYAQuiz.data
+            ? responseFromCreateKYAQuiz.data
+            : [],
+        });
+      } else if (responseFromCreateKYAQuiz.success === false) {
+        const status = responseFromCreateKYAQuiz.status
+          ? responseFromCreateKYAQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateKYAQuiz.message,
+          errors: responseFromCreateKYAQuiz.errors
+            ? responseFromCreateKYAQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  deleteQuiz: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { body, query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromDeleteKYAQuiz = await createKnowYourAirUtil.deleteQuiz(
+        request
+      );
+
+      logObject("responseFromDeleteKYAQuiz", responseFromDeleteKYAQuiz);
+
+      if (responseFromDeleteKYAQuiz.success === true) {
+        const status = responseFromDeleteKYAQuiz.status
+          ? responseFromDeleteKYAQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteKYAQuiz.message,
+          deleted_kya_quiz: responseFromDeleteKYAQuiz.data,
+        });
+      } else if (responseFromDeleteKYAQuiz.success === false) {
+        const status = responseFromDeleteKYAQuiz.status
+          ? responseFromDeleteKYAQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteKYAQuiz.message,
+          errors: responseFromDeleteKYAQuiz.errors
+            ? responseFromDeleteKYAQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  updateQuiz: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { body, query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateKYAQuiz = await createKnowYourAirUtil.updateQuiz(
+        request
+      );
+
+      logObject("responseFromUpdateKYAQuiz", responseFromUpdateKYAQuiz);
+
+      if (responseFromUpdateKYAQuiz.success === true) {
+        const status = responseFromUpdateKYAQuiz.status
+          ? responseFromUpdateKYAQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateKYAQuiz.message,
+          updated_kya_quiz: responseFromUpdateKYAQuiz.data,
+        });
+      } else if (responseFromUpdateKYAQuiz.success === false) {
+        const status = responseFromUpdateKYAQuiz.status
+          ? responseFromUpdateKYAQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateKYAQuiz.message,
+          errors: responseFromUpdateKYAQuiz.errors
+            ? responseFromUpdateKYAQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /************ tracking KYA user progress *****************************/
+  listUserQuizProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListUserQuizProgress = await createKnowYourAirUtil.listUserQuizProgress(
+        request
+      );
+      logObject(
+        "responseFromListUserQuizProgress in controller",
+        responseFromListUserQuizProgress
+      );
+
+      if (responseFromListUserQuizProgress.success === true) {
+        const status = responseFromListUserQuizProgress.status
+          ? responseFromListUserQuizProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListUserQuizProgress.message,
+          kya_user_progress: responseFromListUserQuizProgress.data,
+        });
+      } else if (responseFromListUserQuizProgress.success === false) {
+        const status = responseFromListUserQuizProgress.status
+          ? responseFromListUserQuizProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUserQuizProgress.message,
+          errors: responseFromListUserQuizProgress.errors
+            ? responseFromListUserQuizProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  deleteUserQuizProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromDeleteUserQuizProgress = await createKnowYourAirUtil.deleteUserQuizProgress(
+        request
+      );
+      logObject(
+        "responseFromDeleteUserQuizProgress in controller",
+        responseFromDeleteUserQuizProgress
+      );
+
+      if (responseFromDeleteUserQuizProgress.success === true) {
+        const status = responseFromDeleteUserQuizProgress.status
+          ? responseFromDeleteUserQuizProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteUserQuizProgress.message,
+          deleted_kya_user_progress: responseFromDeleteUserQuizProgress.data,
+        });
+      } else if (responseFromDeleteUserQuizProgress.success === false) {
+        const status = responseFromDeleteUserQuizProgress.status
+          ? responseFromDeleteUserQuizProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteUserQuizProgress.message,
+          errors: responseFromDeleteUserQuizProgress.errors
+            ? responseFromDeleteUserQuizProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  updateUserQuizProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateUserQuizProgress = await createKnowYourAirUtil.updateUserQuizProgress(
+        request
+      );
+      logObject(
+        "responseFromUpdateUserQuizProgress in controller",
+        responseFromUpdateUserQuizProgress
+      );
+
+      if (responseFromUpdateUserQuizProgress.success === true) {
+        const status = responseFromUpdateUserQuizProgress.status
+          ? responseFromUpdateUserQuizProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateUserQuizProgress.message,
+          kya_user_progress: responseFromUpdateUserQuizProgress.data,
+        });
+      } else if (responseFromUpdateUserQuizProgress.success === false) {
+        const status = responseFromUpdateUserQuizProgress.status
+          ? responseFromUpdateUserQuizProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateUserQuizProgress.message,
+          errors: responseFromUpdateUserQuizProgress.errors
+            ? responseFromUpdateUserQuizProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createUserQuizProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateUserQuizProgress = await createKnowYourAirUtil.createUserQuizProgress(
+        request
+      );
+      logObject(
+        "responseFromCreateUserQuizProgress in controller",
+        responseFromCreateUserQuizProgress
+      );
+
+      if (responseFromCreateUserQuizProgress.success === true) {
+        const status = responseFromCreateUserQuizProgress.status
+          ? responseFromCreateUserQuizProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateUserQuizProgress.message,
+          kya_user_progress: responseFromCreateUserQuizProgress.data,
+        });
+      } else if (responseFromCreateUserQuizProgress.success === false) {
+        const status = responseFromCreateUserQuizProgress.status
+          ? responseFromCreateUserQuizProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUserQuizProgress.message,
+          errors: responseFromCreateUserQuizProgress.errors
+            ? responseFromCreateUserQuizProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  syncUserQuizProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromSyncUserQuizProgress = await createKnowYourAirUtil.syncUserQuizProgress(
+        request
+      );
+      logObject(
+        "responseFromSyncUserQuizProgress in controller",
+        responseFromSyncUserQuizProgress
+      );
+
+      if (responseFromSyncUserQuizProgress.success === true) {
+        const status = responseFromSyncUserQuizProgress.status
+          ? responseFromSyncUserQuizProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromSyncUserQuizProgress.message,
+          kya_user_progress: responseFromSyncUserQuizProgress.data,
+        });
+      } else if (responseFromSyncUserQuizProgress.success === false) {
+        const status = responseFromSyncUserQuizProgress.status
+          ? responseFromSyncUserQuizProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromSyncUserQuizProgress.message,
+          errors: responseFromSyncUserQuizProgress.errors
+            ? responseFromSyncUserQuizProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /****************** QUESTIONS********************************/
+  listQuestions: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromListKYAQuestion = await createKnowYourAirUtil.listQuestions(
+        request
+      );
+      logObject(
+        "responseFromListKYAQuestion in controller",
+        responseFromListKYAQuestion
+      );
+
+      if (responseFromListKYAQuestion.success === true) {
+        const status = responseFromListKYAQuestion.status
+          ? responseFromListKYAQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListKYAQuestion.message,
+          kya_questions: responseFromListKYAQuestion.data,
+        });
+      } else if (responseFromListKYAQuestion.success === false) {
+        const status = responseFromListKYAQuestion.status
+          ? responseFromListKYAQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListKYAQuestion.message,
+          errors: responseFromListKYAQuestion.errors
+            ? responseFromListKYAQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createQuestion: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateKYAQuestion = await createKnowYourAirUtil.createQuestion(
+        request
+      );
+      logObject("responseFromCreateKYAQuestion", responseFromCreateKYAQuestion);
+      if (responseFromCreateKYAQuestion.success === true) {
+        const status = responseFromCreateKYAQuestion.status
+          ? responseFromCreateKYAQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateKYAQuestion.message,
+          created_kya_question: responseFromCreateKYAQuestion.data
+            ? responseFromCreateKYAQuestion.data
+            : [],
+        });
+      } else if (responseFromCreateKYAQuestion.success === false) {
+        const status = responseFromCreateKYAQuestion.status
+          ? responseFromCreateKYAQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateKYAQuestion.message,
+          errors: responseFromCreateKYAQuestion.errors
+            ? responseFromCreateKYAQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  deleteQuestion: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromDeleteKYAQuestion = await createKnowYourAirUtil.deleteQuestion(
+        request
+      );
+
+      logObject("responseFromDeleteKYAQuestion", responseFromDeleteKYAQuestion);
+
+      if (responseFromDeleteKYAQuestion.success === true) {
+        const status = responseFromDeleteKYAQuestion.status
+          ? responseFromDeleteKYAQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteKYAQuestion.message,
+          deleted_kya_question: responseFromDeleteKYAQuestion.data,
+        });
+      } else if (responseFromDeleteKYAQuestion.success === false) {
+        const status = responseFromDeleteKYAQuestion.status
+          ? responseFromDeleteKYAQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteKYAQuestion.message,
+          errors: responseFromDeleteKYAQuestion.errors
+            ? responseFromDeleteKYAQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  updateQuestion: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateKYAQuestion = await createKnowYourAirUtil.updateQuestion(
+        request
+      );
+
+      logObject("responseFromUpdateKYAQuestion", responseFromUpdateKYAQuestion);
+
+      if (responseFromUpdateKYAQuestion.success === true) {
+        const status = responseFromUpdateKYAQuestion.status
+          ? responseFromUpdateKYAQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateKYAQuestion.message,
+          updated_kya_question: responseFromUpdateKYAQuestion.data,
+        });
+      } else if (responseFromUpdateKYAQuestion.success === false) {
+        const status = responseFromUpdateKYAQuestion.status
+          ? responseFromUpdateKYAQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateKYAQuestion.message,
+          errors: responseFromUpdateKYAQuestion.errors
+            ? responseFromUpdateKYAQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /****************** ANSWERS********************************/
+
+  listAnswers: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswers(
+        request
+      );
+      logObject(
+        "responseFromListKYAAnswer in controller",
+        responseFromListKYAAnswer
+      );
+
+      if (responseFromListKYAAnswer.success === true) {
+        const status = responseFromListKYAAnswer.status
+          ? responseFromListKYAAnswer.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListKYAAnswer.message,
+          kya_answers: responseFromListKYAAnswer.data,
+        });
+      } else if (responseFromListKYAAnswer.success === false) {
+        const status = responseFromListKYAAnswer.status
+          ? responseFromListKYAAnswer.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListKYAAnswer.message,
+          errors: responseFromListKYAAnswer.errors
+            ? responseFromListKYAAnswer.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createAnswer: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateKYAAnswer = await createKnowYourAirUtil.createAnswer(
+        request
+      );
+      logObject("responseFromCreateKYAAnswer", responseFromCreateKYAAnswer);
+      if (responseFromCreateKYAAnswer.success === true) {
+        const status = responseFromCreateKYAAnswer.status
+          ? responseFromCreateKYAAnswer.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateKYAAnswer.message,
+          created_kya_answer: responseFromCreateKYAAnswer.data
+            ? responseFromCreateKYAAnswer.data
+            : [],
+        });
+      } else if (responseFromCreateKYAAnswer.success === false) {
+        const status = responseFromCreateKYAAnswer.status
+          ? responseFromCreateKYAAnswer.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateKYAAnswer.message,
+          errors: responseFromCreateKYAAnswer.errors
+            ? responseFromCreateKYAAnswer.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  deleteAnswer: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromDeleteKYAAnswer = await createKnowYourAirUtil.deleteAnswer(
+        request
+      );
+
+      logObject("responseFromDeleteKYAAnswer", responseFromDeleteKYAAnswer);
+
+      if (responseFromDeleteKYAAnswer.success === true) {
+        const status = responseFromDeleteKYAAnswer.status
+          ? responseFromDeleteKYAAnswer.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteKYAAnswer.message,
+          deleted_kya_answer: responseFromDeleteKYAAnswer.data,
+        });
+      } else if (responseFromDeleteKYAAnswer.success === false) {
+        const status = responseFromDeleteKYAAnswer.status
+          ? responseFromDeleteKYAAnswer.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteKYAAnswer.message,
+          errors: responseFromDeleteKYAAnswer.errors
+            ? responseFromDeleteKYAAnswer.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  updateAnswer: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateKYAAnswer = await createKnowYourAirUtil.updateAnswer(
+        request
+      );
+
+      logObject("responseFromUpdateKYAAnswer", responseFromUpdateKYAAnswer);
+
+      if (responseFromUpdateKYAAnswer.success === true) {
+        const status = responseFromUpdateKYAAnswer.status
+          ? responseFromUpdateKYAAnswer.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateKYAAnswer.message,
+          updated_kya_answer: responseFromUpdateKYAAnswer.data,
+        });
+      } else if (responseFromUpdateKYAAnswer.success === false) {
+        const status = responseFromUpdateKYAAnswer.status
+          ? responseFromUpdateKYAAnswer.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateKYAAnswer.message,
+          errors: responseFromUpdateKYAAnswer.errors
+            ? responseFromUpdateKYAAnswer.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /******************* manage questions ********************************/
+  assignManyQuestionsToQuiz: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromAssignManyQuestionsToQuiz = await createKnowYourAirUtil.assignManyQuestionsToQuiz(
+        request
+      );
+
+      logObject(
+        "responseFromAssignManyQuestionsToQuiz",
+        responseFromAssignManyQuestionsToQuiz
+      );
+
+      if (responseFromAssignManyQuestionsToQuiz.success === true) {
+        const status = responseFromAssignManyQuestionsToQuiz.status
+          ? responseFromAssignManyQuestionsToQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromAssignManyQuestionsToQuiz.message,
+          updated_kya: responseFromAssignManyQuestionsToQuiz.data,
+        });
+      } else if (responseFromAssignManyQuestionsToQuiz.success === false) {
+        const status = responseFromAssignManyQuestionsToQuiz.status
+          ? responseFromAssignManyQuestionsToQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromAssignManyQuestionsToQuiz.message,
+          errors: responseFromAssignManyQuestionsToQuiz.errors
+            ? responseFromAssignManyQuestionsToQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  removeManyQuestionsFromQuiz: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromRemoveManyQuestionsFromQuiz = await createKnowYourAirUtil.removeManyQuestionsFromQuiz(
+        request
+      );
+
+      logObject(
+        "responseFromRemoveManyQuestionsFromQuiz",
+        responseFromRemoveManyQuestionsFromQuiz
+      );
+
+      if (responseFromRemoveManyQuestionsFromQuiz.success === true) {
+        const status = responseFromRemoveManyQuestionsFromQuiz.status
+          ? responseFromRemoveManyQuestionsFromQuiz.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRemoveManyQuestionsFromQuiz.message,
+          updated_kya: responseFromRemoveManyQuestionsFromQuiz.data,
+        });
+      } else if (responseFromRemoveManyQuestionsFromQuiz.success === false) {
+        const status = responseFromRemoveManyQuestionsFromQuiz.status
+          ? responseFromRemoveManyQuestionsFromQuiz.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveManyQuestionsFromQuiz.message,
+          errors: responseFromRemoveManyQuestionsFromQuiz.errors
+            ? responseFromRemoveManyQuestionsFromQuiz.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  assignManyAnswersToQuestion: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromAssignManyAnswersToQuestion = await createKnowYourAirUtil.assignManyAnswersToQuestion(
+        request
+      );
+
+      logObject(
+        "responseFromAssignManyAnswersToQuestion",
+        responseFromAssignManyAnswersToQuestion
+      );
+
+      if (responseFromAssignManyAnswersToQuestion.success === true) {
+        const status = responseFromAssignManyAnswersToQuestion.status
+          ? responseFromAssignManyAnswersToQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromAssignManyAnswersToQuestion.message,
+          updated_kya: responseFromAssignManyAnswersToQuestion.data,
+        });
+      } else if (responseFromAssignManyAnswersToQuestion.success === false) {
+        const status = responseFromAssignManyAnswersToQuestion.status
+          ? responseFromAssignManyAnswersToQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromAssignManyAnswersToQuestion.message,
+          errors: responseFromAssignManyAnswersToQuestion.errors
+            ? responseFromAssignManyAnswersToQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  removeManyAnswersFromQuestion: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromRemoveManyAnswersFromQuestion = await createKnowYourAirUtil.removeManyAnswersFromQuestion(
+        request
+      );
+
+      logObject(
+        "responseFromRemoveManyAnswersFromQuestion",
+        responseFromRemoveManyAnswersFromQuestion
+      );
+
+      if (responseFromRemoveManyAnswersFromQuestion.success === true) {
+        const status = responseFromRemoveManyAnswersFromQuestion.status
+          ? responseFromRemoveManyAnswersFromQuestion.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRemoveManyAnswersFromQuestion.message,
+          updated_kya: responseFromRemoveManyAnswersFromQuestion.data,
+        });
+      } else if (responseFromRemoveManyAnswersFromQuestion.success === false) {
+        const status = responseFromRemoveManyAnswersFromQuestion.status
+          ? responseFromRemoveManyAnswersFromQuestion.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveManyAnswersFromQuestion.message,
+          errors: responseFromRemoveManyAnswersFromQuestion.errors
+            ? responseFromRemoveManyAnswersFromQuestion.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

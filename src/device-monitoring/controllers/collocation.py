@@ -10,9 +10,9 @@ from config.constants import CollocationDefaults
 from helpers.collocation import Collocation
 from helpers.convert_dates import str_to_date
 from helpers.exceptions import CollocationBatchNotFound, CollocationError
-from helpers.request_validators import validate_request_json
+from helpers.request_validators import validate_request_json, validate_request_params
 from helpers.utils import decode_user_token
-from models import (
+from models.collocation import (
     CollocationBatch,
     CollocationBatchStatus,
     CollocationBatchResult,
@@ -51,7 +51,7 @@ def batch_error_exception(error):
 
 
 @collocation_bp.route("export-collection", methods=["GET"])
-def log_collocation_data():
+def export_collocation_data():
     collocation = Collocation()
     file_path = collocation.export_collection()
     return send_file(file_path, as_attachment=True)
@@ -64,6 +64,7 @@ def log_collocation_data():
     "devices|required:list",
     "batchName|optional:str",
     "baseDevice|optional:str",
+    "expectedRecordsPerHour|optional:int",
     "dataCompletenessThreshold|optional:float",
     "intraCorrelationThreshold|optional:float",
     "interCorrelationThreshold|optional:float",
@@ -82,7 +83,10 @@ def save_collocation_batch():
     base_device = json_data.get("baseDevice", None)
     start_date = str_to_date(json_data.get("startDate"), str_format="%Y-%m-%d")
     end_date = str_to_date(json_data.get("endDate"), str_format="%Y-%m-%d")
-    user_details = decode_user_token(request.headers.get("Authorization", ""))
+    user_token = request.args.get("TOKEN", request.args.get("token", ""))
+    user_details = {}
+    if len(user_token.strip()) != 0:
+        user_details = decode_user_token(user_token)
 
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
@@ -99,15 +103,18 @@ def save_collocation_batch():
     intra_correlation_threshold = json_data.get(
         "intraCorrelationThreshold", CollocationDefaults.IntraCorrelationThreshold
     )
+
     intra_correlation_r2_threshold = json_data.get(
-        "intraCorrelationR2Threshold", CollocationDefaults.IntraCorrelationR2Threshold
+        "intraCorrelationR2Threshold",
+        CollocationDefaults.IntraCorrelationR2Threshold,
     )
 
     inter_correlation_threshold = json_data.get(
         "interCorrelationThreshold", CollocationDefaults.InterCorrelationThreshold
     )
     inter_correlation_r2_threshold = json_data.get(
-        "interCorrelationR2Threshold", CollocationDefaults.InterCorrelationR2Threshold
+        "interCorrelationR2Threshold",
+        CollocationDefaults.InterCorrelationR2Threshold,
     )
 
     differences_threshold = json_data.get(
@@ -170,6 +177,10 @@ def save_collocation_batch():
 
 
 @collocation_bp.route("", methods=["DELETE"])
+@validate_request_params(
+    "batchId|required:str",
+    "devices|optional:str",
+)
 def delete_collocation_batch():
     devices = request.args.get("devices", "")
     batch_id = request.args.get("batchId")
@@ -189,10 +200,80 @@ def delete_collocation_batch():
 
 
 @collocation_bp.route("/reset", methods=["PATCH"])
+@validate_request_params(
+    "batchId|required:str",
+)
+@validate_request_json(
+    "expectedRecordsPerHour|optional:int",
+    "dataCompletenessThreshold|optional:float",
+    "intraCorrelationThreshold|optional:float",
+    "interCorrelationThreshold|optional:float",
+    "intraCorrelationR2Threshold|optional:float",
+    "interCorrelationR2Threshold|optional:float",
+    "differencesThreshold|optional:int",
+    "interCorrelationParameter|optional:str",
+    "intraCorrelationParameter|optional:str",
+    "dataCompletenessParameter|optional:str",
+    "differencesParameter|optional:str",
+    "interCorrelationAdditionalParameters|optional:list",
+)
 def reset_collocation_batch():
     batch_id = request.args.get("batchId")
     collocation = Collocation()
     batch: CollocationBatch = collocation.get_batch(batch_id=batch_id)
+
+    json_data = request.get_json()
+    batch.expected_hourly_records = json_data.get(
+        "expectedRecordsPerHour", batch.expected_hourly_records
+    )
+
+    batch.data_completeness_threshold = json_data.get(
+        "dataCompletenessThreshold", batch.data_completeness_threshold
+    )
+
+    batch.intra_correlation_threshold = json_data.get(
+        "intraCorrelationThreshold", batch.intra_correlation_threshold
+    )
+
+    batch.intra_correlation_r2_threshold = json_data.get(
+        "intraCorrelationR2Threshold", batch.intra_correlation_r2_threshold
+    )
+
+    batch.inter_correlation_threshold = json_data.get(
+        "interCorrelationThreshold", batch.inter_correlation_threshold
+    )
+
+    batch.inter_correlation_r2_threshold = json_data.get(
+        "interCorrelationR2Threshold", batch.inter_correlation_r2_threshold
+    )
+
+    batch.differences_threshold = json_data.get(
+        "differencesThreshold", batch.differences_threshold
+    )
+
+    batch.inter_correlation_parameter = json_data.get(
+        "interCorrelationParameter", batch.inter_correlation_parameter
+    )
+
+    batch.intra_correlation_parameter = json_data.get(
+        "intraCorrelationParameter", batch.intra_correlation_parameter
+    )
+
+    batch.data_completeness_parameter = json_data.get(
+        "dataCompletenessParameter", batch.data_completeness_parameter
+    )
+
+    batch.differences_parameter = json_data.get(
+        "differencesParameter", batch.differences_parameter
+    )
+
+    batch.inter_correlation_additional_parameters = list(
+        json_data.get(
+            "interCorrelationAdditionalParameters",
+            batch.inter_correlation_additional_parameters,
+        )
+    )
+    batch.validate()
     batch = collocation.reset_batch(batch)
 
     return (
@@ -202,6 +283,9 @@ def reset_collocation_batch():
 
 
 @collocation_bp.route("", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+)
 def get_collocation_batch():
     batch_id = request.args.get("batchId")
     collocation = Collocation()
@@ -219,10 +303,14 @@ def get_collocation_batch():
 def collocation_summary():
     collocation = Collocation()
     summary = collocation.summary()
-    return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
+    return jsonify({"data": list(map(lambda x: x, summary))}), 200
 
 
 @collocation_bp.route("/data", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+    "devices|optional:str",
+)
 def collocation_batch_data():
     devices = request.args.get("devices", "")
     batch_id = request.args.get("batchId")
@@ -234,6 +322,9 @@ def collocation_batch_data():
 
 
 @collocation_bp.route("/results", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+)
 def collocation_batch_results():
     batch_id = request.args.get("batchId")
     collocation = Collocation()
@@ -242,6 +333,10 @@ def collocation_batch_results():
 
 
 @collocation_bp.route("/data-completeness", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+    "devices|optional:str",
+)
 def collocation_data_completeness():
     devices = request.args.get("devices", "")
     batch_id = request.args.get("batchId")
@@ -253,6 +348,10 @@ def collocation_data_completeness():
 
 
 @collocation_bp.route("/statistics", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+    "devices|optional:str",
+)
 def collocation_data_statistics():
     devices = request.args.get("devices", "")
     batch_id = request.args.get("batchId")
@@ -264,6 +363,10 @@ def collocation_data_statistics():
 
 
 @collocation_bp.route("/intra", methods=["GET"])
+@validate_request_params(
+    "batchId|required:str",
+    "devices|optional:str",
+)
 def collocation_intra():
     devices = request.args.get("devices", "")
     batch_id = request.args.get("batchId")

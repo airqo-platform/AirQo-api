@@ -5,6 +5,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const DepartmentSchema = new Schema(
   {
@@ -384,4 +385,14 @@ DepartmentSchema.statics = {
   },
 };
 
-module.exports = DepartmentSchema;
+const DepartmentModel = (tenant) => {
+  try {
+    let departments = mongoose.model("departments");
+    return departments;
+  } catch (error) {
+    let departments = getModelByTenant(tenant, "department", DepartmentSchema);
+    return departments;
+  }
+};
+
+module.exports = DepartmentModel;

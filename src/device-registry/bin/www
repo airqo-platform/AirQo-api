@@ -2,7 +2,6 @@
 
 const app = require("../app");
 const constants = require("@config/constants");
-const middlewareConfig = require("../config/app.middleware");
 const debug = require('debug')('log4js-example');
 const cluster = require('express-cluster');
 const http = require("http");
@@ -82,15 +81,6 @@ try {
     }
 }
 
-/****
- * pass the app instance to the middleware configuration
- */
-try {
-    middlewareConfig(app);
-} catch (e) {
-    logElement("middleware error", e.message)
-}
-
 // Set up the Kafka consumer
 const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
 
@@ -132,23 +122,30 @@ const run = async() => {
                         logObject("error.details[0]", error.details[0])
                         logObject("error.details", error.details)
                         const errorDetails = error.details.map(detail => {
-                            logObject("KAFKA: the single error detail", detail)
                             const event = detail.context.value;
                             logObject("KAFKA: the event causing the error", event)
-                            const { device_number, device_id, timestamp, site_id } = event;
+                            const {
+                                device_number,
+                                device_id,
+                                timestamp,
+                                site_id,
+                                battery,
+                                network,
+                                device_latitude,
+                                device_longitude,
+                                site_latitude,
+                                site_longitude,
+                            } = value[detail.path[0]];
                             return {
                                 message: detail.message,
                                 key: detail.context.key,
                                 value: detail.context.value,
-                                path: detail.path,
-                                device_number: device_number ? { key: 'device_number', value: device_number } : undefined,
-                                device_id: device_id ? { key: 'device_id', value: device_id } : undefined,
-                                timestamp: timestamp ? { key: 'timestamp', value: timestamp } : undefined,
-                                site_id: site_id ? { key: 'site_id', value: site_id } : undefined,
-
+                                device_number: device_number ? device_number : undefined,
+                                timestamp: timestamp ? timestamp : undefined,
                             };
                         });
-                        logger.error(`KAFKA: Input validation errors -- ${JSON.stringify(errorDetails)}`);
+                        logger.error(`KAFKA: Input validation formatted errors -- ${JSON.stringify(errorDetails)}`);
+
                         // logger.error(
                         //     `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
                         // );

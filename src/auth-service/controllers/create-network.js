@@ -1,8 +1,8 @@
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const httpStatus = require("http-status");
-const createNetworkUtil = require("../utils/create-network");
+const createNetworkUtil = require("@utils/create-network");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");

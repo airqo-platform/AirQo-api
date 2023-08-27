@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Consolidated-Data-ETL",
-    schedule= "@weekly",
+    schedule="0 0 * * */3",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "consolidated data"],
@@ -19,7 +19,7 @@ def data_warehouse_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, kwargs=kwargs
+            days=4, kwargs=kwargs
         )
 
         return DataWarehouseUtils.extract_hourly_low_cost_data(
@@ -101,7 +101,7 @@ def data_warehouse_consolidated_data():
 
 @dag(
     "Cleanup-Consolidated-Data",
-    schedule="0 4 * * 1",
+    schedule="0 0 * * */4 ",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["consolidated data", "cleanup"],
@@ -115,7 +115,7 @@ def data_warehouse_cleanup_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, kwargs=kwargs
+            days=5, kwargs=kwargs
         )
 
         return DataWarehouseUtils.extract_data_from_big_query(

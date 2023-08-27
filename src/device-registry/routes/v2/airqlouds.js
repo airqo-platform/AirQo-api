@@ -6,15 +6,81 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
+const AdminLevelSchema = require("@models/AdminLevel");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const { getModelByTenant } = require("@config/database");
+const NetworkSchema = require("@models/Network");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- airqlouds-route-v2`
+);
+
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+const AdminLevelModel = (tenant) => {
+  try {
+    const adminlevels = mongoose.model("adminlevels");
+    return adminlevels;
+  } catch (error) {
+    const adminlevels = getModelByTenant(
+      tenant,
+      "adminlevel",
+      AdminLevelSchema
+    );
+    return adminlevels;
+  }
+};
+
+const validAdminLevels = async () => {
+  try {
+    logText("we are now inside validAdminLevels...");
+    const levels = await AdminLevelModel("airqo").distinct("name");
+    logObject("levels inside", levels);
+    return levels.map((level) => level.toLowerCase());
+  } catch (error) {
+    logObject("Error in validAdminLevels:", error);
+    logger.error(`Error in validAdminLevels -- ${JSON.stringify(error)}`);
+    throw error; // Rethrow the error
+  }
+};
+
+const validateAdminLevels = async (value) => {
+  try {
+    logObject("value", value);
+    const levels = await validAdminLevels();
+    logObject("levels outside", levels);
+
+    if (!levels.includes(value.toLowerCase())) {
+      throw new Error("Invalid level");
+    }
+  } catch (error) {
+    logObject("Error in validateAdminLevels:", error);
+    logger.error(`Error in validAdminLevels -- ${JSON.stringify(error)}`);
+    throw error; // Rethrow the error
+  }
+};
 
 const headers = (req, res, next) => {
-  // const allowedOrigins = constants.DOMAIN_WHITELIST;
-  // const origin = req.headers.origin;
-  // if (allowedOrigins.includes(origin)) {
-  //   res.setHeader("Access-Control-Allow-Origin", origin);
-  // }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
@@ -123,20 +189,16 @@ router.post(
         .withMessage("admin_level is missing in your request")
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
       body("airqloud_tags")
         .optional()
         .custom((value) => {
@@ -238,20 +300,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.list
@@ -294,20 +352,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.listSummary
@@ -350,20 +404,16 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
     ],
   ]),
   airqloudController.listDashboard
@@ -415,20 +465,16 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .isIn([
-        "village",
-        "district",
-        "parish",
-        "division",
-        "county",
-        "subcounty",
-        "country",
-        "state",
-        "province",
-      ])
-      .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-      ),
+      .custom(async (value) => {
+        try {
+          await validateAdminLevels(value);
+          return true;
+        } catch (error) {
+          throw new Error(
+            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+          );
+        }
+      }),
   ]),
   airqloudController.findSites
 );
@@ -485,20 +531,16 @@ router.put(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
+        .custom(async (value) => {
+          try {
+            await validateAdminLevels(value);
+            return true;
+          } catch (error) {
+            throw new Error(
+              "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+            );
+          }
+        }),
       body("description")
         .optional()
         .trim(),
@@ -666,22 +708,67 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .isIn([
-        "village",
-        "district",
-        "parish",
-        "division",
-        "county",
-        "subcounty",
-        "country",
-        "state",
-        "province",
-      ])
-      .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-      ),
+      .custom(async (value) => {
+        try {
+          await validateAdminLevels(value);
+          return true;
+        } catch (error) {
+          throw new Error(
+            "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+          );
+        }
+      }),
   ]),
   airqloudController.calculateGeographicalCenter
+);
+
+router.get(
+  "/combined/:net_id/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("net_id")
+      .exists()
+      .withMessage("the network ID param is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the network ID cannot be empty"),
+  ]),
+  airqloudController.listCohortsAndGridsSummary
+);
+
+router.get(
+  "/combined/:net_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .custom(validateNetwork)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("net_id")
+      .trim()
+      .exists()
+      .withMessage("the network is is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the network should not be empty"),
+  ]),
+  airqloudController.listCohortsAndGrids
 );
 
 module.exports = router;

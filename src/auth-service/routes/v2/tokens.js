@@ -5,6 +5,7 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const rateLimitMiddleware = require("@middleware/rate-limit");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -51,38 +52,26 @@ router.post(
     ],
   ]),
   oneOf([
-    body("user_id")
+    body("name")
+      .exists()
+      .withMessage("the name is missing in your request")
+      .trim(),
+    body("client_id")
       .exists()
       .withMessage(
-        "a token requirement is missing in request, consider using the user_id"
+        "a token requirement is missing in request, consider using the client_id"
       )
       .bail()
       .notEmpty()
-      .withMessage("this user_id cannot be empty")
+      .withMessage("this client_id cannot be empty")
       .bail()
       .trim()
       .isMongoId()
-      .withMessage("user_id must be an object ID")
+      .withMessage("client_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    // body("client_id")
-    //   .exists()
-    //   .withMessage(
-    //     "a token requirement is missing in request, consider using the client_id"
-    //   )
-    //   .bail()
-    //   .notEmpty()
-    //   .withMessage("this client_id cannot be empty")
-    //   .bail()
-    //   .trim()
-    //   .isMongoId()
-    //   .withMessage("client_id must be an object ID")
-    //   .bail()
-    //   .customSanitizer((value) => {
-    //     return ObjectId(value);
-    //   }),
   ]),
   oneOf([
     [
@@ -103,7 +92,7 @@ router.post(
 );
 
 router.put(
-  "/:token",
+  "/:token/regenerate",
   oneOf([
     [
       query("tenant")
@@ -128,19 +117,51 @@ router.put(
   ]),
   oneOf([
     [
-      body("user_id")
+      body("expires")
         .optional()
         .trim()
         .notEmpty()
-        .withMessage("this user ID cannot be empty if provideds")
+        .withMessage("expires cannot be empty if provided")
         .bail()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("expires must be a valid datetime.")
+        .bail()
+        .isAfter(new Date().toISOString().slice(0, 10))
+        .withMessage("the date should not be before the current date")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.regenerate
+);
+
+router.put(
+  "/:token/update",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
+        .toLowerCase()
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("token")
+      .exists()
+      .withMessage("the token parameter is missing in the request")
+      .bail()
+      .notEmpty()
+      .withMessage("token must not be empty")
+      .trim(),
+  ]),
+  oneOf([
+    [
       body("expires")
         .optional()
         .trim()
@@ -215,6 +236,7 @@ router.get(
         .withMessage("the token must not be empty"),
     ],
   ]),
+  // rateLimitMiddleware,
   createTokenController.verify
 );
 router.get(

@@ -2,6 +2,7 @@ const mongoose = require("mongoose").set("debug", true);
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { getTenantDB, getModelByTenant } = require("@config/database");
 
 const logSchema = new mongoose.Schema(
   {
@@ -196,4 +197,18 @@ logSchema.methods = {
   },
 };
 
-module.exports = logSchema;
+const LogModel = (tenant) => {
+  try {
+    const logs = mongoose.model("logs");
+    return logs;
+  } catch (error) {
+    const logs = getModelByTenant(tenant, "log", logSchema);
+    return logs;
+  }
+};
+
+const LogDB = (tenant) => {
+  return getTenantDB(tenant, "log", logSchema);
+};
+
+module.exports = { LogModel, LogDB, logSchema };

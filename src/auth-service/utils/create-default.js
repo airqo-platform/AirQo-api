@@ -1,9 +1,7 @@
-const DefaultsSchema = require("../models/Defaults");
-const { getModelByTenant } = require("@config/dbConnection");
+const DefaultsModel = require("@models/Defaults");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const httpStatus = require("http-status");
-
 const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
@@ -11,199 +9,82 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
 const defaults = {
   list: async (tenant, filter, limit, skip) => {
     try {
-      let responseFromListDefault = await getModelByTenant(
-        tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
-      ).list({
+      const responseFromListDefault = await DefaultsModel(tenant).list({
         filter,
         limit,
         skip,
       });
-      if (responseFromListDefault.success === true) {
-        let status = responseFromListDefault.status
-          ? responseFromListDefault.status
-          : "";
-        return {
-          success: true,
-          message: responseFromListDefault.message,
-          data: responseFromListDefault.data,
-          status,
-        };
-      }
-
-      if (responseFromListDefault.success === false) {
-        let errors = responseFromListDefault.errors
-          ? responseFromListDefault.errors
-          : "";
-
-        let status = responseFromListDefault.status
-          ? responseFromListDefault.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromListDefault.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromListDefault;
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "utils server errors",
-        errors: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   create: async (request) => {
     try {
-      let { body, query } = request;
-      let { tenant } = query;
-
+      const { body, query } = request;
+      const { tenant } = query;
       logObject("the body", body);
-
-      let responseFromRegisterDefault = await getModelByTenant(
-        tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
-      ).register(body);
+      const responseFromRegisterDefault = await DefaultsModel(tenant).register(
+        body
+      );
       logObject("responseFromRegisterDefault", responseFromRegisterDefault);
 
-      if (responseFromRegisterDefault.success === true) {
-        let status = responseFromRegisterDefault.status
-          ? responseFromRegisterDefault.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRegisterDefault.message,
-          data: responseFromRegisterDefault.data,
-          status,
-        };
-      }
-
-      if (responseFromRegisterDefault.success === false) {
-        let errors = responseFromRegisterDefault.errors
-          ? responseFromRegisterDefault.errors
-          : "";
-
-        let status = responseFromRegisterDefault.status
-          ? responseFromRegisterDefault.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterDefault.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRegisterDefault;
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "defaults util server errors",
-        errors: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   update: async (tenant, filter, update) => {
     try {
-      let responseFromModifyDefault = await getModelByTenant(
-        tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
-      ).modify({
+      const responseFromModifyDefault = await DefaultsModel(tenant).modify({
         filter,
         update,
       });
       logObject("responseFromModifyDefault", responseFromModifyDefault);
-      if (responseFromModifyDefault.success === true) {
-        let status = responseFromModifyDefault.status
-          ? responseFromModifyDefault.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyDefault.message,
-          data: responseFromModifyDefault.data,
-          status,
-        };
-      } else if (responseFromModifyDefault.success === false) {
-        let errors = responseFromModifyDefault.errors
-          ? responseFromModifyDefault.errors
-          : "";
-
-        let status = responseFromModifyDefault.status
-          ? responseFromModifyDefault.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifyDefault.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyDefault;
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "defaults util server errors",
-        errors: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
   delete: async (request) => {
-    const responseFromFilter = generateFilter.defaults(request);
-    logObject("responseFromFilter", responseFromFilter);
-    let filter = responseFromFilter.data;
-    let { tenant } = request.query;
-    if (responseFromFilter.success === true) {
-      let responseFromRemoveDefault = await getModelByTenant(
-        tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
-      ).remove({
+    try {
+      const responseFromFilter = generateFilter.defaults(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+      const { tenant } = request.query;
+      const responseFromRemoveDefault = await DefaultsModel(tenant).remove({
         filter,
       });
-
-      if (responseFromRemoveDefault.success === true) {
-        let status = responseFromRemoveDefault.status
-          ? responseFromRemoveDefault.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveDefault.message,
-          data: responseFromRemoveDefault.data,
-          status,
-        };
-      }
-      if (responseFromRemoveDefault.success === false) {
-        let errors = responseFromRemoveDefault.errors
-          ? responseFromRemoveDefault.errors
-          : "";
-
-        let status = responseFromRemoveDefault.status
-          ? responseFromRemoveDefault.status
-          : "";
-
-        return {
-          success: false,
-          errors,
-          message: responseFromRemoveDefault.message,
-          status,
-        };
-      }
-    }
-
-    if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+      return responseFromRemoveDefault;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: responseFromFilter.message,
-        errors,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

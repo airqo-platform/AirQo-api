@@ -1,8 +1,7 @@
 const constants = require("@config/constants");
-const NetworkSchema = require("@models/Network");
-const PermissionSchema = require("@models/Permission");
-const UserSchema = require("@models/User");
-const { getModelByTenant } = require("@config/dbConnection");
+const NetworkModel = require("@models/Network");
+const PermissionModel = require("@models/Permission");
+const UserModel = require("@models/User");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const httpStatus = require("http-status");
@@ -13,40 +12,6 @@ const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-
-const PermissionModel = (tenant) => {
-  try {
-    const permissions = mongoose.model("permissions");
-    return permissions;
-  } catch (error) {
-    const permissions = getModelByTenant(
-      tenant,
-      "permission",
-      PermissionSchema
-    );
-    return permissions;
-  }
-};
-
-const UserModel = (tenant) => {
-  try {
-    const users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    const users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
 
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
@@ -1087,6 +1052,8 @@ const createNetwork = {
               category: 1,
               country: 1,
               description: 1,
+              "role.role_name": 1,
+              "role._id": 1,
             },
           },
         ])

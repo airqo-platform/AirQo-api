@@ -1,17 +1,49 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- common-util`);
-const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
 const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("@config/database");
+const CohortSchema = require("@models/Cohort");
+const GridSchema = require("@models/Grid");
+const { getModelByTenant, getTenantDB, mongodb } = require("@config/database");
 const distanceUtil = require("./distance");
 const cryptoJS = require("crypto-js");
-const { logObject } = require("./log");
+const { logObject, logText } = require("@utils/log");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const geolib = require("geolib");
+const geohash = require("ngeohash");
+const httpStatus = require("http-status");
+
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
+const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
+const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
+const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
+
+const sitesExclusionProjection = siteFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`sites.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const devicesExclusionProjection = deviceFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`shape.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
 
 const devicesModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
@@ -23,6 +55,27 @@ const sitesModel = (tenant) => {
 
 const airqloudsModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "airqloud", AirQloudSchema);
+};
+
+const GridModel = (tenant) => {
+  try {
+    const grids = mongoose.model("grids");
+    return grids;
+  } catch (error) {
+    // logObject("error", error);
+    const grids = getModelByTenant(tenant, "grid", GridSchema);
+    return grids;
+  }
+};
+
+const CohortModel = (tenant) => {
+  try {
+    const cohorts = mongoose.model("cohorts");
+    return cohorts;
+  } catch (error) {
+    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
+    return cohorts;
+  }
 };
 
 const common = {
@@ -48,12 +101,12 @@ const common = {
           message =
             "Unable to find any sites associated with the provided AirQloud ID";
         }
-        const filteredSites = sites.map((site) => site._id);
+        const filteredSites = map((site) => site._id);
         return {
           success: true,
           message,
           data: filteredSites,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (responseFromListAirQloud.success === false) {
         return responseFromListAirQloud;
@@ -62,7 +115,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -93,7 +146,7 @@ const common = {
           success: true,
           data: siteIds,
           message,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (responseFromListSites.success === false) {
         return responseFromListSites;
@@ -102,7 +155,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -126,7 +179,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -137,7 +190,7 @@ const common = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             data: count,
           });
         } else if (err) {
@@ -145,7 +198,7 @@ const common = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -155,7 +208,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -169,7 +222,7 @@ const common = {
       if (isEmpty(originalText)) {
         return {
           success: false,
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           message: "the provided encrypted key is not recognizable",
           errors: { message: "the provided encrypted key is not recognizable" },
         };
@@ -178,7 +231,7 @@ const common = {
           success: true,
           message: "successfully decrypted the text",
           data: originalText,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -187,7 +240,124 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  generateGeoHashFromCoordinates: (shape) => {
+    try {
+      logObject("shape", shape);
+      const { coordinates, type } = shape;
+      // Flatten the coordinates array to handle both Polygon and MultiPolygon
+
+      if (type === "MultiPolygon") {
+        logObject("coordinates.flat(2.1)", coordinates.flat(2));
+        const flattenedMultiPolygonCoordinates = coordinates
+          .flat(3)
+          .map(([longitude, latitude]) => ({
+            latitude,
+            longitude,
+          }));
+
+        const centerPoint = geolib.getCenter(flattenedMultiPolygonCoordinates);
+        // Generate the GeoHash using the center point
+        const geoHash = geohash.encode(
+          centerPoint.latitude,
+          centerPoint.longitude
+        );
+        return geoHash;
+      } else if (type === "Polygon") {
+        logObject("coordinates.flat(2)", coordinates.flat(2));
+        const flattenedPolygonCoordinates = coordinates
+          .flat(2)
+          .map(([longitude, latitude]) => ({
+            latitude,
+            longitude,
+          }));
+
+        const centerPoint = geolib.getCenter(flattenedPolygonCoordinates);
+        // Generate the GeoHash using the center point
+        const geoHash = geohash.encode(
+          centerPoint.latitude,
+          centerPoint.longitude
+        );
+        return geoHash;
+      }
+    } catch (error) {
+      logObject("the error in the common util", error);
+      logger.error(`Internal Server Error ---  ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  getDocumentsByNetworkId: async (tenantId, network, category) => {
+    try {
+      if (category === "summary") {
+        //make modifications to the exclusion projection
+      }
+      if (category === "dashboard") {
+        //make modifications to the exclusion projection
+      }
+      const cohortsQuery = CohortModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "cohorts",
+            as: "devices",
+          },
+        },
+        {
+          $project: cohortsInclusionProjection,
+        },
+        {
+          $project: devicesExclusionProjection,
+        },
+      ]);
+
+      const gridsQuery = GridModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "grids",
+            as: "sites",
+          },
+        },
+        {
+          $project: gridsInclusionProjection,
+        },
+        {
+          $project: sitesExclusionProjection,
+        },
+        {
+          $project: gridShapeExclusionProjection,
+        },
+      ]);
+
+      const [cohorts, grids] = await Promise.all([
+        cohortsQuery.exec(),
+        gridsQuery.exec(),
+      ]);
+
+      return { cohorts, grids };
+    } catch (error) {
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        message: "Internal Server Error",
       };
     }
   },

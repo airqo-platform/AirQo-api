@@ -16,6 +16,8 @@ resource "google_compute_instance" "mongod_shard_1_1" {
   }
 
   name = "mongod-shard-1-1"
+  
+  allow_stopping_for_update = true
 
   network_interface {
     access_config {

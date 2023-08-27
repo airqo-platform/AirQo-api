@@ -5,7 +5,7 @@ const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const httpStatus = require("http-status");
 
 const GroupSchema = new Schema(
@@ -354,4 +354,14 @@ GroupSchema.statics = {
   },
 };
 
-module.exports = GroupSchema;
+const GroupModel = (tenant) => {
+  try {
+    let groups = mongoose.model("groups");
+    return groups;
+  } catch (error) {
+    let groups = getModelByTenant(tenant, "group", GroupSchema);
+    return groups;
+  }
+};
+
+module.exports = GroupModel;

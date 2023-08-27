@@ -1,48 +1,24 @@
-const FavoriteSchema = require("@models/Favorite");
-const UserSchema = require("@models/User");
+const FavoriteModel = require("@models/Favorite");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
-const { getModelByTenant } = require("@config/dbConnection");
-const { logObject, logElement, logText, winstonLogger } = require("@utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-
 const log4js = require("log4js");
 const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-util`
 );
 
-const UserModel = (tenant) => {
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
-
-const FavoriteModel = (tenant) => {
-  try {
-    let favorites = mongoose.model("favorites");
-    return favorites;
-  } catch (error) {
-    let favorites = getModelByTenant(tenant, "favorite", FavoriteSchema);
-    return favorites;
-  }
-};
-
 const favorites = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -132,7 +108,6 @@ const favorites = {
       /**
        * check for edge cases?
        */
-      
 
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
@@ -150,10 +125,8 @@ const favorites = {
     }
   },
 
-  syncFavorites: async (request) => { 
-    
+  syncFavorites: async (request) => {
     try {
-   
       const { query, body, params } = request;
       const { tenant } = query;
       const { favorite_places } = body;
@@ -162,17 +135,17 @@ const favorites = {
       let responseFromCreateFavorite, responseFromDeleteFavorite;
       let filter = {
         firebase_user_id: firebase_user_id,
-      }
+      };
 
-      let unsynced_favorite_places =  (await FavoriteModel(
-        tenant.toLowerCase()
-      ).list({ filter })).data;
-     
+      let unsynced_favorite_places = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+      ).data;
+
       unsynced_favorite_places = unsynced_favorite_places.map((item) => {
         delete item._id;
         return item;
       });
-     
+
       if (favorite_places.length === 0) {
         for (let favorite in unsynced_favorite_places) {
           responseFromDeleteFavorite = await FavoriteModel(
@@ -191,11 +164,14 @@ const favorites = {
 
       const missing_favorite_places = favorite_places.filter((item) => {
         const found = unsynced_favorite_places.some((favorite) => {
-          return favorite.place_id === item.place_id && favorite.firebase_user_id === item.firebase_user_id;
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
         });
         return !found;
       });
-      
+
       if (missing_favorite_places.length === 0) {
         responseFromCreateFavorite = {
           success: true,
@@ -204,36 +180,36 @@ const favorites = {
         };
       }
 
-      for (let favorite in missing_favorite_places) { 
- 
+      for (let favorite in missing_favorite_places) {
         responseFromCreateFavorite = await FavoriteModel(
           tenant.toLowerCase()
         ).register(missing_favorite_places[favorite]);
-        console.log("responseFromCreateFavorite", responseFromCreateFavorite)
-
+        logObject("responseFromCreateFavorite", responseFromCreateFavorite);
       }
- 
+
       const extra_favorite_places = unsynced_favorite_places.filter((item) => {
         const found = favorite_places.some((favorite) => {
-          return favorite.place_id === item.place_id && favorite.firebase_user_id === item.firebase_user_id;
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
         });
         return !found;
       });
-    
+
       if (extra_favorite_places.length === 0) {
         responseFromDeleteFavorite = {
           success: true,
           message: "No extra favorite places",
-          data: []
-
+          data: [],
         };
       }
 
       for (let favorite in extra_favorite_places) {
         let filter = {
           firebase_user_id: favorite_places[0].firebase_user_id,
-          place_id: extra_favorite_places[favorite].place_id
-        }
+          place_id: extra_favorite_places[favorite].place_id,
+        };
         responseFromDeleteFavorite = await FavoriteModel(
           tenant.toLowerCase()
         ).remove({
@@ -241,21 +217,23 @@ const favorites = {
         });
       }
 
-      let synchronizedFavorites = (await FavoriteModel(
-        tenant.toLowerCase()
-      ).list({ filter })).data;
+      let synchronizedFavorites = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+      ).data;
 
-
-      if (responseFromCreateFavorite.success === false && responseFromDeleteFavorite.success === false) {
+      if (
+        responseFromCreateFavorite.success === false &&
+        responseFromDeleteFavorite.success === false
+      ) {
         return {
           success: false,
           message: "Error Synchronizing favorites",
           errors: {
             message: `Response from Create Favorite: ${responseFromCreateFavorite.errors.message}
-           + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`
+           + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`,
           },
           status: httpStatus.INTERNAL_SERVER_ERROR,
-        }
+        };
       }
 
       return {
@@ -263,10 +241,9 @@ const favorites = {
         message: "Favorites Synchronized",
         data: synchronizedFavorites,
         status: httpStatus.OK,
-      }
-      
+      };
     } catch (error) {
-       logger.error(`internal server error -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,

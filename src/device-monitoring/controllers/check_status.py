@@ -6,7 +6,7 @@ import routes
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
 from helpers.request_validators import validate_request_params
-from models import DeviceStatus, NetworkUptime, DeviceUptime, DeviceBattery
+from models.uptime import DeviceStatus, NetworkUptime, DeviceUptime, DeviceBattery
 
 _logger = logging.getLogger(__name__)
 
@@ -100,6 +100,7 @@ def get_network_uptime():
 def get_device_uptime():
     errors = {}
     tenant = request.args.get("tenant")
+    devices = request.args.get("devices")
     device_name = request.args.get("device_name")
 
     try:
@@ -130,7 +131,7 @@ def get_device_uptime():
         )
 
     model = DeviceUptime(tenant)
-    result = model.get_device_uptime(start_date, end_date, device_name)
+    result = model.get_device_uptime(start_date, end_date, devices, device_name)
 
     response = dict(message="device uptime query successful", data=result)
     return jsonify(response), 200

@@ -1,3 +1,4 @@
+runFunctions.py
 *.json
 *.csv
 
@@ -34,3 +35,4 @@ meta_data/
 
 *.ipynb
 *.html
+runFunctions.py

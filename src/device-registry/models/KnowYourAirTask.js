@@ -28,13 +28,17 @@ const knowYourAirTaskSchema = new Schema(
       trim: true,
       ref: "kyalesson",
     },
+    task_position: {
+      type: Number,
+      required: [true, "the task number is required!"],
+    },
   },
   {
     timestamps: true,
   }
 );
 
-knowYourAirTaskSchema.pre("save", function(next) {
+knowYourAirTaskSchema.pre("save", function (next) {
   next();
 });
 
@@ -49,6 +53,7 @@ knowYourAirTaskSchema.methods = {
       content: this.content,
       image: this.image,
       _id: this._id,
+      task_position: this.task_position,
     };
   },
 };
@@ -108,7 +113,7 @@ knowYourAirTaskSchema.statics = {
       );
       const pipeline = await this.aggregate()
         .match(filter)
-        .sort({ createdAt: -1 })
+        .sort({ task_position: 1 })
         .lookup({
           from: "kyalessons",
           localField: "kya_lesson",
@@ -116,6 +121,7 @@ knowYourAirTaskSchema.statics = {
           as: "kyalessons",
         })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -123,10 +129,6 @@ knowYourAirTaskSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS)
         )
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
 
       const response = pipeline;
 
@@ -245,6 +247,7 @@ knowYourAirTaskSchema.statics = {
           title: 1,
           content: 1,
           image: 1,
+          task_position: 1,
         },
       };
       const removedKnowYourAirTask = await this.findOneAndRemove(

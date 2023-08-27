@@ -3,6 +3,7 @@ package airqo.config;
 import airqo.models.ApiResponseBody;
 import com.google.cloud.bigquery.BigQueryException;
 import io.micrometer.core.instrument.config.validate.ValidationException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.convert.ConversionFailedException;
@@ -16,7 +17,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-import javax.servlet.http.HttpServletRequest;
 import java.text.ParseException;
 
 @Slf4j

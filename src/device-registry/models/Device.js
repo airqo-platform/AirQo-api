@@ -25,6 +25,14 @@ const accessCodeGenerator = require("generate-password");
 
 const deviceSchema = new mongoose.Schema(
   {
+    cohorts: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+        },
+      ],
+    },
     latitude: {
       type: Number,
     },
@@ -204,6 +212,15 @@ deviceSchema.pre("save", function(next) {
     this.device_codes.push(this.alias);
   }
 
+  // Check for duplicate values in the grids array
+  const duplicateValues = this.cohorts.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in cohorts array.");
+    return next(error);
+  }
+
   return next();
 });
 
@@ -263,10 +280,12 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       site_id: this.site_id,
+      host_id: this.host_id,
       height: this.height,
       device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
+      cohorts: this.cohorts,
     };
   },
 };
@@ -361,12 +380,7 @@ deviceSchema.statics = {
 
       if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
-            /[^a-zA-Z0-9]/g,
-            "_"
-          );
-          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
-          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
+          modifiedArgs.long_name = modifiedArgs.name;
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
@@ -402,6 +416,7 @@ deviceSchema.statics = {
       };
     } catch (err) {
       logObject("the error in the Device Model", err);
+      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -427,7 +442,10 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -436,10 +454,22 @@ deviceSchema.statics = {
           as: "site",
         })
         .lookup({
+          from: "hosts",
+          localField: "host_id",
+          foreignField: "_id",
+          as: "host",
+        })
+        .lookup({
           from: "sites",
           localField: "previous_sites",
           foreignField: "_id",
           as: "previous_sites",
+        })
+        .lookup({
+          from: "cohorts",
+          localField: "cohorts",
+          foreignField: "_id",
+          as: "cohorts",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -447,6 +477,8 @@ deviceSchema.statics = {
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      const response = await pipeline;
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
@@ -465,6 +497,8 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to retrieve devices",

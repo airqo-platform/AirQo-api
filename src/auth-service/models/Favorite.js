@@ -8,7 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-model`
 );
-
+const { getModelByTenant } = require("@config/database");
 const FavoriteSchema = new mongoose.Schema(
   {
     place_id: {
@@ -106,12 +106,11 @@ FavoriteSchema.statics = {
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
+
       const favorites = pipeline;
       if (!isEmpty(favorites)) {
         return {
@@ -184,7 +183,7 @@ FavoriteSchema.statics = {
           location: 1,
           latitude: 1,
           longitude: 1,
-          firebase_user_id:1,
+          firebase_user_id: 1,
         },
       };
       const removedFavorite = await this.findOneAndRemove(
@@ -234,4 +233,14 @@ FavoriteSchema.methods = {
   },
 };
 
-module.exports = FavoriteSchema;
+const FavoriteModel = (tenant) => {
+  try {
+    let favorites = mongoose.model("favorites");
+    return favorites;
+  } catch (error) {
+    let favorites = getModelByTenant(tenant, "favorite", FavoriteSchema);
+    return favorites;
+  }
+};
+
+module.exports = FavoriteModel;

@@ -18,6 +18,8 @@ const devConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
+  REDIS_PORT: process.env.DEV_REDIS_PORT,
 };
 
 const prodConfig = {
@@ -40,6 +42,8 @@ const prodConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
+  REDIS_SERVER: process.env.PROD_REDIS_SERVER,
+  REDIS_PORT: process.env.PROD_REDIS_PORT,
 };
 
 const stageConfig = {
@@ -63,9 +67,45 @@ const stageConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_PORT: process.env.STAGE_REDIS_PORT,
 };
 
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
+  ACTION_CODE_SETTINGS: {
+    url: process.env.AIRQO_WEBSITE,
+    handleCodeInApp: true,
+    iOS: {
+      bundleId: process.env.MOBILE_APP_PACKAGE_NAME,
+    },
+    android: {
+      packageName: process.env.MOBILE_APP_PACKAGE_NAME,
+      installApp: true,
+      minimumVersion: "12",
+    },
+    dynamicLinkDomain: process.env.MOBILE_APP_DYNAMIC_LINK_DOMAIN,
+  },
+  MOBILE_APP_PACKAGE_NAME: process.env.MOBILE_APP_PACKAGE_NAME,
+  AIRQO_WEBSITE: process.env.AIRQO_WEBSITE,
+  FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
+  FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+  FIREBASE_AUTHORIZATION_URL: process.env.FIREBASE_AUTHORIZATION_URL,
+  FIREBASE_TYPE: process.env.FIREBASE_TYPE,
+  FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
+  FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+  FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+  FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID,
+  FIREBASE_AUTH_URI: process.env.FIREBASE_AUTH_URI,
+  FIREBASE_TOKEN_URI: process.env.FIREBASE_TOKEN_URI,
+  FIREBASE_AUTH_PROVIDER_X509_CERT_URL:
+    process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+  FIREBASE_CLIENT_X509_CERT_URL: process.env.FIREBASE_CLIENT_X509_CERT_URL,
+  FIREBASE_UNIVERSE_DOMAIN: process.env.FIREBASE_UNIVERSE_DOMAIN,
+  FIREBASE_VERIFICATION_SUCCESS_REDIRECT:
+    process.env.FIREBASE_VERIFICATION_SUCCESS_REDIRECT,
+
   GMAIL_VERIFICATION_FAILURE_REDIRECT:
     process.env.GMAIL_VERIFICATION_FAILURE_REDIRECT,
   GMAIL_VERIFICATION_SUCCESS_REDIRECT:
@@ -140,6 +180,127 @@ const defaultConfig = {
   MAILCHIMP_API_KEY: process.env.MAILCHIMP_API_KEY,
   MAILCHIMP_SERVER_PREFIX: process.env.MAILCHIMP_SERVER_PREFIX,
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
+  EMAIL_GREETINGS: (name) => {
+    return `<tr>
+                                <td
+                                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
+                                    Dear ${name},
+                                </td>
+                            </tr>`;
+  },
+  EMAIL_HEADER_TEMPLATE: () => {
+    return `
+<table style="width: 100%; padding-bottom: 24px;">
+                            <tr>
+                                <td style="display: flex; align-items: center;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
+                                    <span
+                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
+                                        Clean</span>
+                                </td>
+                            </tr>
+
+                        </table>
+                        `;
+  },
+  EMAIL_FOOTER_TEMPLATE: (email) => {
+    return `
+<table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
+                            <tr>
+                                <td>
+                                    <a href="https://www.facebook.com/AirQo/" target="_blank"><img
+                                            src="cid:FacebookLogo" alt="FacebookLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.youtube.com/@airqo7875" target="_blank"><img
+                                            src="cid:YoutubeLogo" alt="YoutubeLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.linkedin.com/company/airqo/" target="_blank"><img
+                                            src="cid:LinkedInLogo" alt="LinkedInLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://twitter.com/AirQoProject" target="_blank"><img src="cid:Twitter"
+                                            alt="Twitter"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Footer section -->
+                        <table style="width: 100%; text-align: center;">
+                            <tr>
+                                <td>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">This
+                                        email was sent to</span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                        If you'd rather not receive this kind of email, you can </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
+                                        or </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
+                                        your email preferences.</span><br /><br />
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
+                                        2023 AirQo<br /><br />
+                                        Makerere University, Software Systems Centre, Block B, Level 3, College of
+                                        Computing and
+                                        Information Sciences, Plot 56 University Pool Road</span>
+                                </td>
+                            </tr>
+                        </table>
+`;
+  },
+
+  EMAIL_BODY: (email, content, name) => {
+    const footerTemplate = constants.EMAIL_FOOTER_TEMPLATE(email);
+    const headerTemplate = constants.EMAIL_HEADER_TEMPLATE();
+    let greetings = constants.EMAIL_GREETINGS(name);
+    if (!name) {
+      greetings = ``;
+    }
+    return `<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Logo and title section -->
+                         ${headerTemplate}
+
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                           ${greetings}
+                            ${content}
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                        </table>
+
+                        <!-- Social media section -->
+                        ${footerTemplate}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>`;
+  },
   NETWORKS_INCLUSION_PROJECTION: {
     _id: 1,
     net_email: 1,
@@ -150,6 +311,8 @@ const defaultConfig = {
     net_name: 1,
     net_description: 1,
     net_acronym: 1,
+    net_data_source: 1,
+    net_api_key: 1,
     createdAt: {
       $dateToString: {
         format: "%Y-%m-%d %H:%M:%S",
@@ -242,6 +405,8 @@ const defaultConfig = {
           net_roles: 0,
           net_groups: 0,
           net_departments: 0,
+          net_data_source: 0,
+          net_api_key: 0,
           "net_manager.notifications": 0,
           "net_manager.emailConfirmed": 0,
           "net_manager.locationCount": 0,
@@ -327,6 +492,8 @@ const defaultConfig = {
       "network.net_groups": 0,
       "network.net_email": 0,
       "network.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "network.net_category": 0,
       "network.createdAt": 0,
       "network.updatedAt": 0,
@@ -379,7 +546,7 @@ const defaultConfig = {
     phoneNumber: 1,
     role: 1,
     networks: "$networks",
-    access_tokens: "$access_tokens",
+    clients: "$clients",
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
@@ -406,6 +573,8 @@ const defaultConfig = {
       "networks.net_email": 0,
       "networks.net_category": 0,
       "networks.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "networks.net_manager": 0,
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
@@ -523,11 +692,54 @@ const defaultConfig = {
     longitude: 1,
     reference_site: 1,
     place_id: 1,
-    firebase_user_id:1,
+    firebase_user_id: 1,
   },
 
   FAVORITES_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {  };
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  LOCATION_HISTORIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    location: 1,
+    latitude: 1,
+    longitude: 1,
+    reference_site: 1,
+    place_id: 1,
+    firebase_user_id: 1,
+    date_time: 1,
+  },
+
+  LOCATION_HISTORIES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  SEARCH_HISTORIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    location: 1,
+    latitude: 1,
+    longitude: 1,
+    place_id: 1,
+    firebase_user_id: 1,
+    date_time: 1,
+  },
+
+  SEARCH_HISTORIES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -539,13 +751,16 @@ const defaultConfig = {
   TOKENS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,
-    name: 1,
     token: 1,
-    network_id: 1,
     last_used_at: 1,
     expires: 1,
+    name: 1,
+    permissions: 1,
+    scopes: 1,
     last_ip_address: 1,
-    user: { $arrayElemAt: ["$users", 0] },
+    expires_in: 1,
+    client: { $arrayElemAt: ["$client", 0] },
+    user: { $arrayElemAt: ["$user", 0] },
   },
 
   TOKENS_EXCLUSION_PROJECTION: (category) => {
@@ -555,10 +770,11 @@ const defaultConfig = {
       "user.verified": 0,
       "user.networks": 0,
       "user.groups": 0,
-      "user.roles": 0,
+      "user.emailConfirmed": 0,
+      "user.organization": 0,
+      "user.role": 0,
       "user.permissions": 0,
       "user.locationCount": 0,
-      "user.userName": 0,
       "user.password": 0,
       "user.long_organization": 0,
       "user.privilege": 0,
@@ -568,12 +784,55 @@ const defaultConfig = {
       "user.__v": 0,
       "user.resetPasswordExpires": 0,
       "user.resetPasswordToken": 0,
+      "user.website": 0,
+      "user.category": 0,
+      "user.jobTitle": 0,
+      "user.profilePicture": 0,
+      "user.phoneNumber": 0,
+      "user.description": 0,
+      "user.country": 0,
+      "client.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
     }
 
+    return projection;
+  },
+
+  CLIENTS_INCLUSION_PROJECTION: {
+    _id: 1,
+    client_id: 1,
+    client_secret: 1,
+    redirect_uri: 1,
+    name: 1,
+    description: 1,
+    networks: "$networks",
+    access_token: { $arrayElemAt: ["$access_token", 0] },
+  },
+  CLIENTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "networks.__v": 0,
+      "networks.net_status": 0,
+      "networks.net_acronym": 0,
+      "networks.createdAt": 0,
+      "networks.updatedAt": 0,
+      "networks.net_clients": 0,
+      "networks.net_roles": 0,
+      "networks.net_groups": 0,
+      "networks.net_description": 0,
+      "networks.net_departments": 0,
+      "networks.net_permissions": 0,
+      "networks.net_email": 0,
+      "networks.net_category": 0,
+      "networks.net_phoneNumber": 0,
+      "networks.net_manager": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
     return projection;
   },
 };

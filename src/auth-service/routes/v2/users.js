@@ -29,7 +29,6 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
-
 router.get(
   "/deleteMobileUserData/:userId/:token",
   oneOf([
@@ -45,7 +44,7 @@ router.get(
       .bail(),
   ]),
   createUserController.deleteMobileUserData
-); 
+);
 
 router.post(
   "/loginUser",
@@ -109,7 +108,7 @@ router.post(
 );
 
 router.post(
-  "/emailAuth",
+  "/emailAuth/:purpose?",
   oneOf([
     [
       body("email")
@@ -118,6 +117,14 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("purpose")
+        .optional()
+        .notEmpty()
+        .withMessage("The purpose should not be empty if provided"),
     ],
   ]),
   createUserController.emailAuth
@@ -182,6 +189,146 @@ router.post(
   createUserController.lookUpFirebaseUser
 );
 
+router.post(
+  "/firebase/create",
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.createFirebaseUser
+);
+
+router.post(
+  "/firebase/login",
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.loginWithFirebase
+);
+
+router.post(
+  "/firebase/signup",
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.signUpWithFirebase
+);
+
+router.post(
+  "/firebase/verify",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("token")
+        .exists()
+        .withMessage("the token is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the token should not be empty")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.verifyFirebaseCustomToken
+);
+
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
@@ -221,57 +368,6 @@ router.get(
     ],
   ]),
   createUserController.verifyEmail
-);
-
-/**
- * version two of verification
- */
-router.post(
-  "/verification/generate",
-  setJWTAuth,
-  authJWT,
-  createUserController.generateVerificationToken
-);
-
-router.post(
-  "/verification/verify",
-  setJWTAuth,
-  authJWT,
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the email must not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address"),
-      body("token")
-        .exists()
-        .withMessage("the token is missing in the request")
-        .bail()
-        .trim()
-        .isInt()
-        .withMessage("token must be an integer"),
-    ],
-  ]),
-  createUserController.verifyVerificationToken
 );
 
 router.get(

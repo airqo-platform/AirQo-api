@@ -2,6 +2,10 @@ const httpStatus = require("http-status");
 const KnowYourAirLessonSchema = require("@models/KnowYourAirLesson");
 const KnowYourAirTaskSchema = require("@models/KnowYourAirTask");
 const KnowYourAirUserLessonProgressSchema = require("@models/KnowYourAirUserLessonProgress");
+const KnowYourAirQuizSchema = require("@models/KnowYourAirQuiz");
+const KnowYourAirQuestionSchema = require("@models/KnowYourAirQuestion");
+const KnowYourAirAnswerSchema = require("@models/KnowYourAirAnswer");
+const KnowYourAirUserQuizProgressSchema = require("@models/KnowYourAirUserQuizProgress");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -45,13 +49,65 @@ const KnowYourAirTaskModel = (tenant) => {
 
 const KnowYourAirUserLessonProgressModel = (tenant) => {
   try {
-    let kyaprogress = mongoose.model("kyaprogress");
+    let kyaprogress = mongoose.model("kyaprogresses");
     return kyaprogress;
   } catch (error) {
     let kyaprogress = getModelByTenant(
       tenant,
       "kyaprogress",
       KnowYourAirUserLessonProgressSchema
+    );
+    return kyaprogress;
+  }
+};
+
+const KnowYourAirQuizModel = (tenant) => {
+  try {
+    let kyaquizzes = mongoose.model("kyaquizzes");
+    return kyaquizzes;
+  } catch (error) {
+    let kyaquizzes = getModelByTenant(tenant, "kyaquiz", KnowYourAirQuizSchema);
+    return kyaquizzes;
+  }
+};
+
+const KnowYourAirQuestionModel = (tenant) => {
+  try {
+    let kyaquestions = mongoose.model("kyaquestions");
+    return kyaquestions;
+  } catch (error) {
+    let kyaquestions = getModelByTenant(
+      tenant,
+      "kyaquestion",
+      KnowYourAirQuestionSchema
+    );
+    return kyaquestions;
+  }
+};
+
+const KnowYourAirAnswerModel = (tenant) => {
+  try {
+    let kyaanswers = mongoose.model("kyaanswers");
+    return kyaanswers;
+  } catch (error) {
+    let kyaanswers = getModelByTenant(
+      tenant,
+      "kyaanswer",
+      KnowYourAirAnswerSchema
+    );
+    return kyaanswers;
+  }
+};
+
+const KnowYourAirUserQuizProgressModel = (tenant) => {
+  try {
+    let kyaprogress = mongoose.model("kyaquizprogresses");
+    return kyaprogress;
+  } catch (error) {
+    let kyaprogress = getModelByTenant(
+      tenant,
+      "kyaquizprogress",
+      KnowYourAirUserQuizProgressSchema
     );
     return kyaprogress;
   }
@@ -75,6 +131,7 @@ const createKnowYourAir = {
     try {
       const { query } = request;
       const { tenant } = query;
+      const { user_id } = request.params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.kyalessons(request);
@@ -87,6 +144,7 @@ const createKnowYourAir = {
           filter,
           limit,
           skip,
+          user_id: user_id,
         }
       );
       logObject("responseFromListLessons", responseFromListLessons);
@@ -420,7 +478,100 @@ const createKnowYourAir = {
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
-      logger.error("error", error);
+      logObject("error", JSON.stringify(error));
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  syncUserLessonProgress: async (request) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant } = query;
+      const { user_id } = params;
+      let progressList = body.kya_user_progress;
+
+      if (progressList.length !== 0) {
+        for (progress of progressList) {
+          let responseFromListProgress = await createKnowYourAir.listUserLessonProgress(
+            request
+          );
+          logObject("responseFromListProgress", responseFromListProgress);
+          if (responseFromListProgress.success === false) {
+            return responseFromListProgress;
+          }
+
+          if (responseFromListProgress.data.length == 0) {
+            let requestBody = {
+              query: {
+                tenant: tenant,
+              },
+              body: {
+                user_id: user_id,
+                lesson_id: progress._id,
+                active_task: progress.active_task,
+                status: progress.status,
+              },
+            };
+            let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(
+              requestBody
+            );
+            logObject(
+              "responseFromCreateUserLessonProgress",
+              responseFromCreateUserLessonProgress
+            );
+            if (responseFromCreateUserLessonProgress.success === false) {
+              return responseFromCreateUserLessonProgress;
+            }
+          } else {
+            let requestBody = {
+              query: {
+                tenant: tenant,
+              },
+              params: {
+                progress_id: responseFromListProgress.data[0]._id,
+              },
+              body: progress,
+            };
+            let responseFromUpdateUserLessonProgress = await createKnowYourAir.updateUserLessonProgress(
+              requestBody
+            );
+            logObject(
+              "responseFromUpdateUserLessonProgress",
+              responseFromUpdateUserLessonProgress
+            );
+            if (responseFromUpdateUserLessonProgress.success === false) {
+              return responseFromUpdateUserLessonProgress;
+            }
+          }
+        }
+      }
+      let requestBody = {
+        query: {
+          tenant: tenant,
+        },
+        params: {
+          user_id: user_id,
+        },
+      };
+      let syncResponse = await createKnowYourAir.listUserLessonProgress(
+        requestBody
+      );
+
+      return syncResponse.success
+        ? {
+            success: true,
+            message: "Sync successful",
+            data: syncResponse.data,
+            status: httpStatus.OK,
+          }
+        : syncResponse;
+    } catch (error) {
+      logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -857,6 +1008,993 @@ const createKnowYourAir = {
         message: `successfully unassigned all the provided  tasks from the lesson ${lesson_id}`,
         status: httpStatus.OK,
         data: [],
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /*************** quizzes *******************************/
+  listQuiz: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const { user_id } = request.params;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const filter = generateFilter.kyaquizzes(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      logObject("filter", filter);
+      const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list({
+        filter,
+        limit,
+        skip,
+        user_id: user_id,
+      });
+      logObject("responseFromListQuizzes", responseFromListQuizzes);
+      return responseFromListQuizzes;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  deleteQuiz: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquizzes(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      const responseFromRemoveKyaQuiz = await KnowYourAirQuizModel(
+        tenant
+      ).remove({ filter });
+      logObject("responseFromRemoveKyaQuiz", responseFromRemoveKyaQuiz);
+      return responseFromRemoveKyaQuiz;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  updateQuiz: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquizzes(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      const update = body;
+      const opts = { new: true };
+      const responseFromModifyKyaQuiz = await KnowYourAirQuizModel(
+        tenant
+      ).modify({ filter, update, opts });
+      logObject("responseFromModifyKyaQuiz", responseFromModifyKyaQuiz);
+      return responseFromModifyKyaQuiz;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  createQuiz: async (request) => {
+    try {
+      let { body, query } = request;
+      let { tenant } = query;
+
+      const responseFromRegisterKyaQuiz = await KnowYourAirQuizModel(
+        tenant
+      ).register(body);
+
+      logObject("responseFromRegisterKyaQuiz", responseFromRegisterKyaQuiz);
+
+      if (responseFromRegisterKyaQuiz.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.KYA_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterKyaQuiz.data),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+
+        return responseFromRegisterKyaQuiz;
+      } else if (responseFromRegisterKyaQuiz.success === false) {
+        return responseFromRegisterKyaQuiz;
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
+  /******************* tracking user QUIZ progress ***************** */
+  listUserQuizProgress: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      logObject("filter", filter);
+
+      const responseFromListUserQuizProgress = await KnowYourAirUserQuizProgressModel(
+        tenant
+      ).list({
+        filter,
+        limit,
+        skip,
+      });
+      logObject(
+        "responseFromListUserQuizProgress",
+        responseFromListUserQuizProgress
+      );
+      return responseFromListUserQuizProgress;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  deleteUserQuizProgress: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      logObject("filter", filter);
+      const responseFromDeleteUserQuizProgress = await KnowYourAirUserQuizProgressModel(
+        tenant
+      ).remove({
+        filter,
+      });
+      logObject(
+        "responseFromDeleteUserQuizProgress",
+        responseFromDeleteUserQuizProgress
+      );
+      return responseFromDeleteUserQuizProgress;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateUserQuizProgress: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      let update = Object.assign({}, body);
+      logObject("update", update);
+      logObject("filter", filter);
+      const responseFromUpdateUserQuizProgress = await KnowYourAirUserQuizProgressModel(
+        tenant
+      ).modify({
+        filter,
+        update,
+      });
+      logObject(
+        "responseFromUpdateUserQuizProgress",
+        responseFromUpdateUserQuizProgress
+      );
+      return responseFromUpdateUserQuizProgress;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  createUserQuizProgress: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      let requestBody = Object.assign({}, body);
+      const responseFromCreateUserQuizProgress = await KnowYourAirUserQuizProgressModel(
+        tenant
+      ).register(requestBody);
+      logObject(
+        "responseFromCreateUserQuizProgress",
+        responseFromCreateUserQuizProgress
+      );
+      return responseFromCreateUserQuizProgress;
+    } catch (error) {
+      logObject("error", JSON.stringify(error));
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  syncUserQuizProgress: async (request) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant } = query;
+      const { user_id } = params;
+      let progressList = body.kya_quiz_user_progress;
+
+      if (progressList.length !== 0) {
+        for (progress of progressList) {
+          let responseFromListProgress = await createKnowYourAir.listUserQuizProgress(
+            request
+          );
+          logObject("responseFromListProgress", responseFromListProgress);
+          if (responseFromListProgress.success === false) {
+            return responseFromListProgress;
+          }
+
+          if (responseFromListProgress.data.length == 0) {
+            let requestBody = {
+              query: {
+                tenant: tenant,
+              },
+              body: {
+                user_id: user_id,
+                quiz_id: progress._id,
+                active_question: progress.active_question,
+                status: progress.status,
+              },
+            };
+            let responseFromCreateUserQuizProgress = await createKnowYourAir.createUserQuizProgress(
+              requestBody
+            );
+            logObject(
+              "responseFromCreateUserQuizProgress",
+              responseFromCreateUserQuizProgress
+            );
+            if (responseFromCreateUserQuizProgress.success === false) {
+              return responseFromCreateUserQuizProgress;
+            }
+          } else {
+            let requestBody = {
+              query: {
+                tenant: tenant,
+              },
+              params: {
+                progress_id: responseFromListProgress.data[0]._id,
+              },
+              body: progress,
+            };
+            let responseFromUpdateUserQuizProgress = await createKnowYourAir.updateUserQuizProgress(
+              requestBody
+            );
+            logObject(
+              "responseFromUpdateUserQuizProgress",
+              responseFromUpdateUserQuizProgress
+            );
+            if (responseFromUpdateUserQuizProgress.success === false) {
+              return responseFromUpdateUserQuizProgress;
+            }
+          }
+        }
+      }
+      let requestBody = {
+        query: {
+          tenant: tenant,
+        },
+        params: {
+          user_id: user_id,
+        },
+      };
+      let syncResponse = await createKnowYourAir.listUserQuizProgress(
+        requestBody
+      );
+
+      return syncResponse.success
+        ? {
+            success: true,
+            message: "Sync successful",
+            data: syncResponse.data,
+            status: httpStatus.OK,
+          }
+        : syncResponse;
+    } catch (error) {
+      logObject("error", JSON.stringify(error));
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /******************* questions *******************************/
+  listQuestions: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const responseFromListKyaQuestion = await KnowYourAirQuestionModel(
+        tenant
+      ).list({
+        filter,
+        limit,
+        skip,
+      });
+      logObject("responseFromListKyaQuestion", responseFromListKyaQuestion);
+      return responseFromListKyaQuestion;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  deleteQuestion: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      const responseFromRemoveKyaQuestion = await KnowYourAirQuestionModel(
+        tenant
+      ).remove({ filter });
+      logObject("responseFromRemoveKyaQuestion", responseFromRemoveKyaQuestion);
+      return responseFromRemoveKyaQuestion;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  updateQuestion: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const update = body;
+      const opts = { new: true };
+      const responseFromModifyKyaQuestion = await KnowYourAirQuestionModel(
+        tenant
+      ).modify({ filter, update, opts });
+
+      return responseFromModifyKyaQuestion;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  createQuestion: async (request) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const responseFromRegisterKyaQuestion = await KnowYourAirQuestionModel(
+        tenant
+      ).register(body);
+
+      logObject(
+        "responseFromRegisterKyaQuestion",
+        responseFromRegisterKyaQuestion
+      );
+
+      if (responseFromRegisterKyaQuestion.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.KYA_QUIZ,
+            messages: [
+              {
+                action: "create-kya-question",
+                value: JSON.stringify(responseFromRegisterKyaQuestion.data),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+
+        return responseFromRegisterKyaQuestion;
+      } else if (responseFromRegisterKyaQuestion.success === false) {
+        return responseFromRegisterKyaQuestion;
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
+  /******************* Answers *******************************/
+  listAnswers: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const responseFromListKyaAnswer = await KnowYourAirAnswerModel(
+        tenant
+      ).list({
+        filter,
+        limit,
+        skip,
+      });
+      logObject("responseFromListKyaAnswer", responseFromListKyaAnswer);
+      return responseFromListKyaAnswer;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  deleteAnswer: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      const responseFromRemoveKyaAnswer = await KnowYourAirAnswerModel(
+        tenant
+      ).remove({ filter });
+      logObject("responseFromRemoveKyaAnswer", responseFromRemoveKyaAnswer);
+      return responseFromRemoveKyaAnswer;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  updateAnswer: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.kyaquestions(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const update = body;
+      const opts = { new: true };
+      const responseFromModifyKyaAnswer = await KnowYourAirAnswerModel(
+        tenant
+      ).modify({ filter, update, opts });
+
+      return responseFromModifyKyaAnswer;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+  createAnswer: async (request) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const responseFromRegisterKyaAnswer = await KnowYourAirAnswerModel(
+        tenant
+      ).register(body);
+
+      logObject("responseFromRegisterKyaAnswer", responseFromRegisterKyaAnswer);
+
+      if (responseFromRegisterKyaAnswer.success === true) {
+        try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: constants.KYA_QUIZ,
+            messages: [
+              {
+                action: "create-kya-answer",
+                value: JSON.stringify(responseFromRegisterKyaAnswer.data),
+              },
+            ],
+          });
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+
+        return responseFromRegisterKyaAnswer;
+      } else if (responseFromRegisterKyaAnswer.success === false) {
+        return responseFromRegisterKyaAnswer;
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
+  /******************* manage Quizes *******************************/
+
+  assignManyQuestionsToQuiz: async (request) => {
+    try {
+      const { quiz_id } = request.params;
+      const { question_ids } = request.body;
+      const { tenant } = request.query;
+
+      const quiz = await KnowYourAirQuizModel(tenant).findById(quiz_id);
+
+      if (!quiz) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Invalid quiz ID ${quiz_id}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      for (const question_id of question_ids) {
+        const question = await KnowYourAirQuestionModel(tenant)
+          .findById(question_id)
+          .lean();
+
+        if (!question) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Invalid Question ID ${question_id}, please crosscheck`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (
+          question.quiz &&
+          question.kya_quizzes.toString() === quiz_id.toString()
+        ) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Question ${question_id} is already assigned to the Quiz ${quiz_id}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
+      const totalQuestions = question_ids.length;
+      const { nModified, n } = await KnowYourAirQuestionModel(
+        tenant
+      ).updateMany({ _id: { $in: question_ids } }, { kya_quiz: quiz_id });
+
+      const notFoundCount = totalQuestions - nModified;
+      if (nModified === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "No matching Question found in the system" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (notFoundCount > 0) {
+        return {
+          success: true,
+          message: `Operation partially successful some ${notFoundCount} of the provided questions were not found in the system`,
+          status: httpStatus.OK,
+        };
+      }
+
+      return {
+        success: true,
+        message: "successfully assigned all the provided questions to the Quiz",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  removeManyQuestionsFromQuiz: async (request) => {
+    try {
+      const { question_ids } = request.body;
+      const { quiz_id } = request.params;
+      const { tenant } = request.query;
+
+      // Check if quiz exists
+      const quiz = await KnowYourAirQuizModel(tenant).findById(quiz_id);
+      if (!quiz) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Quiz ${quiz_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //check of all these provided questions actually do exist?
+      const existingQuestions = await KnowYourAirQuestionModel(tenant).find(
+        { _id: { $in: question_ids } },
+        "_id"
+      );
+
+      if (existingQuestions.length !== question_ids.length) {
+        const nonExistentQuestions = question_ids.filter(
+          (user_id) =>
+            !existingQuestions.find((user) => user._id.equals(user_id))
+        );
+
+        return {
+          success: false,
+          message: `Bad Request Error`,
+          errors: {
+            message: `The following questions do not exist: ${nonExistentQuestions}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      try {
+        const totalQuestions = question_ids.length;
+        const { nModified, n } = await KnowYourAirQuestionModel(
+          tenant
+        ).updateMany(
+          { _id: { $in: question_ids } },
+          { kya_quiz: null },
+          { multi: true }
+        );
+
+        const notFoundCount = totalQuestions - nModified;
+        if (nModified === 0) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: "No matching Question found in the system" },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (notFoundCount > 0) {
+          return {
+            success: true,
+            message: `Operation partially successful since ${notFoundCount} of the provided questions were not found in the system`,
+            status: httpStatus.OK,
+          };
+        }
+      } catch (error) {
+        logObject("error", JSON.stringify(error));
+        logger.error(`Internal Server Error ${error.message}`);
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        };
+      }
+
+      return {
+        success: true,
+        message: `successfully unassigned all the provided  questions from the quiz ${quiz_id}`,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  assignManyAnswersToQuestion: async (request) => {
+    try {
+      const { question_id } = request.params;
+      const { answer_ids } = request.body;
+      const { tenant } = request.query;
+
+      const question = await KnowYourAirQuestionModel(tenant).findById(
+        question_id
+      );
+
+      if (!question) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Invalid question ID ${question_id}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      for (const answer_id of answer_ids) {
+        const answer = await KnowYourAirAnswerModel(tenant)
+          .findById(answer_id)
+          .lean();
+
+        if (!answer) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Invalid Answer ID ${answer_id}, please crosscheck`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (
+          answer.question &&
+          answer.kya_questionzes.toString() === question_id.toString()
+        ) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Answer ${answer_id} is already assigned to the Question ${question_id}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
+      const totalAnswers = answer_ids.length;
+      const { nModified, n } = await KnowYourAirAnswerModel(tenant).updateMany(
+        { _id: { $in: answer_ids } },
+        { kya_question: question_id }
+      );
+
+      const notFoundCount = totalAnswers - nModified;
+      if (nModified === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "No matching Answer found in the system" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (notFoundCount > 0) {
+        return {
+          success: true,
+          message: `Operation partially successful some ${notFoundCount} of the provided answers were not found in the system`,
+          status: httpStatus.OK,
+        };
+      }
+
+      return {
+        success: true,
+        message:
+          "successfully assigned all the provided answers to the Question",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  removeManyAnswersFromQuestion: async (request) => {
+    try {
+      const { answer_ids } = request.body;
+      const { question_id } = request.params;
+      const { tenant } = request.query;
+
+      // Check if question exists
+      const question = await KnowYourAirQuestionModel(tenant).findById(
+        question_id
+      );
+      if (!question) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Question ${question_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //check of all these provided answers actually do exist?
+      const existingAnswers = await KnowYourAirAnswerModel(tenant).find(
+        { _id: { $in: answer_ids } },
+        "_id"
+      );
+
+      if (existingAnswers.length !== answer_ids.length) {
+        const nonExistentAnswers = answer_ids.filter(
+          (user_id) => !existingAnswers.find((user) => user._id.equals(user_id))
+        );
+
+        return {
+          success: false,
+          message: `Bad Request Error`,
+          errors: {
+            message: `The following answers do not exist: ${nonExistentAnswers}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      try {
+        const totalAnswers = answer_ids.length;
+        const { nModified, n } = await KnowYourAirAnswerModel(
+          tenant
+        ).updateMany(
+          { _id: { $in: answer_ids } },
+          { kya_question: null },
+          { multi: true }
+        );
+
+        const notFoundCount = totalAnswers - nModified;
+        if (nModified === 0) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: "No matching Answer found in the system" },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (notFoundCount > 0) {
+          return {
+            success: true,
+            message: `Operation partially successful since ${notFoundCount} of the provided answers were not found in the system`,
+            status: httpStatus.OK,
+          };
+        }
+      } catch (error) {
+        logObject("error", JSON.stringify(error));
+        logger.error(`Internal Server Error ${error.message}`);
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        };
+      }
+
+      return {
+        success: true,
+        message: `successfully unassigned all the provided  answers from the question ${question_id}`,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);

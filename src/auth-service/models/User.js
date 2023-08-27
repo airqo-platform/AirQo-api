@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
+const { getModelByTenant } = require("@config/database");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -20,7 +21,6 @@ function oneMonthFromNow() {
   }
   return d;
 }
-// const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 
 const UserSchema = new Schema(
@@ -29,6 +29,7 @@ const UserSchema = new Schema(
     status: { type: String },
     address: { type: String },
     country: { type: String },
+    firebase_uid: { type: String },
     city: { type: String },
     department_id: {
       type: ObjectId,
@@ -83,7 +84,6 @@ const UserSchema = new Schema(
     },
     privilege: {
       type: String,
-      required: [true, "the privilege is required!"],
       default: "user",
     },
     isActive: { type: Boolean },
@@ -93,7 +93,6 @@ const UserSchema = new Schema(
         {
           type: ObjectId,
           ref: "network",
-          unique: true,
         },
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
@@ -117,16 +116,24 @@ const UserSchema = new Schema(
     ],
     organization: {
       type: String,
-      required: [true, "the organization is required!"],
       default: "airqo",
     },
     long_organization: {
       type: String,
-      required: [true, "the long_organization is required!"],
       default: "airqo",
     },
-    phoneNumber: { type: Number },
-    locationCount: { type: Number, default: 5 },
+    rateLimit: {
+      type: Number,
+    },
+    phoneNumber: {
+      type: Number,
+      validate: {
+        validator(phoneNumber) {
+          return !!phoneNumber || this.email;
+        },
+        message: "Phone number or email is required!",
+      },
+    },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     jobTitle: {
@@ -155,6 +162,20 @@ UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
   }
+  if (!this.email && !this.phoneNumber) {
+    return next(new Error("Phone number or email is required!"));
+  }
+
+  // Check for duplicate values in the networks array
+  const duplicateValues = this.networks.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in networks array.");
+    return next(error);
+  }
+
   return next();
 });
 
@@ -278,10 +299,10 @@ UserSchema.statics = {
           as: "my_networks",
         })
         .lookup({
-          from: "access_tokens",
+          from: "clients",
           localField: "_id",
           foreignField: "user_id",
-          as: "access_tokens",
+          as: "clients",
         })
         .lookup({
           from: "groups",
@@ -516,21 +537,21 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
-        locationCount: this.locationCount,
-        organization: this.organization,
-        long_organization: this.long_organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        organization: this.organization,
+        long_organization: this.long_organization,
+        privilege: this.privilege,
         role: this.role,
         networks: this.networks,
-        privilege: this.privilege,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
         createdAt: this.createdAt,
         updatedAt: this.updatedAt,
+        rateLimit: this.rateLimit,
       },
       constants.JWT_SECRET
     );
@@ -559,13 +580,12 @@ UserSchema.methods = {
       userName: this.userName,
       email: this.email,
       firstName: this.firstName,
-      lastName: this.lastName,
-      locationCount: this.locationCount,
-      privilege: this.privilege,
-      country: this.country,
-      website: this.website,
       organization: this.organization,
       long_organization: this.long_organization,
+      privilege: this.privilege,
+      lastName: this.lastName,
+      country: this.country,
+      website: this.website,
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
@@ -576,6 +596,7 @@ UserSchema.methods = {
       role: this.role,
       verified: this.verified,
       networks: this.networks,
+      rateLimit: this.rateLimit,
     };
   },
 };
@@ -642,4 +663,14 @@ User.prototype.hasPermissionTo = async function hasPermissionTo(permission) {
   );
 };
 
-module.exports = UserSchema;
+const UserModel = (tenant) => {
+  try {
+    let users = mongoose.model("users");
+    return users;
+  } catch (error) {
+    let users = getModelByTenant(tenant, "user", UserSchema);
+    return users;
+  }
+};
+
+module.exports = UserModel;

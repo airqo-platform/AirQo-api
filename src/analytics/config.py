@@ -11,7 +11,6 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-API_V1_BASE_URL = "/api/v1/analytics"
 API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
@@ -41,6 +40,7 @@ class Config:
     BIGQUERY_BAM_DATA = env_var("BIGQUERY_BAM_DATA")
     BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
     DATA_EXPORT_LIMIT = os.getenv("DATA_EXPORT_LIMIT", 2000)
+    DATA_SUMMARY_DAYS_INTERVAL = os.getenv("DATA_SUMMARY_DAYS_INTERVAL", 2)
 
     DEVICES_SUMMARY_TABLE = env_var("DEVICES_SUMMARY_TABLE")
 

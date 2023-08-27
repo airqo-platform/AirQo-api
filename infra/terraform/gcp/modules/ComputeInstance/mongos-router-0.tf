@@ -7,6 +7,8 @@ resource "google_compute_instance" "mongos_router_0" {
   labels = {
     "env"  = "prod"
   }
+  
+  allow_stopping_for_update = true
 
   machine_type = "e2-medium"
 
