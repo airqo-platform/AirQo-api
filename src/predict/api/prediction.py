@@ -105,6 +105,17 @@ def get_next_24hr_forecasts():
         )
     result = get_forecasts(**params, db_name="hourly_forecasts")
     if result:
+        health_tips = get_health_tips()
+        for forecast in result["forecasts"]:
+            pm2_5 = forecast["pm2_5"]
+            forecast["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"]
+                              >= pm2_5
+                              >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
         response = result
     else:
         response = {
@@ -145,6 +156,17 @@ def get_next_1_week_forecasts():
         )
     result = get_forecasts(**params, db_name="daily_forecasts")
     if result:
+        health_tips = get_health_tips()
+        for forecast in result["forecasts"]:
+            pm2_5 = forecast["pm2_5"]
+            forecast["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"]
+                              >= pm2_5
+                              >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
         response = result
     else:
         response = {
