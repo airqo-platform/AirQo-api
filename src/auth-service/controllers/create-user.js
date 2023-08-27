@@ -218,7 +218,6 @@ const createUser = {
       });
     }
   },
-
   verify: (req, res) => {
     logText("..................................");
     logText("user verify......");
@@ -327,7 +326,6 @@ const createUser = {
       });
     }
   },
-
   lookUpFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -388,7 +386,6 @@ const createUser = {
       });
     }
   },
-
   signUpWithFirebase: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -447,7 +444,6 @@ const createUser = {
       });
     }
   },
-
   loginWithFirebase: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
@@ -509,7 +505,6 @@ const createUser = {
       });
     }
   },
-
   verifyFirebaseCustomToken: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -566,7 +561,6 @@ const createUser = {
       });
     }
   },
-
   createFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -626,7 +620,6 @@ const createUser = {
       });
     }
   },
-
   sendFeedback: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -683,7 +676,6 @@ const createUser = {
       });
     }
   },
-
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");
@@ -747,7 +739,6 @@ const createUser = {
       });
     }
   },
-
   register: async (req, res) => {
     logText("..................................................");
     logText("register user.............");
@@ -812,7 +803,6 @@ const createUser = {
       });
     }
   },
-
   create: async (req, res) => {
     logText("..................................................");
     logText("create user.............");
@@ -869,7 +859,6 @@ const createUser = {
       });
     }
   },
-
   login: (req, res) => {
     logText("..................................");
     logText("user login......");
@@ -934,7 +923,6 @@ const createUser = {
       });
     }
   },
-
   guest: (req, res) => {
     logText("..................................");
     logText("user guest login......");
@@ -976,7 +964,6 @@ const createUser = {
       });
     }
   },
-
   delete: async (req, res) => {
     try {
       logText(".................................................");
@@ -1038,7 +1025,6 @@ const createUser = {
       });
     }
   },
-
   update: async (req, res) => {
     try {
       logText(".................................................");
@@ -1095,7 +1081,6 @@ const createUser = {
       });
     }
   },
-
   loginInViaEmail: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1153,7 +1138,6 @@ const createUser = {
       });
     }
   },
-
   emailAuth: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1215,7 +1199,6 @@ const createUser = {
       });
     }
   },
-
   updateForgottenPassword: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1273,7 +1256,6 @@ const createUser = {
       });
     }
   },
-
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
@@ -1379,6 +1361,134 @@ const createUser = {
           success: false,
           message: responseFromSubscribeToNewsLetter.message,
           errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createInvitationLink: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateInvitationLink =
+        await createUserUtil.createInvitationLink(request);
+
+      if (responseFromCreateInvitationLink.success === true) {
+        const status = responseFromCreateInvitationLink.status
+          ? responseFromCreateInvitationLink.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateInvitationLink.message
+            ? responseFromCreateInvitationLink.message
+            : "Success!",
+          invitation_link: responseFromCreateInvitationLink.data
+            ? responseFromCreateInvitationLink.data
+            : [],
+        });
+      } else if (responseFromCreateInvitationLink.success === false) {
+        const status = responseFromCreateInvitationLink.status
+          ? responseFromCreateInvitationLink.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateInvitationLink.message
+            ? responseFromCreateInvitationLink.message
+            : "Internal Server Error",
+          errors: responseFromCreateInvitationLink.errors
+            ? responseFromCreateInvitationLink.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  registerUserThroughInvitationLink: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromRegisterUserThroughInvitationLink =
+        await createUserUtil.registerUserThroughInvitationLink(request);
+
+      if (responseFromRegisterUserThroughInvitationLink.success === true) {
+        const status = responseFromRegisterUserThroughInvitationLink.status
+          ? responseFromRegisterUserThroughInvitationLink.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRegisterUserThroughInvitationLink.message
+            ? responseFromRegisterUserThroughInvitationLink.message
+            : "Success!",
+          registered_user: responseFromRegisterUserThroughInvitationLink.data
+            ? responseFromRegisterUserThroughInvitationLink.data
+            : {},
+        });
+      } else if (
+        responseFromRegisterUserThroughInvitationLink.success === false
+      ) {
+        const status = responseFromRegisterUserThroughInvitationLink.status
+          ? responseFromRegisterUserThroughInvitationLink.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          errors: responseFromRegisterUserThroughInvitationLink.errors
+            ? responseFromRegisterUserThroughInvitationLink.errors
+            : { message: "Internal Server Error" },
+          message: responseFromRegisterUserThroughInvitationLink.message
+            ? responseFromRegisterUserThroughInvitationLink.message
+            : "Internal Server Error",
         });
       }
     } catch (error) {

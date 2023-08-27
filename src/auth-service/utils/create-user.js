@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const InvitationLinkModel = require("@models/InvitationLink");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
@@ -1052,6 +1053,98 @@ const createUserModule = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  createInvitationLink: async (request) => {
+    try {
+      const { params, query } = request;
+      const { tenant } = query;
+      const { network_id } = params;
+      const expirationTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+      const responseFromCreatingInvitationLink = new InvitationLinkModel(
+        tenant
+      ).register({
+        token: generateToken(),
+        network_id,
+        expiration: expirationTime,
+      });
+
+      return responseFromCreatingInvitationLink;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  registerUserThroughInvitationLink: async (request) => {
+    try {
+      const { query, params, body } = request;
+      const { tenant } = query;
+      const { token } = params;
+      const invitationLink = await InvitationLinkModel(tenant).findOne({
+        token,
+      });
+
+      if (!invitationLink) {
+        return {
+          success: false,
+          errors: { message: "Invalid invitation link" },
+          message: "Invalid invitation link",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const expirationMoment = moment.tz(invitationLink.expiration, "UTC");
+      const currentMoment = moment().tz("UTC");
+
+      if (expirationMoment.isBefore(currentMoment)) {
+        return {
+          success: false,
+          errors: { message: "Invitation link has expired" },
+          message: "Invitation link has expired",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
+      const responseFromCreateNewUser = await UserModel(tenant).register({
+        networks: [invitationLink.network_id],
+        ...body,
+      });
+
+      if (responseFromCreateNewUser.success === true) {
+        const update = {
+          used: true,
+        };
+        const filter = {
+          token,
+        };
+        const updatedInvitationLink = await InvitationLinkModel(tenant).modify({
+          update,
+          filter,
+        });
+
+        if (updatedInvitationLink.success === true) {
+          return {
+            success: true,
+            message: "User registered and assigned to network",
+            status: httpStatus.OK,
+            data: updatedInvitationLink.data,
+          };
+        } else {
+          return updatedInvitationLink;
+        }
+      } else {
+        return responseFromCreateNewUser;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

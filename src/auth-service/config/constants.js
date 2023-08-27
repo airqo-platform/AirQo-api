@@ -410,9 +410,6 @@ const defaultConfig = {
           "net_manager.notifications": 0,
           "net_manager.emailConfirmed": 0,
           "net_manager.locationCount": 0,
-          "net_manager.email": 0,
-          "net_manager.firstName": 0,
-          "net_manager.lastName": 0,
           "net_manager.userName": 0,
           "net_manager.password": 0,
           "net_manager.privilege": 0,
@@ -425,6 +422,37 @@ const defaultConfig = {
           "net_manager.role": 0,
           "net_manager.updatedAt": 0,
           "net_manager.networks": 0,
+          "net_manager.jobTitle": 0,
+          "net_manager.website": 0,
+          "net_manager.description": 0,
+          "net_manager.category": 0,
+          "net_manager.country": 0,
+          "net_manager.resetPasswordExpires": 0,
+          "net_manager.resetPasswordToken": 0,
+        }
+      );
+    }
+
+    return projection;
+  },
+
+  INVITATION_LINKS_INCLUSION_PROJECTION: {
+    _id: 1,
+    token: 1,
+    network_id: 1,
+    expiration: 1,
+    used: 1,
+  },
+  INVITATION_LINKS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      nothing: 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(
+        {},
+        {
+          nothing: 0,
         }
       );
     }

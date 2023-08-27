@@ -18,6 +18,14 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
+
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -28,6 +36,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 router.get(
   "/deleteMobileUserData/:userId/:token",
@@ -530,6 +539,93 @@ router.post(
     ],
   ]),
   createUserController.create
+);
+
+router.get(
+  "/invitation/:token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("token")
+        .exists()
+        .withMessage("the token param is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("this token parameter should not be empty")
+        .trim(),
+    ],
+  ]),
+  createUserController.registerUserThroughInvitationLink
+);
+router.post(
+  "/invitation",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("firstName")
+        .exists()
+        .withMessage("firstName is missing in your request")
+        .bail()
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("lastName is missing in your request")
+        .bail()
+        .trim(),
+      body("email")
+        .exists()
+        .withMessage("email is missing in your request")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("organization")
+        .optional()
+        .notEmpty()
+        .withMessage("organization should not be empty if provided")
+        .bail()
+        .trim(),
+      body("long_organization")
+        .optional()
+        .notEmpty()
+        .withMessage("long_organization should not be empty if provided")
+        .bail()
+        .trim(),
+      body("privilege")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
+        .bail()
+        .isIn(["admin", "netmanager", "user", "super"])
+        .withMessage("the privilege value is not among the expected ones")
+        .trim(),
+    ],
+  ]),
+  createUserController.registerUserThroughInvitationLink
 );
 
 router.put(
