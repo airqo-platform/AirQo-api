@@ -7,3 +7,4 @@ lightgbm
 mlflow
 gcsfs
 pymongo
+tweepy

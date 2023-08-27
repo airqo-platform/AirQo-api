@@ -19,3 +19,4 @@ lightgbm
 gcsfs
 pymongo
 pytest
+tweepy

@@ -4,7 +4,6 @@ from urllib.parse import urlencode
 import pandas as pd
 import requests
 import simplejson
-
 import urllib3
 from urllib3.util.retry import Retry
 
@@ -176,12 +175,14 @@ class AirQoApi:
             for entry in decrypted_keys
         }
 
-    def get_forecast(self, timestamp, channel_id) -> list:
-        endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(endpoint=endpoint, params={}, method="get")
-
-        if response is not None and "predictions" in response:
-            return response["predictions"]
+    def get__forecasts(self, site_id, frequency) -> list:
+        query_freq = "daily-forecast" if frequency == "daily" else "hourly-forecast"
+        endpoint = f"predict/{query_freq}/{site_id}"
+        token = self.AIRQO_API_TOKEN
+        response = self.__request(endpoint=endpoint, params={token}, method="get")
+    
+        if response is not None and "forecasts" in response:
+            return response["forecasts"]
 
         return []
 
