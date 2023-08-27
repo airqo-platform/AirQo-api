@@ -226,10 +226,7 @@ def get_forecasts(
             site_forecasts[0]["pm2_5"],
         ):
             result = {
-                key: value
-                for key, value in zip(
-                    ["time", "pm2_5"], [time, pm2_5]
-                )
+                key: value for key, value in zip(["time", "pm2_5"], [time, pm2_5])
             }
             results.append(result)
 
@@ -324,9 +321,7 @@ def add_forecast_health_tips(result: dict):
         pm2_5 = i["pm2_5"]
         i["health_tips"] = list(
             filter(
-                lambda x: x["aqi_category"]["max"]
-                          >= pm2_5
-                          >= x["aqi_category"]["min"],
+                lambda x: x["aqi_category"]["max"] >= pm2_5 >= x["aqi_category"]["min"],
                 health_tips,
             )
         )

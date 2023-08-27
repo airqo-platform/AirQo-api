@@ -21,7 +21,8 @@ from helpers import (
     heatmap_cache_key,
     read_faulty_devices,
     validate_param_values,
-    get_faults_cache_key, add_forecast_health_tips,
+    get_faults_cache_key,
+    add_forecast_health_tips,
 )
 
 load_dotenv()
