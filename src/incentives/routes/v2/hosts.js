@@ -18,9 +18,8 @@ const validatePagination = (req, res, next) => {
 };
 
 const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").list({}).lean();
-  logObject("networks", networks);
-  return networks.map((network) => network.name.toLowerCase());
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
 };
 
 const validateNetwork = async (value) => {
