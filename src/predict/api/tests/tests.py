@@ -1,11 +1,14 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from flask import json
 from mongomock import MongoClient
 
 from app import create_app
-from helpers import read_predictions_from_db
+from config import Config
+from tests.conftest import monkeypatch
+from helpers import read_predictions_from_db, add_forecast_health_tips, get_health_tips
 from prediction import validate_param_values
 
 valid_params = [
@@ -274,3 +277,85 @@ def test_fetch_faulty_devices(test_client):
             json.loads(response.data)["error"]
             == "Invalid value for correlation_fault: 2"
         )
+
+
+def test_add_forecast_health_tips(monkeypatch):
+    # mock the get_health_tips function to return some sample tips
+    def mock_get_health_tips():
+        return [
+            {
+                "_id": "64283f6402cbab001e628296",
+                "title": "For Everyone",
+                "description": "If you have to spend a lot of time outside, disposable masks like the N95 are helpful.",
+                "image": "image link here",
+                "aqi_category": {"min": 250.5, "max": 500},
+            },
+            {
+                "_id": "64283f4702cbab001e628293",
+                "title": "For Everyone",
+                "description": "Reduce the intensity of your outdoor activities. Try to stay indoors until the air quality improves.",
+                "image": "image link here",
+                "aqi_category": {"min": 150.5, "max": 250.49},
+            },
+        ]
+
+    monkeypatch.setattr("helpers.get_health_tips", mock_get_health_tips)
+
+    result = {
+        "forecasts": [
+            {
+                "pm2_5": 200,
+            },
+            {
+                "pm2_5": 300,
+            },
+        ]
+    }
+
+    add_forecast_health_tips(result)
+
+    assert len(result["forecasts"]) == 2
+    assert result["forecasts"][0]["health_tips"][0]["_id"] == "64283f4702cbab001e628293"
+    assert len(result["forecasts"][1]["health_tips"]) == 1
+    assert result["forecasts"][1]["health_tips"][0]["_id"] == "64283f6402cbab001e628296"
+
+
+def test_get_health_tips_success(requests_mock):
+    # mock the external API call to return some sample data
+    requests_mock.get(
+        f"{Config.AIRQO_BASE_URL}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+        json={
+            "success": True,
+            "message": "successfully retrieved the tip(s)",
+            "tips": [
+                {
+                    "_id": "64283f6402cbab001e628296",
+                    # other fields omitted for brevity
+                },
+                {
+                    "_id": "64283f4702cbab001e628293",
+                    # other fields omitted for brevity
+                },
+            ],
+        },
+    )
+
+    # call the function to get health tips
+    tips = get_health_tips()
+
+    # assert that the function returns the expected list of tips
+    assert len(tips) == 2
+    assert tips[0]["_id"] == "64283f6402cbab001e628296"
+    assert tips[1]["_id"] == "64283f4702cbab001e628293"
+
+
+def test_get_health_tips_timeout(requests_mock):
+    requests_mock.get(
+        f"{Config.AIRQO_BASE_URL}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+        exc=requests.exceptions.Timeout,
+    )
+    tips = get_health_tips()
+    assert tips == [
+        {"_id": "64283f6402cbab001e628296"},
+        {"_id": "64283f4702cbab001e628293"},
+    ]
