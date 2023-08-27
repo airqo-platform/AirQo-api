@@ -7,6 +7,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const { getModelByTenant } = require("@config/database");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- admin-level-model`
 );

@@ -4,7 +4,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-
+const { getModelByTenant } = require("@config/database");
 const uniqueIdentifierCounterSchema = new Schema(
   {
     COUNT: {

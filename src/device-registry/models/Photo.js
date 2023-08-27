@@ -6,7 +6,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
-
+const { getModelByTenant } = require("@config/database");
 const photoSchema = new Schema(
   {
     device_name: { type: String },
@@ -336,4 +336,14 @@ photoSchema.statics = {
   },
 };
 
-module.exports = photoSchema;
+const PhotoModel = (tenant) => {
+  try {
+    const photos = mongoose.model("photos");
+    return photos;
+  } catch (error) {
+    const photos = getModelByTenant(tenant, "photo", photoSchema);
+    return photos;
+  }
+};
+
+module.exports = PhotoModel;

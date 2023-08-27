@@ -1,6 +1,5 @@
-const HTTPStatus = require("http-status");
-const HealthTipSchema = require("@models/HealthTips");
-const { getModelByTenant } = require("@config/database");
+const httpStatus = require("http-status");
+const HealthTipModel = require("@models/HealthTips");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
@@ -26,11 +25,7 @@ const createHealthTips = {
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.tips(request);
 
-      const responseFromListHealthTips = await getModelByTenant(
-        tenant,
-        "healthtip",
-        HealthTipSchema
-      ).list({
+      const responseFromListHealthTips = await HealthTipModel(tenant).list({
         filter,
         limit,
         skip,
@@ -42,7 +37,7 @@ const createHealthTips = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
@@ -57,11 +52,9 @@ const createHealthTips = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromRemoveHealthTip = await getModelByTenant(
-        tenant,
-        "healthtip",
-        HealthTipSchema
-      ).remove({ filter });
+      const responseFromRemoveHealthTip = await HealthTipModel(tenant).remove({
+        filter,
+      });
       logObject("responseFromRemoveHealthTip", responseFromRemoveHealthTip);
       return responseFromRemoveHealthTip;
     } catch (error) {
@@ -69,7 +62,7 @@ const createHealthTips = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
@@ -84,11 +77,11 @@ const createHealthTips = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromModifyHealthTip = await getModelByTenant(
-        tenant,
-        "healthtip",
-        HealthTipSchema
-      ).modify({ filter, update, opts });
+      const responseFromModifyHealthTip = await HealthTipModel(tenant).modify({
+        filter,
+        update,
+        opts,
+      });
 
       return responseFromModifyHealthTip;
     } catch (error) {
@@ -96,7 +89,7 @@ const createHealthTips = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
@@ -108,10 +101,8 @@ const createHealthTips = {
       let { body, query } = request;
       let { tenant } = query;
       let modifiedRequestBody = Object.assign({}, body);
-      const responseFromRegisterHealthTip = await getModelByTenant(
-        tenant,
-        "healthtip",
-        HealthTipSchema
+      const responseFromRegisterHealthTip = await HealthTipModel(
+        tenant
       ).register(modifiedRequestBody);
 
       logObject("responseFromRegisterHealthTip", responseFromRegisterHealthTip);
@@ -145,7 +136,7 @@ const createHealthTips = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },

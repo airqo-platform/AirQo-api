@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { getModelByTenant } = require("@config/database");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const { monthsInfront } = require("@utils/date");
@@ -681,4 +682,14 @@ deviceSchema.statics = {
   },
 };
 
-module.exports = deviceSchema;
+const DeviceModel = (tenant) => {
+  try {
+    let devices = mongoose.model("devices");
+    return devices;
+  } catch (error) {
+    let devices = getModelByTenant(tenant, "device", deviceSchema);
+    return devices;
+  }
+};
+
+module.exports = DeviceModel;

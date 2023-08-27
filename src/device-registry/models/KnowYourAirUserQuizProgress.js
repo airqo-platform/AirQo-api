@@ -5,6 +5,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const userQuizProgressSchema = new Schema(
   {
@@ -24,8 +25,8 @@ const userQuizProgressSchema = new Schema(
     },
     status: {
       type: String,
-      default: "TODO"
-    }
+      default: "TODO",
+    },
   },
   {
     timestamps: true,
@@ -34,7 +35,7 @@ const userQuizProgressSchema = new Schema(
 
 userQuizProgressSchema.index({ quiz_id: 1, user_id: 1 }, { unique: true });
 
-userQuizProgressSchema.pre("save", function (next) {
+userQuizProgressSchema.pre("save", function(next) {
   next();
 });
 
@@ -295,4 +296,18 @@ userQuizProgressSchema.statics = {
   },
 };
 
-module.exports = userQuizProgressSchema;
+const KnowYourAirUserQuizProgressModel = (tenant) => {
+  try {
+    let kyaprogress = mongoose.model("kyaquizprogresses");
+    return kyaprogress;
+  } catch (error) {
+    let kyaprogress = getModelByTenant(
+      tenant,
+      "kyaquizprogress",
+      userQuizProgressSchema
+    );
+    return kyaprogress;
+  }
+};
+
+module.exports = KnowYourAirUserQuizProgressModel;

@@ -8,7 +8,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohort-model`);
-
+const { getModelByTenant } = require("@config/database");
 const cohortSchema = new Schema(
   {
     network: {
@@ -340,4 +340,15 @@ cohortSchema.statics.remove = async function({ filter = {} } = {}) {
     };
   }
 };
-module.exports = cohortSchema;
+
+const CohortModel = (tenant) => {
+  try {
+    const cohorts = mongoose.model("cohorts");
+    return cohorts;
+  } catch (error) {
+    const cohorts = getModelByTenant(tenant, "cohort", cohortSchema);
+    return cohorts;
+  }
+};
+
+module.exports = CohortModel;

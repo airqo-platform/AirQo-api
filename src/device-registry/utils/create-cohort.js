@@ -1,6 +1,6 @@
-const CohortSchema = require("@models/Cohort");
-const DeviceSchema = require("@models/Device");
-const NetworkSchema = require("@models/Network");
+const CohortModel = require("@models/Cohort");
+const DeviceModel = require("@models/Device");
+const NetworkModel = require("@models/Network");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
@@ -20,36 +20,6 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-
-const CohortModel = (tenant) => {
-  try {
-    const cohorts = mongoose.model("cohorts");
-    return cohorts;
-  } catch (error) {
-    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
-    return cohorts;
-  }
-};
-
-const DeviceModel = (tenant) => {
-  try {
-    const devices = mongoose.model("devices");
-    return devices;
-  } catch (error) {
-    const devices = getModelByTenant(tenant, "device", DeviceSchema);
-    return devices;
-  }
-};
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
 
 const createCohort = {
   listNetworks: async (request) => {
