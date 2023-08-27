@@ -148,6 +148,7 @@ const createNetwork = {
       );
 
       if (responseFromExtractNetworkName.success === true) {
+        //changing this part to get the name of the network from the user input
         modifiedBody["net_name"] = responseFromExtractNetworkName.data;
         modifiedBody["net_acronym"] = responseFromExtractNetworkName.data;
       } else if (responseFromExtractNetworkName.success === false) {
