@@ -316,3 +316,19 @@ def read_faulty_devices(query):
         doc.pop("_id")
         result.append(doc)
     return result
+
+
+def add_forecast_health_tips(result: dict):
+    health_tips = get_health_tips()
+    for i in result["forecasts"]:
+        pm2_5 = i["pm2_5"]
+        i["health_tips"] = list(
+            filter(
+                lambda x: x["aqi_category"]["max"]
+                          >= pm2_5
+                          >= x["aqi_category"]["min"],
+                health_tips,
+            )
+        )
+
+    return result
