@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const requestAccessUtil = require("@utils/request-access");
+const requestAccessUtil = require("@utils/create-candidate");
 const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- request-access-controller`
+  `${constants.ENVIRONMENT} -- create-candidate-controller`
 );
 const { logText, logObject, logElement } = require("@utils/log");
 
