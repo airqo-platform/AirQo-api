@@ -506,35 +506,21 @@ const createDevice = {
   },
   list: async (request) => {
     try {
-      let { tenant } = request.query;
+      let { tenant, category } = request.query;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
-      let responseFromFilter = generateFilter.devices(request);
-      // logger.info(`responseFromFilter -- ${responseFromFilter}`);
-
+      const responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-        // logger.info(`the filter in list -- ${filter}`);
       } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        try {
-          let errorsString = errors ? JSON.stringify(errors) : "";
-          logger.error(`the error from filter in list -- ${errorsString}`);
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors,
-          status: responseFromFilter.status ? responseFromFilter.status : "",
-        };
+        return responseFromFilter;
+      }
+      if (!isEmpty(category)) {
+        filter.category = category;
       }
 
-      let responseFromListDevice = await getModelByTenant(
+      const responseFromListDevice = await getModelByTenant(
         tenant,
         "device",
         DeviceSchema
@@ -543,34 +529,7 @@ const createDevice = {
         limit,
         skip,
       });
-
-      // logger.info(
-      //   `the responseFromListDevice in list -- ${responseFromListDevice} `
-      // );
-
-      if (responseFromListDevice.success === false) {
-        let errors = responseFromListDevice.errors
-          ? responseFromListDevice.errors
-          : { message: "" };
-        try {
-          let errorsString = errors ? JSON.stringify(errors) : "";
-          logger.error(
-            `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-        return {
-          success: false,
-          message: responseFromListDevice.message,
-          errors,
-          status: responseFromListDevice.status
-            ? responseFromListDevice.status
-            : "",
-        };
-      } else if (responseFromListDevice.success === true) {
-        return responseFromListDevice;
-      }
+      return responseFromListDevice;
     } catch (e) {
       logger.error(`error for list devices util -- ${e.message}`);
       return {
