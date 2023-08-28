@@ -146,15 +146,67 @@ router.get(
 router.post(
   "/confirm",
   oneOf([
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("firstName")
+        .exists()
+        .withMessage("the firstName should be provided")
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("the lastName should be provided")
+        .trim(),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .trim(),
+      body("website")
+        .exists()
+        .withMessage("the website should be provided")
+        .trim(),
+      body("description")
+        .exists()
+        .withMessage("the description should be provided")
+        .trim(),
+      body("long_organization")
+        .exists()
+        .withMessage("the long_organization should be provided")
+        .trim(),
+      body("jobTitle")
+        .exists()
+        .withMessage("the jobTitle should be provided")
+        .trim(),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the network_id cannot be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the network_id must be a MongoID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   setJWTAuth,
   authJWT,

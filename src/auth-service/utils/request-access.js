@@ -1,5 +1,6 @@
-const UserModel = require("../models/User");
-const CandidateModel = require("../models/Candidate");
+const UserModel = require("@models/User");
+const CandidateModel = require("@models/Candidate");
+const NetworkModel = require("@models/Network");
 const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
@@ -19,7 +20,24 @@ const logger = log4js.getLogger(
 const requestAccess = {
   create: async (req, callback) => {
     try {
-      const { firstName, lastName, email, tenant } = req;
+      const { firstName, lastName, email, tenant, network_id } = req;
+
+      if (!isEmpty(network_id)) {
+        const networkExists = await NetworkModel(tenant).exists({
+          _id: ObjectId(network_id),
+        });
+        if (!networkExists) {
+          logger.error(
+            `Network ${network_id} not found in System, crosscheck or make another request`
+          );
+          callback({
+            success: false,
+            message: "the provided network does not exist",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Network ${network_id} not found` },
+          });
+        }
+      }
 
       const userExists = await UserModel(tenant).exists({ email });
       const candidateExists = await CandidateModel(tenant).exists({
@@ -161,12 +179,28 @@ const requestAccess = {
 
   confirm: async (req) => {
     try {
-      const { tenant, firstName, lastName, email } = req;
+      logObject("req", req);
+      const { tenant, firstName, lastName, email, network_id } = req;
 
+      if (!isEmpty(network_id)) {
+        const networkExists = await NetworkModel(tenant).exists({
+          _id: ObjectId(network_id),
+        });
+        if (!networkExists) {
+          logger.error(
+            `Network ${network_id} not found in System, crosscheck or make another request`
+          );
+          return {
+            success: false,
+            message: "the provided network does not exist",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Network ${network_id} not found` },
+          };
+        }
+      }
       const candidateExists = await CandidateModel(tenant).exists({
         email,
       });
-
       const userExists = await UserModel(tenant).exists({ email });
       logObject("candidateExists", candidateExists);
       logObject("userExists", userExists);
