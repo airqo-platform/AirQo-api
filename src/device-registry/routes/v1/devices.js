@@ -442,6 +442,55 @@ router.get(
   ]),
   deviceController.list
 );
+
+router.get(
+  "/summary",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+      query("device_number")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isInt()
+        .withMessage("device_number must be an integer")
+        .bail()
+        .toInt(),
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
+  deviceController.listSummary
+);
 /**** create device */
 
 /**
