@@ -51,6 +51,11 @@ const HostSchema = new Schema(
       required: [true, "site_id is required"],
       trim: true,
     },
+    network: {
+      type: String,
+      trim: true,
+      required: [true, "network is required!"],
+    },
   },
   { timestamps: true }
 );
@@ -197,13 +202,14 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}) {
 };
 
 HostSchema.methods.toJSON = function () {
-  const { _id, first_name, last_name, site_id, phone_number } = this;
+  const { _id, first_name, last_name, site_id, phone_number, network } = this;
   return {
     _id,
     first_name,
     last_name,
     site_id,
     phone_number,
+    network,
   };
 };
 

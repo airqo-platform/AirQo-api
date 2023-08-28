@@ -64,6 +64,61 @@ const generateFilter = {
       };
     }
   },
+  sims: (req) => {
+    try {
+      const { id } = req.query;
+      const { sim_id } = req.params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (sim_id) {
+        filter["_id"] = ObjectId(sim_id);
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
+  },
+  networks: (req) => {
+    try {
+      let filter = {};
+      if (req.query && req.query.name) {
+        filter["name"] = req.query.name;
+      }
+
+      if (req.params && req.params.net_id) {
+        filter["_id"] = ObjectId(req.params.net_id);
+      }
+
+      if (req.query && req.query.network_codes) {
+        let networkCodesArray = req.query.network_codes.split(",");
+        filter["network_codes"] = {};
+        filter["network_codes"]["$in"] = networkCodesArray;
+      }
+
+      if (req.query && req.query.id) {
+        filter["_id"] = ObjectId(req.query.id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = generateFilter;

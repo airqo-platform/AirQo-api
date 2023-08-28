@@ -3,7 +3,7 @@
 import pandas as pd
 
 from airqo_etl_utils.ml_utils import ForecastUtils
-from conftest import ForecastFixtures
+from airqo_etl_utils.tests.conftest import ForecastFixtures
 
 
 class ForecastTests(ForecastFixtures):
