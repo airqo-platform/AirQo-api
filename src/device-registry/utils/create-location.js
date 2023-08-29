@@ -8,8 +8,7 @@ const axiosInstance = () => {
 };
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-location-util`
 );
 

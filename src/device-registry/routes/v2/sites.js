@@ -10,18 +10,7 @@ const createSiteUtil = require("@utils/create-site");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const decimalPlaces = require("decimal-places");
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -33,6 +22,20 @@ const validateNetwork = async (value) => {
   if (!networks.includes(value.toLowerCase())) {
     throw new Error("Invalid network");
   }
+};
+
+const validatePagination = (req, res, next) => {
+  // Retrieve the limit and skip values from the query parameters
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+
+  // Validate and sanitize the limit value
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+
+  // Validate and sanitize the skip value
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+
+  next();
 };
 
 const headers = (req, res, next) => {
@@ -50,6 +53,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 /****************************** create sites usecase *************** */
 router.get(
