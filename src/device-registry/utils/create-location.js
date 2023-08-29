@@ -1,16 +1,14 @@
-const LocationSchema = require("@models/Location");
+const LocationModel = require("@models/Location");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-location-util`
 );
 
@@ -38,11 +36,9 @@ const createLocation = {
       let { tenant } = request.query;
       logObject("body", body);
 
-      let responseFromRegisterLocation = await getModelByTenant(
-        tenant.toLowerCase(),
-        "location",
-        LocationSchema
-      ).register(body);
+      const responseFromRegisterLocation = await LocationModel(tenant).register(
+        body
+      );
 
       logObject("responseFromRegisterLocation", responseFromRegisterLocation);
 
@@ -79,7 +75,7 @@ const createLocation = {
       return {
         success: false,
         message: "unable to create location",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
     }
@@ -93,11 +89,7 @@ const createLocation = {
       let update = body;
       let filter = generateFilter.locations(request);
 
-      let responseFromModifyLocation = await getModelByTenant(
-        tenant.toLowerCase(),
-        "location",
-        LocationSchema
-      ).modify({
+      const responseFromModifyLocation = await LocationModel(tenant).modify({
         filter,
         update,
       });
@@ -109,7 +101,7 @@ const createLocation = {
         success: false,
         message: "unable to update location",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -118,11 +110,7 @@ const createLocation = {
       let { query } = request;
       let { tenant } = query;
       let filter = generateFilter.locations(request);
-      let responseFromRemoveLocation = await getModelByTenant(
-        tenant.toLowerCase(),
-        "location",
-        LocationSchema
-      ).remove({
+      const responseFromRemoveLocation = await LocationModel(tenant).remove({
         filter,
       });
 
@@ -133,7 +121,7 @@ const createLocation = {
         success: false,
         message: "unable to delete location",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -145,11 +133,7 @@ const createLocation = {
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.locations(request);
 
-      const responseFromListLocation = await getModelByTenant(
-        tenant.toLowerCase(),
-        "location",
-        LocationSchema
-      ).list({
+      const responseFromListLocation = await LocationModel(tenant).list({
         filter,
         limit,
         skip,
@@ -162,7 +146,7 @@ const createLocation = {
         success: false,
         message: "unable to list location",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

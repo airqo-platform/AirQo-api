@@ -32,8 +32,6 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -1073,7 +1071,6 @@ router.delete(
   knowYourAirController.removeManyTasksFromLesson
 );
 
-
 /******************* KYA QUIZ *********************************************/
 
 /******************* quizzes *********************************************/
@@ -1623,7 +1620,9 @@ router.post(
     [
       body("kya_quiz_user_progress")
         .exists()
-        .withMessage("the kya_quiz_user_progress is missing in the request body")
+        .withMessage(
+          "the kya_quiz_user_progress is missing in the request body"
+        )
         .bail()
         .custom((value) => {
           return Array.isArray(value);
@@ -1637,7 +1636,9 @@ router.post(
         .withMessage("Each kya user progress should be an object"),
       body("kya_quiz_user_progress.*.active_question")
         .exists()
-        .withMessage("active_question is missing in the kya user progress object")
+        .withMessage(
+          "active_question is missing in the kya user progress object"
+        )
         .bail()
         .notEmpty()
         .withMessage("the active_question must not be empty")
@@ -1840,7 +1841,6 @@ router.get(
   knowYourAirController.listQuestions
 );
 
-
 /******************* Answers *********************************************/
 
 router.post(
@@ -1999,7 +1999,6 @@ router.get(
   knowYourAirController.listAnswers
 );
 
-
 /******************* manage Quiz Questions *********************************************/
 router.post(
   "/quizzes/:quiz_id/assign-questions",
@@ -2094,7 +2093,6 @@ router.delete(
 
   knowYourAirController.removeManyQuestionsFromQuiz
 );
-
 
 /******************* manage Quiz Answers*********************************************/
 router.post(

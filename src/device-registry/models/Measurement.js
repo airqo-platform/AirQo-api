@@ -11,7 +11,7 @@ const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
-
+const { getModelByTenant } = require("@config/database");
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -880,11 +880,17 @@ measurementSchema.statics = {
 };
 
 const measurementsModel = (tenant) => {
-  return getModelByTenant(
-    tenant.toLowerCase(),
-    "measurement",
-    measurementSchema
-  );
+  try {
+    const measurements = mongoose.model("measurements");
+    return measurements;
+  } catch (error) {
+    const measurements = getModelByTenant(
+      tenant,
+      "measurement",
+      measurementSchema
+    );
+    return measurements;
+  }
 };
 
 module.exports = measurementsModel;

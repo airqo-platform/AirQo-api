@@ -1,6 +1,5 @@
 const EventModel = require("@models/Event");
-const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("@config/database");
+const devicesModel = require("@models/Device");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
@@ -25,9 +24,6 @@ const {
 } = require("./date");
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
-const devicesModel = (tenant) => {
-  return getModelByTenant(tenant, "device", DeviceSchema);
-};
 
 const listDevices = async (request) => {
   try {
@@ -62,11 +58,7 @@ const listDevices = async (request) => {
       };
     }
 
-    let responseFromListDevice = await getModelByTenant(
-      tenant,
-      "device",
-      DeviceSchema
-    ).list({
+    let responseFromListDevice = await devicesModel(tenant).list({
       filter,
       limit,
       skip,

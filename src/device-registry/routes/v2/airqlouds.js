@@ -6,25 +6,13 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
-const AdminLevelSchema = require("@models/AdminLevel");
+const AdminLevelModel = require("@models/AdminLevel");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/database");
-const NetworkSchema = require("@models/Network");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const NetworkModel = require("@models/Network");
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- airqlouds-route-v2`
 );
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -37,18 +25,18 @@ const validateNetwork = async (value) => {
   }
 };
 
-const AdminLevelModel = (tenant) => {
-  try {
-    const adminlevels = mongoose.model("adminlevels");
-    return adminlevels;
-  } catch (error) {
-    const adminlevels = getModelByTenant(
-      tenant,
-      "adminlevel",
-      AdminLevelSchema
-    );
-    return adminlevels;
-  }
+const validatePagination = (req, res, next) => {
+  // Retrieve the limit and skip values from the query parameters
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+
+  // Validate and sanitize the limit value
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+
+  // Validate and sanitize the skip value
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+
+  next();
 };
 
 const validAdminLevels = async () => {
@@ -90,6 +78,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 /************************** airqlouds usecase  *******************/
 router.post(
@@ -756,7 +745,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .custom(validateNetwork)
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
