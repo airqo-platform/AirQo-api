@@ -4,6 +4,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const polygonSchema = new Schema(
   {
@@ -341,4 +342,14 @@ locationSchema.statics = {
   },
 };
 
-module.exports = locationSchema;
+const LocationModel = (tenant) => {
+  try {
+    const locations = mongoose.model("locations");
+    return locations;
+  } catch (error) {
+    const locations = getModelByTenant(tenant, "location", locationSchema);
+    return locations;
+  }
+};
+
+module.exports = LocationModel;

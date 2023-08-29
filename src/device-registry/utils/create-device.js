@@ -1,7 +1,5 @@
 "use strict";
-const DeviceSchema = require("@models/Device");
-const NetworkSchema = require("@models/Network");
-const { getModelByTenant } = require("@config/database");
+const DeviceModel = require("@models/Device");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
@@ -19,26 +17,6 @@ const QRCode = require("qrcode");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
-const DeviceModel = (tenant) => {
-  try {
-    let devices = mongoose.model("devices");
-    return devices;
-  } catch (error) {
-    let devices = getModelByTenant(tenant, "device", DeviceSchema);
-    return devices;
-  }
-};
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
 const kafka = new Kafka({
@@ -50,11 +28,7 @@ const createDevice = {
   doesDeviceSearchExist: async (request) => {
     try {
       const { filter, tenant } = request;
-      let doesSearchExist = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).exists(filter);
+      let doesSearchExist = await DeviceModel(tenant).exists(filter);
       logElement(" doesSearchExist", doesSearchExist);
       if (doesSearchExist) {
         return {
@@ -415,11 +389,10 @@ const createDevice = {
             : { message: "" },
         };
       }
-      let responseFromEncryptKeys = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).encryptKeys({ filter, update });
+      let responseFromEncryptKeys = await DeviceModel(tenant).encryptKeys({
+        filter,
+        update,
+      });
 
       return responseFromEncryptKeys;
     } catch (error) {
@@ -519,12 +492,7 @@ const createDevice = {
       if (!isEmpty(category)) {
         filter.category = category;
       }
-
-      const responseFromListDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).list({
+      const responseFromListDevice = await DeviceModel(tenant).list({
         filter,
         limit,
         skip,
@@ -769,7 +737,6 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
@@ -794,11 +761,11 @@ const createDevice = {
       }
       let opts = {};
 
-      let responseFromModifyDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).modify({ filter, update, opts });
+      const responseFromModifyDevice = await DeviceModel(tenant).modify({
+        filter,
+        update,
+        opts,
+      });
 
       return responseFromModifyDevice;
     } catch (error) {
@@ -898,11 +865,9 @@ const createDevice = {
           status: responseFromFilter.status ? responseFromFilter.status : "",
         };
       }
-      let responseFromRemoveDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).remove({ filter });
+      const responseFromRemoveDevice = await DeviceModel(tenant).remove({
+        filter,
+      });
 
       return responseFromRemoveDevice;
     } catch (error) {
@@ -1038,11 +1003,7 @@ const createDevice = {
       const { tenant } = modifiedRequest.query;
       logObject("the filter being used to filter", filter);
 
-      const responseFromListDevice = await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).list({
+      const responseFromListDevice = await DeviceModel(tenant).list({
         filter,
       });
 
@@ -1072,11 +1033,11 @@ const createDevice = {
       const update = modifiedRequest["body"];
       const opts = {};
 
-      const responseFromModifyDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).modify({ filter, update, opts });
+      const responseFromModifyDevice = await DeviceModel(tenant).modify({
+        filter,
+        update,
+        opts,
+      });
 
       if (responseFromModifyDevice.success === true) {
         return {

@@ -32,8 +32,6 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(

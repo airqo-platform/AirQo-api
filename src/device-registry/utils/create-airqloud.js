@@ -1,5 +1,5 @@
-const AirQloudSchema = require("@models/Airqloud");
-const SiteSchema = require("@models/Site");
+const AirQloudModel = require("@models/Airqloud");
+const SiteModel = require("@models/Site");
 const { logObject } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
@@ -142,11 +142,9 @@ const createAirqloud = {
         return responseFromCalculateGeographicalCenter;
       }
 
-      const responseFromRegisterAirQloud = await getModelByTenant(
-        tenant.toLowerCase(),
-        "airqloud",
-        AirQloudSchema
-      ).register(modifiedBody);
+      const responseFromRegisterAirQloud = await AirQloudModel(tenant).register(
+        modifiedBody
+      );
 
       logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
 
@@ -192,11 +190,7 @@ const createAirqloud = {
       let update = body;
       let filter = generateFilter.airqlouds(request);
 
-      let responseFromModifyAirQloud = await getModelByTenant(
-        tenant.toLowerCase(),
-        "airqloud",
-        AirQloudSchema
-      ).modify({
+      let responseFromModifyAirQloud = await AirQloudModel(tenant).modify({
         filter,
         update,
       });
@@ -216,11 +210,7 @@ const createAirqloud = {
       let { query } = request;
       let { tenant } = query;
       let filter = generateFilter.airqlouds(request);
-      let responseFromRemoveAirQloud = await getModelByTenant(
-        tenant.toLowerCase(),
-        "airqloud",
-        AirQloudSchema
-      ).remove({
+      let responseFromRemoveAirQloud = await AirQloudModel(tenant).remove({
         filter,
       });
 
@@ -403,11 +393,7 @@ const createAirqloud = {
 
         filter = {};
 
-        let responseFromListSites = await getModelByTenant(
-          tenant.toLowerCase(),
-          "site",
-          SiteSchema
-        ).list({
+        let responseFromListSites = await SiteModel(tenant).list({
           filter,
         });
 
@@ -478,11 +464,7 @@ const createAirqloud = {
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.airqlouds(request);
 
-      let responseFromListAirQloud = await getModelByTenant(
-        tenant.toLowerCase(),
-        "airqloud",
-        AirQloudSchema
-      ).list({
+      let responseFromListAirQloud = await AirQloudModel(tenant).list({
         filter,
         limit,
         skip,

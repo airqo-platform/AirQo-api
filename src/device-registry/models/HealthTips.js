@@ -6,7 +6,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
-
+const { getModelByTenant } = require("@config/database");
 const aqiRangeSchema = new Schema(
   {
     min: { type: Number, required: true },
@@ -26,8 +26,8 @@ const tipsSchema = new Schema(
       type: String,
       trim: true,
     },
-    image:{
-      required:[true, "the image is required!"],
+    image: {
+      required: [true, "the image is required!"],
       type: String,
       trim: true,
     },
@@ -55,7 +55,7 @@ tipsSchema.methods = {
       title: this.title,
       aqi_category: this.aqi_category,
       description: this.description,
-      image:this.image
+      image: this.image,
     };
   },
 };
@@ -141,7 +141,7 @@ tipsSchema.statics = {
           title: 1,
           aqi_category: 1,
           description: 1,
-          image:1,
+          image: 1,
         })
         .skip(skip ? skip : 0)
         .limit(
@@ -342,4 +342,14 @@ tipsSchema.statics = {
   },
 };
 
-module.exports = tipsSchema;
+const TipsModel = (tenant) => {
+  try {
+    const healthtips = mongoose.model("healthtips");
+    return healthtips;
+  } catch (error) {
+    const healthtips = getModelByTenant(tenant, "healthtip", tipsSchema);
+    return healthtips;
+  }
+};
+
+module.exports = TipsModel;

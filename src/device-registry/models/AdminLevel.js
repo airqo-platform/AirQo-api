@@ -7,6 +7,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const { getModelByTenant } = require("@config/database");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- admin-level-model`
 );
@@ -228,4 +229,18 @@ adminLevelSchema.statics.remove = async function({ filter = {} } = {}) {
   }
 };
 
-module.exports = adminLevelSchema;
+const AdminLevelModel = (tenant) => {
+  try {
+    const adminlevels = mongoose.model("adminlevels");
+    return adminlevels;
+  } catch (error) {
+    const adminlevels = getModelByTenant(
+      tenant,
+      "adminlevel",
+      adminLevelSchema
+    );
+    return adminlevels;
+  }
+};
+
+module.exports = AdminLevelModel;
