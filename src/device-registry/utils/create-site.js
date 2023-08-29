@@ -1,5 +1,5 @@
 const SiteModel = require("@models/Site");
-const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
+const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("@config/database");
@@ -273,10 +273,8 @@ const createSite = {
         $inc: { COUNT: 1 },
       };
 
-      const responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
-        tenant.toLowerCase(),
-        "uniqueIdentifierCounter",
-        UniqueIdentifierCounterSchema
+      const responseFromModifyUniqueIdentifierCounter = await UniqueIdentifierCounterModel(
+        tenant.toLowerCase()
       ).modify({
         filter,
         update,

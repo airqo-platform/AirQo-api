@@ -3,7 +3,7 @@ const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const uniqueIdentifierCounterSchema = new Schema(
   {
@@ -72,13 +72,13 @@ uniqueIdentifierCounterSchema.statics = {
           success: true,
           message: "successfully modified the counter document",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedCounter)) {
         return {
           success: false,
           message: "counter does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           errors: {
             message: "can't locate the relevant counter document -- site_0",
           },
@@ -89,7 +89,7 @@ uniqueIdentifierCounterSchema.statics = {
         success: false,
         message: "Counter model server error - modify",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -97,4 +97,17 @@ uniqueIdentifierCounterSchema.statics = {
 
 uniqueIdentifierCounterSchema.methods = {};
 
-module.exports = uniqueIdentifierCounterSchema;
+const UniqueIdentifierCounterModel = (tenant) => {
+  try {
+    const activities = mongoose.model("uniqueIdentifierCounters");
+    return activities;
+  } catch (errors) {
+    return getModelByTenant(
+      tenant.toLowerCase(),
+      "uniqueIdentifierCounter",
+      uniqueIdentifierCounterSchema
+    );
+  }
+};
+
+module.exports = UniqueIdentifierCounterModel;

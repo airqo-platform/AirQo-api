@@ -308,7 +308,7 @@ const KnowYourAirQuestionModel = (tenant) => {
     let kyaquestions = getModelByTenant(
       tenant,
       "kyaquestion",
-      KnowYourAirQuestionSchema
+      knowYourAirQuestionSchema
     );
     return kyaquestions;
   }

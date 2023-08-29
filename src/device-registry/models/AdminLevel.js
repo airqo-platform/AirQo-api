@@ -229,4 +229,18 @@ adminLevelSchema.statics.remove = async function({ filter = {} } = {}) {
   }
 };
 
-module.exports = adminLevelSchema;
+const AdminLevelModel = (tenant) => {
+  try {
+    const adminlevels = mongoose.model("adminlevels");
+    return adminlevels;
+  } catch (error) {
+    const adminlevels = getModelByTenant(
+      tenant,
+      "adminlevel",
+      adminLevelSchema
+    );
+    return adminlevels;
+  }
+};
+
+module.exports = AdminLevelModel;

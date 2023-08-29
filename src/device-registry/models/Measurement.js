@@ -880,11 +880,17 @@ measurementSchema.statics = {
 };
 
 const measurementsModel = (tenant) => {
-  return getModelByTenant(
-    tenant.toLowerCase(),
-    "measurement",
-    measurementSchema
-  );
+  try {
+    const measurements = mongoose.model("measurements");
+    return measurements;
+  } catch (error) {
+    const measurements = getModelByTenant(
+      tenant,
+      "measurement",
+      measurementSchema
+    );
+    return measurements;
+  }
 };
 
 module.exports = measurementsModel;
