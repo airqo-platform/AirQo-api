@@ -9,7 +9,6 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- host-model`);
-const { getModelByTenant } = require("@config/database");
 const successResponse = {
   success: true,
   status: httpStatus.OK,
