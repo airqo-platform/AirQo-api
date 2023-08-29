@@ -299,10 +299,10 @@ UserSchema.statics = {
           as: "my_networks",
         })
         .lookup({
-          from: "access_tokens",
+          from: "clients",
           localField: "_id",
           foreignField: "user_id",
-          as: "access_tokens",
+          as: "clients",
         })
         .lookup({
           from: "groups",

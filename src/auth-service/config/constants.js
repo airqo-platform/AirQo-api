@@ -546,7 +546,7 @@ const defaultConfig = {
     phoneNumber: 1,
     role: 1,
     networks: "$networks",
-    access_tokens: "$access_tokens",
+    clients: "$clients",
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
@@ -809,6 +809,7 @@ const defaultConfig = {
     name: 1,
     description: 1,
     networks: "$networks",
+    access_token: { $arrayElemAt: ["$access_token", 0] },
   },
   CLIENTS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {

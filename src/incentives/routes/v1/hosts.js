@@ -7,12 +7,26 @@ const phoneUtil =
   require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { logObject } = require("@utils/log");
+const NetworkModel = require("@models/Network");
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
   req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
   req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
   next();
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
 };
 
 const headers = (req, res, next) => {
@@ -39,8 +53,8 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+      .custom(validateNetwork)
+      .withMessage("the network value is not among the expected ones"),
   ]),
   oneOf([
     [
@@ -58,6 +72,16 @@ router.post(
         .notEmpty()
         .withMessage("the last_name should not be empty")
         .trim(),
+      body("network")
+        .exists()
+        .withMessage("the network is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the network should not be empty if provided")
+        .bail()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       body("phone_number")
         .exists()
         .withMessage("the phone_number is missing in your request")
@@ -70,7 +94,9 @@ router.post(
           let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
           return isValid;
         })
-        .withMessage("phone_number must be a valid one")
+        .withMessage(
+          "phone_number must be a valid one and start with a country code like +256"
+        )
         .trim(),
       body("email")
         .exists()
