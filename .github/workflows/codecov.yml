@@ -1,0 +1,43 @@
+name: API workflow
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+        run:
+          working-directory: src/airflow
+    name: CodeCoverage
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r airflow-requirements.txt
+        pip install -r dev-requirements.txt
+        pip install -r requirements.txt
+
+    - name: Run tests and collect coverage
+      run: |
+        pytest --cov=./ --cov-report=xml
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
