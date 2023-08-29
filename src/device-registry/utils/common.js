@@ -68,7 +68,7 @@ const common = {
           message =
             "Unable to find any sites associated with the provided AirQloud ID";
         }
-        const filteredSites = map((site) => site._id);
+        const filteredSites = sites.map((site) => site._id);
         return {
           success: true,
           message,
@@ -79,6 +79,7 @@ const common = {
         return responseFromListAirQloud;
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",

@@ -1363,6 +1363,11 @@ const createEvent = {
         { airqloudId }
       );
 
+      logObject(
+        "responseFromGetSitesOfAirQloud",
+        responseFromGetSitesOfAirQloud
+      );
+
       if (responseFromGetSitesOfAirQloud.success === false) {
         const status = responseFromGetSitesOfAirQloud.status
           ? responseFromGetSitesOfAirQloud.status
@@ -1397,6 +1402,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
