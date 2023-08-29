@@ -517,6 +517,7 @@ deviceSchema.statics = {
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
+      delete modifiedUpdate.network;
       let options = { new: true, projected: modifiedUpdate, ...opts };
 
       if (!isEmpty(modifiedUpdate.access_code)) {

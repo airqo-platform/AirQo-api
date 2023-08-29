@@ -737,7 +737,6 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
