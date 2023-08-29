@@ -455,7 +455,9 @@ const createCohort = {
       const { device_ids } = request.body;
       const { tenant } = request.query;
 
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant)
+        .findById(cohort_id)
+        .lean();
 
       if (!cohort) {
         return {
@@ -504,7 +506,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
+      //
       const totalDevices = device_ids.length;
       const { nModified, n } = await DeviceModel(tenant).updateMany(
         { _id: { $in: device_ids } },
@@ -526,6 +528,7 @@ const createCohort = {
           success: true,
           message: `Operation partially successful some ${notFoundCount} of the provided devices were not found in the system`,
           status: httpStatus.OK,
+          data: cohort,
         };
       }
 
