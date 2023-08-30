@@ -10,6 +10,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- admin-level-model`
 );
+const { getModelByTenant } = require("@config/database");
 
 const networkSchema = new Schema({
   name: {
@@ -228,4 +229,14 @@ networkSchema.statics.remove = async function({ filter = {} } = {}) {
   }
 };
 
-module.exports = networkSchema;
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", networkSchema);
+    return networks;
+  }
+};
+
+module.exports = NetworkModel;

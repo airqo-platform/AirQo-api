@@ -5,6 +5,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
@@ -697,4 +698,14 @@ siteSchema.statics = {
   },
 };
 
-module.exports = siteSchema;
+const SiteModel = (tenant) => {
+  try {
+    let sites = mongoose.model("sites");
+    return sites;
+  } catch (error) {
+    let sites = getModelByTenant(tenant, "site", siteSchema);
+    return sites;
+  }
+};
+
+module.exports = SiteModel;

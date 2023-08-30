@@ -9,18 +9,7 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -33,8 +22,6 @@ const validateNetwork = async (value) => {
     throw new Error("Invalid network");
   }
 };
-
-logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;

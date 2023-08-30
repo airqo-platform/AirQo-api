@@ -6,18 +6,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const activityController = require("@controllers/create-activity");
 const { check, oneOf, query, body, param } = require("express-validator");
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -31,7 +20,13 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -48,7 +43,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
-
+router.use(validatePagination);
 /****************** create activities use-case *************************/
 router.post(
   "/recall",

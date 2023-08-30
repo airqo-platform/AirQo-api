@@ -2,11 +2,11 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- common-util`);
 const isEmpty = require("is-empty");
-const AirQloudSchema = require("@models/Airqloud");
-const SiteSchema = require("@models/Site");
-const DeviceSchema = require("@models/Device");
-const CohortSchema = require("@models/Cohort");
-const GridSchema = require("@models/Grid");
+const airqloudsModel = require("@models/Airqloud");
+const sitesModel = require("@models/Site");
+const devicesModel = require("@models/Device");
+const CohortModel = require("@models/Cohort");
+const GridModel = require("@models/Grid");
 const { getModelByTenant, getTenantDB, mongodb } = require("@config/database");
 const distanceUtil = require("./distance");
 const cryptoJS = require("crypto-js");
@@ -45,39 +45,6 @@ const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
   {}
 );
 
-const devicesModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
-};
-
-const sitesModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
-};
-
-const airqloudsModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "airqloud", AirQloudSchema);
-};
-
-const GridModel = (tenant) => {
-  try {
-    const grids = mongoose.model("grids");
-    return grids;
-  } catch (error) {
-    // logObject("error", error);
-    const grids = getModelByTenant(tenant, "grid", GridSchema);
-    return grids;
-  }
-};
-
-const CohortModel = (tenant) => {
-  try {
-    const cohorts = mongoose.model("cohorts");
-    return cohorts;
-  } catch (error) {
-    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
-    return cohorts;
-  }
-};
-
 const common = {
   getSitesFromAirQloud: async ({ tenant = "airqo", airqloudId } = {}) => {
     try {
@@ -101,7 +68,7 @@ const common = {
           message =
             "Unable to find any sites associated with the provided AirQloud ID";
         }
-        const filteredSites = map((site) => site._id);
+        const filteredSites = sites.map((site) => site._id);
         return {
           success: true,
           message,
@@ -112,6 +79,7 @@ const common = {
         return responseFromListAirQloud;
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",

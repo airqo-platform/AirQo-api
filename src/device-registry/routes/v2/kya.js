@@ -7,18 +7,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -32,7 +21,19 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
+const validatePagination = (req, res, next) => {
+  // Retrieve the limit and skip values from the query parameters
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+
+  // Validate and sanitize the limit value
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+
+  // Validate and sanitize the skip value
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+
+  next();
+};
 
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -44,6 +45,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 /******************* lessons *********************************************/
 router.get(
@@ -1061,7 +1063,6 @@ router.delete(
   knowYourAirController.removeManyTasksFromLesson
 );
 
-
 /******************* KYA QUIZ *********************************************/
 
 /******************* quizzes *********************************************/
@@ -1599,7 +1600,9 @@ router.post(
     [
       body("kya_quiz_user_progress")
         .exists()
-        .withMessage("the kya_quiz_user_progress is missing in the request body")
+        .withMessage(
+          "the kya_quiz_user_progress is missing in the request body"
+        )
         .bail()
         .custom((value) => {
           return Array.isArray(value);
@@ -1613,7 +1616,9 @@ router.post(
         .withMessage("Each kya user progress should be an object"),
       body("kya_quiz_user_progress.*.active_question")
         .exists()
-        .withMessage("active_question is missing in the kya user progress object")
+        .withMessage(
+          "active_question is missing in the kya user progress object"
+        )
         .bail()
         .notEmpty()
         .withMessage("the active_question must not be empty")
@@ -1816,7 +1821,6 @@ router.get(
   knowYourAirController.listQuestions
 );
 
-
 /******************* Answers *********************************************/
 
 router.post(
@@ -1990,7 +1994,6 @@ router.get(
   knowYourAirController.listAnswers
 );
 
-
 /******************* manage Quiz Questions *********************************************/
 router.post(
   "/quizzes/:quiz_id/assign-questions",
@@ -2085,7 +2088,6 @@ router.delete(
 
   knowYourAirController.removeManyQuestionsFromQuiz
 );
-
 
 /******************* manage Quiz Answers*********************************************/
 router.post(

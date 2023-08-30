@@ -5,38 +5,15 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grids-route-v2`);
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- grids-route-v2`
+);
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const { getModelByTenant } = require("@config/database");
-const NetworkSchema = require("@models/Network");
-const AdminLevelSchema = require("@models/AdminLevel");
+const NetworkModel = require("@models/Network");
+const AdminLevelModel = require("@models/AdminLevel");
 const { logText, logObject } = require("@utils/log");
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-
-const AdminLevelModel = (tenant) => {
-  try {
-    const adminlevels = mongoose.model("adminlevels");
-    return adminlevels;
-  } catch (error) {
-    const adminlevels = getModelByTenant(
-      tenant,
-      "adminlevel",
-      AdminLevelSchema
-    );
-    return adminlevels;
-  }
-};
 
 const validAdminLevels = async () => {
   const levels = await AdminLevelModel("airqo").distinct("name");
@@ -160,7 +137,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -244,7 +221,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .custom(validateNetwork)
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -291,7 +268,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -324,7 +301,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -385,7 +362,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
       param("grid_id")
         .exists()
@@ -414,7 +391,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -441,7 +418,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -509,7 +486,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -542,7 +519,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -559,7 +536,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -596,7 +573,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -628,7 +605,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -660,7 +637,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .custom(validateNetwork)
+        .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
