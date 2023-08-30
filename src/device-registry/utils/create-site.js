@@ -2,7 +2,6 @@ const SiteModel = require("@models/Site");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -11,9 +10,10 @@ const axiosInstance = () => {
   return axios.create();
 };
 const generateFilter = require("./generate-filter");
-const log4js = require("log4js");
 const httpStatus = require("http-status");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- create-site-util`
+);
 const distanceUtil = require("./distance");
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
