@@ -564,11 +564,11 @@ const controlAccess = {
         )
         .toUpperCase();
 
-      const tokenCreationBody = Object.assign(
+      let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },
         request.body
       );
-
+      tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(tokenCreationBody);
@@ -588,6 +588,14 @@ const controlAccess = {
   },
   generateVerificationToken: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled",
+        errors: {
+          message: "Service Temporarily Disabled",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
       const { query, body } = request;
       const { email } = body;
       const { tenant } = query;
@@ -616,15 +624,31 @@ const controlAccess = {
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
-        const hrs = constants.EMAIL_VERIFICATION_HOURS;
-        const min = constants.EMAIL_VERIFICATION_MIN;
-        const sec = constants.EMAIL_VERIFICATION_SEC;
+        const emailVerificationHours = parseInt(
+          constants.EMAIL_VERIFICATION_HOURS
+        );
+        const emailVerificationMins = parseInt(
+          constants.EMAIL_VERIFICATION_MIN
+        );
+        const emailVerificationSeconds = parseInt(
+          constants.EMAIL_VERIFICATION_SEC
+        );
+
+        /***
+         * We need to find a client ID associated with this user?
+         */
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
-
+          client: {},
           user_id: responseFromCreateUser.data._id,
-          expires: Date.now() + toMilliseconds(hrs, min, sec),
+          expires:
+            Date.now() +
+            toMilliseconds(
+              emailVerificationHours,
+              emailVerificationMins,
+              emailVerificationSeconds
+            ),
         });
 
         if (responseFromSaveToken.success === true) {
