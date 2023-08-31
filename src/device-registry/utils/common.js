@@ -80,6 +80,7 @@ const common = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -120,6 +121,7 @@ const common = {
         return responseFromListSites;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -321,6 +323,7 @@ const common = {
 
       return { cohorts, grids };
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
