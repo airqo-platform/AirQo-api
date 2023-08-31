@@ -359,7 +359,7 @@ const GridModel = (tenant) => {
     const grids = mongoose.model("grids");
     return grids;
   } catch (error) {
-    const grids = getModelByTenant(tenant, "grid", gcridSchema);
+    const grids = getModelByTenant(tenant, "grid", gridSchema);
     return grids;
   }
 };
