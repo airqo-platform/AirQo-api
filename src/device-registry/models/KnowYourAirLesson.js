@@ -5,7 +5,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
-
+const { getModelByTenant } = require("@config/database");
 const knowYourAirLessonSchema = new Schema(
   {
     title: {
@@ -119,7 +119,7 @@ knowYourAirLessonSchema.statics = {
           title: { $first: "$title" },
           completion_message: { $first: "$completion_message" },
           image: { $first: "$image" },
-          tasks: { $push: "$tasks" }
+          tasks: { $push: "$tasks" },
         })
         .lookup({
           from: "kyaprogresses",
@@ -136,10 +136,10 @@ knowYourAirLessonSchema.statics = {
                   $and: [
                     { $eq: ["$lesson_id", "$$lessonId"] },
                     { $eq: ["$user_id", "$$userId"] },
-                  ]
-                }
-              }
-            }
+                  ],
+                },
+              },
+            },
           ],
           as: "kya_user_progress",
         })
@@ -319,4 +319,18 @@ knowYourAirLessonSchema.statics = {
   },
 };
 
-module.exports = knowYourAirLessonSchema;
+const KnowYourAirLessonModel = (tenant) => {
+  try {
+    let kyalessons = mongoose.model("kyalessons");
+    return kyalessons;
+  } catch (error) {
+    let kyalessons = getModelByTenant(
+      tenant,
+      "kyalesson",
+      knowYourAirLessonSchema
+    );
+    return kyalessons;
+  }
+};
+
+module.exports = KnowYourAirLessonModel;

@@ -1,13 +1,10 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { logObject, logText, logElement } = require("@utils/log");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-event-controller`
 );
-
 const errors = require("@utils/errors");
-
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/create-event");
@@ -41,20 +38,20 @@ const createEvent = {
       let response = await createEventUtil.insert(tenant, measurements);
 
       if (!response.success) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+        return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message: "finished the operation with some errors",
           errors: response.errors,
         });
       } else {
-        return res.status(HTTPStatus.OK).json({
+        return res.status(httpStatus.OK).json({
           success: true,
           message: "successfully added all the events",
         });
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
         errors: { message: e.message },
@@ -90,7 +87,7 @@ const createEvent = {
       if (responseFromListFromBigQuery.success === true) {
         const status = responseFromListFromBigQuery.status
           ? responseFromListFromBigQuery.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         if (format && format === "csv") {
           return res
             .status(status)
@@ -109,7 +106,7 @@ const createEvent = {
       } else if (responseFromListFromBigQuery.success === false) {
         const status = responseFromListFromBigQuery.status
           ? responseFromListFromBigQuery.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromListFromBigQuery.message,
@@ -120,7 +117,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -162,7 +159,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -174,7 +171,7 @@ const createEvent = {
           logElement("we have gotten some challenges", result);
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -184,7 +181,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -242,7 +239,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -253,7 +250,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -264,7 +261,7 @@ const createEvent = {
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error!",
         errors: { message: error.message },
@@ -305,7 +302,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -316,7 +313,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -326,7 +323,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -372,7 +369,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           const measurementsForDeployedDevices = result.data[0].data.filter(
             (obj) => {
               if (obj.siteDetails === null) {
@@ -409,7 +406,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -420,7 +417,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -466,7 +463,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -477,7 +474,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -489,7 +486,7 @@ const createEvent = {
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -533,7 +530,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -544,7 +541,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -555,7 +552,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -599,7 +596,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -610,7 +607,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -621,7 +618,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -668,7 +665,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -679,7 +676,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -690,7 +687,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -735,7 +732,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -746,7 +743,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -757,7 +754,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -803,7 +800,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -814,7 +811,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -825,7 +822,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -872,7 +869,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -883,7 +880,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -894,7 +891,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -919,7 +916,7 @@ const createEvent = {
       if (responseFromTransformEvents.success === true) {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           message: responseFromTransformEvents.message,
           transformedEvents: responseFromTransformEvents.data,
@@ -927,7 +924,7 @@ const createEvent = {
       } else if (responseFromTransformEvents.success === false) {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromTransformEvents.message,
           errors: responseFromTransformEvents.errors
@@ -937,7 +934,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -978,14 +975,14 @@ const createEvent = {
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res
           .status(status)
           .json({ success: true, message: responseFromCreateEvents.message });
       } else if (responseFromCreateEvents.success === false) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromCreateEvents.message,
@@ -997,7 +994,7 @@ const createEvent = {
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1042,7 +1039,7 @@ const createEvent = {
       if (responseFromTransmitMultipleSensorValues.success === true) {
         const status = responseFromTransmitMultipleSensorValues.status
           ? responseFromTransmitMultipleSensorValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromTransmitMultipleSensorValues.message,
@@ -1051,7 +1048,7 @@ const createEvent = {
       } else {
         const status = responseFromTransmitMultipleSensorValues.status
           ? responseFromTransmitMultipleSensorValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromTransmitMultipleSensorValues.message,
@@ -1062,7 +1059,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1108,7 +1105,7 @@ const createEvent = {
       if (responseFromBulkTransmitMultipleSensorValues.success === true) {
         const status = responseFromBulkTransmitMultipleSensorValues.status
           ? responseFromBulkTransmitMultipleSensorValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromBulkTransmitMultipleSensorValues.message,
@@ -1116,7 +1113,7 @@ const createEvent = {
       } else {
         const status = responseFromBulkTransmitMultipleSensorValues.status
           ? responseFromBulkTransmitMultipleSensorValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromBulkTransmitMultipleSensorValues.message,
@@ -1127,7 +1124,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1166,7 +1163,7 @@ const createEvent = {
       if (responseFromTransmitValues.success === true) {
         const status = responseFromTransmitValues.status
           ? responseFromTransmitValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromTransmitValues.message,
@@ -1175,7 +1172,7 @@ const createEvent = {
       } else {
         const status = responseFromTransmitValues.status
           ? responseFromTransmitValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromTransmitValues.message,
@@ -1186,7 +1183,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1228,7 +1225,7 @@ const createEvent = {
       if (responseFromClearValuesOnPlatform.success === false) {
         const status = responseFromClearValuesOnPlatform.status
           ? responseFromClearValuesOnPlatform.status
-          : HTTPStatus.BAD_GATEWAY;
+          : httpStatus.BAD_GATEWAY;
         return res.status(status).json({
           success: false,
           message: responseFromClearValuesOnPlatform.message,
@@ -1239,7 +1236,7 @@ const createEvent = {
       } else if (responseFromClearValuesOnPlatform.success === true) {
         const status = responseFromClearValuesOnPlatform.status
           ? responseFromClearValuesOnPlatform.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromClearValuesOnPlatform.message,
@@ -1248,7 +1245,7 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
@@ -1293,7 +1290,7 @@ const createEvent = {
       if (responseFromAddEventsUtil.success === false) {
         const status = responseFromAddEventsUtil.status
           ? responseFromAddEventsUtil.status
-          : HTTPStatus.FORBIDDEN;
+          : httpStatus.FORBIDDEN;
         return res.status(status).json({
           success: false,
           message: "finished the operation with some errors",
@@ -1304,7 +1301,7 @@ const createEvent = {
       } else if (responseFromAddEventsUtil.success === true) {
         const status = responseFromAddEventsUtil.status
           ? responseFromAddEventsUtil.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully added all the events",
@@ -1313,7 +1310,7 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`addValue -- ${e.message}`);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "internal server error",
         errors: { message: e.message },
@@ -1366,10 +1363,15 @@ const createEvent = {
         { airqloudId }
       );
 
+      logObject(
+        "responseFromGetSitesOfAirQloud",
+        responseFromGetSitesOfAirQloud
+      );
+
       if (responseFromGetSitesOfAirQloud.success === false) {
         const status = responseFromGetSitesOfAirQloud.status
           ? responseFromGetSitesOfAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json(responseFromGetSitesOfAirQloud);
       } else if (responseFromGetSitesOfAirQloud.success === true) {
         request["query"]["site_id"] = responseFromGetSitesOfAirQloud.data.join(
@@ -1380,7 +1382,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -1391,7 +1393,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -1400,9 +1402,10 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1460,7 +1463,7 @@ const createEvent = {
       if (responseFromGetSitesFromLatitudeAndLongitude.success === false) {
         const status = responseFromGetSitesFromLatitudeAndLongitude.status
           ? responseFromGetSitesFromLatitudeAndLongitude.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res
           .status(status)
           .json(responseFromGetSitesFromLatitudeAndLongitude);
@@ -1469,7 +1472,7 @@ const createEvent = {
       ) {
         const status = responseFromGetSitesFromLatitudeAndLongitude.status
           ? responseFromGetSitesFromLatitudeAndLongitude.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         if (isEmpty(responseFromGetSitesFromLatitudeAndLongitude.data)) {
           res.status(status).json(responseFromGetSitesFromLatitudeAndLongitude);
         } else {
@@ -1480,7 +1483,7 @@ const createEvent = {
           await createEventUtil.list(request, (result) => {
             logObject("the result for listing events", result);
             if (result.success === true) {
-              const status = result.status ? result.status : HTTPStatus.OK;
+              const status = result.status ? result.status : httpStatus.OK;
               res.status(status).json({
                 success: true,
                 isCache: result.isCache,
@@ -1491,7 +1494,7 @@ const createEvent = {
             } else if (result.success === false) {
               const status = result.status
                 ? result.status
-                : HTTPStatus.INTERNAL_SERVER_ERROR;
+                : httpStatus.INTERNAL_SERVER_ERROR;
               res.status(status).json({
                 success: false,
                 errors: result.errors ? result.errors : { message: "" },
@@ -1503,7 +1506,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },

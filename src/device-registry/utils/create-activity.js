@@ -1,14 +1,10 @@
-const ActivitySchema = require("@models/SiteActivity");
+const ActivityModel = require("@models/SiteActivity");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
-const ActivityModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "activity", ActivitySchema);
-};
 const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
 const HTTPStatus = require("http-status");
-const DeviceSchema = require("@models/Device");
-const SiteSchema = require("@models/Site");
+const DeviceModel = require("@models/Device");
+const SiteModel = require("@models/Site");
 const { addMonthsToProvideDateTime } = require("./date");
 const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
@@ -28,26 +24,6 @@ const kafka = new Kafka({
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-const DeviceModel = (tenant) => {
-  try {
-    let devices = mongoose.model("devices");
-    return devices;
-  } catch (error) {
-    let devices = getModelByTenant(tenant, "device", DeviceSchema);
-    return devices;
-  }
-};
-
-const SiteModel = (tenant) => {
-  try {
-    let sites = mongoose.model("sites");
-    return sites;
-  } catch (error) {
-    let sites = getModelByTenant(tenant, "site", SiteSchema);
-    return sites;
-  }
-};
-
 const createActivity = {
   list: async (request) => {
     try {
@@ -57,11 +33,7 @@ const createActivity = {
       const skip = parseInt(query.skip) || 0;
       const filter = generateFilter.activities(request);
 
-      let responseFromListActivity = await getModelByTenant(
-        tenant.toLowerCase(),
-        "activity",
-        ActivitySchema
-      ).list({
+      const responseFromListActivity = await ActivityModel(tenant).list({
         filter,
         limit,
         skip,
@@ -85,11 +57,7 @@ const createActivity = {
       const update = body;
       const filter = generateFilter.activities(request);
 
-      const responseFromModifyActivity = await getModelByTenant(
-        tenant.toLowerCase(),
-        "activity",
-        ActivitySchema
-      ).modify({
+      const responseFromModifyActivity = await ActivityModel(tenant).modify({
         filter,
         update,
       });
@@ -112,11 +80,7 @@ const createActivity = {
       const { tenant } = query;
       const filter = generateFilter.activities(request);
 
-      const responseFromRemoveActivity = await getModelByTenant(
-        tenant.toLowerCase(),
-        "activity",
-        ActivitySchema
-      ).remove({
+      const responseFromRemoveActivity = await ActivityModel(tenant).remove({
         filter,
       });
 

@@ -1,11 +1,11 @@
 const httpStatus = require("http-status");
-const KnowYourAirLessonSchema = require("@models/KnowYourAirLesson");
-const KnowYourAirTaskSchema = require("@models/KnowYourAirTask");
-const KnowYourAirUserLessonProgressSchema = require("@models/KnowYourAirUserLessonProgress");
-const KnowYourAirQuizSchema = require("@models/KnowYourAirQuiz");
-const KnowYourAirQuestionSchema = require("@models/KnowYourAirQuestion");
-const KnowYourAirAnswerSchema = require("@models/KnowYourAirAnswer");
-const KnowYourAirUserQuizProgressSchema = require("@models/KnowYourAirUserQuizProgress");
+const KnowYourAirLessonModel = require("@models/KnowYourAirLesson");
+const KnowYourAirTaskModel = require("@models/KnowYourAirTask");
+const KnowYourAirUserLessonProgressModel = require("@models/KnowYourAirUserLessonProgress");
+const KnowYourAirQuizModel = require("@models/KnowYourAirQuiz");
+const KnowYourAirQuestionModel = require("@models/KnowYourAirQuestion");
+const KnowYourAirAnswerModel = require("@models/KnowYourAirAnswer");
+const KnowYourAirUserQuizProgressModel = require("@models/KnowYourAirUserQuizProgress");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -22,96 +22,6 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-
-const KnowYourAirLessonModel = (tenant) => {
-  try {
-    let kyalessons = mongoose.model("kyalessons");
-    return kyalessons;
-  } catch (error) {
-    let kyalessons = getModelByTenant(
-      tenant,
-      "kyalesson",
-      KnowYourAirLessonSchema
-    );
-    return kyalessons;
-  }
-};
-
-const KnowYourAirTaskModel = (tenant) => {
-  try {
-    let kyatasks = mongoose.model("kyatasks");
-    return kyatasks;
-  } catch (error) {
-    let kyatasks = getModelByTenant(tenant, "kyatask", KnowYourAirTaskSchema);
-    return kyatasks;
-  }
-};
-
-const KnowYourAirUserLessonProgressModel = (tenant) => {
-  try {
-    let kyaprogress = mongoose.model("kyaprogresses");
-    return kyaprogress;
-  } catch (error) {
-    let kyaprogress = getModelByTenant(
-      tenant,
-      "kyaprogress",
-      KnowYourAirUserLessonProgressSchema
-    );
-    return kyaprogress;
-  }
-};
-
-const KnowYourAirQuizModel = (tenant) => {
-  try {
-    let kyaquizzes = mongoose.model("kyaquizzes");
-    return kyaquizzes;
-  } catch (error) {
-    let kyaquizzes = getModelByTenant(tenant, "kyaquiz", KnowYourAirQuizSchema);
-    return kyaquizzes;
-  }
-};
-
-const KnowYourAirQuestionModel = (tenant) => {
-  try {
-    let kyaquestions = mongoose.model("kyaquestions");
-    return kyaquestions;
-  } catch (error) {
-    let kyaquestions = getModelByTenant(
-      tenant,
-      "kyaquestion",
-      KnowYourAirQuestionSchema
-    );
-    return kyaquestions;
-  }
-};
-
-const KnowYourAirAnswerModel = (tenant) => {
-  try {
-    let kyaanswers = mongoose.model("kyaanswers");
-    return kyaanswers;
-  } catch (error) {
-    let kyaanswers = getModelByTenant(
-      tenant,
-      "kyaanswer",
-      KnowYourAirAnswerSchema
-    );
-    return kyaanswers;
-  }
-};
-
-const KnowYourAirUserQuizProgressModel = (tenant) => {
-  try {
-    let kyaprogress = mongoose.model("kyaquizprogresses");
-    return kyaprogress;
-  } catch (error) {
-    let kyaprogress = getModelByTenant(
-      tenant,
-      "kyaquizprogress",
-      KnowYourAirUserQuizProgressSchema
-    );
-    return kyaprogress;
-  }
-};
 
 const createKnowYourAir = {
   sample: async (request) => {

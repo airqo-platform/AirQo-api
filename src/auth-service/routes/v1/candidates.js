@@ -206,6 +206,17 @@ router.post(
         .exists()
         .withMessage("the jobTitle should be provided")
         .trim(),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the network_id cannot be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the network_id must be a MongoID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,

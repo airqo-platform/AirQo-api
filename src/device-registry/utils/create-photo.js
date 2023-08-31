@@ -1,6 +1,5 @@
 const HTTPStatus = require("http-status");
-const PhotoSchema = require("@models/Photo");
-const { getModelByTenant } = require("@config/database");
+const PhotoModel = require("@models/Photo");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const constants = require("@config/constants");
@@ -176,11 +175,7 @@ const createPhoto = {
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.photos(request);
 
-      const responseFromListPhotos = await getModelByTenant(
-        tenant,
-        "photo",
-        PhotoSchema
-      ).list({
+      const responseFromListPhotos = await PhotoModel(tenant).list({
         filter,
         limit,
         skip,
@@ -485,11 +480,9 @@ const createPhoto = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromRemovePhoto = await getModelByTenant(
-        tenant,
-        "photo",
-        PhotoSchema
-      ).remove({ filter });
+      const responseFromRemovePhoto = await PhotoModel(tenant).remove({
+        filter,
+      });
       logObject("responseFromRemovePhoto", responseFromRemovePhoto);
       return responseFromRemovePhoto;
     } catch (error) {
@@ -512,11 +505,11 @@ const createPhoto = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromModifyPhoto = await getModelByTenant(
-        tenant,
-        "photo",
-        PhotoSchema
-      ).modify({ filter, update, opts });
+      const responseFromModifyPhoto = await PhotoModel(tenant).modify({
+        filter,
+        update,
+        opts,
+      });
 
       return responseFromModifyPhoto;
     } catch (error) {
@@ -563,11 +556,9 @@ const createPhoto = {
         return responseFromExtractImage;
       }
 
-      const responseFromRegisterPhoto = await getModelByTenant(
-        tenant,
-        "photo",
-        PhotoSchema
-      ).register(modifiedRequestBody);
+      const responseFromRegisterPhoto = await PhotoModel(tenant).register(
+        modifiedRequestBody
+      );
 
       logObject("responseFromRegisterPhoto", responseFromRegisterPhoto);
 

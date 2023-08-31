@@ -710,6 +710,74 @@ const device = {
     }
   },
 
+  listSummary: async (req, res) => {
+    try {
+      logText(".....................................");
+      logText("list Summary of devices based on query params...");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let tenant = req.query.tenant;
+      let request = Object.assign({}, req);
+      if (!isEmpty) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+      request.query.category = "summary";
+      const responseFromListDeviceDetails = await createDeviceUtil.list(
+        request
+      );
+      logElement(
+        "is responseFromListDeviceDetails in controller a success?",
+        responseFromListDeviceDetails.success
+      );
+
+      if (responseFromListDeviceDetails.success === true) {
+        const status = responseFromListDeviceDetails.status
+          ? responseFromListDeviceDetails.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListDeviceDetails.message,
+          devices: responseFromListDeviceDetails.data,
+        });
+      } else if (responseFromListDeviceDetails.success === false) {
+        const status = responseFromListDeviceDetails.status
+          ? responseFromListDeviceDetails.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListDeviceDetails.message,
+          errors: responseFromListDeviceDetails.errors
+            ? responseFromListDeviceDetails.errors
+            : { message: "" },
+        });
+      }
+    } catch (e) {
+      logger.error(`listing devices  ${e.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
+    }
+  },
+
   listAllByNearestCoordinates: async (req, res) => {
     try {
       const {

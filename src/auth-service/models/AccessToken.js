@@ -8,12 +8,13 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
 const { getModelByTenant } = require("@config/database");
 
-const toMilliseconds = (hrs, min, sec) =>
-  (hrs * 60 * 60 + min * 60 + sec) * 1000;
+const toMilliseconds = (hrs, min, sec) => {
+  return (hrs * 60 * 60 + min * 60 + sec) * 1000;
+};
 
-const hrs = parseInt(constants.EMAIL_VERIFICATION_HOURS);
-const min = parseInt(constants.EMAIL_VERIFICATION_MIN);
-const sec = parseInt(constants.EMAIL_VERIFICATION_SEC);
+const emailVerificationHours = parseInt(constants.EMAIL_VERIFICATION_HOURS);
+const emailVerificationMins = parseInt(constants.EMAIL_VERIFICATION_MIN);
+const emailVerificationSeconds = parseInt(constants.EMAIL_VERIFICATION_SEC);
 
 const AccessTokenSchema = new mongoose.Schema(
   {
@@ -33,11 +34,10 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     last_used_at: { type: Date },
     last_ip_address: { type: Date },
-    expires_in: { type: Number, default: hrs },
+    expires_in: { type: Number },
     expires: {
       type: Date,
       required: [true, "expiry date is required!"],
-      default: Date.now() + toMilliseconds(hrs, min, sec),
     },
   },
   { timestamps: true }
@@ -110,8 +110,26 @@ AccessTokenSchema.statics = {
   },
   async register(args) {
     try {
+      let modifiedArgs = args;
+      if (modifiedArgs.category && modifiedArgs.category === "api") {
+        modifiedArgs.expires =
+          Date.now() +
+          toMilliseconds(
+            5110, // hours in 7 months
+            0,
+            0
+          );
+      } else {
+        modifiedArgs.expires =
+          Date.now() +
+          toMilliseconds(
+            emailVerificationHours,
+            emailVerificationMins,
+            emailVerificationSeconds
+          );
+      }
       data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {

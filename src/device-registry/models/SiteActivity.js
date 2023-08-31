@@ -5,7 +5,7 @@ const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 const validator = require("validator");
 const constants = require("@config/constants");
-
+const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- site-activities-model`
@@ -263,4 +263,13 @@ activitySchema.statics = {
   },
 };
 
-module.exports = activitySchema;
+const ActivityModel = (tenant) => {
+  try {
+    const activities = mongoose.model("activities");
+    return activities;
+  } catch (errors) {
+    return getModelByTenant(tenant.toLowerCase(), "activity", activitySchema);
+  }
+};
+
+module.exports = ActivityModel;

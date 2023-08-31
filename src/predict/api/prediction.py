@@ -22,6 +22,7 @@ from helpers import (
     read_faulty_devices,
     validate_param_values,
     get_faults_cache_key,
+    add_forecast_health_tips,
 )
 
 load_dotenv()
@@ -105,6 +106,10 @@ def get_next_24hr_forecasts():
         )
     result = get_forecasts(**params, db_name="hourly_forecasts")
     if result:
+        try:
+            add_forecast_health_tips(result)
+        except Exception as e:
+            print("Error adding health tips", e)
         response = result
     else:
         response = {
@@ -145,6 +150,11 @@ def get_next_1_week_forecasts():
         )
     result = get_forecasts(**params, db_name="daily_forecasts")
     if result:
+        try:
+            add_forecast_health_tips(result)
+
+        except Exception as e:
+            print("Error adding health tips")
         response = result
     else:
         response = {

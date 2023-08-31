@@ -9,18 +9,7 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -33,8 +22,6 @@ const validateNetwork = async (value) => {
     throw new Error("Invalid network");
   }
 };
-
-logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -441,6 +428,55 @@ router.get(
     ],
   ]),
   deviceController.list
+);
+
+router.get(
+  "/summary",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+      query("device_number")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isInt()
+        .withMessage("device_number must be an integer")
+        .bail()
+        .toInt(),
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
+  deviceController.listSummary
 );
 /**** create device */
 

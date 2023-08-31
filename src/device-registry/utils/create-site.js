@@ -1,10 +1,7 @@
-const { Schema } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
-const SiteSchema = require("@models/Site");
-const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
+const SiteModel = require("@models/Site");
+const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -13,26 +10,20 @@ const axiosInstance = () => {
   return axios.create();
 };
 const generateFilter = require("./generate-filter");
-const log4js = require("log4js");
-const HTTPStatus = require("http-status");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
+const httpStatus = require("http-status");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- create-site-util`
+);
 const distanceUtil = require("./distance");
-const SiteModel = (tenant) => {
-  getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
-};
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const geolib = require("geolib");
-const DeviceSchema = require("@models/Device");
-const SiteActivitySchema = require("@models/SiteActivity");
 
 const {
   threeMonthsFromNow,
   generateDateFormatWithoutHrs,
   monthsInfront,
 } = require("./date");
-
-const createDeviceUtil = require("./create-device");
 
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -78,7 +69,7 @@ const createSite = {
           return {
             success: false,
             message: "unable to find one match for this site",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             errors: { message: "unable to find one match for this site" },
           };
         }
@@ -115,14 +106,14 @@ const createSite = {
               success: true,
               message: "successfully searched for the associated AirQlouds",
               data: airqloud_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           } else if (isEmpty(airqloud_ids)) {
             return {
               success: true,
               message: "no associated AirQlouds found",
               data: airqloud_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         } else if (responseFromListAirQlouds.success === false) {
@@ -153,7 +144,7 @@ const createSite = {
           return {
             success: false,
             message: "unable to find one match for this site",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
           };
         }
         const { latitude, longitude } = data[0];
@@ -167,7 +158,7 @@ const createSite = {
             success: true,
             message: "successfully returned the nearest weather station",
             data: nearestWeatherStation,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         } else if (responseFromListWeatherStations.success === false) {
           return responseFromListWeatherStations;
@@ -181,7 +172,7 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -218,7 +209,7 @@ const createSite = {
             return {
               success: true,
               message: "successfully retrieved all the stations",
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
               data: outputs,
             };
           }
@@ -227,7 +218,7 @@ const createSite = {
             return {
               success: false,
               message: "List of stations is empty",
-              status: HTTPStatus.NOT_FOUND,
+              status: httpStatus.NOT_FOUND,
               errors: { message: "unable to list stations" },
               data: [],
             };
@@ -243,7 +234,7 @@ const createSite = {
             success: false,
             errors: { message: error },
             message: "Bad Gateway Error",
-            status: HTTPStatus.BAD_GATEWAY,
+            status: httpStatus.BAD_GATEWAY,
           };
         });
     } catch (error) {
@@ -254,7 +245,7 @@ const createSite = {
         errors: {
           message: error.message,
         },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -282,10 +273,8 @@ const createSite = {
         $inc: { COUNT: 1 },
       };
 
-      const responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
-        tenant.toLowerCase(),
-        "uniqueIdentifierCounter",
-        UniqueIdentifierCounterSchema
+      const responseFromModifyUniqueIdentifierCounter = await UniqueIdentifierCounterModel(
+        tenant.toLowerCase()
       ).modify({
         filter,
         update,
@@ -304,7 +293,7 @@ const createSite = {
             : { message: "" },
           status: responseFromModifyUniqueIdentifierCounter.status
             ? responseFromModifyUniqueIdentifierCounter.status
-            : HTTPStatus.BAD_REQUEST,
+            : httpStatus.BAD_REQUEST,
         };
       } else if (responseFromModifyUniqueIdentifierCounter.success === true) {
         const count = responseFromModifyUniqueIdentifierCounter.data.COUNT;
@@ -315,7 +304,7 @@ const createSite = {
           data: siteName,
           status: responseFromModifyUniqueIdentifierCounter.status
             ? responseFromModifyUniqueIdentifierCounter.status
-            : HTTPStatus.OK,
+            : httpStatus.OK,
         };
       }
     } catch (e) {
@@ -324,7 +313,7 @@ const createSite = {
         success: false,
         errors: { message: e.message },
         message: "generateName -- createSite util server error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -400,11 +389,9 @@ const createSite = {
         return responseFromGenerateMetadata;
       }
 
-      const responseFromCreateSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).register(requestBodyForCreatingSite);
+      const responseFromCreateSite = await SiteModel(tenant).register(
+        requestBodyForCreatingSite
+      );
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
@@ -440,17 +427,13 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   update: async (tenant, filter, update) => {
     try {
-      let responseFromModifySite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).modify({
+      const responseFromModifySite = await SiteModel(tenant).modify({
         filter,
         update,
       });
@@ -462,7 +445,7 @@ const createSite = {
         success: false,
         message: "create site util server error -- update",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -519,7 +502,7 @@ const createSite = {
                 success: false,
                 errors: { message: error },
                 message: "Internal Server Error",
-                status: HTTPStatus.INTERNAL_SERVER_ERROR,
+                status: httpStatus.INTERNAL_SERVER_ERROR,
               };
             })
         );
@@ -530,14 +513,14 @@ const createSite = {
           return {
             success: true,
             message: "successfully retrieved the road metadata",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             data: response,
           };
         } else if (isEmpty(response)) {
           return {
             success: false,
             message: "unable to retrieve any road metadata",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             errors: { message: "unable to retrieve any road metadata" },
           };
         }
@@ -548,7 +531,7 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -666,11 +649,7 @@ const createSite = {
       let generated_name = null;
       logObject("the filter being used to filter", filter);
 
-      let responseFromListSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).list({
+      const responseFromListSite = await SiteModel(tenant).list({
         filter,
       });
       if (responseFromListSite.success === true) {
@@ -817,7 +796,7 @@ const createSite = {
         errors: { message: error.message },
         message: "Internal Server Error",
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -826,14 +805,10 @@ const createSite = {
       return {
         success: false,
         message: "feature temporarity disabled --coming soon",
-        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        status: httpStatus.SERVICE_UNAVAILABLE,
         errors: { message: "Service Unavailable" },
       };
-      let responseFromRemoveSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).remove({
+      const responseFromRemoveSite = await SiteModel(tenant).remove({
         filter,
       });
 
@@ -844,17 +819,13 @@ const createSite = {
         success: false,
         message: "delete Site util server error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   list: async ({ tenant, filter, skip, limit }) => {
     try {
-      const responseFromListSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).list({
+      const responseFromListSite = await SiteModel(tenant).list({
         filter,
         limit,
         skip,
@@ -877,7 +848,7 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -972,7 +943,7 @@ const createSite = {
             return {
               success: false,
               message: "unable to get the site address details",
-              status: HTTPStatus.NOT_FOUND,
+              status: httpStatus.NOT_FOUND,
               errors: {
                 message:
                   "review the GPS coordinates provided, we cannot get corresponding metadata",
@@ -1019,7 +990,7 @@ const createSite = {
             success: true,
             message: "successfully retrieved the altitude details",
             data: r.data.results[0].elevation,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         })
         .catch((e) => {
@@ -1032,7 +1003,7 @@ const createSite = {
             success: false,
             message: "get altitude server error",
             errors: { message: e },
-            status: HTTPStatus.BAD_GATEWAY,
+            status: httpStatus.BAD_GATEWAY,
           };
         });
     } catch (e) {
@@ -1041,7 +1012,7 @@ const createSite = {
         success: false,
         message: "get altitude server error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1095,7 +1066,7 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

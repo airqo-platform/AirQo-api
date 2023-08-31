@@ -1,6 +1,6 @@
-const CohortSchema = require("@models/Cohort");
-const DeviceSchema = require("@models/Device");
-const NetworkSchema = require("@models/Network");
+const CohortModel = require("@models/Cohort");
+const DeviceModel = require("@models/Device");
+const NetworkModel = require("@models/Network");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
@@ -20,36 +20,6 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-
-const CohortModel = (tenant) => {
-  try {
-    const cohorts = mongoose.model("cohorts");
-    return cohorts;
-  } catch (error) {
-    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
-    return cohorts;
-  }
-};
-
-const DeviceModel = (tenant) => {
-  try {
-    const devices = mongoose.model("devices");
-    return devices;
-  } catch (error) {
-    const devices = getModelByTenant(tenant, "device", DeviceSchema);
-    return devices;
-  }
-};
-
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
 
 const createCohort = {
   listNetworks: async (request) => {
@@ -485,7 +455,9 @@ const createCohort = {
       const { device_ids } = request.body;
       const { tenant } = request.query;
 
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant)
+        .findById(cohort_id)
+        .lean();
 
       if (!cohort) {
         return {
@@ -534,7 +506,7 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
+      //
       const totalDevices = device_ids.length;
       const { nModified, n } = await DeviceModel(tenant).updateMany(
         { _id: { $in: device_ids } },
@@ -556,6 +528,7 @@ const createCohort = {
           success: true,
           message: `Operation partially successful some ${notFoundCount} of the provided devices were not found in the system`,
           status: httpStatus.OK,
+          data: cohort,
         };
       }
 
@@ -563,7 +536,7 @@ const createCohort = {
         success: true,
         message: "successfully assigned all the provided devices to the Cohort",
         status: httpStatus.OK,
-        data: [],
+        data: cohort,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);

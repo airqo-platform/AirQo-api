@@ -10,7 +10,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
-
+const { getModelByTenant } = require("@config/database");
 const polygonSchema = new mongoose.Schema(
   {
     type: {
@@ -370,4 +370,13 @@ airqloudSchema.statics.remove = async function({ filter = {} } = {}) {
   }
 };
 
-module.exports = airqloudSchema;
+const airqloudsModel = (tenant) => {
+  try {
+    const airqlouds = mongoose.model("airqlouds");
+    return airqlouds;
+  } catch (error) {
+    return getModelByTenant(tenant.toLowerCase(), "airqloud", airqloudSchema);
+  }
+};
+
+module.exports = airqloudsModel;
