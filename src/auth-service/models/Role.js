@@ -4,6 +4,10 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const constants = require("@config/constants");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- role-model`
+);
 
 const RoleSchema = new mongoose.Schema(
   {
@@ -83,6 +87,7 @@ RoleSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -180,6 +185,7 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -228,6 +234,7 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Errors",
@@ -262,6 +269,7 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",

@@ -11,6 +11,9 @@ const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- user-model`
+);
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -96,6 +99,24 @@ const UserSchema = new Schema(
         },
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    network_roles: {
+      type: [
+        {
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          role: {
+            type: ObjectId,
+            ref: "role",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+          },
+        },
+      ],
+      default: [],
+      _id: false,
     },
     groups: [
       {
@@ -211,6 +232,7 @@ UserSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -269,6 +291,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -284,7 +307,7 @@ UserSchema.statics = {
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      const response1 = await this.aggregate()
         .match(filter)
         .lookup({
           from: "networks",
@@ -344,6 +367,117 @@ UserSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
+      const response2 = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "networks",
+          localField: "network_roles.network",
+          foreignField: "_id",
+          as: "networks",
+        })
+        .addFields({
+          role: "$network_roles.role",
+        })
+        .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
+        })
+        .lookup({
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
+        })
+        .lookup({
+          from: "groups",
+          localField: "_id",
+          foreignField: "grp_users",
+          as: "groups",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "permissions",
+          foreignField: "_id",
+          as: "permissions",
+        })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
+        .allowDiskUse(true);
+
+      const response = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "networks",
+          localField: "network_roles.network",
+          foreignField: "_id",
+          as: "networks",
+        })
+        .lookup({
+          from: "roles",
+          localField: "network_roles.role",
+          foreignField: "_id",
+          as: "roles",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "roles.role_permissions",
+          foreignField: "_id",
+          as: "permissions",
+        })
+        .addFields({
+          role: {
+            _id: { $arrayElemAt: ["$roles._id", 0] },
+            role_name: { $arrayElemAt: ["$roles.role_name", 0] },
+            role_permissions: "$permissions",
+          },
+        })
+
+        .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
+        })
+        .lookup({
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
+        })
+        .lookup({
+          from: "groups",
+          localField: "_id",
+          foreignField: "grp_users",
+          as: "groups",
+        })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
+        .allowDiskUse(true);
+
       logObject("response in the model", response);
       if (!isEmpty(response)) {
         return {
@@ -361,6 +495,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -431,6 +566,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "INTERNAL SERVER ERROR",
@@ -464,6 +600,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -518,6 +655,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
