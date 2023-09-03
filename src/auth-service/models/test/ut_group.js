@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const GroupSchema = require("@models/Group");
-
-// Replace this with the actual import path for your Group model if applicable
-const GroupModel = mongoose.model("Group", GroupSchema);
+const GroupModel = require("@models/Group");
 
 describe("GroupSchema statics", () => {
   describe("register method", () => {
