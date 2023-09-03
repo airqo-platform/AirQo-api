@@ -1,11 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const requestAccessController = require("@controllers/request-access");
+const createCandidateController = require("@controllers/create-candidate");
 const { check, oneOf, query, body, param } = require("express-validator");
+
 const { setJWTAuth, authJWT } = require("@middleware/passport");
+const constants = require("@config/constants");
+
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const constants = require("@config/constants");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -21,17 +23,15 @@ router.use(headers);
 router.post(
   "/register",
   oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty IF provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     [
@@ -124,26 +124,24 @@ router.post(
         }),
     ],
   ]),
-  requestAccessController.create
+  createCandidateController.create
 );
 router.get(
   "/",
   oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   setJWTAuth,
   authJWT,
-  requestAccessController.list
+  createCandidateController.list
 );
 router.post(
   "/confirm",
@@ -212,56 +210,37 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  requestAccessController.confirm
+  createCandidateController.confirm
 );
 router.delete(
   "/",
   oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
-      )
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   setJWTAuth,
   authJWT,
-  requestAccessController.delete
+  createCandidateController.delete
 );
 router.put(
   "/",
   oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     query("id")
@@ -293,7 +272,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  requestAccessController.update
+  createCandidateController.update
 );
 
 module.exports = router;

@@ -8,7 +8,7 @@ chai.use(chaiHttp);
 
 // Import the Express app and routes here
 const app = require("../app"); // Update the path as needed
-const requestAccessRouter = require("../requests");
+const createCandidateRouter = require("../candidates");
 
 describe("Request Access Router API Tests", () => {
   describe("POST /register", () => {
@@ -24,7 +24,7 @@ describe("Request Access Router API Tests", () => {
   });
 
   describe("GET /", () => {
-    it("Should return a list of requests for access", (done) => {
+    it("Should return a list of candidates for access", (done) => {
       // Your test implementation here
     });
 
