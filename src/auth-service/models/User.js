@@ -307,116 +307,6 @@ UserSchema.statics = {
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response1 = await this.aggregate()
-        .match(filter)
-        .lookup({
-          from: "networks",
-          localField: "networks",
-          foreignField: "_id",
-          as: "networks",
-        })
-        .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_manager",
-          as: "my_networks",
-        })
-        .lookup({
-          from: "clients",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "clients",
-        })
-        .lookup({
-          from: "groups",
-          localField: "_id",
-          foreignField: "grp_users",
-          as: "groups",
-        })
-        .lookup({
-          from: "permissions",
-          localField: "permissions",
-          foreignField: "_id",
-          as: "permissions",
-        })
-        .lookup({
-          from: "roles",
-          localField: "role",
-          foreignField: "_id",
-          as: "role",
-        })
-        .unwind("$role")
-        .lookup({
-          from: "permissions",
-          localField: "role.role_permissions",
-          foreignField: "_id",
-          as: "role.role_permissions",
-        })
-        .addFields({
-          createdAt: {
-            $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
-            },
-          },
-        })
-        .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
-        .allowDiskUse(true);
-
-      const response2 = await this.aggregate()
-        .match(filter)
-        .lookup({
-          from: "networks",
-          localField: "network_roles.network",
-          foreignField: "_id",
-          as: "networks",
-        })
-        .addFields({
-          role: "$network_roles.role",
-        })
-        .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_manager",
-          as: "my_networks",
-        })
-        .lookup({
-          from: "clients",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "clients",
-        })
-        .lookup({
-          from: "groups",
-          localField: "_id",
-          foreignField: "grp_users",
-          as: "groups",
-        })
-        .lookup({
-          from: "permissions",
-          localField: "permissions",
-          foreignField: "_id",
-          as: "permissions",
-        })
-        .addFields({
-          createdAt: {
-            $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
-            },
-          },
-        })
-        .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
-        .allowDiskUse(true);
-
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -432,8 +322,20 @@ UserSchema.statics = {
           as: "roles",
         })
         .lookup({
+          from: "roles",
+          localField: "role",
+          foreignField: "_id",
+          as: "user_role",
+        })
+        .lookup({
           from: "permissions",
           localField: "roles.role_permissions",
+          foreignField: "_id",
+          as: "role_permissions",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "permissions",
           foreignField: "_id",
           as: "permissions",
         })
@@ -441,10 +343,9 @@ UserSchema.statics = {
           role: {
             _id: { $arrayElemAt: ["$roles._id", 0] },
             role_name: { $arrayElemAt: ["$roles.role_name", 0] },
-            role_permissions: "$permissions",
+            role_permissions: "$role_permissions",
           },
         })
-
         .lookup({
           from: "networks",
           localField: "_id",
@@ -513,6 +414,10 @@ UserSchema.statics = {
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
 
+      // let update = {};
+      // update["$set"] = {};
+      // update["$set"]["network_roles"] = network_roles;
+
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
@@ -522,6 +427,13 @@ UserSchema.statics = {
         modifiedUpdate["$addToSet"]["networks"]["$each"] =
           modifiedUpdate.networks;
         delete modifiedUpdate["networks"];
+      }
+
+      if (modifiedUpdate.network_roles) {
+        modifiedUpdate["$addToSet"]["network_roles"] = {};
+        modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
+          modifiedUpdate.network_roles;
+        delete modifiedUpdate["network_roles"];
       }
 
       if (modifiedUpdate.permissions) {

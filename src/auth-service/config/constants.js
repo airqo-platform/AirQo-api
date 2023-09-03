@@ -425,6 +425,13 @@ const defaultConfig = {
           "net_manager.role": 0,
           "net_manager.updatedAt": 0,
           "net_manager.networks": 0,
+          "net_manager.jobTitle": 0,
+          "net_manager.website": 0,
+          "net_manager.description": 0,
+          "net_manager.category": 0,
+          "net_manager.country": 0,
+          "net_manager.resetPasswordExpires": 0,
+          "net_manager.resetPasswordToken": 0,
         }
       );
     }
@@ -544,10 +551,22 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
+    user_role: { $arrayElemAt: ["$user_role", 0] },
     networks: {
       _id: 1,
       net_name: 1,
-      role: "$role",
+      role: {
+        $cond: {
+          if: {
+            $and: [
+              { $ifNull: ["$role._id", false] },
+              { $ifNull: ["$role.role_name", false] },
+            ],
+          },
+          then: "$role",
+          else: null,
+        },
+      },
     },
     clients: "$clients",
     permissions: "$permissions",
@@ -590,19 +609,22 @@ const defaultConfig = {
       "networks.role.role_permissions.createdAt": 0,
       "networks.role.role_permissions.network_id": 0,
       "networks.role.role_permissions.description": 0,
+
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
       "access_tokens.updatedAt": 0,
+
       "permissions.__v": 0,
-      "permissions._id": 0,
+      "permissions.network_id": 0,
+      "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
 
       "groups.__v": 0,
-      "groups._id": 0,
       "groups.createdAt": 0,
       "groups.updatedAt": 0,
+
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -623,6 +645,33 @@ const defaultConfig = {
       "my_networks.net_phoneNumber": 0,
       "my_networks.net_email": 0,
       "my_networks.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  ACCESS_REQUESTS_INCLUSION_PROJECTION: {
+    _id: 1,
+    user_id: 1,
+    requestType: 1,
+    targetId: 1,
+    status: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+  },
+
+  ACCESS_REQUESTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      nothing: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
