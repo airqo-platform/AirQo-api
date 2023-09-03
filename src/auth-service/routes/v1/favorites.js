@@ -8,6 +8,13 @@ const { setJWTAuth, authJWT } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -19,6 +26,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 router.get(
   "/",
@@ -214,10 +222,12 @@ router.post(
         .exists()
         .withMessage("the favorite_places are missing in the request body")
         .bail()
-         .custom((value) => {
-            return Array.isArray(value);
-          })
-          .withMessage("Invalid request body format. The favorite_places should be an array"),
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage(
+          "Invalid request body format. The favorite_places should be an array"
+        ),
       body("favorite_places.*")
         .optional()
         .isObject()
@@ -260,7 +270,9 @@ router.post(
         }),
       body("favorite_places.*.firebase_user_id")
         .exists()
-        .withMessage("the firebase_user_id is missing in the favorite place object")
+        .withMessage(
+          "the firebase_user_id is missing in the favorite place object"
+        )
         .bail()
         .notEmpty()
         .withMessage("the firebase_user_id must not be empty")
@@ -278,14 +290,12 @@ router.post(
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude provided is not valid"),
-          
     ],
   ]),
   setJWTAuth,
   authJWT,
   createFavoriteController.syncFavorites
 );
-
 
 router.put(
   "/:favorite_id",
@@ -486,7 +496,5 @@ router.get(
   authJWT,
   createFavoriteController.list
 );
-
-
 
 module.exports = router;

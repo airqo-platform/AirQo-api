@@ -8,6 +8,13 @@ const constants = require("@config/constants");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -19,6 +26,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+router.use(validatePagination);
 
 router.post(
   "/register",
