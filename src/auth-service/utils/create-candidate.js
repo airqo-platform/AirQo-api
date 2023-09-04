@@ -14,10 +14,10 @@ const ObjectId = mongoose.Types.ObjectId;
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- request-access-util`
+  `${constants.ENVIRONMENT} -- create-candidate-util`
 );
 
-const requestAccess = {
+const createCandidate = {
   create: async (req, callback) => {
     try {
       const { firstName, lastName, email, tenant, network_id } = req;
@@ -360,4 +360,4 @@ const requestAccess = {
   },
 };
 
-module.exports = requestAccess;
+module.exports = createCandidate;

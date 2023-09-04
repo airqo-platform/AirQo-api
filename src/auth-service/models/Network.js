@@ -2,11 +2,15 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
-var uniqueValidator = require("mongoose-unique-validator");
+const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const constants = require("@config/constants");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- network-model`
+);
 
 const NetworkSchema = new Schema(
   {
@@ -128,6 +132,7 @@ const sanitizeName = (name) => {
     let trimmedName = shortenedName.trim();
     return trimmedName.toLowerCase();
   } catch (error) {
+    logger.error(`internal server error -- ${JSON.stringify(error)}`);
     logElement("the sanitise name error", error.message);
   }
 };
@@ -159,6 +164,7 @@ NetworkSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -299,6 +305,7 @@ NetworkSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -399,6 +406,7 @@ NetworkSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -470,6 +478,7 @@ NetworkSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;

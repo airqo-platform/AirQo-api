@@ -179,6 +179,45 @@ const filter = {
     }
   },
 
+  requests: (req) => {
+    try {
+      let { id, user_id, requestType, targetId, status, category } = req.query;
+      let filter = {};
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (requestType) {
+        filter["requestType"] = requestType;
+      }
+      if (targetId) {
+        filter["targetId"] = targetId;
+      }
+      if (status) {
+        filter["status"] = status;
+      }
+      if (category) {
+        filter["category"] = category;
+      }
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      return {
+        success: true,
+        message: "successfully created the filter",
+        data: filter,
+        status: httpStatus.OK,
+      };
+    } catch (e) {
+      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   defaults: (req) => {
     try {
       let { id, user, site, airqloud } = req.query;

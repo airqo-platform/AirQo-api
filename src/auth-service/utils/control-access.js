@@ -24,6 +24,15 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 
+const findNetworkIdForRole = async (role_id, networkRoles) => {
+  for (const networkRole of networkRoles) {
+    if (networkRole.role.toString() === role_id.toString()) {
+      return networkRole.network_id;
+    }
+  }
+  return null;
+};
+
 const generateClientSecret = (length) => {
   if (length % 2 !== 0) {
     throw new Error("Length must be an even number");
@@ -1304,7 +1313,13 @@ const controlAccess = {
         .aggregate([
           {
             $match: {
-              role: { $ne: role_id },
+              network_roles: {
+                $not: {
+                  $elemMatch: {
+                    role_id: role_id,
+                  },
+                },
+              },
             },
           },
           {
@@ -1383,15 +1398,18 @@ const controlAccess = {
 
       const userObject = await UserModel(tenant)
         .findById(userId)
-        .populate("role")
+        .populate("network_roles")
         .lean();
 
       logObject("userObject", userObject);
 
-      if (
-        userObject.role &&
-        userObject.role._id.toString() === role_id.toString()
-      ) {
+      const networkRoles = userObject.network_roles || [];
+
+      const roleExistsInNetworkRoles = networkRoles.some(
+        (netRole) => netRole.role_id.toString() === role_id.toString()
+      );
+
+      if (roleExistsInNetworkRoles) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1403,8 +1421,9 @@ const controlAccess = {
       }
 
       if (
-        userObject.role &&
-        userObject.role.role_name.endsWith("SUPER_ADMIN")
+        networkRoles.some((netRole) =>
+          netRole.role_name.endsWith("SUPER_ADMIN")
+        )
       ) {
         return {
           success: false,
@@ -1416,9 +1435,11 @@ const controlAccess = {
         };
       }
 
+      const networkId = findNetworkIdForRole(role_id, networkRoles);
+
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         userId,
-        { role: role_id },
+        { $addToSet: { network_roles: { role: role_id, network: networkId } } },
         { new: true }
       );
 
@@ -1460,7 +1481,11 @@ const controlAccess = {
 
       const users = await Promise.all(
         user_ids.map((id) =>
-          UserModel(tenant).findById(id).populate("role").lean()
+          UserModel(tenant)
+            .findById(id)
+            .populate("role")
+            .populate("network_roles")
+            .lean()
         )
       );
 
@@ -1475,20 +1500,28 @@ const controlAccess = {
           };
         }
 
-        const role = user.role;
-        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
-          logObject("");
+        const networkRoles = user.network_roles || [];
+
+        const hasSuperAdminRole = networkRoles.some((networkRole) =>
+          networkRole.role_name.endsWith("SUPER_ADMIN")
+        );
+
+        if (hasSuperAdminRole) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
+              message: `User ${user._id} has a SUPER_ADMIN role for one or more networks and cannot be reassigned to a different role`,
             },
             status: httpStatus.BAD_REQUEST,
           };
         }
 
-        if (!isEmpty(role) && role._id.toString() === role_id.toString()) {
+        const isAlreadyAssigned = networkRoles.some(
+          (networkRole) => networkRole._id.toString() === role_id.toString()
+        );
+
+        if (isAlreadyAssigned) {
           return {
             success: false,
             message: "Bad Request Error",
@@ -1502,7 +1535,15 @@ const controlAccess = {
 
       const result = await UserModel(tenant).updateMany(
         { _id: { $in: user_ids } },
-        { $set: { role: role_id } }
+        {
+          $set: {
+            "network_roles.$[elem].role": role_id,
+          },
+        },
+        {
+          arrayFilters: [{ "elem.network": { $exists: true } }],
+          multi: true,
+        }
       );
 
       let message = "";
@@ -1519,7 +1560,7 @@ const controlAccess = {
         status,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`internal server error -- ${JSON.stringify}`);
       logObject("error", error);
       return {
         success: false,
@@ -1539,7 +1580,7 @@ const controlAccess = {
       const { tenant } = query;
 
       if (!isEmpty(role_id)) {
-        filter["role"] = ObjectId(role_id);
+        filter["network_roles.role"] = ObjectId(role_id);
       }
 
       const role = await RoleModel(tenant).findById(role_id);
@@ -1558,9 +1599,7 @@ const controlAccess = {
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
           {
-            $match: {
-              role: role_id,
-            },
+            $match: filter,
           },
           {
             $project: {
@@ -1621,7 +1660,10 @@ const controlAccess = {
       // Check if the user exists
       const userObject = await UserModel(tenant)
         .findById(user_id)
-        .populate("role")
+        .populate({
+          path: "network_roles.role", // Populate the 'role' field within 'network_roles'
+          model: "Role", // Assuming the model name for roles is "Role"
+        })
         .lean();
       logObject("userObject", userObject);
 
@@ -1636,10 +1678,12 @@ const controlAccess = {
         };
       }
 
-      // check if User is not a super_admin
+      // Check if User is not a super_admin
       if (
-        userObject.role &&
-        userObject.role.role_name.endsWith("SUPER_ADMIN")
+        userObject.network_roles &&
+        userObject.network_roles.some((networkRole) =>
+          networkRole.role_name.endsWith("SUPER_ADMIN")
+        )
       ) {
         return {
           success: false,
@@ -1651,21 +1695,25 @@ const controlAccess = {
         };
       }
 
-      // Check if user's role is pointing to a valid role ID
-      if (isEmpty(userObject.role)) {
+      // Check if user has any roles within network_roles
+      if (
+        isEmpty(userObject.network_roles) ||
+        userObject.network_roles.length === 0
+      ) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "User is not assigned to any role" },
+          errors: { message: "User is not assigned to any role or network" },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
       // Check if the user is not assigned to the role
-      if (
-        userObject.role &&
-        userObject.role._id.toString() !== role_id.toString()
-      ) {
+      const isAssignedToRole = userObject.network_roles.some((roleObj) => {
+        return roleObj.role.toString() === role_id.toString();
+      });
+
+      if (!isAssignedToRole) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1676,9 +1724,16 @@ const controlAccess = {
         };
       }
 
+      // Unassign the user from the role within network_roles
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $unset: { role: "" } },
+        {
+          $pull: {
+            network_roles: {
+              role: role_id,
+            },
+          },
+        },
         { new: true }
       );
 
@@ -1757,23 +1812,38 @@ const controlAccess = {
       }
 
       const users = await Promise.all(
-        user_ids.map((id) =>
-          UserModel(tenant).findById(id).populate("role").lean()
-        )
+        user_ids.map((id) => UserModel(tenant).findById(id).lean())
       );
 
       for (const user of users) {
-        const role = user.role;
-        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
-          logObject("");
+        // Check if user is assigned to the role in the network_roles array
+        const isAssignedToRole = user.network_roles.some((roleObj) => {
+          return roleObj.role.toString() === role_id.toString();
+        });
+
+        if (!isAssignedToRole) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Cannot unassign SUPER_ADMIN role from user ${user._id}`,
+              message: `User ${user._id.toString()} is not assigned to the role ${role_id.toString()}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
+        }
+
+        for (const roleObj of user.network_roles) {
+          // Check if the role is SUPER_ADMIN and prevent unassigning
+          if (roleObj.role.role_name.endsWith("SUPER_ADMIN")) {
+            return {
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `Cannot unassign SUPER_ADMIN role from user ${user._id}`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            };
+          }
         }
 
         if (isEmpty(user)) {
@@ -1784,34 +1854,12 @@ const controlAccess = {
             status: httpStatus.BAD_REQUEST,
           };
         }
-
-        if (isEmpty(role)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user._id.toString()} is not assigned to any role`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
-        if (!isEmpty(role) && role._id.toString() !== role_id.toString()) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user._id.toString()} is not assigned to the role ${role_id.toString()}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
       }
 
       // Unassign the users from the role
       const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids }, role: role_id },
-        { $unset: { role: "" } }
+        { _id: { $in: user_ids } },
+        { $pull: { network_roles: { role: role_id } } }
       );
 
       let message = "";

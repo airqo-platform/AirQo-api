@@ -1,9 +1,9 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const requestAccess = require("@utils/request-access");
+const createCandidate = require("@utils/create-candidate");
 
-describe("requestAccess", () => {
+describe("createCandidate", () => {
   describe("create", () => {
     let fakeUserModel;
     let fakeCandidateModel;
@@ -70,9 +70,9 @@ describe("requestAccess", () => {
       sendMailStub.resolves(mailerResponse); // Sending email returns success
 
       // Act
-      // Replace any necessary parameters for the requestAccess.create function
+      // Replace any necessary parameters for the createCandidate.create function
       const callback = sinon.spy();
-      await requestAccess.create(req, callback);
+      await createCandidate.create(req, callback);
 
       // Assert
       expect(callback.calledOnce).to.be.true;
@@ -99,7 +99,7 @@ describe("requestAccess", () => {
 
       // Act
       const callback = sinon.spy();
-      await requestAccess.create(req, callback);
+      await createCandidate.create(req, callback);
 
       // Assert
       expect(callback.calledOnce).to.be.true;
@@ -124,7 +124,7 @@ describe("requestAccess", () => {
 
       // Act
       const callback = sinon.spy();
-      await requestAccess.create(req, callback);
+      await createCandidate.create(req, callback);
 
       // Assert
       expect(callback.calledOnce).to.be.true;
@@ -157,7 +157,7 @@ describe("requestAccess", () => {
 
       // Act
       const callback = sinon.spy();
-      await requestAccess.create(req, callback);
+      await createCandidate.create(req, callback);
 
       // Assert
       expect(callback.calledOnce).to.be.true;
@@ -197,7 +197,7 @@ describe("requestAccess", () => {
 
       // Act
       const callback = sinon.spy();
-      await requestAccess.create(req, callback);
+      await createCandidate.create(req, callback);
 
       // Assert
       expect(callback.calledOnce).to.be.true;
@@ -274,7 +274,7 @@ describe("requestAccess", () => {
       fakeCandidateModel.list.resolves(candidateList);
 
       // Act
-      const result = await requestAccess.list(request);
+      const result = await createCandidate.list(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -316,7 +316,7 @@ describe("requestAccess", () => {
       fakeGenerateFilter.candidates.returns(filterErrorResponse);
 
       // Act
-      const result = await requestAccess.list(request);
+      const result = await createCandidate.list(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -356,7 +356,7 @@ describe("requestAccess", () => {
       fakeCandidateModel.list.rejects(new Error("Database error"));
 
       // Act
-      const result = await requestAccess.list(request);
+      const result = await createCandidate.list(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -441,7 +441,7 @@ describe("requestAccess", () => {
       fakeCandidateModel.modify.resolves(updatedCandidate);
 
       // Act
-      const result = await requestAccess.update(request);
+      const result = await createCandidate.update(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -486,7 +486,7 @@ describe("requestAccess", () => {
       fakeGenerateFilter.candidates.returns(filterErrorResponse);
 
       // Act
-      const result = await requestAccess.update(request);
+      const result = await createCandidate.update(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -530,7 +530,7 @@ describe("requestAccess", () => {
       fakeCandidateModel.modify.rejects(new Error("Database error"));
 
       // Act
-      const result = await requestAccess.update(request);
+      const result = await createCandidate.update(request);
 
       // Assert
       expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
@@ -647,7 +647,7 @@ describe("requestAccess", () => {
       fakeMailer.user.resolves(sendEmailResponse);
 
       // Act
-      const result = await requestAccess.confirm(req);
+      const result = await createCandidate.confirm(req);
 
       // Assert
       expect(fakeCandidateModel.exists.calledOnce).to.be.true;
@@ -741,7 +741,7 @@ describe("requestAccess", () => {
       sinon.stub(generateFilter, "candidates").returns(responseFromFilter);
 
       // Act
-      const result = await requestAccess.delete(request);
+      const result = await createCandidate.delete(request);
 
       // Assert
       expect(generateFilter.candidates.calledOnce).to.be.true;

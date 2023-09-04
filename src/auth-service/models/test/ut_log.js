@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const logSchema = require("@models/log");
-
-// Replace this with the actual import path for your Log model if applicable
-const LogModel = mongoose.model("Log", logSchema);
+const LogModel = require("@models/log");
 
 describe("logSchema statics", () => {
   describe("register method", () => {

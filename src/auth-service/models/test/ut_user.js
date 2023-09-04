@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const mongoose = require("mongoose");
 
-const UserSchema = require("@models/User");
-
-// Replace this with the actual import path for your User model if applicable
-const UserModel = mongoose.model("User", UserSchema);
+const UserModel = require("@models/User");
 
 describe("UserSchema static methods", () => {
   describe("register method", () => {
