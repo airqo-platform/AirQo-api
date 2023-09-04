@@ -1,13 +1,16 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import pytest
-from datetime import datetime
+
 
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "bq_test: mark a test as a bigquery class method"
     )
+
 
 
 class ForecastFixtures:
@@ -82,13 +85,6 @@ class ForecastFixtures:
                 "pm2_5": [10.0, 11.0, 12.0, 15.0, 16.0, 17.0],
             }
         )
-
-
-@pytest.fixture(scope="session")
-def mongo_fixture():
-    from airqo_etl_utils.mongo_client import MongoClient
-
-    return MongoClient(uri="mongodb://localhost:27017", db_name="test_db")
 
 
 class FaultDetectionFixtures:
