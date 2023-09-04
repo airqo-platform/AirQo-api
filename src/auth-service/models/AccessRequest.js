@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Schema } = mongoose;
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject, logElement } = require("@utils/log");

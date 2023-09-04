@@ -1,4 +1,5 @@
 const devConfig = {
+  DEFAULT_GROUP: process.env.DEV_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.DEVELOPMENT_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
@@ -23,6 +24,7 @@ const devConfig = {
 };
 
 const prodConfig = {
+  DEFAULT_GROUP: process.env.PROD_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.PRODUCTION_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
@@ -47,6 +49,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
+  DEFAULT_GROUP: process.env.STAGE_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.STAGING_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,

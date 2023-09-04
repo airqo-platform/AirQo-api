@@ -51,7 +51,8 @@ router.post(
         .notEmpty()
         .withMessage("the group_id cannot be empty")
         .bail()
-        .isMongoId.withMessage("the group_id is not a valid Object")
+        .isMongoId()
+        .withMessage("the group_id is not a valid Object")
         .trim(),
     ],
   ]),
@@ -81,7 +82,8 @@ router.post(
         .notEmpty()
         .withMessage("the network_id cannot be empty")
         .bail()
-        .isMongoId.withMessage("the network_id is not a valid Object")
+        .isMongoId()
+        .withMessage("the network_id is not a valid Object")
         .trim(),
     ],
   ]),
@@ -225,7 +227,7 @@ router.get(
         .trim(),
     ],
   ]),
-  createRequestController.listAccessRequestsForGroups
+  createRequestController.listAccessRequestsForGroup
 );
 router.get(
   "/networks/:network_id",

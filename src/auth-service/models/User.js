@@ -118,6 +118,25 @@ const UserSchema = new Schema(
       default: [],
       _id: false,
     },
+
+    network_groups: {
+      type: [
+        {
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          group: {
+            type: ObjectId,
+            ref: "group",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+          },
+        },
+      ],
+      default: [],
+      _id: false,
+    },
     groups: [
       {
         type: ObjectId,
