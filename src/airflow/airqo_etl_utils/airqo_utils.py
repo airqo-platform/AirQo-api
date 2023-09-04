@@ -968,5 +968,6 @@ class AirQoDataUtils:
         client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
         records = data.to_dict("records")
+        db.faulty_devices.delete_many({})
         db.faulty_devices.insert_many(records)
         print("Faulty devices saved to MongoDB")
