@@ -864,26 +864,6 @@ router.get(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  oneOf([
-    [
-      query("skip")
-        .optional()
-        .notEmpty()
-        .withMessage("skip should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("skip should be numeric")
-        .trim(),
-      query("limit")
-        .optional()
-        .notEmpty()
-        .withMessage("limit should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("limit should be numeric")
-        .trim(),
-    ],
-  ]),
   setJWTAuth,
   authJWT,
   createUserController.listLogs
