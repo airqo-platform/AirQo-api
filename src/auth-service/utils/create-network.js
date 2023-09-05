@@ -484,7 +484,7 @@ const createNetwork = {
 
       logObject("user", user);
 
-      const isAlreadyAssigned = user.network_roles.some((assignment) => {
+      const isAlreadyAssigned = user.network_roles.find((assignment) => {
         return assignment.network.equals(net_id);
       });
 
@@ -580,7 +580,7 @@ const createNetwork = {
       return {
         success: true,
         message: "Successfully unassigned User from the Network",
-        data: { updatedNetwork, updatedUser },
+        data: updatedUser,
         status: httpStatus.OK,
       };
     } catch (error) {
