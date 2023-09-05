@@ -24,13 +24,40 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 
-const findNetworkIdForRole = async (role_id, networkRoles) => {
+const findNetworkIdForRole = async ({
+  role_id,
+  tenant = "airqo",
+  networkRoles,
+} = {}) => {
   for (const networkRole of networkRoles) {
-    if (networkRole.role.toString() === role_id.toString()) {
-      return networkRole.network_id;
+    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    if (networkRole.network.toString() === RoleDetails.network_id.toString()) {
+      return networkRole.network;
     }
   }
   return null;
+};
+
+const isUserSuperAdmin = async ({
+  networkId,
+  networkRoles,
+  tenant = "airqo",
+}) => {
+  for (const netRole of networkRoles) {
+    if (netRole.network.toString() === networkId.toString()) {
+      const RoleDetails = await RoleModel(tenant)
+        .findById(ObjectId(netRole.role))
+        .lean();
+      if (
+        RoleDetails &&
+        RoleDetails.role_name &&
+        RoleDetails.role_name.endsWith("SUPER_ADMIN")
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 const generateClientSecret = (length) => {
@@ -1405,9 +1432,12 @@ const controlAccess = {
 
       const networkRoles = userObject.network_roles || [];
 
-      const roleExistsInNetworkRoles = networkRoles.some(
-        (netRole) => netRole.role_id.toString() === role_id.toString()
-      );
+      logObject("networkRoles", networkRoles);
+
+      const roleExistsInNetworkRoles = networkRoles.find((netRole) => {
+        logObject("netRole.role.toString()", netRole.role.toString());
+        return netRole.role.toString() === role_id.toString();
+      });
 
       if (roleExistsInNetworkRoles) {
         return {
@@ -1420,11 +1450,30 @@ const controlAccess = {
         };
       }
 
-      if (
-        networkRoles.some((netRole) =>
-          netRole.role_name.endsWith("SUPER_ADMIN")
-        )
-      ) {
+      const networkId = await findNetworkIdForRole({
+        role_id,
+        networkRoles,
+        tenant,
+      });
+
+      if (isEmpty(networkId)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${userId}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const isSuperAdmin = await isUserSuperAdmin({
+        networkId,
+        networkRoles,
+        tenant,
+      });
+
+      if (isSuperAdmin) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1435,11 +1484,13 @@ const controlAccess = {
         };
       }
 
-      const networkId = findNetworkIdForRole(role_id, networkRoles);
-
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         userId,
-        { $addToSet: { network_roles: { role: role_id, network: networkId } } },
+        {
+          $addToSet: {
+            network_roles: { role: role_id, network: networkId },
+          },
+        },
         { new: true }
       );
 
