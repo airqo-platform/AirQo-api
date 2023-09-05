@@ -151,7 +151,7 @@ RoleSchema.statics = {
         .lookup({
           from: "users",
           localField: "_id",
-          foreignField: "role",
+          foreignField: "network_roles.role",
           as: "role_users",
         })
         .addFields({
