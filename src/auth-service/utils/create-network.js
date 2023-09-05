@@ -392,7 +392,7 @@ const createNetwork = {
         }
 
         const existingAssignment = user.network_roles.find((assignment) => {
-          return assignment.network.toString() === net_id;
+          return assignment.network.toString() === net_id.toString();
         });
 
         if (existingAssignment) {
@@ -653,8 +653,15 @@ const createNetwork = {
       try {
         const totalUsers = user_ids.length;
         const { nModified, n } = await UserModel(tenant).updateMany(
-          { _id: { $in: user_ids }, "network_roles.network": net_id },
-          { $pull: { "network_roles.$.network": net_id } }
+          {
+            _id: { $in: user_ids },
+            network_roles: { $elemMatch: { network: net_id } },
+          },
+          {
+            $pull: {
+              network_roles: { network: net_id },
+            },
+          }
         );
 
         const notFoundCount = totalUsers - nModified;
