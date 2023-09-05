@@ -111,23 +111,26 @@ AccessTokenSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = args;
-      if (modifiedArgs.category && modifiedArgs.category === "api") {
-        modifiedArgs.expires =
-          Date.now() +
-          toMilliseconds(
-            5110, // hours in 7 months
-            0,
-            0
-          );
-      } else {
-        modifiedArgs.expires =
-          Date.now() +
-          toMilliseconds(
-            emailVerificationHours,
-            emailVerificationMins,
-            emailVerificationSeconds
-          );
+      if (isEmpty(modifiedArgs.expires)) {
+        if (modifiedArgs.category && modifiedArgs.category === "api") {
+          modifiedArgs.expires =
+            Date.now() +
+            toMilliseconds(
+              5110, // hours in 7 months
+              0,
+              0
+            );
+        } else {
+          modifiedArgs.expires =
+            Date.now() +
+            toMilliseconds(
+              emailVerificationHours,
+              emailVerificationMins,
+              emailVerificationSeconds
+            );
+        }
       }
+
       data = await this.create({
         ...modifiedArgs,
       });

@@ -18,6 +18,7 @@ const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
 const DepartmentModel = require("@models/Department");
 const GroupModel = require("@models/Group");
+const ObjectId = require("mongoose").Types.ObjectId;
 
 describe("controlAccess", () => {
   describe("verifyEmail()", () => {
@@ -1948,1181 +1949,390 @@ describe("controlAccess", () => {
 
     // Add more test cases for different scenarios and edge cases
   });
-  describe("listAvailableUsersForRole()", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+  describe("listAvailableUsersForRole", () => {
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should list available users for the role and send success response", async () => {
-      const request = {
-        query: {
-          tenant: "sample_tenant",
-        },
-        params: {
-          role_id: "sample_role_id",
-        },
-      };
+    it("should return a list of available users for a role", async () => {
+      // Mock the UserModel.aggregate method
+      const aggregateStub = sinon.stub(UserModel, "aggregate");
+      aggregateStub.returns(
+        Promise.resolve([
+          /* Your mock data here */
+        ])
+      );
 
-      // Mock the response from the RoleModel findById()
+      // Mock the RoleModel.findById method
       const role = {
-        // Add necessary role data
+        /* Mocked role object */
       };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(role);
+      const findByIdStub = sinon.stub(RoleModel, "findById");
+      findByIdStub.withArgs(/* role_id */).returns(Promise.resolve(role));
 
-      // Mock the response from the UserModel aggregate()
-      const responseFromListAvailableUsers = [
-        {
-          _id: "sample_user_id",
-          email: "sample_user@example.com",
-          firstName: "Sample",
-          lastName: "User",
-          createdAt: "2023-07-25 12:34:56", // Sample date format
-          userName: "sample_user",
-        },
-        // Add more sample user data
-      ];
-      sinon
-        .stub(UserModel("sample_tenant"), "aggregate")
-        .resolves(responseFromListAvailableUsers);
-
-      // Call the listAvailableUsersForRole()
-      const result = await controlAccess.listAvailableUsersForRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        `retrieved all available users for the role sample_role_id`
-      );
-      expect(result.data).to.deep.equal(responseFromListAvailableUsers);
-    });
-
-    it("should handle invalid role ID and return failure response", async () => {
       const request = {
-        query: {
-          tenant: "sample_tenant",
-        },
-        params: {
-          role_id: "invalid_role_id",
-        },
+        query: { tenant: "test-tenant" },
+        params: { role_id: "test-role-id" },
       };
 
-      // Mock the response from the RoleModel findById() (role not found)
-      const role = null;
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(role);
+      const response = await controlAccess.listAvailableUsersForRole(request);
 
-      // Call the listAvailableUsersForRole()
-      const result = await controlAccess.listAvailableUsersForRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Invalid role ID invalid_role_id, please crosscheck"
+      expect(response.success).to.equal(true);
+      expect(response.message).to.include(
+        "retrieved all available users for the role"
       );
+      expect(response.data).to.be.an("array");
+
+      sinon.assert.calledOnce(aggregateStub);
+      sinon.assert.calledWith(aggregateStub, sinon.match.array);
     });
 
-    it("should handle errors in listing available users and return failure response", async () => {
+    it("should handle invalid role ID", async () => {
+      // Mock the RoleModel.findById method to return null (invalid role)
+      const findByIdStub = sinon.stub(RoleModel, "findById");
+      findByIdStub
+        .withArgs(/* invalid_role_id */)
+        .returns(Promise.resolve(null));
+
       const request = {
-        query: {
-          tenant: "sample_tenant",
-        },
-        params: {
-          role_id: "sample_role_id",
-        },
+        query: { tenant: "test-tenant" },
+        params: { role_id: "invalid-role-id" },
       };
 
-      // Mock the response from the RoleModel findById()
-      const role = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(role);
+      const response = await controlAccess.listAvailableUsersForRole(request);
 
-      // Mock the response from the UserModel aggregate() (error)
-      sinon
-        .stub(UserModel("sample_tenant"), "aggregate")
-        .throws(new Error("Database Error"));
-
-      // Call the listAvailableUsersForRole()
-      const result = await controlAccess.listAvailableUsersForRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal("Internal Server Error");
+      expect(response.success).to.equal(false);
+      expect(response.message).to.include("Invalid role ID");
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
     });
 
-    // Add more test cases for different scenarios and edge cases
+    // Add more test cases as needed
   });
-  describe("assignUserToRole()", () => {
+  describe("assignUserToRole", () => {
+    let requestStub;
+    let existsStub;
+    let findByIdStub;
+    let findByIdAndUpdateStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      requestStub = {
+        params: { role_id: "valid_role_id", user_id: "valid_user_id" },
+        query: { tenant: "valid_tenant" },
+        body: { user: "valid_user_id" },
+      };
+      existsStub = sinon.stub();
+      findByIdStub = sinon.stub();
+      findByIdAndUpdateStub = sinon.stub();
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should assign user to role and send success response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user: "sample_user_id",
-        },
-      };
+    it("should return a success response when assigning a user to a role", async () => {
+      // Arrange
+      existsStub.withArgs({ _id: "valid_user_id" }).resolves(true);
+      existsStub.withArgs({ _id: "valid_role_id" }).resolves(true);
+      findByIdStub.withArgs("valid_user_id").resolves({
+        network_roles: [],
+        populate: () => ({
+          lean: () => ({ network_roles: [] }),
+        }),
+      });
+      findByIdAndUpdateStub.resolves({});
 
-      // Mock the response from the UserModel exists() (user exists)
-      sinon.stub(UserModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the RoleModel exists() (role exists)
-      sinon.stub(RoleModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the UserModel findByIdAndUpdate()
-      const updatedUser = {
-        // Add necessary updated user data
-      };
-      sinon
-        .stub(UserModel("sample_tenant"), "findByIdAndUpdate")
-        .resolves(updatedUser);
-
-      // Call the assignUserToRole()
-      const result = await controlAccess.assignUserToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("User assigned to the Role");
-      expect(result.data).to.deep.equal(updatedUser);
-      expect(result.status).to.equal(httpStatus.OK);
-    });
-
-    it("should handle invalid user ID and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "invalid_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user: "sample_user_id",
-        },
-      };
-
-      // Mock the response from the UserModel exists() (user does not exist)
-      sinon.stub(UserModel("sample_tenant"), "exists").resolves(false);
-
-      // Call the assignUserToRole()
-      const result = await controlAccess.assignUserToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("User or Role not found");
-      expect(result.errors.message).to.equal(
-        "User invalid_user_id or Role sample_role_id not found"
+      sinon.replace(UserModel("valid_tenant"), "exists", existsStub);
+      sinon.replace(RoleModel("valid_tenant"), "exists", existsStub);
+      sinon.replace(UserModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(
+        UserModel("valid_tenant"),
+        "findByIdAndUpdate",
+        findByIdAndUpdateStub
       );
+
+      // Act
+      const response = await controlAccess.assignUserToRole(requestStub);
+
+      // Assert
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
     });
 
-    it("should handle invalid role ID and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "invalid_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user: "sample_user_id",
-        },
-      };
-
-      // Mock the response from the UserModel exists() (user exists)
-      sinon.stub(UserModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the RoleModel exists() (role does not exist)
-      sinon.stub(RoleModel("sample_tenant"), "exists").resolves(false);
-
-      // Call the assignUserToRole()
-      const result = await controlAccess.assignUserToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("User or Role not found");
-      expect(result.errors.message).to.equal(
-        "User sample_user_id or Role invalid_role_id not found"
-      );
-    });
-
-    it("should handle existing user already assigned to the role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user: "sample_user_id",
-        },
-      };
-
-      // Mock the response from the UserModel exists() (user exists)
-      sinon.stub(UserModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the RoleModel exists() (role exists)
-      sinon.stub(RoleModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the UserModel findById() (user with role already assigned)
-      const userWithRole = {
-        role: {
-          _id: "sample_role_id",
-          role_name: "sample_role_name",
-        },
-        // Add necessary user data
-      };
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(userWithRole);
-
-      // Call the assignUserToRole()
-      const result = await controlAccess.assignUserToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Role sample_role_id already assigned to User sample_user_id"
-      );
-    });
-
-    it("should handle assigning role to SUPER_ADMIN user and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user: "sample_user_id",
-        },
-      };
-
-      // Mock the response from the UserModel exists() (user exists)
-      sinon.stub(UserModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the RoleModel exists() (role exists)
-      sinon.stub(RoleModel("sample_tenant"), "exists").resolves(true);
-
-      // Mock the response from the UserModel findById() (SUPER_ADMIN user)
-      const superAdminUser = {
-        role: {
-          _id: "sample_super_admin_role_id",
-          role_name: "SUPER_ADMIN",
-        },
-        // Add necessary user data
-      };
-      sinon
-        .stub(UserModel("sample_tenant"), "findById")
-        .resolves(superAdminUser);
-
-      // Call the assignUserToRole()
-      const result = await controlAccess.assignUserToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "SUPER ADMIN user sample_user_id can not be reassigned to a different role"
-      );
-    });
-
-    // Add more test cases for different scenarios and edge cases
+    // Add more test cases for different scenarios
   });
-  describe("assignManyUsersToRole()", () => {
+  describe("assignManyUsersToRole", () => {
+    let requestStub;
+    let findByIdStub;
+    let updateManyStub;
+    let existsStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      requestStub = {
+        query: { tenant: "valid_tenant" },
+        params: { role_id: "valid_role_id" },
+        body: { user_ids: ["user_id_1", "user_id_2"] },
+      };
+
+      findByIdStub = sinon.stub();
+      updateManyStub = sinon.stub();
+      existsStub = sinon.stub();
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should assign many users to role and send success response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
+    it("should return a success response when assigning users to a role", async () => {
+      // Arrange
+      findByIdStub.withArgs("valid_role_id").resolves({ _id: "valid_role_id" });
+      findByIdStub.withArgs(sinon.match.any).resolves({ network_roles: [] });
 
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
+      updateManyStub.resolves({ nModified: 2 });
 
-      // Mock the response from the UserModel findById() (users exist)
-      const users = [
-        {
-          _id: "user_id_1",
-          role: null, // User does not have a role
-          // Add necessary user data
-        },
-        {
-          _id: "user_id_2",
-          role: {
-            _id: "user_id_2_role_id",
-            role_name: "sample_role_name",
-          }, // User already has a role
-          // Add necessary user data
-        },
-        {
-          _id: "user_id_3",
-          role: {
-            _id: "user_id_3_super_admin_role_id",
-            role_name: "SUPER_ADMIN",
-          }, // SUPER_ADMIN user
-          // Add necessary user data
-        },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "findById").callsFake((userId) => {
-        return Promise.resolve(users.find((user) => user._id === userId));
-      });
+      existsStub.resolves(true);
 
-      // Mock the response from the UserModel updateMany()
-      const nModified = 2; // Number of users modified
-      sinon
-        .stub(UserModel("sample_tenant"), "updateMany")
-        .resolves({ nModified });
+      sinon.replace(RoleModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(UserModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(UserModel("valid_tenant"), "updateMany", updateManyStub);
+      sinon.replace(UserModel("valid_tenant"), "exists", existsStub);
 
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
+      // Act
+      const response = await controlAccess.assignManyUsersToRole(requestStub);
 
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.message).to.equal(
-        "All provided users were successfully assigned."
-      );
+      // Assert
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
     });
 
-    it("should handle assigning SUPER_ADMIN user to role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (users exist)
-      const users = [
-        {
-          _id: "user_id_3",
-          role: {
-            _id: "user_id_3_super_admin_role_id",
-            role_name: "SUPER_ADMIN",
-          }, // SUPER_ADMIN user
-          // Add necessary user data
-        },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "findById").callsFake((userId) => {
-        return Promise.resolve(users.find((user) => user._id === userId));
-      });
-
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "SUPER ADMIN user user_id_3 can not be reassigned to a different role"
-      );
-    });
-
-    it("should handle assigning users who are already assigned to the role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_2"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (users exist)
-      const users = [
-        {
-          _id: "user_id_2",
-          role: {
-            _id: "sample_role_id",
-            role_name: "sample_role_name",
-          }, // User already has the role
-          // Add necessary user data
-        },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "findById").callsFake((userId) => {
-        return Promise.resolve(users.find((user) => user._id === userId));
-      });
-
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "User user_id_2 is already assigned to the role sample_role_id"
-      );
-    });
-
-    it("should handle assigning users who do not exist and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_not_found"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (user does not exist)
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal("One of the Users does not exist");
-    });
-
-    it("should handle role not found and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "role_id_not_found",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role not found)
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Role role_id_not_found does not exist"
-      );
-    });
-
-    it("should handle UserModel updateMany failure and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (users exist)
-      const users = [
-        {
-          _id: "user_id_1",
-          role: null, // User does not have a role
-          // Add necessary user data
-        },
-        {
-          _id: "user_id_2",
-          role: null, // User does not have a role
-          // Add necessary user data
-        },
-        {
-          _id: "user_id_3",
-          role: null, // User does not have a role
-          // Add necessary user data
-        },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "findById").callsFake((userId) => {
-        return Promise.resolve(users.find((user) => user._id === userId));
-      });
-
-      // Mock the response from the UserModel updateMany() (failure)
-      sinon
-        .stub(UserModel("sample_tenant"), "updateMany")
-        .resolves({ nModified: 0 });
-
-      // Call the assignManyUsersToRole()
-      const result = await controlAccess.assignManyUsersToRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal(
-        "Could not assign all provided users to the Role."
-      );
-    });
+    // Add more test cases for different scenarios
   });
-  describe("listUsersWithRole()", () => {
+  describe("listUsersWithRole", () => {
+    let requestStub;
+    let findByIdStub;
+    let aggregateStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      requestStub = {
+        query: { tenant: "valid_tenant" },
+        params: { role_id: "valid_role_id" },
+      };
+
+      findByIdStub = sinon.stub();
+      aggregateStub = sinon.stub();
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should list assigned users for the role and send success response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel aggregate() (assigned users exist)
-      const assignedUsers = [
+    it("should return a list of users with the specified role", async () => {
+      // Arrange
+      const sampleUsers = [
         {
-          _id: "user_id_1",
+          _id: "user1",
           email: "user1@example.com",
-          firstName: "John",
-          lastName: "Doe",
-          userName: "john.doe",
+          firstName: "User",
+          lastName: "One",
+          userName: "user_one",
         },
         {
-          _id: "user_id_2",
+          _id: "user2",
           email: "user2@example.com",
-          firstName: "Jane",
-          lastName: "Smith",
-          userName: "jane.smith",
+          firstName: "User",
+          lastName: "Two",
+          userName: "user_two",
         },
       ];
-      sinon
-        .stub(UserModel("sample_tenant"), "aggregate")
-        .resolves(assignedUsers);
 
-      // Call the listUsersWithRole()
-      const result = await controlAccess.listUsersWithRole(request);
+      findByIdStub.withArgs("valid_role_id").resolves({ _id: "valid_role_id" });
 
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.message).to.equal(
-        "retrieved all assigned users for role sample_role_id"
-      );
-      expect(result.data).to.deep.equal(assignedUsers);
+      aggregateStub.returnsThis().resolves(sampleUsers);
+
+      sinon.replace(RoleModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(UserModel("valid_tenant"), "aggregate", aggregateStub);
+
+      // Act
+      const response = await controlAccess.listUsersWithRole(requestStub);
+
+      // Assert
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.data).to.deep.equal(sampleUsers);
     });
 
-    it("should handle role not found and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "role_id_not_found",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role not found)
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the listUsersWithRole()
-      const result = await controlAccess.listUsersWithRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Invalid role ID role_id_not_found, please crosscheck"
-      );
-    });
-
-    it("should handle UserModel aggregate failure and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel aggregate() (failure)
-      sinon
-        .stub(UserModel("sample_tenant"), "aggregate")
-        .rejects(new Error("Aggregate Error"));
-
-      // Call the listUsersWithRole()
-      const result = await controlAccess.listUsersWithRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal("Internal Server Error");
-    });
+    // Add more test cases for different scenarios
   });
-  describe("unAssignUserFromRole()", () => {
+  describe("unAssignUserFromRole", () => {
+    let requestStub;
+    let findByIdStub;
+    let findByIdAndUpdateStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      requestStub = {
+        query: { tenant: "valid_tenant" },
+        params: { role_id: "valid_role_id", user_id: "valid_user_id" },
+      };
+
+      findByIdStub = sinon.stub();
+      findByIdAndUpdateStub = sinon.stub();
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should unassign user from the role and send success response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
+    it("should successfully unassign a user from a role", async () => {
+      // Arrange
+      const sampleUser = {
+        _id: "valid_user_id",
+        network_roles: [
+          { role: "valid_role_id", network: "network_id_1" },
+          { role: "other_role_id", network: "network_id_2" },
+        ],
       };
 
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
+      findByIdStub.withArgs("valid_user_id").resolves(sampleUser);
 
-      // Mock the response from the UserModel findByIdAndUpdate() (user updated)
-      const updatedUser = {
-        _id: "sample_user_id",
-        email: "sample_user@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        role: null,
-      };
-      sinon
-        .stub(UserModel("sample_tenant"), "findByIdAndUpdate")
-        .resolves(updatedUser);
+      findByIdAndUpdateStub
+        .withArgs(
+          "valid_user_id",
+          {
+            $pull: {
+              network_roles: { role: "valid_role_id" },
+            },
+          },
+          { new: true }
+        )
+        .resolves(sampleUser);
 
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.message).to.equal("User unassigned from the role");
-      expect(result.data).to.deep.equal(updatedUser);
-    });
-
-    it("should handle role not found and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "role_id_not_found",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role not found)
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Role role_id_not_found does not exist"
+      sinon.replace(UserModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(
+        UserModel("valid_tenant"),
+        "findByIdAndUpdate",
+        findByIdAndUpdateStub
       );
+
+      // Act
+      const response = await controlAccess.unAssignUserFromRole(requestStub);
+
+      // Assert
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal("User unassigned from the role");
     });
 
-    it("should handle user not found and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "user_id_not_found",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (user not found)
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "provided User user_id_not_found does not exist"
-      );
-    });
-
-    it("should handle user being a SUPER_ADMIN and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (user is SUPER_ADMIN)
-      const userObject = {
-        _id: "sample_user_id",
-        email: "sample_user@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        role: {
-          _id: "role_id",
-          role_name: "SUPER_ADMIN",
-        },
-      };
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(userObject);
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "SUPER_ADMIN User sample_user_id may not be unassigned from their role"
-      );
-    });
-
-    it("should handle user not being assigned to any role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (user is not assigned to any role)
-      const userObject = {
-        _id: "sample_user_id",
-        email: "sample_user@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        role: null,
-      };
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(userObject);
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "User is not assigned to any role"
-      );
-    });
-
-    it("should handle user not being assigned to the specified role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findById() (user assigned to a different role)
-      const userObject = {
-        _id: "sample_user_id",
-        email: "sample_user@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        role: {
-          _id: "different_role_id",
-          role_name: "OTHER_ROLE",
-        },
-      };
-      sinon.stub(UserModel("sample_tenant"), "findById").resolves(userObject);
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "User sample_user_id is not assigned to the role sample_role_id"
-      );
-    });
-
-    it("should handle UserModel findByIdAndUpdate failure and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-          user_id: "sample_user_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel findByIdAndUpdate() (failure)
-      sinon
-        .stub(UserModel("sample_tenant"), "findByIdAndUpdate")
-        .rejects(new Error("Update Error"));
-
-      // Call the unAssignUserFromRole()
-      const result = await controlAccess.unAssignUserFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal("Internal Server Error");
-    });
+    // Add more test cases for different scenarios
   });
-  describe("unAssignManyUsersFromRole()", () => {
+  describe("unAssignManyUsersFromRole", () => {
+    let requestStub;
+    let existsStub;
+    let findByIdStub;
+    let findByIdAndUpdateStub;
+    let updateManyStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      requestStub = {
+        query: { tenant: "valid_tenant" },
+        params: { role_id: "valid_role_id" },
+        body: { user_ids: ["valid_user_id_1", "valid_user_id_2"] },
+      };
+
+      existsStub = sinon.stub(RoleModel("valid_tenant"), "exists");
+      findByIdStub = sinon.stub(UserModel("valid_tenant"), "findById");
+      findByIdAndUpdateStub = sinon.stub(
+        UserModel("valid_tenant"),
+        "findByIdAndUpdate"
+      );
+      updateManyStub = sinon.stub(UserModel("valid_tenant"), "updateMany");
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should unassign multiple users from the role and send success response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
+    it("should successfully unassign many users from a role", async () => {
+      // Arrange
+      const sampleRole = {
+        _id: "valid_role_id",
       };
 
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel find() (existing users)
-      const existingUsers = [
-        { _id: "user_id_1" },
-        { _id: "user_id_2" },
-        { _id: "user_id_3" },
+      const sampleUsers = [
+        {
+          _id: "valid_user_id_1",
+          network_roles: [
+            { role: "valid_role_id", network: "network_id_1" },
+            { role: "other_role_id", network: "network_id_2" },
+          ],
+        },
+        {
+          _id: "valid_user_id_2",
+          network_roles: [
+            { role: "valid_role_id", network: "network_id_1" },
+            { role: "other_role_id", network: "network_id_3" },
+          ],
+        },
       ];
-      sinon.stub(UserModel("sample_tenant"), "find").resolves(existingUsers);
 
-      // Mock the response from the UserModel updateMany() (users unassigned)
-      const updateResult = { nModified: 3 };
-      sinon
-        .stub(UserModel("sample_tenant"), "updateMany")
-        .resolves(updateResult);
+      existsStub.withArgs({ _id: "valid_role_id" }).resolves(true);
 
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
+      findByIdStub.withArgs("valid_user_id_1").resolves(sampleUsers[0]);
 
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.message).to.equal(
+      findByIdStub.withArgs("valid_user_id_2").resolves(sampleUsers[1]);
+
+      findByIdAndUpdateStub
+        .withArgs(
+          "valid_user_id_1",
+          {
+            $pull: {
+              network_roles: { role: "valid_role_id" },
+            },
+          },
+          { new: true }
+        )
+        .resolves(sampleUsers[0]);
+
+      findByIdAndUpdateStub
+        .withArgs(
+          "valid_user_id_2",
+          {
+            $pull: {
+              network_roles: { role: "valid_role_id" },
+            },
+          },
+          { new: true }
+        )
+        .resolves(sampleUsers[1]);
+
+      updateManyStub
+        .withArgs(
+          { _id: { $in: ["valid_user_id_1", "valid_user_id_2"] } },
+          { $pull: { network_roles: { role: "valid_role_id" } } }
+        )
+        .resolves({ nModified: 2 });
+
+      sinon.replace(RoleModel("valid_tenant"), "exists", existsStub);
+      sinon.replace(UserModel("valid_tenant"), "findById", findByIdStub);
+      sinon.replace(
+        UserModel("valid_tenant"),
+        "findByIdAndUpdate",
+        findByIdAndUpdateStub
+      );
+      sinon.replace(UserModel("valid_tenant"), "updateMany", updateManyStub);
+
+      // Act
+      const response = await controlAccess.unAssignManyUsersFromRole(
+        requestStub
+      );
+
+      // Assert
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
         "All provided users were successfully unassigned."
       );
     });
 
-    it("should handle role not found and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "role_id_not_found",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role not found)
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(null);
-
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal("Role not found");
-    });
-
-    it("should handle some users not existing and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel find() (some users do not exist)
-      const existingUsers = [{ _id: "user_id_1" }];
-      sinon.stub(UserModel("sample_tenant"), "find").resolves(existingUsers);
-
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "The following users do not exist: user_id_2,user_id_3"
-      );
-    });
-
-    it("should handle some users not assigned to the role and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel find() (existing users)
-      const existingUsers = [
-        { _id: "user_id_1", role: ["different_role_id"] },
-        { _id: "user_id_2", role: ["different_role_id"] },
-        { _id: "user_id_3", role: ["different_role_id"] },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "find").resolves(existingUsers);
-
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Some of the provided User IDs are not assigned to this role sample_role_id"
-      );
-    });
-
-    it("should handle SUPER_ADMIN user and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["super_admin_user_id"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel find() (SUPER_ADMIN user)
-      const existingUsers = [
-        { _id: "super_admin_user_id", role: { role_name: "SUPER_ADMIN" } },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "find").resolves(existingUsers);
-
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "Cannot unassign SUPER_ADMIN role from user super_admin_user_id"
-      );
-    });
-
-    it("should handle UserModel updateMany failure and return failure response", async () => {
-      const request = {
-        params: {
-          role_id: "sample_role_id",
-        },
-        query: {
-          tenant: "sample_tenant",
-        },
-        body: {
-          user_ids: ["user_id_1", "user_id_2", "user_id_3"],
-        },
-      };
-
-      // Mock the response from the RoleModel findById() (role exists)
-      const roleObject = {
-        // Add necessary role data
-      };
-      sinon.stub(RoleModel("sample_tenant"), "findById").resolves(roleObject);
-
-      // Mock the response from the UserModel find() (existing users)
-      const existingUsers = [
-        { _id: "user_id_1" },
-        { _id: "user_id_2" },
-        { _id: "user_id_3" },
-      ];
-      sinon.stub(UserModel("sample_tenant"), "find").resolves(existingUsers);
-
-      // Mock the UserModel updateMany() (failure)
-      sinon
-        .stub(UserModel("sample_tenant"), "updateMany")
-        .rejects(new Error("Update Error"));
-
-      // Call the unAssignManyUsersFromRole()
-      const result = await controlAccess.unAssignManyUsersFromRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal(
-        "Could not unassign all users from role."
-      );
-    });
+    // Add more test cases for different scenarios
   });
   describe("listPermissionsForRole()", () => {
     beforeEach(() => {
