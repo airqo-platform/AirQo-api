@@ -22,9 +22,9 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
 
-// if (isEmpty(constants.SESSION_SECRET)) {
-//   throw new Error("SESSION_SECRET environment variable not set");
-// }
+if (isEmpty(constants.SESSION_SECRET)) {
+  throw new Error("SESSION_SECRET environment variable not set");
+}
 
 // Express Middlewares
 app.use(

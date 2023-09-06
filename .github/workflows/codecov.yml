@@ -9,7 +9,8 @@ jobs:
         run:
           working-directory: src/device-registry
     name: CodeCoverage
-    
+    env:
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-node@v3
