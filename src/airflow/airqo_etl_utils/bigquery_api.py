@@ -619,6 +619,10 @@ class BigQueryApi:
         self,
         start_date_time: str,
     ) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError:
+            raise ValueError(f"Invalid start date time: {start_date_time}")
         query = f"""
         SELECT DISTINCT 
             t1.device_id, 
@@ -637,8 +641,13 @@ class BigQueryApi:
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        df = self.client.query(f"{query}", job_config).result().to_dataframe()
-        return df
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery")
+
+        
 
     @staticmethod
     def save_forecasts_to_bigquery(df, table):
