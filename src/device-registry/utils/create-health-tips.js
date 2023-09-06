@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-health-tip-util`
 );
+const translateUtil = require("./translate");
 
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -24,12 +25,17 @@ const createHealthTips = {
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.tips(request);
+      const language = request.query.language;
 
       const responseFromListHealthTips = await HealthTipModel(tenant).list({
         filter,
         limit,
         skip,
       });
+      if (language != null) {
+        responseFromListHealthTips.data = await translateUtil.translate(responseFromListHealthTips.data, language);
+      }
+
       logObject("responseFromListHealthTips", responseFromListHealthTips);
       return responseFromListHealthTips;
     } catch (error) {
