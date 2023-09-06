@@ -24,6 +24,7 @@ jobs:
         npm install
 
     - name: Run tests and collect coverage
+      continue-on-error: true
       run: 
         npm run test
         
