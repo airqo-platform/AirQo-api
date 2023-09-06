@@ -1,4 +1,5 @@
 const devConfig = {
+  DEFAULT_GROUP: process.env.DEV_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.DEVELOPMENT_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
@@ -23,6 +24,7 @@ const devConfig = {
 };
 
 const prodConfig = {
+  DEFAULT_GROUP: process.env.PROD_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.PRODUCTION_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
@@ -47,6 +49,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
+  DEFAULT_GROUP: process.env.STAGE_DEFAULT_GROUP,
   DEFAULT_NETWORK: process.env.STAGING_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,
@@ -425,6 +428,13 @@ const defaultConfig = {
           "net_manager.role": 0,
           "net_manager.updatedAt": 0,
           "net_manager.networks": 0,
+          "net_manager.jobTitle": 0,
+          "net_manager.website": 0,
+          "net_manager.description": 0,
+          "net_manager.category": 0,
+          "net_manager.country": 0,
+          "net_manager.resetPasswordExpires": 0,
+          "net_manager.resetPasswordToken": 0,
         }
       );
     }
@@ -481,6 +491,12 @@ const defaultConfig = {
       "role_users.long_organization": 0,
       "role_users.groups": 0,
       "role_users.permissions": 0,
+      "role_users.network_roles": 0,
+      "role_users.verified": 0,
+      "role_users.email": 0,
+      "role_users.country": 0,
+      "role_users.createdAt": 0,
+      "role_users.is_email_verified": 0,
       network_id: 0,
       "network.__v": 0,
       "network.net_status": 0,
@@ -499,6 +515,9 @@ const defaultConfig = {
       "network.updatedAt": 0,
       "network.net_acronym": 0,
       "network.net_manager": 0,
+      "network.net_manager_username": 0,
+      "network.net_manager_firstname": 0,
+      "network.net_manager_lastname": 0,
       "role_permissions.description": 0,
       "role_permissions.createdAt": 0,
       "role_permissions.updatedAt": 0,
@@ -544,8 +563,23 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
-    role: 1,
-    networks: "$networks",
+    user_role: { $arrayElemAt: ["$user_role", 0] },
+    networks: {
+      _id: 1,
+      net_name: 1,
+      role: {
+        $cond: {
+          if: {
+            $and: [
+              { $ifNull: ["$role._id", false] },
+              { $ifNull: ["$role.role_name", false] },
+            ],
+          },
+          then: "$role",
+          else: null,
+        },
+      },
+    },
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
@@ -573,32 +607,36 @@ const defaultConfig = {
       "networks.net_email": 0,
       "networks.net_category": 0,
       "networks.net_phoneNumber": 0,
-      "network.net_data_source": 0,
-      "network.net_api_key": 0,
+      "networks.net_data_source": 0,
+      "networks.net_api_key": 0,
       "networks.net_manager": 0,
+      "networks.role.__v": 0,
+      "networks.role.createdAt": 0,
+      "networks.role.updatedAt": 0,
+      "networks.role.role_users": 0,
+      "networks.role.network_id": 0,
+      "networks.role.role_code": 0,
+      "networks.role.role_permissions.__v": 0,
+      "networks.role.role_permissions.updatedAt": 0,
+      "networks.role.role_permissions.createdAt": 0,
+      "networks.role.role_permissions.network_id": 0,
+      "networks.role.role_permissions.description": 0,
+
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
       "access_tokens.updatedAt": 0,
+
       "permissions.__v": 0,
-      "permissions._id": 0,
+      "permissions.network_id": 0,
+      "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-      "role.__v": 0,
-      "role.createdAt": 0,
-      "role.updatedAt": 0,
-      "role.role_users": 0,
-      "role.network_id": 0,
-      "role.role_code": 0,
-      "role.role_permissions.__v": 0,
-      "role.role_permissions.updatedAt": 0,
-      "role.role_permissions.createdAt": 0,
-      "role.role_permissions.network_id": 0,
-      "role.role_permissions.description": 0,
+
       "groups.__v": 0,
-      "groups._id": 0,
       "groups.createdAt": 0,
       "groups.updatedAt": 0,
+
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -615,7 +653,37 @@ const defaultConfig = {
       "my_networks.net_manager_lastname": 0,
       "my_networks.createdAt": 0,
       "my_networks.updatedAt": 0,
+      "my_networks.net_website": 0,
+      "my_networks.net_phoneNumber": 0,
+      "my_networks.net_email": 0,
       "my_networks.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  ACCESS_REQUESTS_INCLUSION_PROJECTION: {
+    _id: 1,
+    user_id: 1,
+    requestType: 1,
+    targetId: 1,
+    status: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+  },
+
+  ACCESS_REQUESTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      nothing: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

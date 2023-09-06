@@ -11,6 +11,9 @@ const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- user-model`
+);
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -96,6 +99,43 @@ const UserSchema = new Schema(
         },
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    network_roles: {
+      type: [
+        {
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          role: {
+            type: ObjectId,
+            ref: "role",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+          },
+        },
+      ],
+      default: [],
+      _id: false,
+    },
+
+    network_groups: {
+      type: [
+        {
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          group: {
+            type: ObjectId,
+            ref: "group",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+          },
+        },
+      ],
+      default: [],
+      _id: false,
     },
     groups: [
       {
@@ -211,6 +251,7 @@ UserSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -269,6 +310,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -288,9 +330,40 @@ UserSchema.statics = {
         .match(filter)
         .lookup({
           from: "networks",
-          localField: "networks",
+          localField: "network_roles.network",
           foreignField: "_id",
           as: "networks",
+        })
+        .lookup({
+          from: "roles",
+          localField: "network_roles.role",
+          foreignField: "_id",
+          as: "roles",
+        })
+        .lookup({
+          from: "roles",
+          localField: "role",
+          foreignField: "_id",
+          as: "user_role",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "roles.role_permissions",
+          foreignField: "_id",
+          as: "role_permissions",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "permissions",
+          foreignField: "_id",
+          as: "permissions",
+        })
+        .addFields({
+          role: {
+            _id: { $arrayElemAt: ["$roles._id", 0] },
+            role_name: { $arrayElemAt: ["$roles.role_name", 0] },
+            role_permissions: "$role_permissions",
+          },
         })
         .lookup({
           from: "networks",
@@ -309,25 +382,6 @@ UserSchema.statics = {
           localField: "_id",
           foreignField: "grp_users",
           as: "groups",
-        })
-        .lookup({
-          from: "permissions",
-          localField: "permissions",
-          foreignField: "_id",
-          as: "permissions",
-        })
-        .lookup({
-          from: "roles",
-          localField: "role",
-          foreignField: "_id",
-          as: "role",
-        })
-        .unwind("$role")
-        .lookup({
-          from: "permissions",
-          localField: "role.role_permissions",
-          foreignField: "_id",
-          as: "role.role_permissions",
         })
         .addFields({
           createdAt: {
@@ -361,6 +415,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -378,6 +433,10 @@ UserSchema.statics = {
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
 
+      // let update = {};
+      // update["$set"] = {};
+      // update["$set"]["network_roles"] = network_roles;
+
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
@@ -387,6 +446,13 @@ UserSchema.statics = {
         modifiedUpdate["$addToSet"]["networks"]["$each"] =
           modifiedUpdate.networks;
         delete modifiedUpdate["networks"];
+      }
+
+      if (modifiedUpdate.network_roles) {
+        modifiedUpdate["$addToSet"]["network_roles"] = {};
+        modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
+          modifiedUpdate.network_roles;
+        delete modifiedUpdate["network_roles"];
       }
 
       if (modifiedUpdate.permissions) {
@@ -431,6 +497,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "INTERNAL SERVER ERROR",
@@ -464,6 +531,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -518,6 +586,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,

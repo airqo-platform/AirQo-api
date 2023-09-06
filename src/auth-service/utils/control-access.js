@@ -24,6 +24,56 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 
+const findNetworkIdForRole = async ({
+  role_id,
+  tenant = "airqo",
+  networkRoles,
+} = {}) => {
+  for (const networkRole of networkRoles) {
+    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    if (networkRole.network.toString() === RoleDetails.network_id.toString()) {
+      return networkRole.network;
+    }
+  }
+  return null;
+};
+
+const isUserSuperAdmin = async ({
+  networkId,
+  networkRoles,
+  tenant = "airqo",
+}) => {
+  for (const netRole of networkRoles) {
+    if (netRole.network.toString() === networkId.toString()) {
+      const RoleDetails = await RoleModel(tenant)
+        .findById(ObjectId(netRole.role))
+        .lean();
+      if (
+        RoleDetails &&
+        RoleDetails.role_name &&
+        RoleDetails.role_name.endsWith("SUPER_ADMIN")
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+// const isRoleAlreadyAssigned = (networkRoles, role_id) => {
+//   return (
+//     networkRoles.find(
+//       (netRole) => netRole.role.toString() === role_id.toString()
+//     ) !== undefined
+//   );
+// };
+
+const isRoleAlreadyAssigned = (networkRoles, role_id) => {
+  return networkRoles.some(
+    (netRole) => netRole.role.toString() === role_id.toString()
+  );
+};
+
 const generateClientSecret = (length) => {
   if (length % 2 !== 0) {
     throw new Error("Length must be an even number");
@@ -564,11 +614,11 @@ const controlAccess = {
         )
         .toUpperCase();
 
-      const tokenCreationBody = Object.assign(
+      let tokenCreationBody = Object.assign(
         { token, client_id: ObjectId(client_id) },
         request.body
       );
-
+      tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(tokenCreationBody);
@@ -588,6 +638,14 @@ const controlAccess = {
   },
   generateVerificationToken: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled",
+        errors: {
+          message: "Service Temporarily Disabled",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
       const { query, body } = request;
       const { email } = body;
       const { tenant } = query;
@@ -616,15 +674,31 @@ const controlAccess = {
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
 
-        const hrs = constants.EMAIL_VERIFICATION_HOURS;
-        const min = constants.EMAIL_VERIFICATION_MIN;
-        const sec = constants.EMAIL_VERIFICATION_SEC;
+        const emailVerificationHours = parseInt(
+          constants.EMAIL_VERIFICATION_HOURS
+        );
+        const emailVerificationMins = parseInt(
+          constants.EMAIL_VERIFICATION_MIN
+        );
+        const emailVerificationSeconds = parseInt(
+          constants.EMAIL_VERIFICATION_SEC
+        );
+
+        /***
+         * We need to find a client ID associated with this user?
+         */
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
-
+          client: {},
           user_id: responseFromCreateUser.data._id,
-          expires: Date.now() + toMilliseconds(hrs, min, sec),
+          expires:
+            Date.now() +
+            toMilliseconds(
+              emailVerificationHours,
+              emailVerificationMins,
+              emailVerificationSeconds
+            ),
         });
 
         if (responseFromSaveToken.success === true) {
@@ -1280,7 +1354,13 @@ const controlAccess = {
         .aggregate([
           {
             $match: {
-              role: { $ne: role_id },
+              network_roles: {
+                $not: {
+                  $elemMatch: {
+                    role: role_id,
+                  },
+                },
+              },
             },
           },
           {
@@ -1359,15 +1439,18 @@ const controlAccess = {
 
       const userObject = await UserModel(tenant)
         .findById(userId)
-        .populate("role")
+        .populate("network_roles")
         .lean();
 
       logObject("userObject", userObject);
 
-      if (
-        userObject.role &&
-        userObject.role._id.toString() === role_id.toString()
-      ) {
+      const networkRoles = userObject.network_roles || [];
+
+      logObject("networkRoles", networkRoles);
+
+      const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
+
+      if (isRoleAssigned) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1378,10 +1461,30 @@ const controlAccess = {
         };
       }
 
-      if (
-        userObject.role &&
-        userObject.role.role_name.endsWith("SUPER_ADMIN")
-      ) {
+      const networkId = await findNetworkIdForRole({
+        role_id,
+        networkRoles,
+        tenant,
+      });
+
+      if (isEmpty(networkId)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${userId}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const isSuperAdmin = await isUserSuperAdmin({
+        networkId,
+        networkRoles,
+        tenant,
+      });
+
+      if (isSuperAdmin) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1394,7 +1497,11 @@ const controlAccess = {
 
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         userId,
-        { role: role_id },
+        {
+          $addToSet: {
+            network_roles: { role: role_id, network: networkId },
+          },
+        },
         { new: true }
       );
 
@@ -1435,9 +1542,13 @@ const controlAccess = {
       }
 
       const users = await Promise.all(
-        user_ids.map((id) =>
-          UserModel(tenant).findById(id).populate("role").lean()
-        )
+        user_ids.map(async (id) => {
+          const user = await UserModel(tenant)
+            .findById(id)
+            .populate("network_roles")
+            .lean();
+          return user;
+        })
       );
 
       for (const user of users) {
@@ -1450,21 +1561,12 @@ const controlAccess = {
             status: httpStatus.BAD_REQUEST,
           };
         }
+        const networkRoles = user.network_roles || [];
+        logObject("networkRoles", networkRoles);
 
-        const role = user.role;
-        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
-          logObject("");
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
+        const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
 
-        if (!isEmpty(role) && role._id.toString() === role_id.toString()) {
+        if (isRoleAssigned) {
           return {
             success: false,
             message: "Bad Request Error",
@@ -1474,11 +1576,53 @@ const controlAccess = {
             status: httpStatus.BAD_REQUEST,
           };
         }
+
+        const networkId = await findNetworkIdForRole({
+          role_id,
+          networkRoles,
+          tenant,
+        });
+
+        if (isEmpty(networkId)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user._id}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        const isSuperAdmin = await isUserSuperAdmin({
+          networkId,
+          networkRoles,
+          tenant,
+        });
+
+        if (isSuperAdmin) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
       }
 
       const result = await UserModel(tenant).updateMany(
         { _id: { $in: user_ids } },
-        { $set: { role: role_id } }
+        {
+          $set: {
+            "network_roles.$[elem].role": role_id,
+          },
+        },
+        {
+          arrayFilters: [{ "elem.network": { $exists: true } }],
+          multi: true,
+        }
       );
 
       let message = "";
@@ -1495,7 +1639,7 @@ const controlAccess = {
         status,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`internal server error -- ${JSON.stringify}`);
       logObject("error", error);
       return {
         success: false,
@@ -1505,7 +1649,6 @@ const controlAccess = {
       };
     }
   },
-
   listUsersWithRole: async (request) => {
     try {
       logText("listUsersWithRole...");
@@ -1515,7 +1658,7 @@ const controlAccess = {
       const { tenant } = query;
 
       if (!isEmpty(role_id)) {
-        filter["role"] = ObjectId(role_id);
+        filter["network_roles.role"] = ObjectId(role_id);
       }
 
       const role = await RoleModel(tenant).findById(role_id);
@@ -1534,9 +1677,7 @@ const controlAccess = {
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
           {
-            $match: {
-              role: role_id,
-            },
+            $match: filter,
           },
           {
             $project: {
@@ -1574,74 +1715,36 @@ const controlAccess = {
       };
     }
   },
-
   unAssignUserFromRole: async (request) => {
     try {
       const { query, params } = request;
       const { role_id, user_id } = params;
       const { tenant } = query;
 
-      // Check if the role exists
-      const roleObject = await RoleModel(tenant).findById(role_id).lean();
-      if (isEmpty(roleObject)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `Role ${role_id.toString()} does not exist`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      // Check if the user exists
       const userObject = await UserModel(tenant)
         .findById(user_id)
-        .populate("role")
+        .populate("network_roles")
         .lean();
       logObject("userObject", userObject);
 
-      if (isEmpty(userObject)) {
+      const networkRoles = userObject.network_roles || [];
+      logObject("networkRoles", networkRoles);
+
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      const roleExists = await RoleModel(tenant).exists({ _id: role_id });
+
+      if (!userExists || !roleExists) {
         return {
           success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `provided User ${user_id.toString()} does not exist`,
-          },
+          message: "User or Role not found",
           status: httpStatus.BAD_REQUEST,
+          errors: { message: `User ${user_id} or Role ${role_id} not found` },
         };
       }
 
-      // check if User is not a super_admin
-      if (
-        userObject.role &&
-        userObject.role.role_name.endsWith("SUPER_ADMIN")
-      ) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
 
-      // Check if user's role is pointing to a valid role ID
-      if (isEmpty(userObject.role)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User is not assigned to any role" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      // Check if the user is not assigned to the role
-      if (
-        userObject.role &&
-        userObject.role._id.toString() !== role_id.toString()
-      ) {
+      if (!isRoleAssigned) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1652,9 +1755,49 @@ const controlAccess = {
         };
       }
 
+      const networkId = await findNetworkIdForRole({
+        role_id,
+        networkRoles,
+        tenant,
+      });
+
+      if (isEmpty(networkId)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user_id}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const isSuperAdmin = await isUserSuperAdmin({
+        networkId,
+        networkRoles,
+        tenant,
+      });
+
+      if (isSuperAdmin) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $unset: { role: "" } },
+        {
+          $pull: {
+            network_roles: {
+              role: role_id,
+            },
+          },
+        },
         { new: true }
       );
 
@@ -1682,14 +1825,13 @@ const controlAccess = {
       const { tenant } = query;
       const { user_ids } = body;
 
-      // Check if the role exists
-      const role = await RoleModel(tenant).findById(role_id).lean();
-      if (!role) {
+      const roleExists = await RoleModel(tenant).exists({ _id: role_id });
+      if (!roleExists) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Role not found" },
           status: httpStatus.BAD_REQUEST,
+          errors: { message: `Role ${role_id} not found` },
         };
       }
 
@@ -1714,65 +1856,23 @@ const controlAccess = {
         };
       }
 
-      //check if all the provided user_ids are assigned to the provided role?
-
-      const usersAssignedToRole = await UserModel(tenant).find({
-        _id: { $in: user_ids },
-        role: { $all: role_id },
-      });
-
-      if (usersAssignedToRole.length !== user_ids.length) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `Some of the provided User IDs are not assigned to this role ${role_id}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
       const users = await Promise.all(
-        user_ids.map((id) =>
-          UserModel(tenant).findById(id).populate("role").lean()
-        )
+        user_ids.map((id) => UserModel(tenant).findById(id).lean())
       );
 
       for (const user of users) {
-        const role = user.role;
-        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
-          logObject("");
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Cannot unassign SUPER_ADMIN role from user ${user._id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
+        const userObject = await UserModel(tenant)
+          .findById(user._id)
+          .populate("network_roles")
+          .lean();
+        logObject("userObject", userObject);
 
-        if (isEmpty(user)) {
-          return {
-            success: false,
-            message: "Bad Reqest Error",
-            errors: { message: `One of the Users ${user._id} does not exist` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
+        const networkRoles = userObject.network_roles || [];
+        logObject("networkRoles", networkRoles);
 
-        if (isEmpty(role)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user._id.toString()} is not assigned to any role`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
+        const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
 
-        if (!isEmpty(role) && role._id.toString() !== role_id.toString()) {
+        if (!isRoleAssigned) {
           return {
             success: false,
             message: "Bad Request Error",
@@ -1782,12 +1882,46 @@ const controlAccess = {
             status: httpStatus.BAD_REQUEST,
           };
         }
+
+        const networkId = await findNetworkIdForRole({
+          role_id,
+          networkRoles,
+          tenant,
+        });
+
+        if (isEmpty(networkId)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user._id}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        const isSuperAdmin = await isUserSuperAdmin({
+          networkId,
+          networkRoles,
+          tenant,
+        });
+
+        if (isSuperAdmin) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `SUPER_ADMIN User ${user._id.toString()} may not be unassigned from their role`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
       }
 
       // Unassign the users from the role
       const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids }, role: role_id },
-        { $unset: { role: "" } }
+        { _id: { $in: user_ids } },
+        { $pull: { network_roles: { role: role_id } } }
       );
 
       let message = "";

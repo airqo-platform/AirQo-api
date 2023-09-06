@@ -5,10 +5,7 @@ const sinon = require("sinon");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 
-const PermissionSchema = require("@models/Permission");
-
-// Replace this with the actual import path for your Permission model if applicable
-const PermissionModel = mongoose.model("Permission", PermissionSchema);
+const PermissionModel = require("@models/Permission");
 
 describe("PermissionSchema statics and methods", () => {
   beforeEach(() => {

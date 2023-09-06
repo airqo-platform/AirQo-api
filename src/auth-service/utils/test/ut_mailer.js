@@ -6,12 +6,13 @@ const msgTemplates = require("@utils/email.templates");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
 const transporter = require("@config/mailer");
+const response = "email not sent";
 
 const emailFailedResponse = {
   success: false,
   message: "email not sent",
   status: 500,
-  errors: { message: response },
+  errors: { message: "email not sent" },
 };
 
 const emailSuccessResponse = {
@@ -305,7 +306,7 @@ describe("mailer", () => {
       const tenant = "kcca";
       const type = "confirm";
 
-      const response = {
+      const responses = {
         accepted: [email],
         rejected: [],
       };
@@ -328,105 +329,103 @@ describe("mailer", () => {
       );
     });
 
+    it("should send general user welcome email and return success response", async () => {
+      const firstName = "Jane";
+      const lastName = "Smith";
+      const email = "janesmith@example.com";
+      const password = "password123";
+      const tenant = "airqo";
+      const type = "confirm";
+      const response = {
+        accepted: [email],
+        rejected: [],
+      };
 
-  it("should send general user welcome email and return success response", async () => {
-    const firstName = "Jane";
-    const lastName = "Smith";
-    const email = "janesmith@example.com";
-    const password = "password123";
-    const tenant = "airqo";
-    const type = "confirm";
-    const response = {
-      accepted: [email],
-      rejected: [],
-    };
+      sendMailStub.resolves(response);
+      const result = await mailer.user(
+        firstName,
+        lastName,
+        email,
+        password,
+        tenant,
+        type
+      );
 
-    sendMailStub.resolves(response);
-    const result = await mailer.user(
-      firstName,
-      lastName,
-      email,
-      password,
-      tenant,
-      type
-    );
-
-    expect(result).to.deep.equal({
-      success: true,
-      message: "email successfully sent",
-      data: response,
-      status: 200,
+      expect(result).to.deep.equal({
+        success: true,
+        message: "email successfully sent",
+        data: response,
+        status: 200,
+      });
+      expect(sendMailStub.calledOnce).to.be.true;
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.user(firstName, lastName, email)
+      );
     });
-    expect(sendMailStub.calledOnce).to.be.true;
-    expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-    expect(sendMailStub.firstCall.args[0].html).to.equal(
-      msgs.user(firstName, lastName, email)
-    );
-  });
 
-  it("should handle email not sent scenario and return error response", async () => {
-    const firstName = "John";
-    const lastName = "Doe";
-    const email = "johndoe@example.com";
-    const password = "securepassword";
-    const tenant = "kcca";
-    const type = "confirm";
+    it("should handle email not sent scenario and return error response", async () => {
+      const firstName = "John";
+      const lastName = "Doe";
+      const email = "johndoe@example.com";
+      const password = "securepassword";
+      const tenant = "kcca";
+      const type = "confirm";
 
-    // Set up the response from the fake transporter
-    const response = {
-      accepted: [],
-      rejected: [email],
-    };
+      // Set up the response from the fake transporter
+      const response = {
+        accepted: [],
+        rejected: [email],
+      };
 
-    // Stub the sendMail function to resolve with the response
-    sendMailStub.resolves(response);
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(response);
 
-    // Call the mailer.candidate function
-    const result = await mailer.user(
-      firstName,
-      lastName,
-      email,
-      password,
-      tenant,
-      type
-    );
+      // Call the mailer.candidate function
+      const result = await mailer.user(
+        firstName,
+        lastName,
+        email,
+        password,
+        tenant,
+        type
+      );
 
-    // Assert the result
-    expect(result).to.deep.equal({
-      success: false,
-      message: "email not sent",
-      status: 500,
-      errors: { message: response },
+      // Assert the result
+      expect(result).to.deep.equal({
+        success: false,
+        message: response,
+        status: 500,
+        errors: { message: response },
+      });
     });
-  });
 
-  it("should handle internal server error and return error response", async () => {
-    const firstName = "John";
-    const lastName = "Doe";
-    const email = "johndoe@example.com";
-    const password = "securepassword";
-    const tenant = "kcca";
-    const type = "confirm";
-    sendMailStub.rejects(new Error("Mocked sendMail error"));
+    it("should handle internal server error and return error response", async () => {
+      const firstName = "John";
+      const lastName = "Doe";
+      const email = "johndoe@example.com";
+      const password = "securepassword";
+      const tenant = "kcca";
+      const type = "confirm";
+      sendMailStub.rejects(new Error("Mocked sendMail error"));
 
-    const result = await mailer.user(
-      firstName,
-      lastName,
-      email,
-      password,
-      tenant,
-      type
-    );
+      const result = await mailer.user(
+        firstName,
+        lastName,
+        email,
+        password,
+        tenant,
+        type
+      );
 
-    expect(result).to.deep.equal({
-      success: false,
-      message: "Internal Server Error",
-      error: "Mocked sendMail error",
-      errors: { message: "Mocked sendMail error" },
-      status: 500,
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        error: "Mocked sendMail error",
+        errors: { message: "Mocked sendMail error" },
+        status: 500,
+      });
     });
-  });
-
   });
 
   describe("verifyEmail", () => {
@@ -497,7 +496,7 @@ describe("mailer", () => {
     it("should handle email not sent scenario and return error response", async () => {
       // Arrange
       // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      sendMailStub.rejects(new Error(response));
 
       // Act
       // Assuming transporter is accessible from the verifyEmail function
@@ -513,8 +512,8 @@ describe("mailer", () => {
       expect(sendMailStub.calledOnce).to.be.true;
       expect(response).to.deep.equal({
         success: false,
-        message: "email not sent",
-        errors: { message: "Email not sent" },
+        message: response,
+        errors: { message: response },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     });
@@ -561,7 +560,6 @@ describe("mailer", () => {
       sendMailStub.restore();
     });
 
-
     it("should send verification email and return success response", async () => {
       const firstName = "John";
       const username = "john_doe";
@@ -578,17 +576,14 @@ describe("mailer", () => {
         firstName,
         username,
         email,
-        password,
+        password
       );
 
       expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
       expect(sendMailStub.firstCall.args[0].html).to.equal(
-        msgs.afterEmailVerification(firstName,
-          username,
-          email,
-          password,)
+        msgs.afterEmailVerification(firstName, username, email, password)
       );
     });
 
@@ -608,7 +603,7 @@ describe("mailer", () => {
         firstName,
         username,
         email,
-        password,
+        password
       );
 
       expect(result).to.deep.equal(emailFailedResponse);
@@ -625,7 +620,7 @@ describe("mailer", () => {
         firstName,
         username,
         email,
-        password,
+        password
       );
 
       expect(result).to.deep.equal(internalServerResponse);
@@ -659,9 +654,7 @@ describe("mailer", () => {
       };
 
       sendMailStub.resolves(response);
-      const result = await mailer.forgot(
-        email, token, tenant
-      );
+      const result = await mailer.forgot(email, token, tenant);
 
       expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
@@ -682,9 +675,7 @@ describe("mailer", () => {
       };
 
       sendMailStub.resolves(response);
-      const result = await mailer.forgot(
-        email, token, tenant
-      );
+      const result = await mailer.forgot(email, token, tenant);
 
       expect(result).to.deep.equal(emailFailedResponse);
     });
@@ -695,9 +686,7 @@ describe("mailer", () => {
       const tenant = "airqo";
 
       sendMailStub.rejects(new Error("Mocked sendMail error"));
-      const result = await mailer.forgot(
-        email, token, tenant
-      );
+      const result = await mailer.forgot(email, token, tenant);
 
       expect(result).to.deep.equal(internalServerResponse);
     });
@@ -879,7 +868,7 @@ describe("mailer", () => {
     it("should handle email not sent scenario and return error response", async () => {
       // Arrange
       // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      sendMailStub.rejects(new Error(response));
 
       // Act
       // Assuming transporter is accessible from the deleteMobileAccountEmail function
@@ -894,7 +883,7 @@ describe("mailer", () => {
       expect(response).to.deep.equal({
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Email not sent" },
+        errors: { message: response },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     });
@@ -950,9 +939,7 @@ describe("mailer", () => {
       };
 
       sendMailStub.resolves(response);
-      const result = await mailer.authenticateEmail(
-        email, token
-      );
+      const result = await mailer.authenticateEmail(email, token);
 
       expect(result).to.deep.equal(emailSuccessResponse);
       expect(sendMailStub.calledOnce).to.be.true;
@@ -973,9 +960,7 @@ describe("mailer", () => {
       };
 
       sendMailStub.resolves(response);
-      const result = await mailer.authenticateEmail(
-        email, token
-      );
+      const result = await mailer.authenticateEmail(email, token);
 
       expect(result).to.deep.equal(emailFailedResponse);
     });
@@ -986,13 +971,10 @@ describe("mailer", () => {
       const tenant = "airqo";
 
       sendMailStub.rejects(new Error("Mocked sendMail error"));
-      const result = await mailer.authenticateEmail(
-        email, token
-      );
+      const result = await mailer.authenticateEmail(email, token);
 
       expect(result).to.deep.equal(internalServerResponse);
     });
-
   });
   describe("update", () => {
     let sendMailStub;
@@ -1014,7 +996,7 @@ describe("mailer", () => {
       const firstName = "John";
       const lastName = "Doe";
       const updatedUserDetails = {
-        "firstName": "Jonathan"
+        firstName: "Jonathan",
       };
 
       const response = {
@@ -1024,7 +1006,10 @@ describe("mailer", () => {
 
       sendMailStub.resolves(response);
       const result = await mailer.update(
-        email, firstName, lastName, updatedUserDetails
+        email,
+        firstName,
+        lastName,
+        updatedUserDetails
       );
 
       expect(result).to.deep.equal(emailSuccessResponse);
@@ -1040,7 +1025,7 @@ describe("mailer", () => {
       const firstName = "John";
       const lastName = "Doe";
       const updatedUserDetails = {
-        "firstName": "Jonathan"
+        firstName: "Jonathan",
       };
 
       const response = {
@@ -1050,11 +1035,13 @@ describe("mailer", () => {
 
       sendMailStub.resolves(response);
       const result = await mailer.update(
-        email, firstName, lastName, updatedUserDetails
+        email,
+        firstName,
+        lastName,
+        updatedUserDetails
       );
 
       expect(result).to.deep.equal(emailFailedResponse);
-
     });
 
     it("should handle internal server error and return error response", async () => {
@@ -1062,17 +1049,19 @@ describe("mailer", () => {
       const firstName = "John";
       const lastName = "Doe";
       const updatedUserDetails = {
-        "firstName": "Jonathan"
+        firstName: "Jonathan",
       };
 
       sendMailStub.rejects(new Error("Mocked sendMail error"));
       const result = await mailer.update(
-        email, firstName, lastName, updatedUserDetails
+        email,
+        firstName,
+        lastName,
+        updatedUserDetails
       );
 
       expect(result).to.deep.equal(internalServerResponse);
     });
-
   });
   describe("updateForgottenPassword", () => {
     let sendMailStub;
@@ -1148,7 +1137,6 @@ describe("mailer", () => {
 
       expect(result).to.deep.equal(internalServerResponse);
     });
-
   });
   describe("updateKnownPassword", () => {
     let sendMailStub;
@@ -1285,7 +1273,7 @@ describe("mailer", () => {
     it("should handle email not sent scenario and return error response", async () => {
       // Arrange
       // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      sendMailStub.rejects(new Error(response));
 
       // Act
       // Assuming transporter is accessible from the newMobileAppUser function
@@ -1300,9 +1288,9 @@ describe("mailer", () => {
       expect(sendMailStub.calledOnce).to.be.true;
       expect(response).to.deep.equal({
         success: false,
-        message: "email not sent",
+        message: response,
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Email not sent" },
+        errors: { message: response },
       });
     });
 
@@ -1408,7 +1396,7 @@ describe("mailer", () => {
     it("should handle email not sent scenario and return error response", async () => {
       // Arrange
       // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error("Email not sent"));
+      sendMailStub.rejects(new Error(response));
 
       // Act
       // Assuming transporter is accessible from the feedback function
@@ -1423,9 +1411,9 @@ describe("mailer", () => {
       expect(sendMailStub.calledOnce).to.be.true;
       expect(response).to.deep.equal({
         success: false,
-        message: "email not sent",
+        message: response,
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Email not sent" },
+        errors: { message: response },
       });
     });
 
@@ -1499,7 +1487,7 @@ describe("mailer", () => {
 
       expect(result).to.deep.equal({
         success: false,
-        message: "email not sent",
+        message: response,
         errors: { message: new Error("Email sending failed") },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
