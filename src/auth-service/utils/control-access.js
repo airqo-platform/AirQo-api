@@ -24,6 +24,16 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 
+const transformString = (inputString) => {
+  try {
+    const uppercaseString = inputString.toUpperCase();
+    const transformedString = uppercaseString.replace(/ /g, "_");
+    return transformedString;
+  } catch (error) {
+    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+  }
+};
+
 const findNetworkIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -1310,10 +1320,13 @@ const controlAccess = {
       }
 
       const organizationName = network.net_name.toUpperCase();
-      newBody.role_name = `${organizationName}_${body.role_name}`;
-      newBody.role_code = `${organizationName}_${
-        body.role_code ? body.role_code : body.role_name
-      }`;
+      const transformedRoleName = transformString(body.role_name);
+      const availableRoleCode = body.role_code
+        ? body.role_code
+        : body.role_name;
+      const transformedRoleCode = transformString(availableRoleCode);
+      newBody.role_name = `${organizationName}_${transformedRoleName}`;
+      newBody.role_code = `${organizationName}_${transformedRoleCode}`;
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
