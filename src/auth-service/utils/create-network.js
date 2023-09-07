@@ -847,19 +847,41 @@ const createNetwork = {
 
       logObject("the filter", filter);
 
+      if (isEmpty(filter._id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "the network ID is missing -- required when updating corresponding users",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { "network_roles.network": filter._id },
+        { $pull: { network_roles: { network: filter._id } } }
+      );
+
+      if (result.nModified > 0) {
+        logger.info(
+          `Removed network ${filter._id} from ${result.nModified} users.`
+        );
+      }
+
+      if (result.n === 0) {
+        logger.info(
+          `Network ${filter._id} was not found in any users' network_roles.`
+        );
+      }
       const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
         filter,
       });
-
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
-
-      if (responseFromRemoveNetwork.success === true) {
-        return responseFromRemoveNetwork;
-      } else if (responseFromRemoveNetwork.success === false) {
-        return responseFromRemoveNetwork;
-      }
+      return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,

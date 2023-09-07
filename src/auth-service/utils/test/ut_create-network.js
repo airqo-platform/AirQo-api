@@ -1,10 +1,13 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const createNetwork = require("@utils/create-network");
 const UserModel = require("@models/User");
 const NetworkModel = require("@models/Network");
+const chaiHttp = require("chai-http");
+chai.use(chaiHttp);
 
 describe("createNetwork", () => {
   describe("getNetworkFromEmail method", () => {
@@ -1137,80 +1140,77 @@ describe("createNetwork", () => {
 
     // Add more test cases as needed for other scenarios
   });
-  describe("delete", () => {
-    afterEach(() => {
+  describe("delete()", () => {
+    it("should delete network and update corresponding users", async () => {
+      const request = {
+        query: {
+          tenant: "your-tenant", // Replace with your tenant
+        },
+        // Add other request parameters here if needed
+      };
+
+      const UserModelMock = {
+        updateMany: sinon.stub().resolves({ nModified: 2, n: 2 }), // Replace with your desired response
+      };
+
+      const NetworkModelMock = {
+        remove: sinon.stub().resolves({ success: true }), // Replace with your desired response
+      };
+
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
+      sinon.stub(yourModule, "NetworkModel").returns(NetworkModelMock);
+
+      const response = await yourModule.delete(request);
+
+      expect(response.success).to.be.true;
+      expect(UserModelMock.updateMany.calledOnce).to.be.true;
+      expect(NetworkModelMock.remove.calledOnce).to.be.true;
+
+      // Restore the stubs after the test
       sinon.restore();
     });
 
-    it("should delete the network successfully", async () => {
-      // Stub the NetworkModel.remove method to return a successful response
-      const networkModelMock = {
-        remove: sinon.stub().resolves({
-          success: true,
-          message: "Network deleted successfully",
-          status: httpStatus.OK,
-        }),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
+    it("should handle missing network ID", async () => {
       const request = {
         query: {
-          tenant: "example_tenant",
+          tenant: "your-tenant", // Replace with your tenant
         },
+        // Add other request parameters here if needed
       };
 
-      // Call the delete method
-      const response = await createNetwork.delete(request);
+      // Create a stub for UserModel if needed
 
-      // Verify the response
-      expect(response.success).to.be.true;
-      expect(response.message).to.equal("Network deleted successfully");
-      expect(response.status).to.equal(httpStatus.OK);
+      const response = await yourModule.delete(request);
 
-      // Verify the correct methods were called
-      expect(networkModelMock.remove.calledOnce).to.be.true;
-      expect(
-        networkModelMock.remove.calledWithExactly({
-          filter: {}, // Modify this according to your implementation of generateFilter.networks
-        })
-      ).to.be.true;
-    });
-
-    it("should handle case when the network delete fails", async () => {
-      // Stub the NetworkModel.remove method to return a failed response
-      const networkModelMock = {
-        remove: sinon.stub().resolves({
-          success: false,
-          message: "Network delete failed",
-          status: httpStatus.BAD_REQUEST,
-        }),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the delete method
-      const response = await createNetwork.delete(request);
-
-      // Verify the response
       expect(response.success).to.be.false;
-      expect(response.message).to.equal("Network delete failed");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.status).to.equal(400); // Check for the expected HTTP status code
 
-      // Verify the correct methods were called
-      expect(networkModelMock.remove.calledOnce).to.be.true;
-      expect(
-        networkModelMock.remove.calledWithExactly({
-          filter: {}, // Modify this according to your implementation of generateFilter.networks
-        })
-      ).to.be.true;
+      // Restore the stubs after the test
+      sinon.restore();
     });
 
-    // Add more test cases as needed for other scenarios
+    it("should handle internal server error", async () => {
+      const request = {
+        query: {
+          tenant: "your-tenant", // Replace with your tenant
+        },
+        // Add other request parameters here if needed
+      };
+
+      const UserModelMock = {
+        updateMany: sinon.stub().rejects(new Error("Internal server error")), // Simulate an error
+      };
+
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
+
+      const response = await yourModule.delete(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(500); // Check for the expected HTTP status code
+
+      // Restore the stubs after the test
+      sinon.restore();
+    });
   });
   describe("list", () => {
     afterEach(() => {
