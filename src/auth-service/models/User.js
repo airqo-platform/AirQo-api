@@ -91,15 +91,15 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: {
-      type: [
-        {
-          type: ObjectId,
-          ref: "network",
-        },
-      ],
-      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
-    },
+    // networks: {
+    //   type: [
+    //     {
+    //       type: ObjectId,
+    //       ref: "network",
+    //     },
+    //   ],
+    //   default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    // },
     network_roles: {
       type: [
         {
@@ -207,14 +207,14 @@ UserSchema.pre("save", function (next) {
   }
 
   // Check for duplicate values in the networks array
-  const duplicateValues = this.networks.filter(
-    (value, index, self) => self.indexOf(value) !== index
-  );
+  // const duplicateValues = this.networks.filter(
+  //   (value, index, self) => self.indexOf(value) !== index
+  // );
 
-  if (duplicateValues.length > 0) {
-    const error = new Error("Duplicate values found in networks array.");
-    return next(error);
-  }
+  // if (duplicateValues.length > 0) {
+  //   const error = new Error("Duplicate values found in networks array.");
+  //   return next(error);
+  // }
 
   return next();
 });
@@ -441,12 +441,12 @@ UserSchema.statics = {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
 
-      if (modifiedUpdate.networks) {
-        modifiedUpdate["$addToSet"]["networks"] = {};
-        modifiedUpdate["$addToSet"]["networks"]["$each"] =
-          modifiedUpdate.networks;
-        delete modifiedUpdate["networks"];
-      }
+      // if (modifiedUpdate.networks) {
+      //   modifiedUpdate["$addToSet"]["networks"] = {};
+      //   modifiedUpdate["$addToSet"]["networks"]["$each"] =
+      //     modifiedUpdate.networks;
+      //   delete modifiedUpdate["networks"];
+      // }
 
       if (modifiedUpdate.network_roles) {
         modifiedUpdate["$addToSet"]["network_roles"] = {};
@@ -614,7 +614,7 @@ UserSchema.methods = {
         long_organization: this.long_organization,
         privilege: this.privilege,
         role: this.role,
-        networks: this.networks,
+        // networks: this.networks,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
@@ -664,7 +664,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
-      networks: this.networks,
+      // networks: this.networks,
       rateLimit: this.rateLimit,
     };
   },

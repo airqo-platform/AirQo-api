@@ -325,8 +325,8 @@ const createNetwork = {
               {
                 $addToSet: {
                   network_roles: {
-                    network_id: net_id,
-                    role_id: role_id,
+                    network: net_id,
+                    role: role_id,
                   },
                 },
               },
@@ -337,6 +337,7 @@ const createNetwork = {
               return {
                 success: false,
                 message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
                 errors: {
                   message: `Unable to assign the network to the User ${user._id}`,
                 },

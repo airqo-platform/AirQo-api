@@ -362,6 +362,7 @@ const defaultConfig = {
       "net_manager.userName": 0,
       "net_manager.password": 0,
       "net_manager.duration": 0,
+      "net_manager.network_roles": 0,
       "net_manager.createdAt": 0,
       "net_manager.updatedAt": 0,
       "net_manager.groups": 0,
