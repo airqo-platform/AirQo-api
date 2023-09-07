@@ -1263,6 +1263,35 @@ const controlAccess = {
       if (filter.success === false) {
         return filter;
       }
+
+      if (isEmpty(filter._id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "the role ID is missing -- required when updating corresponding users",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { "network_roles.role": filter._id },
+        { $pull: { network_roles: { role: filter._id } } }
+      );
+
+      if (result.nModified > 0) {
+        logger.info(
+          `Removed role ${filter._id} from ${result.nModified} users.`
+        );
+      }
+
+      if (result.n === 0) {
+        logger.info(
+          `Role ${filter._id} was not found in any users' network_roles.`
+        );
+      }
       const responseFromDeleteRole = await RoleModel(
         tenant.toLowerCase()
       ).remove({ filter });
