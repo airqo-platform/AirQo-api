@@ -137,17 +137,17 @@ const UserSchema = new Schema(
       default: [],
       _id: false,
     },
-    groups: [
-      {
-        type: ObjectId,
-        ref: "group",
-      },
-    ],
-    role: {
-      type: ObjectId,
-      ref: "role",
-      default: constants.DEFAULT_ROLE,
-    },
+    // groups: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "group",
+    //   },
+    // ],
+    // role: {
+    //   type: ObjectId,
+    //   ref: "role",
+    //   default: constants.DEFAULT_ROLE,
+    // },
     permissions: [
       {
         type: ObjectId,
@@ -462,17 +462,17 @@ UserSchema.statics = {
         delete modifiedUpdate["permissions"];
       }
 
-      if (modifiedUpdate.roles) {
-        modifiedUpdate["$addToSet"]["roles"] = {};
-        modifiedUpdate["$addToSet"]["roles"]["$each"] = modifiedUpdate.roles;
-        delete modifiedUpdate["roles"];
-      }
+      // if (modifiedUpdate.roles) {
+      //   modifiedUpdate["$addToSet"]["roles"] = {};
+      //   modifiedUpdate["$addToSet"]["roles"]["$each"] = modifiedUpdate.roles;
+      //   delete modifiedUpdate["roles"];
+      // }
 
-      if (modifiedUpdate.groups) {
-        modifiedUpdate["$addToSet"]["groups"] = {};
-        modifiedUpdate["$addToSet"]["groups"]["$each"] = modifiedUpdate.groups;
-        delete modifiedUpdate["groups"];
-      }
+      // if (modifiedUpdate.groups) {
+      //   modifiedUpdate["$addToSet"]["groups"] = {};
+      //   modifiedUpdate["$addToSet"]["groups"]["$each"] = modifiedUpdate.groups;
+      //   delete modifiedUpdate["groups"];
+      // }
 
       const updatedUser = await this.findOneAndUpdate(
         filter,
@@ -497,7 +497,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "INTERNAL SERVER ERROR",
@@ -531,63 +531,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-
-  async v2_remove({ filter = {} } = {}) {
-    try {
-      const response = await this.aggregate()
-        .lookup({
-          from: "access_tokens",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "access_tokens",
-        })
-        .unwind("$access_tokens")
-        .lookup({
-          from: "scopes",
-          localField: "access_tokens.scopes",
-          foreignField: "_id",
-          as: "scopes",
-        })
-        .unwind("scopes")
-        .match(filter)
-        .delete({
-          filter: { _id: "$access_tokens._id" },
-          delete: "access_tokens",
-        })
-        .delete({
-          filter: { _id: "$scopes._id" },
-          delete: "scopes",
-        })
-        .allowDiskUse(true);
-
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully deleted the user",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: false,
-          message: "no users exist",
-          data: [],
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "no users exist for this operation" },
-        };
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -613,7 +557,7 @@ UserSchema.methods = {
         organization: this.organization,
         long_organization: this.long_organization,
         privilege: this.privilege,
-        role: this.role,
+        // role: this.role,
         // networks: this.networks,
         country: this.country,
         profilePicture: this.profilePicture,
@@ -662,7 +606,7 @@ UserSchema.methods = {
       description: this.description,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      role: this.role,
+      // role: this.role,
       verified: this.verified,
       // networks: this.networks,
       rateLimit: this.rateLimit,

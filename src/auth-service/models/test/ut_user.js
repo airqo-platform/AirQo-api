@@ -57,8 +57,6 @@ describe("UserSchema static methods", () => {
       expect(result.status).to.equal(httpStatus.OK);
       expect(result.data).to.be.an("array");
     });
-
-    // Add more test cases to cover other scenarios
   });
 
   describe("modify method", () => {
@@ -91,22 +89,6 @@ describe("UserSchema static methods", () => {
       expect(result.message).to.equal("successfully removed the user");
       expect(result.status).to.equal(httpStatus.OK);
       expect(result.data).to.have.property("_id", "existing_user_id");
-    });
-
-    // Add more test cases to cover other scenarios
-  });
-
-  describe("v2_remove method", () => {
-    it("should remove users with additional operations", async () => {
-      // Assuming there is an existing user with ID "existing_user_id"
-      const filter = { _id: "existing_user_id" };
-
-      const result = await UserModel.v2_remove({ filter });
-
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("successfully deleted the user");
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.be.an("array");
     });
 
     // Add more test cases to cover other scenarios
