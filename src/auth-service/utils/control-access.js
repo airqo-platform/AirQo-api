@@ -99,6 +99,7 @@ const routeDefinitions = [
     service: "deprecated-version-number",
   },
   { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
+  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
     uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
@@ -2471,7 +2472,6 @@ const controlAccess = {
       };
     }
   },
-
   deletePermission: async (request) => {
     try {
       const { query } = request;
@@ -2500,7 +2500,6 @@ const controlAccess = {
       };
     }
   },
-
   updatePermission: async (request) => {
     try {
       const { query, body } = request;
@@ -2528,7 +2527,6 @@ const controlAccess = {
       };
     }
   },
-
   createPermission: async (request) => {
     try {
       const { query, body } = request;
