@@ -72,16 +72,22 @@ const isUserSuperAdmin = async ({
 
 // const isRoleAlreadyAssigned = (networkRoles, role_id) => {
 //   return (
-//     networkRoles.find(
-//       (netRole) => netRole.role.toString() === role_id.toString()
-//     ) !== undefined
+//     networkRoles.find((netRole) => {
+//       if (isEmpty(netRole.role)) {
+//         return false;
+//       }
+//       return netRole.role.toString() === role_id.toString();
+//     }) !== undefined
 //   );
 // };
 
 const isRoleAlreadyAssigned = (networkRoles, role_id) => {
-  return networkRoles.some(
-    (netRole) => netRole.role.toString() === role_id.toString()
-  );
+  return networkRoles.some((netRole) => {
+    if (isEmpty(netRole.role)) {
+      return false;
+    }
+    return netRole.role.toString() === role_id.toString();
+  });
 };
 
 const generateClientSecret = (length) => {
@@ -99,6 +105,7 @@ const routeDefinitions = [
     service: "deprecated-version-number",
   },
   { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
+  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
     uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
@@ -1278,7 +1285,7 @@ const controlAccess = {
 
       const result = await UserModel(tenant).updateMany(
         { "network_roles.role": filter._id },
-        { $pull: { network_roles: { role: filter._id } } }
+        { $set: { "network_roles.$.role": null } }
       );
 
       if (result.nModified > 0) {
@@ -1537,15 +1544,17 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-        userId,
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userId, "network_roles.network": networkId },
         {
-          $addToSet: {
-            network_roles: { role: role_id, network: networkId },
+          $set: {
+            "network_roles.$.role": role_id,
           },
         },
         { new: true }
       );
+
+      logObject("updatedUser", updatedUser);
 
       return {
         success: true,
@@ -1831,14 +1840,10 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-        user_id,
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: user_id, "network_roles.network": networkId },
         {
-          $pull: {
-            network_roles: {
-              role: role_id,
-            },
-          },
+          $set: { "network_roles.$.role": null },
         },
         { new: true }
       );
@@ -1962,8 +1967,8 @@ const controlAccess = {
 
       // Unassign the users from the role
       const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids } },
-        { $pull: { network_roles: { role: role_id } } }
+        { _id: { $in: user_ids }, "network_roles.role": role_id },
+        { $set: { "network_roles.$.role": null } }
       );
 
       let message = "";
@@ -2471,7 +2476,6 @@ const controlAccess = {
       };
     }
   },
-
   deletePermission: async (request) => {
     try {
       const { query } = request;
@@ -2500,7 +2504,6 @@ const controlAccess = {
       };
     }
   },
-
   updatePermission: async (request) => {
     try {
       const { query, body } = request;
@@ -2528,7 +2531,6 @@ const controlAccess = {
       };
     }
   },
-
   createPermission: async (request) => {
     try {
       const { query, body } = request;
