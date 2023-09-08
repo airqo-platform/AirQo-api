@@ -406,7 +406,7 @@ const defaultConfig = {
           createdAt: 0,
           net_users: 0,
           net_permissions: 0,
-          net_roles: 0,
+
           net_groups: 0,
           net_departments: 0,
           net_data_source: 0,
@@ -429,6 +429,7 @@ const defaultConfig = {
           "net_manager.role": 0,
           "net_manager.updatedAt": 0,
           "net_manager.networks": 0,
+          "net_manager.network_roles": 0,
           "net_manager.jobTitle": 0,
           "net_manager.website": 0,
           "net_manager.description": 0,
@@ -436,6 +437,12 @@ const defaultConfig = {
           "net_manager.country": 0,
           "net_manager.resetPasswordExpires": 0,
           "net_manager.resetPasswordToken": 0,
+          "net_roles.role_status": 0,
+          "net_roles.role_code": 0,
+          "net_roles.network_id": 0,
+          "net_roles.createdAt": 0,
+          "net_roles.updatedAt": 0,
+          "net_roles.__v": 0,
         }
       );
     }
@@ -550,47 +557,27 @@ const defaultConfig = {
   },
 
   USERS_INCLUSION_PROJECTION: {
-    _id: 1,
-    firstName: 1,
-    lastName: 1,
-    userName: 1,
-    email: 1,
-    verified: 1,
-    country: 1,
-    privilege: 1,
-    website: 1,
-    category: 1,
-    jobTitle: 1,
-    description: 1,
-    profilePicture: 1,
-    phoneNumber: 1,
-    user_role: { $arrayElemAt: ["$user_role", 0] },
-    networks: {
-      _id: 1,
-      net_name: 1,
-      role: {
-        $cond: {
-          if: {
-            $and: [
-              { $ifNull: ["$role._id", false] },
-              { $ifNull: ["$role.role_name", false] },
-            ],
-          },
-          then: "$role",
-          else: null,
-        },
-      },
-    },
-    clients: "$clients",
-    permissions: "$permissions",
-    createdAt: {
-      $dateToString: {
-        format: "%Y-%m-%d %H:%M:%S",
-        date: "$_id",
-      },
-    },
-    updatedAt: 1,
-    my_networks: "$my_networks",
+    _id: "$_id._id",
+    firstName: "$_id.firstName",
+    lastName: "$_id.lastName",
+    userName: "$_id.userName",
+    email: "$_id.email",
+    verified: "$_id.verified",
+    country: "$_id.country",
+    privilege: "$_id.privilege",
+    website: "$_id.website",
+    category: "$_id.category",
+    jobTitle: "$_id.jobTitle",
+    description: "$_id.description",
+    profilePicture: "$_id.profilePicture",
+    phoneNumber: "$_id.phoneNumber",
+    v1_role: "$_id.v1_role",
+    clients: "$_id.clients",
+    permissions: "$_id.permissions",
+    networks: 1,
+    createdAt: "$_id.createdAt",
+    updatedAt: "$_id.createdAt",
+    my_networks: "$_id.my_networks",
   },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {

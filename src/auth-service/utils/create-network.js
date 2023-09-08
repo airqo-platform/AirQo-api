@@ -13,6 +13,25 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
 
+const isUserAssignedToNetwork = (user, networkId) => {
+  if (user && user.network_roles && user.network_roles.length > 0) {
+    return user.network_roles.some((assignment) => {
+      return assignment.network.equals(networkId);
+    });
+  }
+  return false;
+};
+
+const findNetworkAssignmentIndex = (user, net_id) => {
+  if (!user.network_roles || !Array.isArray(user.network_roles)) {
+    return -1;
+  }
+
+  return user.network_roles.findIndex((assignment) =>
+    assignment.network.equals(net_id)
+  );
+};
+
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
     try {
@@ -485,9 +504,7 @@ const createNetwork = {
 
       logObject("user", user);
 
-      const isAlreadyAssigned = user.network_roles.find((assignment) => {
-        return assignment.network.equals(net_id);
-      });
+      const isAlreadyAssigned = isUserAssignedToNetwork(user, net_id);
 
       if (isAlreadyAssigned) {
         return {
@@ -517,6 +534,7 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -553,9 +571,7 @@ const createNetwork = {
         };
       }
 
-      const networkAssignmentIndex = user.network_roles.findIndex(
-        (assignment) => assignment.network.equals(net_id)
-      );
+      const networkAssignmentIndex = findNetworkAssignmentIndex(user, net_id);
 
       if (networkAssignmentIndex === -1) {
         return {
