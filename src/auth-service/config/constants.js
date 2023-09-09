@@ -571,8 +571,43 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
-    user_role: { $ifNull: [{ $arrayElemAt: ["$user_role", 0] }, null] },
-    networks: 1,
+    lol: { $ifNull: [{ $arrayElemAt: ["$lol", 0] }, null] },
+    networks: {
+      $filter: {
+        input: "$networks",
+        as: "network",
+        cond: {
+          $and: [
+            { $ne: ["$$network.net_name", null] },
+            { $ne: ["$$network._id", null] },
+            {
+              $or: [
+                {
+                  $eq: [
+                    { $ifNull: ["$$network.role.role_permissions", []] },
+                    [],
+                  ],
+                },
+                { $ne: ["$$network.role.role_permissions", null] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+    // networks: {
+    //   $filter: {
+    //     input: "$networks",
+    //     as: "network",
+    //     cond: {
+    //       $and: [
+    //         { $ne: ["$$network.net_name", null] },
+    //         { $ne: ["$$network._id", null] },
+    //         { $ne: [{ $ifNull: ["$$network.role.role_permissions", []] }, []] },
+    //       ],
+    //     },
+    //   },
+    // },
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
@@ -599,7 +634,7 @@ const defaultConfig = {
   //   description: "$_id.description",
   //   profilePicture: "$_id.profilePicture",
   //   phoneNumber: "$_id.phoneNumber",
-  //   user_role: "$_id.user_role",
+  //   lol: "$_id.lol",
   //   clients: "$_id.clients",
   //   permissions: "$_id.permissions",
   //   networks: 1,
@@ -669,6 +704,14 @@ const defaultConfig = {
       "my_networks.net_phoneNumber": 0,
       "my_networks.net_email": 0,
       "my_networks.__v": 0,
+      "lol.role_status": 0,
+      "lol.role_permissions": 0,
+      "lol.role_code": 0,
+      "lol.role_name": 0,
+      "lol.createdAt": 0,
+      "lol.updatedAt": 0,
+      "lol.__v": 0,
+      "lol.role_users": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
