@@ -330,13 +330,14 @@ UserSchema.statics = {
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "roles",
           localField: "role",
           foreignField: "_id",
-          as: "user_role",
+          as: "lol",
         })
         .lookup({
           from: "permissions",
@@ -364,7 +365,14 @@ UserSchema.statics = {
             },
           },
         })
-        .unwind("$network_roles")
+        .unwind({
+          path: "$network_roles",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$network_groups",
+          preserveNullAndEmptyArrays: true,
+        })
         .lookup({
           from: "networks",
           localField: "network_roles.network",
@@ -398,7 +406,7 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
-          user_role: { $first: "$user_role" },
+          lol: { $first: "$lol" },
           clients: { $first: "$clients" },
           permissions: { $first: "$permissions" },
           my_networks: { $first: "$my_networks" },
@@ -480,7 +488,7 @@ UserSchema.statics = {
   //         from: "roles",
   //         localField: "role",
   //         foreignField: "_id",
-  //         as: "user_role",
+  //         as: "lol",
   //       })
   //       .lookup({
   //         from: "permissions",
