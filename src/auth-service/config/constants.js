@@ -571,23 +571,8 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
-    user_role: { $arrayElemAt: ["$user_role", 0] },
-    networks: {
-      _id: 1,
-      net_name: 1,
-      role: {
-        $cond: {
-          if: {
-            $and: [
-              { $ifNull: ["$role._id", false] },
-              { $ifNull: ["$role.role_name", false] },
-            ],
-          },
-          then: "$role",
-          else: null,
-        },
-      },
-    },
+    user_role: { $ifNull: [{ $arrayElemAt: ["$user_role", 0] }, null] },
+    networks: 1,
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
@@ -599,7 +584,6 @@ const defaultConfig = {
     updatedAt: 1,
     my_networks: "$my_networks",
   },
-
   // USERS_INCLUSION_PROJECTION: {
   //   _id: "$_id._id",
   //   firstName: "$_id.firstName",
@@ -653,22 +637,18 @@ const defaultConfig = {
       "networks.role.role_permissions.createdAt": 0,
       "networks.role.role_permissions.network_id": 0,
       "networks.role.role_permissions.description": 0,
-
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
       "access_tokens.updatedAt": 0,
-
       "permissions.__v": 0,
       "permissions.network_id": 0,
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-
       "groups.__v": 0,
       "groups.createdAt": 0,
       "groups.updatedAt": 0,
-
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
