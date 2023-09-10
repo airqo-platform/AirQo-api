@@ -41,7 +41,10 @@ const findNetworkIdForRole = async ({
 } = {}) => {
   for (const networkRole of networkRoles) {
     const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    if (networkRole.network.toString() === RoleDetails.network_id.toString()) {
+    if (
+      networkRole.network &&
+      networkRole.network.toString() === RoleDetails.network_id.toString()
+    ) {
       return networkRole.network;
     }
   }

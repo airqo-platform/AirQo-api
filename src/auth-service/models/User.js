@@ -431,9 +431,7 @@ UserSchema.statics = {
           },
         })
         .project(inclusionProjection)
-        .match({
-          "networks.net_name": { $ne: null, $ne: "", $ne: undefined },
-        })
+
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
         .skip(skip ? skip : 0)
@@ -595,12 +593,12 @@ UserSchema.statics = {
       //   delete modifiedUpdate["networks"];
       // }
 
-      if (modifiedUpdate.network_roles) {
-        modifiedUpdate["$addToSet"]["network_roles"] = {};
-        modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
-          modifiedUpdate.network_roles;
-        delete modifiedUpdate["network_roles"];
-      }
+      // if (modifiedUpdate.network_roles) {
+      //   modifiedUpdate["$addToSet"]["network_roles"] = {};
+      //   modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
+      //     modifiedUpdate.network_roles;
+      //   delete modifiedUpdate["network_roles"];
+      // }
 
       if (modifiedUpdate.permissions) {
         modifiedUpdate["$addToSet"]["permissions"] = {};
