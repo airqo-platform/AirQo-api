@@ -92,6 +92,58 @@ const mailer = {
       };
     }
   },
+  request: async ({
+    firstName = "",
+    lastName = "",
+    email,
+    tenant = "airqo",
+    entity_title = "",
+  } = {}) => {
+    try {
+      let bcc = "";
+      if (tenant.toLowerCase() === "airqo") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: `AirQo Analytics Request to Join Entity: ${entity_title}`,
+        html: msgs.joinEntityRequest(firstName, lastName, email, entity_title),
+        bcc,
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 
   inquiry: async (fullName, email, category, message, tenant) => {
     try {
@@ -187,7 +239,7 @@ const mailer = {
           subject: "Welcome to the AirQo KCCA Platform",
           html: msgs.welcome_kcca(firstName, lastName, password, email),
           bcc,
-          attachments
+          attachments,
         };
       } else {
         mailOptions = {
@@ -199,7 +251,7 @@ const mailer = {
           subject: "Welcome to AirQo Analytics",
           html: msgs.welcome_general(firstName, lastName, password, email),
           bcc,
-          attachments
+          attachments,
         };
       }
 
@@ -616,7 +668,12 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics account updated",
-        html: `${msgs.user_updated(firstName, lastName, updatedUserDetails, email)}`,
+        html: `${msgs.user_updated(
+          firstName,
+          lastName,
+          updatedUserDetails,
+          email
+        )}`,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);

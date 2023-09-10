@@ -56,6 +56,8 @@ router.post(
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.requestAccessToGroup
 );
 router.post(
@@ -87,6 +89,8 @@ router.post(
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.requestAccessToNetwork
 );
 router.get(
@@ -104,6 +108,8 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listPendingAccessRequests
 );
 router.post(
@@ -227,6 +233,8 @@ router.get(
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listAccessRequestsForGroup
 );
 router.get(
@@ -258,6 +266,8 @@ router.get(
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listAccessRequestsForNetwork
 );
 router.delete(
