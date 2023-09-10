@@ -7,20 +7,10 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohorts-route-v2`);
-const { getModelByTenant } = require("@config/database");
-
-const NetworkSchema = require("@models/Network");
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- cohorts-route-v2`
+);
+const NetworkModel = require("@models/Network");
 
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
@@ -34,7 +24,6 @@ const validateNetwork = async (value) => {
   }
 };
 
-logObject("validateNetwork", validateNetwork);
 const validatePagination = (req, res, next) => {
   // Retrieve the limit and skip values from the query parameters
   const limit = parseInt(req.query.limit, 10);

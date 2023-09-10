@@ -13,6 +13,25 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
 
+const isUserAssignedToNetwork = (user, networkId) => {
+  if (user && user.network_roles && user.network_roles.length > 0) {
+    return user.network_roles.some((assignment) => {
+      return assignment.network.equals(networkId);
+    });
+  }
+  return false;
+};
+
+const findNetworkAssignmentIndex = (user, net_id) => {
+  if (!user.network_roles || !Array.isArray(user.network_roles)) {
+    return -1;
+  }
+
+  return user.network_roles.findIndex((assignment) =>
+    assignment.network.equals(net_id)
+  );
+};
+
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
     try {
@@ -322,7 +341,14 @@ const createNetwork = {
              */
             const updatedUser = await UserModel(tenant).findByIdAndUpdate(
               user._id,
-              { $addToSet: { networks: net_id }, role: role_id },
+              {
+                $addToSet: {
+                  network_roles: {
+                    network: net_id,
+                    role: role_id,
+                  },
+                },
+              },
               { new: true }
             );
 
@@ -330,11 +356,13 @@ const createNetwork = {
               return {
                 success: false,
                 message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
                 errors: {
                   message: `Unable to assign the network to the User ${user._id}`,
                 },
               };
             }
+
             return responseFromRegisterNetwork;
           }
         }
@@ -383,12 +411,17 @@ const createNetwork = {
           };
         }
 
-        if (user.networks && user.networks.includes(net_id.toString())) {
+        const existingAssignment = user.network_roles.find((assignment) => {
+          return assignment.network.toString() === net_id.toString();
+        });
+
+        if (existingAssignment) {
           return {
+            userId: user_id,
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Network ${net_id} is already assigned to the user ${user_id}`,
+              message: `User ${user_id} is already assigned to the Network ${net_id}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
@@ -396,10 +429,24 @@ const createNetwork = {
       }
 
       const totalUsers = user_ids.length;
-      const { nModified, n } = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids } },
-        { $addToSet: { networks: net_id } }
-      );
+      const assignments = user_ids.map((user_id) => {
+        return {
+          updateOne: {
+            filter: {
+              _id: user_id,
+            },
+            update: {
+              $addToSet: {
+                network_roles: {
+                  network: net_id,
+                },
+              },
+            },
+          },
+        };
+      });
+
+      const { nModified, n } = await UserModel(tenant).bulkWrite(assignments);
 
       const notFoundCount = totalUsers - nModified;
       if (nModified === 0) {
@@ -414,14 +461,14 @@ const createNetwork = {
       if (notFoundCount > 0) {
         return {
           success: true,
-          message: `Operation partially successful some ${notFoundCount} of the provided users were not found in the system`,
+          message: `Operation partially successful; some ${notFoundCount} of the provided users were not found in the system`,
           status: httpStatus.OK,
         };
       }
 
       return {
         success: true,
-        message: "successfully assigned all the provided users to the Network",
+        message: "Successfully assigned all the provided users to the Network",
         status: httpStatus.OK,
         data: [],
       };
@@ -457,7 +504,9 @@ const createNetwork = {
 
       logObject("user", user);
 
-      if (user.networks && user.networks.includes(net_id.toString())) {
+      const isAlreadyAssigned = isUserAssignedToNetwork(user, net_id);
+
+      if (isAlreadyAssigned) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -465,10 +514,15 @@ const createNetwork = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $addToSet: { networks: net_id } },
+        {
+          $addToSet: {
+            network_roles: {
+              network: net_id,
+            },
+          },
+        },
         { new: true }
       );
 
@@ -480,6 +534,7 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -506,7 +561,7 @@ const createNetwork = {
       }
 
       // Check if the user exists
-      const user = await UserModel(tenant).findById(user_id);
+      let user = await UserModel(tenant).findById(user_id);
       if (!user) {
         return {
           success: false,
@@ -516,32 +571,33 @@ const createNetwork = {
         };
       }
 
-      // Check if the network is part of the user's networks
-      const isNetworkInUser = user.networks.some(
-        (networkId) => networkId.toString() === net_id.toString()
-      );
-      if (!isNetworkInUser) {
+      const networkAssignmentIndex = findNetworkAssignmentIndex(user, net_id);
+
+      if (networkAssignmentIndex === -1) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Network ${net_id.toString()} is not part of the user's networks`,
+            message: `Network ${net_id.toString()} is not assigned to the user`,
           },
         };
       }
 
-      // Remove the network from the user
+      // Remove the network assignment from the user's network_roles array
+      user.network_roles.splice(networkAssignmentIndex, 1);
+
+      // Update the user with the modified network_roles array
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { $pull: { networks: net_id } },
+        { network_roles: user.network_roles },
         { new: true }
       );
 
       return {
         success: true,
         message: "Successfully unassigned User from the Network",
-        data: { updatedNetwork, updatedUser },
+        data: updatedUser,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -593,11 +649,10 @@ const createNetwork = {
         };
       }
 
-      //check if all the provided user_ids have the network_id in their network's field?
-
+      // Check if all the provided user_ids are assigned to the network in network_roles
       const users = await UserModel(tenant).find({
         _id: { $in: user_ids },
-        networks: { $all: [net_id] },
+        "network_roles.network": net_id,
       });
 
       if (users.length !== user_ids.length) {
@@ -611,14 +666,19 @@ const createNetwork = {
         };
       }
 
-      //remove the net_id from all the user's network field
-
+      // Remove the network assignment from each user's network_roles array
       try {
         const totalUsers = user_ids.length;
         const { nModified, n } = await UserModel(tenant).updateMany(
-          { _id: { $in: user_ids }, networks: { $in: [net_id] } },
-          { $pull: { networks: net_id } },
-          { multi: true }
+          {
+            _id: { $in: user_ids },
+            network_roles: { $elemMatch: { network: net_id } },
+          },
+          {
+            $pull: {
+              network_roles: { network: net_id },
+            },
+          }
         );
 
         const notFoundCount = totalUsers - nModified;
@@ -650,7 +710,7 @@ const createNetwork = {
 
       return {
         success: true,
-        message: `successfully unassigned all the provided  users from the network ${net_id}`,
+        message: `Successfully unassigned all the provided users from the network ${net_id}`,
         status: httpStatus.OK,
         data: [],
       };
@@ -772,19 +832,15 @@ const createNetwork = {
         update,
         filter,
       });
-
-      if (responseFromModifyNetwork.success === true) {
-        return responseFromModifyNetwork;
-      } else if (responseFromModifyNetwork.success === false) {
-        return responseFromModifyNetwork;
-      }
+      return responseFromModifyNetwork;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -807,19 +863,41 @@ const createNetwork = {
 
       logObject("the filter", filter);
 
+      if (isEmpty(filter._id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "the network ID is missing -- required when updating corresponding users",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { "network_roles.network": filter._id },
+        { $pull: { network_roles: { network: filter._id } } }
+      );
+
+      if (result.nModified > 0) {
+        logger.info(
+          `Removed network ${filter._id} from ${result.nModified} users.`
+        );
+      }
+
+      if (result.n === 0) {
+        logger.info(
+          `Network ${filter._id} was not found in any users' network_roles.`
+        );
+      }
       const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
         filter,
       });
-
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
-
-      if (responseFromRemoveNetwork.success === true) {
-        return responseFromRemoveNetwork;
-      } else if (responseFromRemoveNetwork.success === false) {
-        return responseFromRemoveNetwork;
-      }
+      return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -962,11 +1040,25 @@ const createNetwork = {
         };
       }
 
+      // Retrieve users who are not part of the network or don't have the specific network role
       const responseFromListAvailableUsers = await UserModel(tenant)
         .aggregate([
           {
             $match: {
-              networks: { $nin: [net_id] },
+              $or: [
+                {
+                  networks: { $nin: [net_id] },
+                },
+                {
+                  network_roles: {
+                    $not: {
+                      $elemMatch: {
+                        network: network._id,
+                      },
+                    },
+                  },
+                },
+              ],
             },
           },
           {
@@ -1031,7 +1123,18 @@ const createNetwork = {
         .aggregate([
           {
             $match: {
-              networks: { $in: [net_id] },
+              $or: [
+                {
+                  networks: { $in: [net_id] },
+                },
+                {
+                  network_roles: {
+                    $elemMatch: {
+                      network: network._id,
+                    },
+                  },
+                },
+              ],
             },
           },
           {
@@ -1052,8 +1155,6 @@ const createNetwork = {
               category: 1,
               country: 1,
               description: 1,
-              "role.role_name": 1,
-              "role._id": 1,
             },
           },
         ])
@@ -1063,7 +1164,7 @@ const createNetwork = {
 
       return {
         success: true,
-        message: `retrieved all assigned users for network ${net_id}`,
+        message: `Retrieved all assigned users for network ${net_id}`,
         data: responseFromListAssignedUsers,
       };
     } catch (error) {

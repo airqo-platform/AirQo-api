@@ -109,6 +109,12 @@ ClientSchema.statics = {
 
       const response = await this.aggregate()
         .match(filter)
+        .lookup({
+          from: "access_tokens",
+          localField: "_id",
+          foreignField: "client_id",
+          as: "access_token",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)

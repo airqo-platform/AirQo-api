@@ -88,8 +88,14 @@ def get_health_tips() -> list[dict]:
             f"{Config.AIRQO_BASE_URL}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
             timeout=3,
         )
-        result = response.json()
-        return result["tips"]
+        if response.status_code == 200:
+            result = response.json()
+            if "tips" in result:
+                return result["tips"]
+            else:
+                raise Exception("Invalid JSON response: no 'tips' key")
+        else:
+            raise Exception(f"Bad status code: {response.status_code}")
     except Exception as ex:
         print(ex)
         traceback.print_exc()
@@ -221,15 +227,12 @@ def get_forecasts(
 
     results = []
     if site_forecasts:
-        for time, pm2_5, health_tips in zip(
+        for time, pm2_5 in zip(
             site_forecasts[0]["time"],
             site_forecasts[0]["pm2_5"],
         ):
             result = {
-                key: value
-                for key, value in zip(
-                    ["time", "pm2_5"], [time, pm2_5]
-                )
+                key: value for key, value in zip(["time", "pm2_5"], [time, pm2_5])
             }
             results.append(result)
 
@@ -315,4 +318,24 @@ def read_faulty_devices(query):
     for doc in docs:
         doc.pop("_id")
         result.append(doc)
+    return result
+
+
+def add_forecast_health_tips(result: dict):
+    health_tips = get_health_tips()
+    if health_tips:
+        for i in result["forecasts"]:
+            pm2_5 = i["pm2_5"]
+            i["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"]
+                    >= pm2_5
+                    >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
+    else:
+        print("Error: could not get health tips from external API")
+        return result
+
     return result

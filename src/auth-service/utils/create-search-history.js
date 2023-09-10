@@ -1,4 +1,4 @@
-const SearchHistoryModel = require("@models/searchHistory");
+const SearchHistoryModel = require("@models/SearchHistory");
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");

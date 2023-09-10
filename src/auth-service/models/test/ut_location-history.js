@@ -6,11 +6,7 @@ const mongoose = require("mongoose");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 
-const LocationHistorySchema = require("@models/LocationHistory");
-const LocationHistoryModel = mongoose.model(
-  "locationHistories",
-  LocationHistorySchema
-);
+const LocationHistoryModel = require("@models/LocationHistory");
 
 describe("LocationHistoryModel", () => {
   describe("register method", () => {

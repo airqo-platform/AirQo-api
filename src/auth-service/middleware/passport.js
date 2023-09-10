@@ -271,6 +271,11 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Events API Access via JWT",
         },
         {
+          uri: ["/api/v2/devices/measurements"],
+          service: "measurements-registry",
+          action: "Measurements API Access via JWT",
+        },
+        {
           uri: ["/api/v1/devices"],
           service: "device-registry",
           action: "deprecated-version-number",

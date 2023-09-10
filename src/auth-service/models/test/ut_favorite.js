@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const FavoriteSchema = require("@models/Favorite");
-
-// Replace this with the actual import path for your Favorite model if applicable
-const FavoriteModel = mongoose.model("Favorite", FavoriteSchema);
+const FavoriteModel = require("@models/Favorite");
 
 describe("FavoriteSchema statics", () => {
   describe("register method", () => {

@@ -73,11 +73,11 @@ const consumeHourlyMeasurements = async (messageData) => {
     const measurements = JSON.parse(repairedJSONString).data;
     // const measurements = JSON.parse(repairedJSONString);
     if (!Array.isArray(measurements) || isEmpty(measurements)) {
-      logger.error(
-        `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
-          measurements
-        )}`
-      );
+      // logger.error(
+      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
+      //     measurements
+      //   )}`
+      // );
     } else {
       const cleanedMeasurements = measurements.map((obj) =>
         cleanDeep(obj, { cleanValues: ["NaN"] })
@@ -117,11 +117,11 @@ const consumeHourlyMeasurements = async (messageData) => {
             timestamp: timestamp ? timestamp : undefined,
           };
         });
-        logger.error(
-          `KAFKA: Input validation formatted errors -- ${JSON.stringify(
-            errorDetails
-          )}`
-        );
+        // logger.error(
+        //   `KAFKA: Input validation formatted errors -- ${JSON.stringify(
+        //     errorDetails
+        //   )}`
+        // );
 
         // logger.error(
         //     `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`

@@ -5,7 +5,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
-
+const { getModelByTenant } = require("@config/database");
 const knowYourAirTaskSchema = new Schema(
   {
     title: {
@@ -38,7 +38,7 @@ const knowYourAirTaskSchema = new Schema(
   }
 );
 
-knowYourAirTaskSchema.pre("save", function (next) {
+knowYourAirTaskSchema.pre("save", function(next) {
   next();
 });
 
@@ -297,4 +297,14 @@ knowYourAirTaskSchema.statics = {
   },
 };
 
-module.exports = knowYourAirTaskSchema;
+const KnowYourAirTaskModel = (tenant) => {
+  try {
+    let kyatasks = mongoose.model("kyatasks");
+    return kyatasks;
+  } catch (error) {
+    let kyatasks = getModelByTenant(tenant, "kyatask", knowYourAirTaskSchema);
+    return kyatasks;
+  }
+};
+
+module.exports = KnowYourAirTaskModel;

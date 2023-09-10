@@ -14,7 +14,7 @@ RUN npm install
 # Bundle app source
 COPY . .
 
-RUN chmod 777 /usr/src/app/bin/www
+RUN chmod 777 /usr/src/app/bin
 
 EXPOSE 3000
 

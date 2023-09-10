@@ -1,8 +1,7 @@
-const GridSchema = require("@models/Grid");
-const SiteSchema = require("@models/Site");
-const DeviceSchema = require("@models/Device");
-const AdminLevelSchema = require("@models/AdminLevel");
-const { getModelByTenant } = require("@config/database");
+const GridModel = require("@models/Grid");
+const SiteModel = require("@models/Site");
+const DeviceModel = require("@models/Device");
+const AdminLevelModel = require("@models/AdminLevel");
 const geolib = require("geolib");
 const geohash = require("ngeohash");
 const { Transform } = require("stream");
@@ -23,49 +22,6 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-
-const GridModel = (tenant) => {
-  try {
-    const grids = mongoose.model("grids");
-    return grids;
-  } catch (error) {
-    // logObject("error", error);
-    const grids = getModelByTenant(tenant, "grid", GridSchema);
-    return grids;
-  }
-};
-const SiteModel = (tenant) => {
-  try {
-    const sites = mongoose.model("sites");
-    return sites;
-  } catch (error) {
-    const sites = getModelByTenant(tenant, "site", SiteSchema);
-    return sites;
-  }
-};
-const AdminLevelModel = (tenant) => {
-  try {
-    const adminlevels = mongoose.model("adminlevels");
-    return adminlevels;
-  } catch (error) {
-    const adminlevels = getModelByTenant(
-      tenant,
-      "adminlevel",
-      AdminLevelSchema
-    );
-    return adminlevels;
-  }
-};
-
-const DeviceModel = (tenant) => {
-  try {
-    const devices = mongoose.model("devices");
-    return devices;
-  } catch (error) {
-    const devices = getModelByTenant(tenant, "device", DeviceSchema);
-    return devices;
-  }
-};
 
 class GridTransformStream extends Transform {
   constructor(centers, options) {

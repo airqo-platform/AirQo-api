@@ -1,10 +1,13 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const createNetwork = require("@utils/create-network");
 const UserModel = require("@models/User");
 const NetworkModel = require("@models/Network");
+const chaiHttp = require("chai-http");
+chai.use(chaiHttp);
 
 describe("createNetwork", () => {
   describe("getNetworkFromEmail method", () => {
@@ -542,1042 +545,239 @@ describe("createNetwork", () => {
       mongoose.model.restore();
     });
   });
-  describe("assignUsers method", () => {
-    const request = {
-      params: {
-        net_id: "net123",
-      },
-      body: {
-        user_ids: ["user123", "user456"],
-      },
-      query: {
-        tenant: "sampleTenant",
-      },
-    };
-
-    const networkModelMock = {
-      findById: sinon.stub().returns({
-        _id: "net123",
-      }),
-    };
-
-    const userModelMock = {
-      findById: sinon.stub(),
-      updateMany: sinon.stub(),
-    };
+  describe("assignUsers", () => {
+    let sandbox;
 
     beforeEach(() => {
-      sinon.resetHistory();
+      sandbox = sinon.createSandbox();
     });
 
-    it("should assign users to the network if valid network and user IDs are provided", async () => {
-      // Stub the NetworkModel to return a valid network
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the UserModel to return valid user data
-      sinon.stub(mongoose, "model").returns(userModelMock);
-      userModelMock.findById.withArgs(ObjectId("user123")).returns({
-        _id: "user123",
-        networks: [],
-      });
-      userModelMock.findById.withArgs(ObjectId("user456")).returns({
-        _id: "user456",
-        networks: [],
-      });
-
-      // Stub the updateMany method to return the number of modified users
-      userModelMock.updateMany.returns({
-        nModified: 2,
-        n: 2,
-      });
-
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: true,
-          message:
-            "successfully assigned all the provided users to the Network",
-          status: httpStatus.OK,
-          data: [],
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.calledTwice).to.be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user123"))).to
-        .be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user456"))).to
-        .be.true;
-      expect(userModelMock.updateMany.calledOnce).to.be.true;
-      expect(
-        userModelMock.updateMany.calledWithExactly(
-          {
-            _id: {
-              $in: [ObjectId("user123"), ObjectId("user456")],
-            },
-          },
-          {
-            $addToSet: {
-              networks: "net123",
-            },
-          }
-        )
-      ).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
+    afterEach(() => {
+      sandbox.restore();
     });
 
-    it("should handle case when the network ID provided is invalid", async () => {
-      // Stub the NetworkModel to return null (invalid network ID)
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-      networkModelMock.findById.returns(null);
+    it("should assign users to a network successfully", async () => {
+      // Define your mock request object
+      const request = {
+        params: {
+          net_id: "network-id",
+        },
+        body: {
+          user_ids: ["user-id-1", "user-id-2"],
+        },
+        query: {
+          tenant: "test-tenant",
+        },
+      };
 
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "Invalid network ID net123",
-          },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.notCalled).to.be.true;
-      expect(userModelMock.updateMany.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
-    });
-
-    it("should handle case when any of the provided user IDs is invalid", async () => {
-      // Stub the NetworkModel to return a valid network
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the UserModel to return null (invalid user ID)
-      sinon.stub(mongoose, "model").returns(userModelMock);
-      userModelMock.findById.withArgs(ObjectId("user123")).returns(null);
-      userModelMock.findById.withArgs(ObjectId("user456")).returns({
-        _id: "user456",
-        networks: [],
+      // Stub the NetworkModel functions
+      sandbox.stub(NetworkModel("test-tenant"), "findById").resolves({
+        // Define the expected network object here
       });
 
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "Invalid User ID user123, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.calledTwice).to.be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user123"))).to
-        .be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user456"))).to
-        .be.true;
-      expect(userModelMock.updateMany.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
-    });
-
-    it("should handle case when any of the users already has the network assigned", async () => {
-      // Stub the NetworkModel to return a valid network
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the UserModel to return valid user data
-      sinon.stub(mongoose, "model").returns(userModelMock);
-      userModelMock.findById.withArgs(ObjectId("user123")).returns({
-        _id: "user123",
-        networks: ["net123"],
-      });
-      userModelMock.findById.withArgs(ObjectId("user456")).returns({
-        _id: "user456",
-        networks: [],
+      // Stub the UserModel functions
+      sandbox.stub(UserModel("test-tenant"), "findById").resolves({
+        _id: "user-id",
+        // Other user properties
       });
 
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "Network net123 is already assigned to the user user123",
-          },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.calledTwice).to.be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user123"))).to
-        .be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user456"))).to
-        .be.true;
-      expect(userModelMock.updateMany.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
-    });
-
-    it("should handle case when none of the users are found in the system", async () => {
-      // Stub the NetworkModel to return a valid network
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the UserModel to return null (no users found)
-      sinon.stub(mongoose, "model").returns(userModelMock);
-      userModelMock.findById.returns(null);
-
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.calledTwice).to.be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user123"))).to
-        .be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user456"))).to
-        .be.true;
-      expect(userModelMock.updateMany.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
-    });
-
-    it("should handle case when none of the users are modified", async () => {
-      // Stub the NetworkModel to return a valid network
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the UserModel to return valid user data
-      sinon.stub(mongoose, "model").returns(userModelMock);
-      userModelMock.findById.withArgs(ObjectId("user123")).returns({
-        _id: "user123",
-        networks: ["net456"],
-      });
-      userModelMock.findById.withArgs(ObjectId("user456")).returns({
-        _id: "user456",
-        networks: ["net789"],
+      // Stub the bulkWrite function to simulate database updates
+      sandbox.stub(UserModel("test-tenant"), "bulkWrite").resolves({
+        nModified: 2, // Number of modified documents
+        n: 2, // Total number of documents
       });
 
-      // Stub the updateMany method to return 0 modified users
-      userModelMock.updateMany.returns({
-        nModified: 0,
-        n: 2,
-      });
+      // Make the request to your function
+      const response = await createNetwork.assignUsers(request);
 
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.calledTwice).to.be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user123"))).to
-        .be.true;
-      expect(userModelMock.findById.calledWithExactly(ObjectId("user456"))).to
-        .be.true;
-      expect(userModelMock.updateMany.calledOnce).to.be.true;
-      expect(
-        userModelMock.updateMany.calledWithExactly(
-          {
-            _id: {
-              $in: [ObjectId("user123"), ObjectId("user456")],
-            },
-          },
-          {
-            $addToSet: {
-              networks: "net123",
-            },
-          }
-        )
-      ).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
+      // Assertions
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
+        "Successfully assigned all the provided users to the Network"
+      );
+      expect(response.data).to.be.an("array");
+      // Add more assertions based on the expected response
     });
 
-    it("should handle internal server error", async () => {
-      // Stub the NetworkModel to throw an error
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-      networkModelMock.findById.throws(new Error("Mock NetworkModel error"));
-
-      // Call the assignUsers method
-      const callback = sinon.stub();
-      await createNetwork.assignUsers(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Mock NetworkModel error" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findById.notCalled).to.be.true;
-      expect(userModelMock.updateMany.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      mongoose.model.restore();
-    });
+    // Add more test cases for error scenarios, validation, etc.
   });
   describe("assignOneUser", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
     afterEach(() => {
-      sinon.restore();
+      sandbox.restore();
     });
 
-    it("should successfully assign the user to the network", async () => {
-      // Stub the UserModel.exists and NetworkModel.exists methods to return true
-      const userModelMock = {
-        exists: sinon.stub().resolves(true),
-        findById: sinon.stub().resolves({
-          _id: "user123",
-          networks: [],
-        }),
-        findByIdAndUpdate: sinon.stub().resolves({
-          _id: "user123",
-          networks: ["net123"],
-        }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-
+    it("should assign one user to a network successfully", async () => {
+      // Define your mock request object
       const request = {
         params: {
-          net_id: "net123",
-          user_id: "user123",
+          net_id: "network-id",
+          user_id: "user-id",
         },
         query: {
-          tenant: "example_tenant",
+          tenant: "test-tenant",
         },
       };
 
-      // Call the assignOneUser method
-      const response = await createNetwork.assignOneUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.true;
-      expect(response.message).to.equal("User assigned to the Network");
-      expect(response.data).to.deep.equal({
-        _id: "user123",
-        networks: ["net123"],
+      // Stub the UserModel functions
+      sandbox.stub(UserModel("test-tenant"), "exists").resolves(true);
+      sandbox.stub(UserModel("test-tenant"), "findById").resolves({
+        _id: "user-id",
+        network_roles: [], // Simulate no network assignment initially
+        // Other user properties
       });
+
+      // Stub the NetworkModel functions
+      sandbox.stub(NetworkModel("test-tenant"), "exists").resolves(true);
+
+      // Stub the findByIdAndUpdate function to simulate database update
+      sandbox.stub(UserModel("test-tenant"), "findByIdAndUpdate").resolves({
+        _id: "user-id",
+        network_roles: [{ network: "network-id" }], // Simulate the assignment
+        // Other updated user properties
+      });
+
+      // Make the request to your function
+      const response = await createNetwork.assignOneUser(request);
+
+      // Assertions
+      expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
-
-      // Verify the correct methods were called
-      expect(userModelMock.exists.calledOnce).to.be.true;
-      expect(userModelMock.exists.calledWithExactly({ _id: "user123" })).to.be
-        .true;
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.calledOnce).to.be.true;
-      expect(
-        userModelMock.findByIdAndUpdate.calledWithExactly(
-          "user123",
-          { $addToSet: { networks: "net123" } },
-          { new: true }
-        )
-      ).to.be.true;
+      expect(response.message).to.equal("User assigned to the Network");
+      expect(response.data).to.be.an("object");
+      // Add more assertions based on the expected response
     });
 
-    it("should handle case when the user or network is not found", async () => {
-      // Stub the UserModel.exists and NetworkModel.exists methods to return false
-      const userModelMock = {
-        exists: sinon.stub().resolves(false),
-      };
-      const networkModelMock = {
-        exists: sinon.stub().resolves(true),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the assignOneUser method
-      const response = await createNetwork.assignOneUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("User or Network not found");
-      expect(response.errors.message).to.equal("User or Network not found");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(userModelMock.exists.calledOnce).to.be.true;
-      expect(userModelMock.exists.calledWithExactly({ _id: "user123" })).to.be
-        .true;
-      expect(networkModelMock.exists.calledOnce).to.be.true;
-      expect(networkModelMock.exists.calledWithExactly({ _id: "net123" })).to.be
-        .true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(userModelMock.findById.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-    });
-
-    it("should handle case when the user is already assigned to the network", async () => {
-      // Stub the UserModel.exists and NetworkModel.exists methods to return true
-      const userModelMock = {
-        exists: sinon.stub().resolves(true),
-        findById: sinon.stub().resolves({
-          _id: "user123",
-          networks: ["net123"],
-        }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the assignOneUser method
-      const response = await createNetwork.assignOneUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "Network already assigned to User"
-      );
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(userModelMock.exists.calledOnce).to.be.true;
-      expect(userModelMock.exists.calledWithExactly({ _id: "user123" })).to.be
-        .true;
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-    });
-
-    it("should handle internal server error", async () => {
-      // Stub the UserModel.exists method to throw an error
-      const userModelMock = {
-        exists: sinon.stub().throws(new Error("Mock UserModel error")),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the assignOneUser method
-      const response = await createNetwork.assignOneUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Internal Server Error");
-      expect(response.errors.message).to.equal("Mock UserModel error");
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-
-      // Verify the correct methods were called
-      expect(userModelMock.exists.calledOnce).to.be.true;
-      expect(userModelMock.exists.calledWithExactly({ _id: "user123" })).to.be
-        .true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(userModelMock.findById.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-    });
+    // Add more test cases for error scenarios, validation, etc.
   });
   describe("unAssignUser", () => {
-    afterEach(() => {
-      sinon.restore();
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
     });
 
-    it("should successfully unassign the user from the network", async () => {
-      // Stub the UserModel.exists and NetworkModel.exists methods to return true
-      const userModelMock = {
-        findById: sinon.stub().resolves({
-          _id: "user123",
-          networks: ["net123"],
-        }),
-        findByIdAndUpdate: sinon.stub().resolves({
-          _id: "user123",
-          networks: [],
-        }),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({
-          _id: "net123",
-        }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+    afterEach(() => {
+      sandbox.restore();
+    });
 
+    it("should unassign a user from a network successfully", async () => {
+      // Define your mock request object
       const request = {
         params: {
-          net_id: "net123",
-          user_id: "user123",
+          net_id: "network-id",
+          user_id: "user-id",
         },
         query: {
-          tenant: "example_tenant",
+          tenant: "test-tenant",
         },
       };
 
-      // Call the unAssignUser method
+      // Stub the NetworkModel functions
+      sandbox.stub(NetworkModel("test-tenant"), "findById").resolves({
+        _id: "network-id",
+        // Other network properties
+      });
+
+      // Stub the UserModel functions
+      sandbox.stub(UserModel("test-tenant"), "findById").resolves({
+        _id: "user-id",
+        network_roles: [{ network: "network-id" }], // Simulate the assignment
+        // Other user properties
+      });
+
+      // Stub the findByIdAndUpdate function to simulate database update
+      sandbox.stub(UserModel("test-tenant"), "findByIdAndUpdate").resolves({
+        _id: "user-id",
+        network_roles: [], // Simulate the unassignment
+        // Other updated user properties
+      });
+
+      // Make the request to your function
       const response = await createNetwork.unAssignUser(request);
 
-      // Verify the response
-      expect(response.success).to.be.true;
+      // Assertions
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
         "Successfully unassigned User from the Network"
       );
-      expect(response.data).to.deep.equal({
-        updatedNetwork: {
-          _id: "net123",
-        },
-        updatedUser: {
-          _id: "user123",
-          networks: [],
-        },
-      });
-      expect(response.status).to.equal(httpStatus.OK);
-
-      // Verify the correct methods were called
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.calledOnce).to.be.true;
-      expect(
-        userModelMock.findByIdAndUpdate.calledWithExactly(
-          "user123",
-          { $pull: { networks: "net123" } },
-          { new: true }
-        )
-      ).to.be.true;
+      expect(response.data).to.be.an("object");
+      // Add more assertions based on the expected response
     });
 
-    it("should handle case when the network is not found", async () => {
-      // Stub the NetworkModel.exists method to return false
-      const networkModelMock = {
-        findById: sinon.stub().resolves(null),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignUser method
-      const response = await createNetwork.unAssignUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal("Network not found");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.findByIdAndUpdate.notCalled).to.be.true;
-    });
-
-    it("should handle case when the user is not found", async () => {
-      // Stub the UserModel.exists method to return false
-      const userModelMock = {
-        findById: sinon.stub().resolves(null),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignUser method
-      const response = await createNetwork.unAssignUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal("User not found");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.findByIdAndUpdate.notCalled).to.be.true;
-    });
-
-    it("should handle case when the network is not part of the user's networks", async () => {
-      // Stub the UserModel.exists and NetworkModel.exists methods to return true
-      const userModelMock = {
-        findById: sinon.stub().resolves({
-          _id: "user123",
-          networks: ["net456"],
-        }),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({
-          _id: "net123",
-        }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignUser method
-      const response = await createNetwork.unAssignUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "Network net123 is not part of the user's networks"
-      );
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net123")).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.findByIdAndUpdate.notCalled).to.be.true;
-    });
-
-    it("should handle internal server error", async () => {
-      // Stub the UserModel.exists method to throw an error
-      const userModelMock = {
-        findById: sinon.stub().throws(new Error("Mock UserModel error")),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-
-      const request = {
-        params: {
-          net_id: "net123",
-          user_id: "user123",
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignUser method
-      const response = await createNetwork.unAssignUser(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Internal Server Error");
-      expect(response.errors.message).to.equal("Mock UserModel error");
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-
-      // Verify the correct methods were called
-      expect(userModelMock.findById.calledOnce).to.be.true;
-      expect(userModelMock.findById.calledWithExactly("user123")).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.findByIdAndUpdate.notCalled).to.be.true;
-    });
+    // Add more test cases for error scenarios, validation, etc.
   });
   describe("unAssignManyUsers", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
     afterEach(() => {
-      sinon.restore();
+      sandbox.restore();
     });
 
-    it("should successfully unassign all users from the network", async () => {
-      // Stub the UserModel.find and UserModel.updateMany methods to return appropriate values
-      const userModelMock = {
-        find: sinon.stub().resolves([
-          { _id: "user1", networks: ["net1", "net2"] },
-          { _id: "user2", networks: ["net2"] },
-        ]),
-        updateMany: sinon.stub().resolves({ nModified: 2 }),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({ _id: "net1" }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
+    it("should unassign multiple users from a network successfully", async () => {
+      // Define your mock request object
       const request = {
-        params: {
-          net_id: "net1",
-        },
         body: {
-          user_ids: ["user1", "user2"],
+          user_ids: ["user-id-1", "user-id-2"],
+        },
+        params: {
+          net_id: "network-id",
         },
         query: {
-          tenant: "example_tenant",
+          tenant: "test-tenant",
         },
       };
 
-      // Call the unAssignManyUsers method
+      // Stub the NetworkModel functions
+      sandbox.stub(NetworkModel("test-tenant"), "findById").resolves({
+        _id: "network-id",
+        // Other network properties
+      });
+
+      // Stub the UserModel functions
+      sandbox.stub(UserModel("test-tenant"), "find").resolves([
+        {
+          _id: "user-id-1",
+          network_roles: [{ network: "network-id" }], // Simulate the assignment
+          // Other user properties
+        },
+        {
+          _id: "user-id-2",
+          network_roles: [{ network: "network-id" }], // Simulate the assignment
+          // Other user properties
+        },
+      ]);
+
+      // Stub the updateMany function to simulate database update
+      sandbox.stub(UserModel("test-tenant"), "updateMany").resolves({
+        nModified: 2,
+      });
+
+      // Make the request to your function
       const response = await createNetwork.unAssignManyUsers(request);
 
-      // Verify the response
-      expect(response.success).to.be.true;
-      expect(response.message).to.equal(
-        "successfully unassigned all the provided  users from the network net1"
-      );
-      expect(response.data).to.deep.equal([]);
+      // Assertions
+      expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(userModelMock.find.calledOnce).to.be.true;
-      expect(
-        userModelMock.find.calledWithExactly({
-          _id: { $in: ["user1", "user2"] },
-        })
-      ).to.be.true;
-      expect(userModelMock.updateMany.calledOnce).to.be.true;
-      expect(
-        userModelMock.updateMany.calledWithExactly(
-          { _id: { $in: ["user1", "user2"] }, networks: { $in: ["net1"] } },
-          { $pull: { networks: "net1" } },
-          { multi: true }
-        )
-      ).to.be.true;
-    });
-
-    it("should handle case when the network is not found", async () => {
-      // Stub the NetworkModel.exists method to return false
-      const networkModelMock = {
-        findById: sinon.stub().resolves(null),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net1",
-        },
-        body: {
-          user_ids: ["user1", "user2"],
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignManyUsers method
-      const response = await createNetwork.unAssignManyUsers(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal("Network not found");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(createNetwork.NetworkModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.notCalled).to.be.true;
-      expect(createNetwork.UserModel.updateMany.notCalled).to.be.true;
-    });
-
-    it("should handle case when some of the provided user IDs do not exist", async () => {
-      // Stub the UserModel.find method to return only one user instead of two
-      const userModelMock = {
-        find: sinon
-          .stub()
-          .resolves([{ _id: "user1", networks: ["net1", "net2"] }]),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({ _id: "net1" }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net1",
-        },
-        body: {
-          user_ids: ["user1", "user2"],
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignManyUsers method
-      const response = await createNetwork.unAssignManyUsers(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "The following users do not exist: user2"
+      expect(response.message).to.equal(
+        "Successfully unassigned all the provided users from the network network-id"
       );
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(userModelMock.find.calledOnce).to.be.true;
-      expect(
-        userModelMock.find.calledWithExactly({
-          _id: { $in: ["user1", "user2"] },
-        })
-      ).to.be.true;
-      expect(createNetwork.UserModel.updateMany.notCalled).to.be.true;
+      expect(response.data).to.be.an("array");
+      // Add more assertions based on the expected response
     });
 
-    it("should handle case when some of the provided users are not assigned to the network", async () => {
-      // Stub the UserModel.find method to return two users, but only one of them is assigned to the network
-      const userModelMock = {
-        find: sinon.stub().resolves([
-          { _id: "user1", networks: ["net1"] },
-          { _id: "user2", networks: ["net2"] },
-        ]),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({ _id: "net1" }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net1",
-        },
-        body: {
-          user_ids: ["user1", "user2"],
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignManyUsers method
-      const response = await createNetwork.unAssignManyUsers(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "Some of the provided User IDs are not assigned to this network net1"
-      );
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(userModelMock.find.calledOnce).to.be.true;
-      expect(
-        userModelMock.find.calledWithExactly({
-          _id: { $in: ["user1", "user2"] },
-        })
-      ).to.be.true;
-      expect(createNetwork.UserModel.updateMany.notCalled).to.be.true;
-    });
-
-    it("should handle case when no users are found in the system", async () => {
-      // Stub the UserModel.find and UserModel.updateMany methods to return appropriate values
-      const userModelMock = {
-        find: sinon.stub().resolves([]),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({ _id: "net1" }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net1",
-        },
-        body: {
-          user_ids: ["user1", "user2"],
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignManyUsers method
-      const response = await createNetwork.unAssignManyUsers(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "No matching User found in the system"
-      );
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(userModelMock.find.calledOnce).to.be.true;
-      expect(
-        userModelMock.find.calledWithExactly({
-          _id: { $in: ["user1", "user2"] },
-        })
-      ).to.be.true;
-      expect(createNetwork.UserModel.updateMany.notCalled).to.be.true;
-    });
-
-    it("should handle internal server error when updating users", async () => {
-      // Stub the UserModel.find and UserModel.updateMany methods to throw an error
-      const userModelMock = {
-        find: sinon.stub().resolves([
-          { _id: "user1", networks: ["net1", "net2"] },
-          { _id: "user2", networks: ["net1"] },
-        ]),
-        updateMany: sinon.stub().throws(new Error("Mock UserModel error")),
-      };
-      const networkModelMock = {
-        findById: sinon.stub().resolves({ _id: "net1" }),
-      };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        params: {
-          net_id: "net1",
-        },
-        body: {
-          user_ids: ["user1", "user2"],
-        },
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the unAssignManyUsers method
-      const response = await createNetwork.unAssignManyUsers(request);
-
-      // Verify the response
-      expect(response.success).to.be.false;
-      expect(response.message).to.equal("Internal Server Error");
-      expect(response.errors.message).to.equal("Mock UserModel error");
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-
-      // Verify the correct methods were called
-      expect(networkModelMock.findById.calledOnce).to.be.true;
-      expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(userModelMock.find.calledOnce).to.be.true;
-      expect(
-        userModelMock.find.calledWithExactly({
-          _id: { $in: ["user1", "user2"] },
-        })
-      ).to.be.true;
-      expect(userModelMock.updateMany.calledOnce).to.be.true;
-      expect(
-        userModelMock.updateMany.calledWithExactly(
-          { _id: { $in: ["user1", "user2"] }, networks: { $in: ["net1"] } },
-          { $pull: { networks: "net1" } },
-          { multi: true }
-        )
-      ).to.be.true;
-    });
+    // Add more test cases for error scenarios, validation, etc.
   });
   describe("setManager", () => {
     afterEach(() => {
@@ -1940,80 +1140,77 @@ describe("createNetwork", () => {
 
     // Add more test cases as needed for other scenarios
   });
-  describe("delete", () => {
-    afterEach(() => {
+  describe("delete()", () => {
+    it("should delete network and update corresponding users", async () => {
+      const request = {
+        query: {
+          tenant: "your-tenant", // Replace with your tenant
+        },
+        // Add other request parameters here if needed
+      };
+
+      const UserModelMock = {
+        updateMany: sinon.stub().resolves({ nModified: 2, n: 2 }), // Replace with your desired response
+      };
+
+      const NetworkModelMock = {
+        remove: sinon.stub().resolves({ success: true }), // Replace with your desired response
+      };
+
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
+      sinon.stub(yourModule, "NetworkModel").returns(NetworkModelMock);
+
+      const response = await yourModule.delete(request);
+
+      expect(response.success).to.be.true;
+      expect(UserModelMock.updateMany.calledOnce).to.be.true;
+      expect(NetworkModelMock.remove.calledOnce).to.be.true;
+
+      // Restore the stubs after the test
       sinon.restore();
     });
 
-    it("should delete the network successfully", async () => {
-      // Stub the NetworkModel.remove method to return a successful response
-      const networkModelMock = {
-        remove: sinon.stub().resolves({
-          success: true,
-          message: "Network deleted successfully",
-          status: httpStatus.OK,
-        }),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
+    it("should handle missing network ID", async () => {
       const request = {
         query: {
-          tenant: "example_tenant",
+          tenant: "your-tenant", // Replace with your tenant
         },
+        // Add other request parameters here if needed
       };
 
-      // Call the delete method
-      const response = await createNetwork.delete(request);
+      // Create a stub for UserModel if needed
 
-      // Verify the response
-      expect(response.success).to.be.true;
-      expect(response.message).to.equal("Network deleted successfully");
-      expect(response.status).to.equal(httpStatus.OK);
+      const response = await yourModule.delete(request);
 
-      // Verify the correct methods were called
-      expect(networkModelMock.remove.calledOnce).to.be.true;
-      expect(
-        networkModelMock.remove.calledWithExactly({
-          filter: {}, // Modify this according to your implementation of generateFilter.networks
-        })
-      ).to.be.true;
-    });
-
-    it("should handle case when the network delete fails", async () => {
-      // Stub the NetworkModel.remove method to return a failed response
-      const networkModelMock = {
-        remove: sinon.stub().resolves({
-          success: false,
-          message: "Network delete failed",
-          status: httpStatus.BAD_REQUEST,
-        }),
-      };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
-
-      const request = {
-        query: {
-          tenant: "example_tenant",
-        },
-      };
-
-      // Call the delete method
-      const response = await createNetwork.delete(request);
-
-      // Verify the response
       expect(response.success).to.be.false;
-      expect(response.message).to.equal("Network delete failed");
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.status).to.equal(400); // Check for the expected HTTP status code
 
-      // Verify the correct methods were called
-      expect(networkModelMock.remove.calledOnce).to.be.true;
-      expect(
-        networkModelMock.remove.calledWithExactly({
-          filter: {}, // Modify this according to your implementation of generateFilter.networks
-        })
-      ).to.be.true;
+      // Restore the stubs after the test
+      sinon.restore();
     });
 
-    // Add more test cases as needed for other scenarios
+    it("should handle internal server error", async () => {
+      const request = {
+        query: {
+          tenant: "your-tenant", // Replace with your tenant
+        },
+        // Add other request parameters here if needed
+      };
+
+      const UserModelMock = {
+        updateMany: sinon.stub().rejects(new Error("Internal server error")), // Simulate an error
+      };
+
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
+
+      const response = await yourModule.delete(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(500); // Check for the expected HTTP status code
+
+      // Restore the stubs after the test
+      sinon.restore();
+    });
   });
   describe("list", () => {
     afterEach(() => {

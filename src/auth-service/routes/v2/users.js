@@ -27,6 +27,12 @@ const sessionMiddleware = (req, res, next) => {
   ) {
     req.logout();
   }
+};
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
   next();
 };
 
@@ -41,6 +47,7 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 router.use(sessionMiddleware);
+router.use(validatePagination);
 
 router.get(
   "/deleteMobileUserData/:userId/:token",
@@ -908,26 +915,6 @@ router.get(
       .bail()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    [
-      query("skip")
-        .optional()
-        .notEmpty()
-        .withMessage("skip should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("skip should be numeric")
-        .trim(),
-      query("limit")
-        .optional()
-        .notEmpty()
-        .withMessage("limit should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("limit should be numeric")
-        .trim(),
-    ],
   ]),
   setJWTAuth,
   authJWT,

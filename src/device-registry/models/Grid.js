@@ -9,7 +9,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grid-model`);
 const commonUtil = require("@utils/common");
-
+const { getModelByTenant } = require("@config/database");
 const shapeSchema = new Schema(
   {
     type: {
@@ -354,4 +354,14 @@ gridSchema.statics.remove = async function({ filter = {} } = {}) {
   }
 };
 
-module.exports = gridSchema;
+const GridModel = (tenant) => {
+  try {
+    const grids = mongoose.model("grids");
+    return grids;
+  } catch (error) {
+    const grids = getModelByTenant(tenant, "grid", gridSchema);
+    return grids;
+  }
+};
+
+module.exports = GridModel;
