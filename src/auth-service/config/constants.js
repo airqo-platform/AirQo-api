@@ -592,6 +592,7 @@ const defaultConfig = {
               ],
             },
             { $ne: ["$$network.net_name", ""] },
+            { $ne: ["$$network.net_name", undefined] },
           ],
         },
       },
