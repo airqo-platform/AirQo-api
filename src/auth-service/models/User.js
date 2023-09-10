@@ -593,12 +593,12 @@ UserSchema.statics = {
       //   delete modifiedUpdate["networks"];
       // }
 
-      // if (modifiedUpdate.network_roles) {
-      //   modifiedUpdate["$addToSet"]["network_roles"] = {};
-      //   modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
-      //     modifiedUpdate.network_roles;
-      //   delete modifiedUpdate["network_roles"];
-      // }
+      if (modifiedUpdate.network_roles) {
+        modifiedUpdate["$addToSet"]["network_roles"] = {};
+        modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
+          modifiedUpdate.network_roles;
+        delete modifiedUpdate["network_roles"];
+      }
 
       if (modifiedUpdate.permissions) {
         modifiedUpdate["$addToSet"]["permissions"] = {};
