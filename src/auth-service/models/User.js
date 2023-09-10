@@ -431,6 +431,9 @@ UserSchema.statics = {
           },
         })
         .project(inclusionProjection)
+        .match({
+          "networks.net_name": { $ne: null, $ne: "", $ne: undefined },
+        })
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
         .skip(skip ? skip : 0)
