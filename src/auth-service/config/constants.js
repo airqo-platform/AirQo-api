@@ -591,10 +591,12 @@ const defaultConfig = {
                 { $ne: ["$$network.role.role_permissions", null] },
               ],
             },
+            { $ne: ["$$network.net_name", ""] },
           ],
         },
       },
     },
+
     // networks: {
     //   $filter: {
     //     input: "$networks",
