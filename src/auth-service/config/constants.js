@@ -442,6 +442,7 @@ const defaultConfig = {
           "net_roles.network_id": 0,
           "net_roles.createdAt": 0,
           "net_roles.updatedAt": 0,
+          "net_roles.role_permissions": 0,
           "net_roles.__v": 0,
         }
       );
@@ -591,26 +592,11 @@ const defaultConfig = {
                 { $ne: ["$$network.role.role_permissions", null] },
               ],
             },
-            // { $ne: ["$$network.net_name", ""] },
-            // { $ne: ["$$network.net_name", undefined] },
           ],
         },
       },
     },
 
-    // networks: {
-    //   $filter: {
-    //     input: "$networks",
-    //     as: "network",
-    //     cond: {
-    //       $and: [
-    //         { $ne: ["$$network.net_name", null] },
-    //         { $ne: ["$$network._id", null] },
-    //         { $ne: [{ $ifNull: ["$$network.role.role_permissions", []] }, []] },
-    //       ],
-    //     },
-    //   },
-    // },
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
@@ -622,29 +608,6 @@ const defaultConfig = {
     updatedAt: 1,
     my_networks: "$my_networks",
   },
-  // USERS_INCLUSION_PROJECTION: {
-  //   _id: "$_id._id",
-  //   firstName: "$_id.firstName",
-  //   lastName: "$_id.lastName",
-  //   userName: "$_id.userName",
-  //   email: "$_id.email",
-  //   verified: "$_id.verified",
-  //   country: "$_id.country",
-  //   privilege: "$_id.privilege",
-  //   website: "$_id.website",
-  //   category: "$_id.category",
-  //   jobTitle: "$_id.jobTitle",
-  //   description: "$_id.description",
-  //   profilePicture: "$_id.profilePicture",
-  //   phoneNumber: "$_id.phoneNumber",
-  //   lol: "$_id.lol",
-  //   clients: "$_id.clients",
-  //   permissions: "$_id.permissions",
-  //   networks: 1,
-  //   createdAt: "$_id.createdAt",
-  //   updatedAt: "$_id.createdAt",
-  //   my_networks: "$_id.my_networks",
-  // },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
       "networks.__v": 0,
@@ -715,6 +678,7 @@ const defaultConfig = {
       "lol.updatedAt": 0,
       "lol.__v": 0,
       "lol.role_users": 0,
+      "clients.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

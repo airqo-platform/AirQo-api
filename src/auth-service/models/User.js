@@ -95,15 +95,6 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    // networks: {
-    //   type: [
-    //     {
-    //       type: ObjectId,
-    //       ref: "network",
-    //     },
-    //   ],
-    //   default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
-    // },
     network_roles: {
       type: [
         {
@@ -465,111 +456,7 @@ UserSchema.statics = {
       };
     }
   },
-  // async list({ skip = 0, limit = 5, filter = {} } = {}) {
-  //   try {
-  //     const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
-  //     const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
-  //       filter.category ? filter.category : "none"
-  //     );
-  //     const response = await this.aggregate()
-  //       .match(filter)
-  //       .lookup({
-  //         from: "networks",
-  //         localField: "network_roles.network",
-  //         foreignField: "_id",
-  //         as: "networks",
-  //       })
-  //       .lookup({
-  //         from: "roles",
-  //         localField: "network_roles.role",
-  //         foreignField: "_id",
-  //         as: "roles",
-  //       })
-  //       .lookup({
-  //         from: "roles",
-  //         localField: "role",
-  //         foreignField: "_id",
-  //         as: "lol",
-  //       })
-  //       .lookup({
-  //         from: "permissions",
-  //         localField: "roles.role_permissions",
-  //         foreignField: "_id",
-  //         as: "role_permissions",
-  //       })
-  //       .lookup({
-  //         from: "permissions",
-  //         localField: "permissions",
-  //         foreignField: "_id",
-  //         as: "permissions",
-  //       })
-  //       .addFields({
-  //         role: {
-  //           _id: { $arrayElemAt: ["$roles._id", 0] },
-  //           role_name: { $arrayElemAt: ["$roles.role_name", 0] },
-  //           role_permissions: "$role_permissions",
-  //         },
-  //       })
-  //       .lookup({
-  //         from: "networks",
-  //         localField: "_id",
-  //         foreignField: "net_manager",
-  //         as: "my_networks",
-  //       })
-  //       .lookup({
-  //         from: "clients",
-  //         localField: "_id",
-  //         foreignField: "user_id",
-  //         as: "clients",
-  //       })
-  //       .lookup({
-  //         from: "groups",
-  //         localField: "_id",
-  //         foreignField: "grp_users",
-  //         as: "groups",
-  //       })
-  //       .addFields({
-  //         createdAt: {
-  //           $dateToString: {
-  //             format: "%Y-%m-%d %H:%M:%S",
-  //             date: "$_id",
-  //           },
-  //         },
-  //       })
-  //       .sort({ createdAt: -1 })
-  //       .project(inclusionProjection)
-  //       .project(exclusionProjection)
-  //       .skip(skip ? skip : 0)
-  //       .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
-  //       .allowDiskUse(true);
 
-  //     logObject("response in the model", response);
-  //     if (!isEmpty(response)) {
-  //       return {
-  //         success: true,
-  //         message: "successfully retrieved the user details",
-  //         data: response,
-  //         status: httpStatus.OK,
-  //       };
-  //     } else if (isEmpty(response)) {
-  //       return {
-  //         success: true,
-  //         message: "no users exist",
-  //         data: [],
-  //         status: httpStatus.OK,
-  //       };
-  //     }
-  //   } catch (error) {
-  //     logger.error(`internal server error -- ${JSON.stringify(error)}`);
-  //     logObject("error", error);
-  //     return {
-  //       success: false,
-  //       message: "Internal Server Error",
-  //       errors: { message: error.message },
-  //       status: httpStatus.INTERNAL_SERVER_ERROR,
-  //     };
-  //   }
-  // },
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
@@ -578,26 +465,19 @@ UserSchema.statics = {
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
 
-      // let update = {};
-      // update["$set"] = {};
-      // update["$set"]["network_roles"] = network_roles;
-
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
 
-      // if (modifiedUpdate.networks) {
-      //   modifiedUpdate["$addToSet"]["networks"] = {};
-      //   modifiedUpdate["$addToSet"]["networks"]["$each"] =
-      //     modifiedUpdate.networks;
-      //   delete modifiedUpdate["networks"];
-      // }
-
       if (modifiedUpdate.network_roles) {
-        modifiedUpdate["$addToSet"]["network_roles"] = {};
-        modifiedUpdate["$addToSet"]["network_roles"]["$each"] =
-          modifiedUpdate.network_roles;
-        delete modifiedUpdate["network_roles"];
+        if (isEmpty(modifiedUpdate.network_roles.network)) {
+          delete modifiedUpdate.network_roles;
+        } else {
+          modifiedUpdate["$addToSet"] = {
+            network_roles: { $each: modifiedUpdate.network_roles },
+          };
+          delete modifiedUpdate.network_roles;
+        }
       }
 
       if (modifiedUpdate.permissions) {
@@ -606,18 +486,6 @@ UserSchema.statics = {
           modifiedUpdate.permissions;
         delete modifiedUpdate["permissions"];
       }
-
-      // if (modifiedUpdate.roles) {
-      //   modifiedUpdate["$addToSet"]["roles"] = {};
-      //   modifiedUpdate["$addToSet"]["roles"]["$each"] = modifiedUpdate.roles;
-      //   delete modifiedUpdate["roles"];
-      // }
-
-      // if (modifiedUpdate.groups) {
-      //   modifiedUpdate["$addToSet"]["groups"] = {};
-      //   modifiedUpdate["$addToSet"]["groups"]["$each"] = modifiedUpdate.groups;
-      //   delete modifiedUpdate["groups"];
-      // }
 
       const updatedUser = await this.findOneAndUpdate(
         filter,
@@ -703,7 +571,6 @@ UserSchema.methods = {
         long_organization: this.long_organization,
         privilege: this.privilege,
         role: this.role,
-        // networks: this.networks,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
@@ -753,72 +620,9 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
-      // networks: this.networks,
       rateLimit: this.rateLimit,
     };
   },
-};
-
-/***
- * prototype functions need to be added here
- */
-const User = {
-  prototype: {},
-};
-
-User.prototype.newToken = async function newToken(device_name = "Web FE") {
-  const plainTextToken = Random(40);
-
-  const token = await this.createToken({
-    name: device_name,
-    token: hash(plainTextToken),
-  });
-
-  return {
-    accessToken: token,
-    plainTextToken: `${token.id}|${plainTextToken}`,
-  };
-};
-
-User.prototype.hasRole = async function hasRole(role) {
-  if (!role || role === "undefined") {
-    return false;
-  }
-  const roles = await this.getRoles();
-  return !!roles.map(({ name }) => name).includes(role);
-};
-
-User.prototype.hasPermission = async function hasPermission(permission) {
-  if (!permission || permission === "undefined") {
-    return false;
-  }
-  const permissions = await this.getPermissions();
-  return !!permissions.map(({ name }) => name).includes(permission.name);
-};
-
-User.prototype.hasPermissionThroughRole =
-  async function hasPermissionThroughRole(permission) {
-    if (!permission || permission === "undefined") {
-      return false;
-    }
-    const roles = await this.getRoles();
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const item of permission.roles) {
-      if (roles.filter((role) => role.name === item.name).length > 0) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-User.prototype.hasPermissionTo = async function hasPermissionTo(permission) {
-  if (!permission || permission === "undefined") {
-    return false;
-  }
-  return (
-    (await this.hasPermissionThroughRole(permission)) ||
-    this.hasPermission(permission)
-  );
 };
 
 const UserModel = (tenant) => {
