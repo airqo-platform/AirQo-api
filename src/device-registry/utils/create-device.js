@@ -60,38 +60,28 @@ const createDevice = {
     }
     return false;
   },
-  getDevicesCount: async (request, callback) => {
+  getDevicesCount: async (request) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      await DeviceModel(tenant).countDocuments({}, (err, count) => {
-        if (count) {
-          callback({
-            success: true,
-            message: "retrieved the number of devices",
-            status: httpStatus.OK,
-            data: count,
-          });
-        }
-        if (err) {
-          callback({
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: err },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-      });
+      const count = await DeviceModel(tenant).countDocuments({});
+      return {
+        success: true,
+        message: "retrieved the number of devices",
+        status: httpStatus.OK,
+        data: count,
+      };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      callback({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
-  generateQR: async (request, callback) => {
+  generateQR: async (request) => {
     try {
       const { include_site } = request.query;
       const responseFromListDevice = await createDevice.list(request);
@@ -99,10 +89,10 @@ const createDevice = {
       if (responseFromListDevice.success === true) {
         const deviceBody = responseFromListDevice.data;
         if (isEmpty(deviceBody)) {
-          return callback({
+          return {
             success: false,
             message: "device does not exist",
-          });
+          };
         }
         if (!isEmpty(include_site) && include_site === "no") {
           delete deviceBody[0].site;
@@ -113,34 +103,24 @@ const createDevice = {
         const stringifiedJSON = deviceBody[0]
           ? JSON.stringify(deviceBody[0])
           : "";
-        return QRCode.toDataURL(stringifiedJSON, (err, url) => {
-          if (err) {
-            logger.error(`Internal Server Error -- ${err}`);
-            return callback({
-              success: false,
-              errors: { message: err },
-              message: "unable to generate QR code",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            });
-          }
-          return callback({
-            success: true,
-            message: "successfully generated the QR Code",
-            data: url,
-            status: httpStatus.OK,
-          });
-        });
+        const url = await QRCode.toDataURL(stringifiedJSON);
+        return {
+          success: true,
+          message: "successfully generated the QR Code",
+          data: url,
+          status: httpStatus.OK,
+        };
       } else if (responseFromListDevice.success === false) {
-        return callback(responseFromListDevice);
+        return responseFromListDevice;
       }
     } catch (err) {
       logger.error(`Internal Server Error -- ${err.message}`);
-      return callback({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
   create: async (request) => {
@@ -514,14 +494,12 @@ const createDevice = {
       message: "coming soon...",
     };
   },
-
   createOnClarity: (request) => {
     return {
       message: "coming soon",
       success: false,
     };
   },
-
   createOnPlatform: async (request) => {
     try {
       logText("createOnPlatform util....");
@@ -573,7 +551,6 @@ const createDevice = {
       };
     }
   },
-
   createOnThingSpeak: async (request) => {
     try {
       const baseURL = constants.CREATE_THING_URL;
@@ -666,7 +643,6 @@ const createDevice = {
       };
     }
   },
-
   updateOnThingspeak: async (request) => {
     try {
       // logger.info(`  updateOnThingspeak's request -- ${request}`);

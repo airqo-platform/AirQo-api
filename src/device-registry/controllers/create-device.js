@@ -197,47 +197,47 @@ const device = {
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
+        const nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query, body } = req;
+
+      const { query } = req;
       const { tenant } = query;
-      const request = {};
-      request["query"] = {};
-      request["query"]["tenant"] = tenant;
-      await createDeviceUtil.getDevicesCount(request, (result) => {
-        if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: result.message,
-            devices: result.data,
-          });
-        }
-        if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          return res.status(status).json({
-            success: false,
-            message: result.message,
-            errors: result.errors ? result.errors : { message: "" },
-          });
-        }
-      });
+
+      const request = {
+        query: { tenant },
+      };
+
+      const result = await createDeviceUtil.getDevicesCount(request);
+
+      if (result.success === true) {
+        const status = result.status ? result.status : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          devices: result.data,
+        });
+      }
+
+      if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -318,52 +318,54 @@ const device = {
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
+        const nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { body } = req;
-      let { tenant, device_number, id, name, include_site } = req.query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = device_number;
-      request["query"]["include_site"] = include_site;
-      request["query"]["id"] = id;
-      request["query"]["name"] = name;
-      request["body"] = body;
 
-      await createDeviceUtil.generateQR(request, (response) => {
-        if (response.success === true) {
-          const status = response.status ? response.status : HTTPStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: response.message,
-            data: response.data,
-          });
-        } else if (response.success === false) {
-          const status = response.status
-            ? response.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          return res.status(status).json({
-            success: false,
-            message: response.message,
-            errors: response.errors ? response.errors : { message: "" },
-          });
-        }
-      });
+      const { body, query } = req;
+      const { tenant, device_number, id, name, include_site } = query;
+
+      const request = {
+        query: {
+          tenant,
+          device_number,
+          include_site,
+          id,
+          name,
+        },
+        body,
+      };
+
+      const response = await createDeviceUtil.generateQR(request);
+
+      if (response.success === true) {
+        const status = response.status ? response.status : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: response.message,
+          data: response.data,
+        });
+      }
+
+      if (response.success === false) {
+        const status = response.status
+          ? response.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: response.message,
+          errors: response.errors ? response.errors : { message: "" },
+        });
+      }
     } catch (err) {
       logger.error(`server side error -- ${err.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -1099,83 +1101,6 @@ const device = {
       .createDevice(request)
       .then((responses) => {
         const response = responses[0];
-        return res.status(HTTPStatus.OK).json(response);
-      })
-      .catch((err) => {
-        return res.status(HTTPStatus.BAD_REQUEST).json(err);
-      });
-  },
-  listOneOnGCP: (req, res) => {
-    const formattedParent = client.registryPath(
-      "airqo-250220",
-      "europe-west1",
-      "device-registry"
-    );
-    const options = { autoPaginate: false };
-    const callback = (responses) => {
-      const resources = responses[0];
-      const nextRequest = responses[1];
-      for (let i = 0; i < resources.length; i += 1) {}
-      if (nextRequest) {
-        return client.listDeviceModels(nextRequest, options).then(callback);
-      }
-      let response = responses[0];
-      return res.status(HTTPStatus.OK).json(response);
-    };
-    client
-      .listDeviceModels({ parent: formattedParent }, options)
-      .then(callback)
-      .catch((err) => {});
-  },
-
-  deleteOnGCP: (req, res) => {
-    let device = req.params.name;
-    const formattedName = client.devicePath(
-      "airqo-250220",
-      "europe-west1",
-      "device-registry",
-      `${device}`
-    );
-    client
-      .deleteDevice({ name: formattedName })
-      .then((responses) => {
-        let result = {
-          status: "OK",
-          message: `device ${device} has successfully been deleted`,
-        };
-        return res.status(HTTPStatus.OK).json(result);
-      })
-      .catch((err) => {
-        return res.status(HTTPStatus.BAD_REQUEST).json(err);
-      });
-  },
-
-  updateOnGCP: (req, res) => {
-    let device = req.params.name;
-    const formattedName = client.devicePath(
-      "airqo-250220",
-      "europe-west1",
-      "device-registry",
-      `${device}`
-    );
-
-    var deviceUpdate = {
-      name: req.params.name,
-      blocked: req.body.blocked,
-      metadata: req.body.metadata,
-    };
-    var updateMask = {
-      blocked: device.blocked,
-      metadata: device.metadata,
-    };
-    var request = {
-      device: deviceUpdate,
-      updateMask: updateMask,
-    };
-    client
-      .updateDevice(request)
-      .then((responses) => {
-        var response = responses[0];
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {

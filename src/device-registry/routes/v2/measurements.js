@@ -1791,6 +1791,283 @@ router.get(
 );
 
 router.get(
+  "/grids/:gridId",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+
+  oneOf([
+    param("gridId")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the cohortId"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("gridId must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      query("startTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("startTime must be a valid datetime."),
+      query("endTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("endTime must be a valid datetime."),
+      query("frequency")
+        .optional()
+        .notEmpty()
+        .withMessage("the frequency cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["hourly", "daily", "raw", "minute"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        ),
+      query("format")
+        .optional()
+        .notEmpty()
+        .withMessage("the format cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["json", "csv"])
+        .withMessage(
+          "the format value is not among the expected ones which include: csv and json"
+        ),
+      query("external")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the external value is not among the expected ones which include: no and yes"
+        ),
+      query("recent")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the recent value is not among the expected ones which include: no and yes"
+        ),
+      query("device")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("device_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("lat_long")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("airqloud_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("device_number")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("site")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("primary")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+      query("metadata")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["site", "site_id", "device", "device_id"])
+        .withMessage(
+          "valid values include: site, site_id, device and device_id"
+        ),
+      query("test")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+    ],
+  ]),
+  eventController.listByGrid
+);
+
+router.get(
+  "/cohorts/:cohortId",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("cohortId")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the cohortId"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("cohortId must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      query("startTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("startTime must be a valid datetime."),
+      query("endTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("endTime must be a valid datetime."),
+      query("frequency")
+        .optional()
+        .notEmpty()
+        .withMessage("the frequency cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["hourly", "daily", "raw", "minute"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        ),
+      query("format")
+        .optional()
+        .notEmpty()
+        .withMessage("the format cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["json", "csv"])
+        .withMessage(
+          "the format value is not among the expected ones which include: csv and json"
+        ),
+      query("external")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the external value is not among the expected ones which include: no and yes"
+        ),
+      query("recent")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the recent value is not among the expected ones which include: no and yes"
+        ),
+      query("device")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("device_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("lat_long")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("airqloud_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("device_number")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("site")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("primary")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+      query("metadata")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["site", "site_id", "device", "device_id"])
+        .withMessage(
+          "valid values include: site, site_id, device and device_id"
+        ),
+      query("test")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+    ],
+  ]),
+  eventController.listByCohort
+);
+
+router.get(
   "/devices/:deviceId",
   oneOf([
     query("tenant")

@@ -69,6 +69,12 @@ const distance = {
     return filteredSites;
   },
 
+  getDistanceSquared: (lat1, lon1, lat2, lon2) => {
+    const latDiff = lat2 - lat1;
+    const lonDiff = lon2 - lon1;
+    return latDiff * latDiff + lonDiff * lonDiff;
+  },
+
   calculateDistance: (latitude1, longitude1, latitude2, longitude2) => {
     // getting distance between latitudes and longitudes
     const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
@@ -182,20 +188,20 @@ const distance = {
 
       let approximateLatitudeInRadians = Math.asin(
         Math.sin(latitudeInRadians) *
-        Math.cos(approximate_distance_in_km / radiusOfEarth) +
-        Math.cos(latitudeInRadians) *
-        Math.sin(approximate_distance_in_km / radiusOfEarth) *
-        Math.cos(bearingInRadians)
+          Math.cos(approximate_distance_in_km / radiusOfEarth) +
+          Math.cos(latitudeInRadians) *
+            Math.sin(approximate_distance_in_km / radiusOfEarth) *
+            Math.cos(bearingInRadians)
       );
 
       let approximateLongitudeInRadians =
         longitudeInRadians +
         Math.atan2(
           Math.sin(bearingInRadians) *
-          Math.sin(approximate_distance_in_km / radiusOfEarth) *
-          Math.cos(latitudeInRadians),
+            Math.sin(approximate_distance_in_km / radiusOfEarth) *
+            Math.cos(latitudeInRadians),
           Math.cos(approximate_distance_in_km / radiusOfEarth) -
-          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+            Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
         );
 
       return {

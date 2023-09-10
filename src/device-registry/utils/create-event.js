@@ -96,40 +96,37 @@ const listDevices = async (request) => {
     };
   }
 };
-
-const getDevicesCount = async (request, callback) => {
+const getDevicesCount = async (request) => {
   try {
     const { query } = request;
     const { tenant } = query;
 
-    await devicesModel(tenant).countDocuments({}, (err, count) => {
-      if (count) {
-        callback({
-          success: true,
-          message: "retrieved the number of devices",
-          status: httpStatus.OK,
-          data: count,
-        });
-      }
-      if (err) {
-        callback({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: err.message },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        });
-      }
-    });
+    const count = await devicesModel(tenant).countDocuments({});
+
+    if (count) {
+      return {
+        success: true,
+        message: "retrieved the number of devices",
+        status: httpStatus.OK,
+        data: count,
+      };
+    } else {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "No devices found" }, // You can customize the error message as needed
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   } catch (error) {
     logger.error(`internal server error -- ${error.message}`);
-    callback({
+    return {
       success: false,
       message: "Internal Server Error",
       errors: { message: error.message },
-    });
+    };
   }
 };
-
 const decryptKey = async (encryptedKey) => {
   try {
     let bytes = cryptoJS.AES.decrypt(
@@ -429,7 +426,6 @@ const createEvent = {
       };
     }
   },
-
   latestFromBigQuery: async (req) => {
     try {
       const { query } = req;
@@ -514,7 +510,7 @@ const createEvent = {
       };
     }
   },
-  list: async (request, callback) => {
+  list: async (request) => {
     try {
       /**
        * When listing events, some of the big considerations
@@ -522,14 +518,10 @@ const createEvent = {
        * 1. Find the corresponding Sites if given the Airqlouds.
        * 2. Find the corresponding Sites if given the Lat and Long Values.
        *
-       *
        * And then generate filter object
        *
        * For the function that we use to get the sites given some values,
-       * I should use the common.js module where I can export the function
-       * and call it in the respetive util file.
-       *
-       *
+       * you can export the function and call it in the respective util file.
        */
       let missingDataMessage = "";
       const { query } = request;
@@ -549,117 +541,102 @@ const createEvent = {
         logObject("responseFromFilter", errors);
       }
 
-      createEvent.getCache(request, async (result) => {
-        if (result.success === true) {
-          logText(result.message);
-          try {
-            callback(result.data);
-          } catch (error) {
-            logger.error(`listing events -- ${JSON.stringify(error)}`);
-          }
-        } else if (result.success === false) {
-          await getDevicesCount(request, async (result) => {
-            if (result.success === true) {
-              if ((device && !recent) || recent === "no") {
-                if (!limit) {
-                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
-                }
-                if (!skip) {
-                  if (page) {
-                    skip = parseInt((page - 1) * limit);
-                  } else {
-                    skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-                  }
-                }
-              } else if ((!recent && !device) || recent === "yes") {
-                if (!limit) {
-                  limit = result.data;
-                }
-                if (!skip) {
-                  if (page) {
-                    skip = parseInt((page - 1) * limit);
-                  } else {
-                    skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-                  }
-                }
-              }
-              const responseFromListEvents = await EventModel(tenant).list({
-                skip,
-                limit,
-                filter,
-                page,
-              });
-              if (responseFromListEvents.success === true) {
-                let data = responseFromListEvents.data;
-                data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
-                createEvent.setCache(data, request, (result) => {
-                  if (result.success === true) {
-                    logText(result.message);
-                  } else if (result.success === false) {
-                    logText(result.message);
-                  }
-                });
-
-                try {
-                  callback({
-                    success: true,
-                    message: !isEmpty(missingDataMessage)
-                      ? missingDataMessage
-                      : isEmpty(data[0].data)
-                      ? "no measurements for this search"
-                      : responseFromListEvents.message,
-                    data,
-                    status: responseFromListEvents.status
-                      ? responseFromListEvents.status
-                      : "",
-                    isCache: false,
-                  });
-                } catch (error) {
-                  logger.error(`listing events -- ${JSON.stringify(error)}`);
-                }
-              } else if (responseFromListEvents.success === false) {
-                logger.error(
-                  `unable to retrieve events --- ${JSON.stringify(errors)}`
-                );
-
-                try {
-                  callback({
-                    success: false,
-                    message: responseFromListEvents.message,
-                    errors: responseFromListEvents.errors
-                      ? responseFromListEvents.errors
-                      : { message: "" },
-                    status: responseFromListEvents.status
-                      ? responseFromListEvents.status
-                      : "",
-                    isCache: false,
-                  });
-                } catch (error) {
-                  logger.error(`listing events -- ${JSON.stringify(error)}`);
-                }
-              }
-            } else if (result.success === false) {
-              logger.error(
-                `unable to retrieve events --- ${JSON.stringify(result)}`
-              );
-              logText(result.message);
-              callback(result);
+      const cacheResult = await createEvent.getCache(request);
+      if (cacheResult.success === true) {
+        logText(cacheResult.message);
+        return cacheResult.data;
+      } else if (cacheResult.success === false) {
+        const deviceCountResult = await getDevicesCount(request);
+        if (deviceCountResult.success === true) {
+          if ((device && !recent) || recent === "no") {
+            if (!limit) {
+              limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
             }
+            if (!skip) {
+              if (page) {
+                skip = parseInt((page - 1) * limit);
+              } else {
+                skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+              }
+            }
+          } else if ((!recent && !device) || recent === "yes") {
+            if (!limit) {
+              limit = deviceCountResult.data;
+            }
+            if (!skip) {
+              if (page) {
+                skip = parseInt((page - 1) * limit);
+              } else {
+                skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+              }
+            }
+          }
+          const responseFromListEvents = await EventModel(tenant).list({
+            skip,
+            limit,
+            filter,
+            page,
           });
+          if (responseFromListEvents.success === true) {
+            let data = responseFromListEvents.data;
+            data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+            createEvent.setCache(data, request, (cacheResult) => {
+              if (cacheResult.success === true) {
+                logText(cacheResult.message);
+              } else if (cacheResult.success === false) {
+                logText(cacheResult.message);
+              }
+            });
+
+            return {
+              success: true,
+              message: !isEmpty(missingDataMessage)
+                ? missingDataMessage
+                : isEmpty(data[0].data)
+                ? "no measurements for this search"
+                : responseFromListEvents.message,
+              data,
+              status: responseFromListEvents.status
+                ? responseFromListEvents.status
+                : "",
+              isCache: false,
+            };
+          } else if (responseFromListEvents.success === false) {
+            logger.error(
+              `unable to retrieve events --- ${JSON.stringify(errors)}`
+            );
+
+            return {
+              success: false,
+              message: responseFromListEvents.message,
+              errors: responseFromListEvents.errors
+                ? responseFromListEvents.errors
+                : { message: "" },
+              status: responseFromListEvents.status
+                ? responseFromListEvents.status
+                : "",
+              isCache: false,
+            };
+          }
+        } else if (deviceCountResult.success === false) {
+          logger.error(
+            `unable to retrieve events --- ${JSON.stringify(deviceCountResult)}`
+          );
+          logText(deviceCountResult.message);
+          return deviceCountResult;
         }
-      });
+      }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      callback({
+      return {
         success: false,
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
-      });
+      };
     }
   },
-
   create: async (request) => {
     try {
       const responseFromTransformEvent = await createEvent.transformManyEvents(
@@ -785,7 +762,6 @@ const createEvent = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
-
   createThingSpeakRequestBody: (req) => {
     try {
       const {
@@ -1020,7 +996,6 @@ const createEvent = {
       };
     }
   },
-
   bulkTransmitMultipleSensorValues: async (request) => {
     try {
       logText("bulk write to thing.......");
@@ -1137,7 +1112,6 @@ const createEvent = {
       };
     }
   },
-
   generateCacheID: (request) => {
     const {
       device,
@@ -1189,7 +1163,6 @@ const createEvent = {
       network ? network : "noNetwork"
     }`;
   },
-  getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
@@ -1257,7 +1230,6 @@ const createEvent = {
       });
     }
   },
-
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
@@ -1661,7 +1633,6 @@ const createEvent = {
       );
     }
   },
-
   insertMeasurements: async (measurements) => {
     try {
       const responseFromInsertMeasurements = await createEvent.insert(
@@ -1819,7 +1790,7 @@ const createEvent = {
       };
     }
   },
-  transformMeasurements: (device, measurements) => {
+  transformMeasurements: async (device, measurements) => {
     let promises = measurements.map(async (measurement) => {
       try {
         let time = measurement.time;

@@ -1,18 +1,16 @@
 const AirQloudModel = require("@models/Airqloud");
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
+const GridModel = require("@models/Grid");
+const geolib = require("geolib");
 const { logObject } = require("./log");
-const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
-const commonUtil = require("@utils/common");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const createLocationUtil = require("./create-location");
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-util`
 );
-const createLocationUtil = require("./create-location");
-const geolib = require("geolib");
-
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
 const kafka = new Kafka({
@@ -20,6 +18,101 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
+const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
+const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
+const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
+
+const sitesExclusionProjection = siteFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`sites.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const devicesExclusionProjection = deviceFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`shape.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+
+const getDocumentsByNetworkId = async (tenantId, network, category) => {
+  try {
+    if (category === "summary") {
+      //make modifications to the exclusion projection
+    }
+    if (category === "dashboard") {
+      //make modifications to the exclusion projection
+    }
+    const cohortsQuery = CohortModel(tenantId).aggregate([
+      {
+        $match: { network },
+      },
+      {
+        $lookup: {
+          from: "devices",
+          localField: "_id",
+          foreignField: "cohorts",
+          as: "devices",
+        },
+      },
+      {
+        $project: cohortsInclusionProjection,
+      },
+      {
+        $project: devicesExclusionProjection,
+      },
+    ]);
+
+    const gridsQuery = GridModel(tenantId).aggregate([
+      {
+        $match: { network },
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id",
+          foreignField: "grids",
+          as: "sites",
+        },
+      },
+      {
+        $project: gridsInclusionProjection,
+      },
+      {
+        $project: sitesExclusionProjection,
+      },
+      {
+        $project: gridShapeExclusionProjection,
+      },
+    ]);
+
+    const [cohorts, grids] = await Promise.all([
+      cohortsQuery.exec(),
+      gridsQuery.exec(),
+    ]);
+
+    return { cohorts, grids };
+  } catch (error) {
+    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+      message: "Internal Server Error",
+    };
+  }
+};
 const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
@@ -486,8 +579,7 @@ const createAirqloud = {
       const { params } = request;
       const network = params.net_id;
       const { tenant, category } = request.query;
-      return await commonUtil
-        .getDocumentsByNetworkId(tenant, network, category)
+      return await getDocumentsByNetworkId(tenant, network, category)
         .then(({ cohorts, grids }) => {
           return {
             success: true,
