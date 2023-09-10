@@ -1,5 +1,6 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const createCandidateUtil = require("@utils/create-candidate");
@@ -16,182 +17,103 @@ const { logText, logObject, logElement } = require("@utils/log");
 const createCandidateController = require("@controllers/create-candidate");
 
 describe("createCandidateController", () => {
-  describe("create", () => {
-    it("should return a bad request response if validation errors exist", async () => {
-      const req = {
-        body: {
-          /* insert invalid request body here */
-        },
+  describe("create()", () => {
+    let req, res, validationResultStub, createCandidateUtilStub;
+
+    beforeEach(() => {
+      req = {
         query: {},
+        body: {},
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
+
+      res = {
+        status: sinon.stub(),
         json: sinon.stub(),
       };
 
-      // Force validation errors to exist
-      sinon.stub(createCandidateController, "validationResult").returns({
-        isEmpty: sinon.stub().returns(false),
-        errors: [
-          {
-            nestedErrors: [
-              /* insert nested errors here */
-            ],
-          },
-        ],
-      });
-
-      await createCandidateController.create(req, res);
-
-      // Expect a bad request response
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "bad request errors",
-          errors: {} /* insert expected errors here */,
-        })
-      ).to.be.true;
-
-      // Restore the stubbed functions
-      createCandidateController.validationResult.restore();
+      validationResultStub = sinon.stub();
+      createCandidateUtilStub = sinon.stub(createCandidateUtil, "create");
     });
 
-    it("should return a success response if createCandidateUtil.create is successful", async () => {
-      const req = {
-        body: {
-          /* insert valid request body here */
-        },
-        query: {},
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    afterEach(() => {
+      sinon.restore();
+    });
 
-      // Force no validation errors
-      sinon.stub(createCandidateController, "validationResult").returns({
-        isEmpty: sinon.stub().returns(true),
-      });
-
-      // Stub the createCandidateUtil.create function
-      const successResponse = {
+    it("should return a success response when everything is fine", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createCandidateUtilStub.resolves({
         success: true,
-        status: httpStatus.OK,
-        message: "Candidate created successfully",
-        data: {
-          /* insert candidate data here */
-        },
+        data: { candidate: "sample candidate" },
+      });
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: true,
+        message: "inquiry successfully created",
+        candidate: { candidate: "sample candidate" },
       };
-      sinon
-        .stub(createCandidateUtil, "create")
-        .callsFake((request, callback) => {
-          callback(successResponse);
-        });
 
       await createCandidateController.create(req, res);
 
-      // Expect a success response
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "Candidate created successfully",
-          candidate: {}, //insert expected candidate data here
-        })
-      ).to.be.true;
-
-      // Restore the stubbed functions
-      createCandidateController.validationResult.restore();
-      createCandidateUtil.create.restore();
+      sinon.assert.calledWithExactly(res.status, 200);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
     });
 
-    it("should return an error response if createCandidateUtil.create returns an error", async () => {
-      const req = {
-        body: {
-          /* insert valid request body here */
-        },
-        query: {},
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Force no validation errors
-      sinon.stub(createCandidateController, "validationResult").returns({
-        isEmpty: sinon.stub().returns(true),
+    it("should return an error response when validation fails", async () => {
+      validationResultStub.returns({
+        isEmpty: () => false,
+        errors: [{ nestedErrors: "Validation error" }],
       });
+      res.status.returnsThis();
 
-      // Stub the createCandidateUtil.create function
-      const errorResponse = {
+      const expectedResponse = {
         success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: "Some error occurred" },
+        message: "bad request errors",
+        errors: "Validation error",
       };
-      sinon
-        .stub(createCandidateUtil, "create")
-        .callsFake((request, callback) => {
-          callback(errorResponse);
-        });
 
       await createCandidateController.create(req, res);
 
-      // Expect an error response
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some error occurred" },
-        })
-      ).to.be.true;
-
-      // Restore the stubbed functions
-      createCandidateController.validationResult.restore();
-      createCandidateUtil.create.restore();
+      sinon.assert.calledWithExactly(res.status, 400);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
     });
 
-    it("should return an error response if an exception is thrown", async () => {
-      const req = {
-        body: {
-          /* insert valid request body here */
-        },
-        query: {},
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Force no validation errors
-      sinon.stub(createCandidateController, "validationResult").returns({
-        isEmpty: sinon.stub().returns(true),
+    it("should return an error response when createCandidateUtil fails", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createCandidateUtilStub.resolves({
+        success: false,
+        message: "Candidate creation failed",
       });
+      res.status.returnsThis();
 
-      // Stub the createCandidateUtil.create function to throw an exception
-      sinon
-        .stub(createCandidateUtil, "create")
-        .throws(new Error("Some unexpected error"));
+      const expectedResponse = {
+        success: false,
+        message: "Candidate creation failed",
+        errors: { message: "" },
+      };
 
       await createCandidateController.create(req, res);
 
-      // Expect an error response
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
 
-      // Restore the stubbed functions
-      createCandidateController.validationResult.restore();
-      createCandidateUtil.create.restore();
+    it("should return an internal server error response when an exception occurs", async () => {
+      validationResultStub.throws(new Error("Test error"));
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Test error" },
+      };
+
+      await createCandidateController.create(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
     });
   });
   describe("list", () => {
@@ -229,7 +151,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
     });
 
@@ -248,7 +170,7 @@ describe("createCandidateController", () => {
         isEmpty: sinon.stub().returns(true),
       });
 
-      // Stub the createCandidateUtil.list function
+      // Stub the createCandidateUtil.list()
       const successResponse = {
         success: true,
         status: httpStatus.OK,
@@ -271,7 +193,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.list.restore();
     });
@@ -291,7 +213,7 @@ describe("createCandidateController", () => {
         isEmpty: sinon.stub().returns(true),
       });
 
-      // Stub the createCandidateUtil.list function
+      // Stub the createCandidateUtil.list()
       const errorResponse = {
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -313,7 +235,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.list.restore();
     });
@@ -333,7 +255,7 @@ describe("createCandidateController", () => {
         isEmpty: sinon.stub().returns(true),
       });
 
-      // Stub the createCandidateUtil.list function to throw an exception
+      // Stub the createCandidateUtil.list() to throw an exception
       sinon
         .stub(createCandidateUtil, "list")
         .throws(new Error("Some unexpected error"));
@@ -351,7 +273,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.list.restore();
     });
@@ -391,7 +313,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
     });
 
@@ -432,7 +354,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       generateFilter.candidates.restore();
     });
@@ -488,7 +410,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       generateFilter.candidates.restore();
       createCandidateUtil.confirm.restore();
@@ -544,7 +466,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       generateFilter.candidates.restore();
       createCandidateUtil.confirm.restore();
@@ -594,7 +516,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       generateFilter.candidates.restore();
       createCandidateUtil.confirm.restore();
@@ -634,7 +556,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
     });
 
@@ -677,7 +599,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.delete.restore();
     });
@@ -722,7 +644,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.delete.restore();
     });
@@ -761,7 +683,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.delete.restore();
     });
@@ -800,7 +722,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
     });
 
@@ -843,7 +765,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.update.restore();
     });
@@ -888,7 +810,7 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.update.restore();
     });
@@ -927,11 +849,11 @@ describe("createCandidateController", () => {
         })
       ).to.be.true;
 
-      // Restore the stubbed functions
+      // Restore the stubbed()s
       createCandidateController.validationResult.restore();
       createCandidateUtil.update.restore();
     });
   });
 
-  // Add more describe blocks and test cases as needed for other functions...
+  // Add more describe blocks and test cases as needed for other()s...
 });

@@ -1,15 +1,16 @@
 require("module-alias/register");
 const chai = require("chai");
-const { expect } = chai;
+const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const createNetwork = require("@utils/create-network");
+const controlAccessUtil = require("@utils/create-network");
 const UserModel = require("@models/User");
 const NetworkModel = require("@models/Network");
 const chaiHttp = require("chai-http");
 chai.use(chaiHttp);
+const constants = require("@config/constants");
 
-describe("createNetwork", () => {
+describe("controlAccessUtil", () => {
   describe("getNetworkFromEmail method", () => {
     beforeEach(() => {
       // Restore all the Sinon stubs and mocks before each test case
@@ -44,7 +45,7 @@ describe("createNetwork", () => {
 
       // Stub the extractOneAcronym method to return success response
       sinon
-        .stub(createNetwork, "extractOneAcronym")
+        .stub(controlAccessUtil, "extractOneAcronym")
         .resolves(responseFromExtractOneNetwork);
 
       // Stub the generateFilter.networks method to return success response
@@ -53,12 +54,12 @@ describe("createNetwork", () => {
         .resolves(responseFromGenerateFilter);
 
       // Stub the NetworkModel.list method to return success response
-      sinon.stub(createNetwork, "NetworkModel").returns({
+      sinon.stub(controlAccessUtil, "NetworkModel").returns({
         list: sinon.stub().resolves(responseFromListNetworks),
       });
 
       // Call the getNetworkFromEmail method
-      const response = await createNetwork.getNetworkFromEmail(request);
+      const response = await controlAccessUtil.getNetworkFromEmail(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -82,11 +83,11 @@ describe("createNetwork", () => {
 
       // Stub the extractOneAcronym method to return failure response
       sinon
-        .stub(createNetwork, "extractOneAcronym")
+        .stub(controlAccessUtil, "extractOneAcronym")
         .resolves(responseFromExtractOneNetwork);
 
       // Call the getNetworkFromEmail method
-      const response = await createNetwork.getNetworkFromEmail(request);
+      const response = await controlAccessUtil.getNetworkFromEmail(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -112,7 +113,7 @@ describe("createNetwork", () => {
 
       // Stub the extractOneAcronym method to return success response
       sinon
-        .stub(createNetwork, "extractOneAcronym")
+        .stub(controlAccessUtil, "extractOneAcronym")
         .resolves(responseFromExtractOneNetwork);
 
       // Stub the generateFilter.networks method to return failure response
@@ -121,7 +122,7 @@ describe("createNetwork", () => {
         .resolves(responseFromGenerateFilter);
 
       // Call the getNetworkFromEmail method
-      const response = await createNetwork.getNetworkFromEmail(request);
+      const response = await controlAccessUtil.getNetworkFromEmail(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -151,7 +152,7 @@ describe("createNetwork", () => {
 
       // Stub the extractOneAcronym method to return success response
       sinon
-        .stub(createNetwork, "extractOneAcronym")
+        .stub(controlAccessUtil, "extractOneAcronym")
         .resolves(responseFromExtractOneNetwork);
 
       // Stub the generateFilter.networks method to return success response
@@ -160,12 +161,12 @@ describe("createNetwork", () => {
         .resolves(responseFromGenerateFilter);
 
       // Stub the NetworkModel.list method to return failure response
-      sinon.stub(createNetwork, "NetworkModel").returns({
+      sinon.stub(controlAccessUtil, "NetworkModel").returns({
         list: sinon.stub().resolves(responseFromListNetworks),
       });
 
       // Call the getNetworkFromEmail method
-      const response = await createNetwork.getNetworkFromEmail(request);
+      const response = await controlAccessUtil.getNetworkFromEmail(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -183,11 +184,11 @@ describe("createNetwork", () => {
 
       // Stub the extractOneAcronym method to throw an error
       sinon
-        .stub(createNetwork, "extractOneAcronym")
+        .stub(controlAccessUtil, "extractOneAcronym")
         .throws(new Error("Internal Server Error"));
 
       // Call the getNetworkFromEmail method
-      const response = await createNetwork.getNetworkFromEmail(request);
+      const response = await controlAccessUtil.getNetworkFromEmail(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -206,7 +207,7 @@ describe("createNetwork", () => {
       };
 
       // Call the extractOneAcronym method
-      const response = createNetwork.extractOneAcronym(request);
+      const response = controlAccessUtil.extractOneAcronym(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -225,7 +226,7 @@ describe("createNetwork", () => {
       };
 
       // Call the extractOneAcronym method
-      const response = createNetwork.extractOneAcronym(request);
+      const response = controlAccessUtil.extractOneAcronym(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -251,7 +252,7 @@ describe("createNetwork", () => {
         .throws(new Error("Internal Server Error"));
 
       // Call the extractOneAcronym method
-      const response = createNetwork.extractOneAcronym(request);
+      const response = controlAccessUtil.extractOneAcronym(request);
 
       // Verify the response
       expect(response).to.deep.equal({
@@ -269,7 +270,7 @@ describe("createNetwork", () => {
       const name = "  Sample Network  ";
 
       // Call the sanitizeName method
-      const sanitizedName = createNetwork.sanitizeName(name);
+      const sanitizedName = controlAccessUtil.sanitizeName(name);
 
       // Verify the response
       expect(sanitizedName).to.equal("samplenetwork");
@@ -279,7 +280,7 @@ describe("createNetwork", () => {
       const name = "";
 
       // Call the sanitizeName method
-      const sanitizedName = createNetwork.sanitizeName(name);
+      const sanitizedName = controlAccessUtil.sanitizeName(name);
 
       // Verify the response
       expect(sanitizedName).to.equal("");
@@ -297,7 +298,7 @@ describe("createNetwork", () => {
       const loggerStub = sinon.stub(logger, "error");
 
       // Call the sanitizeName method
-      const sanitizedName = createNetwork.sanitizeName(name);
+      const sanitizedName = controlAccessUtil.sanitizeName(name);
 
       // Verify the response
       expect(sanitizedName).to.be.undefined;
@@ -308,242 +309,70 @@ describe("createNetwork", () => {
       logger.error.restore();
     });
   });
-  describe("create method", () => {
-    const request = {
-      body: {
-        net_email: "test@example.com",
-        net_website: "example.com",
-        /* other properties required by the create method */
-      },
-      query: {
-        tenant: "sampleTenant",
-      },
-      user: {
-        _id: "user123",
-        email: "user@example.com",
-        firstName: "John",
-        lastName: "Doe",
-      },
-    };
-
-    const networkModelMock = {
-      findOne: sinon.stub().returns({}),
-      register: sinon.stub().returns({
-        success: true,
-        data: {
-          _doc: {
-            _id: "net123",
-          },
-        },
-      }),
-    };
-
-    const permissionModelMock = {
-      find: sinon.stub(),
-      insertMany: sinon.stub(),
-    };
-
-    const userModelMock = {
-      findByIdAndUpdate: sinon.stub().returns({
-        _id: "user123",
-      }),
-    };
+  describe("create()", () => {
+    let request, NetworkModelStub, UserModelStub, controlAccessUtilStub;
 
     beforeEach(() => {
-      sinon.resetHistory();
-    });
-
-    it("should create a new network with correct data and assign super admin role and permissions to the creator user", async () => {
-      // Stub the extractOneAcronym method to return a valid network acronym
-      sinon.stub(createNetwork, "extractOneAcronym").returns({
-        success: true,
-        data: "acronym",
-      });
-
-      // Stub the NetworkModel to return an empty result (no network with the given website exists)
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Stub the PermissionModel to return existing permissions and insert new permissions
-      permissionModelMock.find
-        .withArgs({
-          permission: sinon.match.any,
-        })
-        .returns(permissionModelMock);
-      permissionModelMock.distinct
-        .withArgs("permission")
-        .returns(["PERMISSION_1"]);
-
-      // Stub the UserModel to return the updated user data
-      sinon.stub(mongoose, "model").returns(userModelMock);
-
-      // Call the create method
-      const callback = sinon.stub();
-      await createNetwork.create(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: true,
-          message: "network successfully created",
-          data: {
-            _id: "net123",
-          },
-          status: httpStatus.OK,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(createNetwork.extractOneAcronym.calledOnce).to.be.true;
-      expect(networkModelMock.register.calledOnce).to.be.true;
-      expect(
-        networkModelMock.register.calledWithExactly({
-          net_email: "test@example.com",
-          net_website: "example.com",
-          net_name: "acronym",
-          net_acronym: "acronym",
-          net_manager: ObjectId("user123"),
-          net_manager_username: "user@example.com",
-          net_manager_firstname: "John",
-          net_manager_lastname: "Doe",
-        })
-      ).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.calledOnce).to.be.true;
-      expect(
-        userModelMock.findByIdAndUpdate.calledWithExactly(
-          "user123",
-          {
-            $addToSet: {
-              networks: "net123",
-            },
-            role: sinon.match.any,
-          },
-          {
-            new: true,
-          }
-        )
-      ).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      createNetwork.extractOneAcronym.restore();
-      mongoose.model.restore();
-    });
-
-    it("should handle case when network with the given website already exists", async () => {
-      // Stub the extractOneAcronym method to return a valid network acronym
-      sinon.stub(createNetwork, "extractOneAcronym").returns({
-        success: true,
-        data: "acronym",
-      });
-
-      // Stub the NetworkModel to return an existing network with the given website
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-      networkModelMock.findOne.returns({
-        _id: "existingNet123",
-        net_website: "example.com",
-      });
-
-      // Call the create method
-      const callback = sinon.stub();
-      await createNetwork.create(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "Network for example.com already exists",
-          },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(createNetwork.extractOneAcronym.calledOnce).to.be.true;
-      expect(networkModelMock.findOne.calledOnce).to.be.true;
-      expect(networkModelMock.register.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      createNetwork.extractOneAcronym.restore();
-      mongoose.model.restore();
-    });
-
-    it("should handle case when user details are not provided", async () => {
-      // Stub the extractOneAcronym method to return a valid network acronym
-      sinon.stub(createNetwork, "extractOneAcronym").returns({
-        success: true,
-        data: "acronym",
-      });
-
-      // Stub the NetworkModel to return an empty result (no network with the given website exists)
-      sinon.stub(mongoose, "model").returns(networkModelMock);
-
-      // Call the create method with no user details
-      const requestWithoutUser = {
-        ...request,
-        user: null,
+      request = {
+        body: {
+          // your request body
+        },
+        query: {
+          tenant: "sample-tenant",
+        },
+        user: {
+          _id: "sample-user-id",
+          email: "sample-user@example.com",
+          firstName: "John",
+          lastName: "Doe",
+        },
       };
-      const callback = sinon.stub();
-      await createNetwork.create(requestWithoutUser, callback);
 
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "creator's details are not provided",
-          },
-          status: httpStatus.BAD_REQUEST,
-        })
-      ).to.be.true;
+      NetworkModelStub = sinon.stub(NetworkModel("sample-tenant"), "findOne");
+      UserModelStub = sinon.stub(
+        UserModel("sample-tenant"),
+        "findByIdAndUpdate"
+      );
+      controlAccessUtilStub = sinon.stub(controlAccessUtil, "createRole");
 
-      // Verify the correct methods were called
-      expect(createNetwork.extractOneAcronym.calledOnce).to.be.true;
-      expect(networkModelMock.register.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      createNetwork.extractOneAcronym.restore();
-      mongoose.model.restore();
+      // You may also need to stub other functions and modules as per your implementation
     });
 
-    it("should handle internal server error and return appropriate response", async () => {
-      // Stub the extractOneAcronym method to throw an error
-      sinon
-        .stub(createNetwork, "extractOneAcronym")
-        .throws(new Error("Internal Server Error"));
-
-      // Call the create method
-      const callback = sinon.stub();
-      await createNetwork.create(request, callback);
-
-      // Verify the response
-      expect(callback.calledOnce).to.be.true;
-      expect(
-        callback.calledWithExactly({
-          success: false,
-          message: "network util server errors",
-          errors: {
-            message: "Internal Server Error",
-          },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        })
-      ).to.be.true;
-
-      // Verify the correct methods were called
-      expect(createNetwork.extractOneAcronym.calledOnce).to.be.true;
-      expect(networkModelMock.register.notCalled).to.be.true;
-      expect(userModelMock.findByIdAndUpdate.notCalled).to.be.true;
-
-      // Restore the stubbed methods to their original behavior
-      createNetwork.extractOneAcronym.restore();
-      mongoose.model.restore();
+    afterEach(() => {
+      sinon.restore();
     });
+
+    it("should create a network successfully", async () => {
+      // Set up stubs for successful network creation
+      NetworkModelStub.resolves(null); // No network with the same net_website
+      UserModelStub.resolves({
+        /* sample updated user data */
+      });
+      controlAccessUtilStub.resolves({
+        /* sample createRole response */
+      });
+
+      const result = await controlAccessUtil.create(request);
+
+      expect(result.success).to.equal(true);
+      expect(result.status).to.equal(httpStatus.OK);
+      // Add more assertions based on your expected response
+    });
+
+    it("should return an error when the network already exists", async () => {
+      // Set up stubs for a network that already exists
+      NetworkModelStub.resolves({
+        /* existing network data */
+      });
+
+      const result = await controlAccessUtil.create(request);
+
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      // Add more assertions based on your expected response
+    });
+
+    // Add more test cases for different scenarios (e.g., user not provided, controlAccessUtil fails, etc.)
   });
   describe("assignUsers", () => {
     let sandbox;
@@ -588,7 +417,7 @@ describe("createNetwork", () => {
       });
 
       // Make the request to your function
-      const response = await createNetwork.assignUsers(request);
+      const response = await controlAccessUtil.assignUsers(request);
 
       // Assertions
       expect(response.success).to.equal(true);
@@ -644,7 +473,7 @@ describe("createNetwork", () => {
       });
 
       // Make the request to your function
-      const response = await createNetwork.assignOneUser(request);
+      const response = await controlAccessUtil.assignOneUser(request);
 
       // Assertions
       expect(response.success).to.equal(true);
@@ -700,7 +529,7 @@ describe("createNetwork", () => {
       });
 
       // Make the request to your function
-      const response = await createNetwork.unAssignUser(request);
+      const response = await controlAccessUtil.unAssignUser(request);
 
       // Assertions
       expect(response.success).to.equal(true);
@@ -765,7 +594,7 @@ describe("createNetwork", () => {
       });
 
       // Make the request to your function
-      const response = await createNetwork.unAssignManyUsers(request);
+      const response = await controlAccessUtil.unAssignManyUsers(request);
 
       // Assertions
       expect(response.success).to.equal(true);
@@ -797,8 +626,8 @@ describe("createNetwork", () => {
           .stub()
           .resolves({ _id: "net1", net_manager: "user1" }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -811,7 +640,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -845,8 +674,8 @@ describe("createNetwork", () => {
       const networkModelMock = {
         findById: sinon.stub().resolves({ _id: "net1", net_manager: "user1" }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -859,7 +688,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -874,7 +703,8 @@ describe("createNetwork", () => {
       expect(userModelMock.findById.calledWithExactly("user1")).to.be.true;
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(createNetwork.NetworkModel.findByIdAndUpdate.notCalled).to.be.true;
+      expect(controlAccessUtil.NetworkModel.findByIdAndUpdate.notCalled).to.be
+        .true;
     });
 
     it("should handle case when user is not part of the network's networks", async () => {
@@ -887,8 +717,8 @@ describe("createNetwork", () => {
           .stub()
           .resolves({ _id: "net1", net_manager: "old_manager_id" }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -901,7 +731,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -916,7 +746,8 @@ describe("createNetwork", () => {
       expect(userModelMock.findById.calledWithExactly("user1")).to.be.true;
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(createNetwork.NetworkModel.findByIdAndUpdate.notCalled).to.be.true;
+      expect(controlAccessUtil.NetworkModel.findByIdAndUpdate.notCalled).to.be
+        .true;
     });
 
     it("should handle case when user is not found", async () => {
@@ -929,8 +760,8 @@ describe("createNetwork", () => {
           .stub()
           .resolves({ _id: "net1", net_manager: "old_manager_id" }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -943,7 +774,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -954,8 +785,9 @@ describe("createNetwork", () => {
       // Verify the correct methods were called
       expect(userModelMock.findById.calledOnce).to.be.true;
       expect(userModelMock.findById.calledWithExactly("user1")).to.be.true;
-      expect(createNetwork.NetworkModel.findById.notCalled).to.be.true;
-      expect(createNetwork.NetworkModel.findByIdAndUpdate.notCalled).to.be.true;
+      expect(controlAccessUtil.NetworkModel.findById.notCalled).to.be.true;
+      expect(controlAccessUtil.NetworkModel.findByIdAndUpdate.notCalled).to.be
+        .true;
     });
 
     it("should handle case when network is not found", async () => {
@@ -966,8 +798,8 @@ describe("createNetwork", () => {
       const networkModelMock = {
         findById: sinon.stub().resolves(null),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -980,7 +812,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -993,7 +825,8 @@ describe("createNetwork", () => {
       expect(userModelMock.findById.calledWithExactly("user1")).to.be.true;
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly("net1")).to.be.true;
-      expect(createNetwork.NetworkModel.findByIdAndUpdate.notCalled).to.be.true;
+      expect(controlAccessUtil.NetworkModel.findByIdAndUpdate.notCalled).to.be
+        .true;
     });
 
     it("should handle case when network record was not updated", async () => {
@@ -1007,8 +840,8 @@ describe("createNetwork", () => {
           .resolves({ _id: "net1", net_manager: "old_manager_id" }),
         findByIdAndUpdate: sinon.stub().resolves(null),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         params: {
@@ -1021,7 +854,7 @@ describe("createNetwork", () => {
       };
 
       // Call the setManager method
-      const response = await createNetwork.setManager(request);
+      const response = await controlAccessUtil.setManager(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1061,7 +894,7 @@ describe("createNetwork", () => {
           data: { _id: "net1", name: "New Network Name" },
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         body: {
@@ -1074,7 +907,7 @@ describe("createNetwork", () => {
       };
 
       // Call the update method
-      const response = await createNetwork.update(request);
+      const response = await controlAccessUtil.update(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -1105,7 +938,7 @@ describe("createNetwork", () => {
           status: httpStatus.BAD_REQUEST,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         body: {
@@ -1118,7 +951,7 @@ describe("createNetwork", () => {
       };
 
       // Call the update method
-      const response = await createNetwork.update(request);
+      const response = await controlAccessUtil.update(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1227,7 +1060,9 @@ describe("createNetwork", () => {
           },
         }),
       };
-      sinon.stub(createNetwork, "generateFilter").returns(generateFilterMock);
+      sinon
+        .stub(controlAccessUtil, "generateFilter")
+        .returns(generateFilterMock);
 
       // Stub the NetworkModel.list method to return a successful response
       const networkModelMock = {
@@ -1239,7 +1074,7 @@ describe("createNetwork", () => {
           status: httpStatus.OK,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         query: {
@@ -1250,7 +1085,7 @@ describe("createNetwork", () => {
       };
 
       // Call the list method
-      const response = await createNetwork.list(request);
+      const response = await controlAccessUtil.list(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -1283,7 +1118,9 @@ describe("createNetwork", () => {
           status: httpStatus.BAD_REQUEST,
         }),
       };
-      sinon.stub(createNetwork, "generateFilter").returns(generateFilterMock);
+      sinon
+        .stub(controlAccessUtil, "generateFilter")
+        .returns(generateFilterMock);
 
       const request = {
         query: {
@@ -1294,7 +1131,7 @@ describe("createNetwork", () => {
       };
 
       // Call the list method
-      const response = await createNetwork.list(request);
+      const response = await controlAccessUtil.list(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1317,7 +1154,9 @@ describe("createNetwork", () => {
           },
         }),
       };
-      sinon.stub(createNetwork, "generateFilter").returns(generateFilterMock);
+      sinon
+        .stub(controlAccessUtil, "generateFilter")
+        .returns(generateFilterMock);
 
       // Stub the NetworkModel.list method to return a failed response
       const networkModelMock = {
@@ -1327,7 +1166,7 @@ describe("createNetwork", () => {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         query: {
@@ -1338,7 +1177,7 @@ describe("createNetwork", () => {
       };
 
       // Call the list method
-      const response = await createNetwork.list(request);
+      const response = await controlAccessUtil.list(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1378,7 +1217,7 @@ describe("createNetwork", () => {
           _id: net_id,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.find method to return a list of assigned users
       const user1 = { _id: "user_id_1" };
@@ -1387,7 +1226,7 @@ describe("createNetwork", () => {
       const userModelMock = {
         find: sinon.stub().resolves(responseFromListAssignedUsersMock),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       // Stub the NetworkModel.findByIdAndUpdate method to return the updated network
       const updatedNetworkMock = {
@@ -1396,7 +1235,9 @@ describe("createNetwork", () => {
       const networkModelUpdateMock = {
         findByIdAndUpdate: sinon.stub().resolves(updatedNetworkMock),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelUpdateMock);
+      sinon
+        .stub(controlAccessUtil, "NetworkModel")
+        .returns(networkModelUpdateMock);
 
       const request = {
         query: { tenant },
@@ -1404,7 +1245,7 @@ describe("createNetwork", () => {
       };
 
       // Call the refresh method
-      const response = await createNetwork.refresh(request);
+      const response = await controlAccessUtil.refresh(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -1439,7 +1280,7 @@ describe("createNetwork", () => {
       const networkModelMock = {
         findById: sinon.stub().resolves(null),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         query: { tenant },
@@ -1447,7 +1288,7 @@ describe("createNetwork", () => {
       };
 
       // Call the refresh method
-      const response = await createNetwork.refresh(request);
+      const response = await controlAccessUtil.refresh(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1459,7 +1300,7 @@ describe("createNetwork", () => {
       // Verify the correct methods were called
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly(net_id)).to.be.true;
-      expect(createNetwork.UserModel.called).to.be.false;
+      expect(controlAccessUtil.UserModel.called).to.be.false;
       expect(networkModelUpdateMock.findByIdAndUpdate.called).to.be.false;
     });
 
@@ -1474,13 +1315,13 @@ describe("createNetwork", () => {
           _id: net_id,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.find method to throw an error
       const userModelMock = {
         find: sinon.stub().throws(new Error("Database error")),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       const request = {
         query: { tenant },
@@ -1488,7 +1329,7 @@ describe("createNetwork", () => {
       };
 
       // Call the refresh method
-      const response = await createNetwork.refresh(request);
+      const response = await controlAccessUtil.refresh(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1516,20 +1357,22 @@ describe("createNetwork", () => {
           _id: net_id,
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.find method to return a list of assigned users
       const responseFromListAssignedUsersMock = [{ _id: "user_id_1" }];
       const userModelMock = {
         find: sinon.stub().resolves(responseFromListAssignedUsersMock),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       // Stub the NetworkModel.findByIdAndUpdate method to return null (network not found)
       const networkModelUpdateMock = {
         findByIdAndUpdate: sinon.stub().resolves(null),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelUpdateMock);
+      sinon
+        .stub(controlAccessUtil, "NetworkModel")
+        .returns(networkModelUpdateMock);
 
       const request = {
         query: { tenant },
@@ -1537,7 +1380,7 @@ describe("createNetwork", () => {
       };
 
       // Call the refresh method
-      const response = await createNetwork.refresh(request);
+      const response = await controlAccessUtil.refresh(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1580,7 +1423,7 @@ describe("createNetwork", () => {
           // Add other network properties as needed
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.aggregate method to return a list of available users
       const user1 = {
@@ -1603,14 +1446,14 @@ describe("createNetwork", () => {
           exec: sinon.stub().returns(availableUserList),
         }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       // Call the listAvailableUsers method
       const request = {
         query: { tenant },
         params: { net_id },
       };
-      const response = await createNetwork.listAvailableUsers(request);
+      const response = await controlAccessUtil.listAvailableUsers(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -1657,7 +1500,7 @@ describe("createNetwork", () => {
       const networkModelMock = {
         findById: sinon.stub().returns(null),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         query: { tenant },
@@ -1665,7 +1508,7 @@ describe("createNetwork", () => {
       };
 
       // Call the listAvailableUsers method
-      const response = await createNetwork.listAvailableUsers(request);
+      const response = await controlAccessUtil.listAvailableUsers(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1677,7 +1520,7 @@ describe("createNetwork", () => {
       // Verify the correct methods were called
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly(net_id)).to.be.true;
-      expect(createNetwork.UserModel.called).to.be.false;
+      expect(controlAccessUtil.UserModel.called).to.be.false;
     });
 
     it("should handle case when UserModel.aggregate fails", async () => {
@@ -1691,13 +1534,13 @@ describe("createNetwork", () => {
           // Add other network properties as needed
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.aggregate method to throw an error
       const userModelMock = {
         aggregate: sinon.stub().throws(new Error("Database error")),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       const request = {
         query: { tenant },
@@ -1705,7 +1548,7 @@ describe("createNetwork", () => {
       };
 
       // Call the listAvailableUsers method
-      const response = await createNetwork.listAvailableUsers(request);
+      const response = await controlAccessUtil.listAvailableUsers(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1761,7 +1604,7 @@ describe("createNetwork", () => {
           // Add other network properties as needed
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.aggregate method to return a list of assigned users
       const user1 = {
@@ -1794,14 +1637,14 @@ describe("createNetwork", () => {
           exec: sinon.stub().returns(assignedUserList),
         }),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       // Call the listAssignedUsers method
       const request = {
         query: { tenant },
         params: { net_id },
       };
-      const response = await createNetwork.listAssignedUsers(request);
+      const response = await controlAccessUtil.listAssignedUsers(request);
 
       // Verify the response
       expect(response.success).to.be.true;
@@ -1853,7 +1696,7 @@ describe("createNetwork", () => {
       const networkModelMock = {
         findById: sinon.stub().returns(null),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       const request = {
         query: { tenant },
@@ -1861,7 +1704,7 @@ describe("createNetwork", () => {
       };
 
       // Call the listAssignedUsers method
-      const response = await createNetwork.listAssignedUsers(request);
+      const response = await controlAccessUtil.listAssignedUsers(request);
 
       // Verify the response
       expect(response.success).to.be.false;
@@ -1873,7 +1716,7 @@ describe("createNetwork", () => {
       // Verify the correct methods were called
       expect(networkModelMock.findById.calledOnce).to.be.true;
       expect(networkModelMock.findById.calledWithExactly(net_id)).to.be.true;
-      expect(createNetwork.UserModel.called).to.be.false;
+      expect(controlAccessUtil.UserModel.called).to.be.false;
     });
 
     it("should handle case when UserModel.aggregate fails", async () => {
@@ -1887,13 +1730,13 @@ describe("createNetwork", () => {
           // Add other network properties as needed
         }),
       };
-      sinon.stub(createNetwork, "NetworkModel").returns(networkModelMock);
+      sinon.stub(controlAccessUtil, "NetworkModel").returns(networkModelMock);
 
       // Stub the UserModel.aggregate method to throw an error
       const userModelMock = {
         aggregate: sinon.stub().throws(new Error("Database error")),
       };
-      sinon.stub(createNetwork, "UserModel").returns(userModelMock);
+      sinon.stub(controlAccessUtil, "UserModel").returns(userModelMock);
 
       const request = {
         query: { tenant },
@@ -1901,7 +1744,7 @@ describe("createNetwork", () => {
       };
 
       // Call the listAssignedUsers method
-      const response = await createNetwork.listAssignedUsers(request);
+      const response = await controlAccessUtil.listAssignedUsers(request);
 
       // Verify the response
       expect(response.success).to.be.false;

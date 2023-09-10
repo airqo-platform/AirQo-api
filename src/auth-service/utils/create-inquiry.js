@@ -8,7 +8,7 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
 
 const inquire = {
-  create: async (inquire, callback) => {
+  create: async (inquire) => {
     try {
       const {
         fullName,
@@ -39,29 +39,28 @@ const inquire = {
           message,
           tenant
         );
+
         if (responseFromSendEmail.success === true) {
-          callback({
+          return {
             success: true,
             message: "inquiry successfully created",
             data: createdInquiry,
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          });
+            status: responseFromSendEmail.status || "",
+          };
         } else if (responseFromSendEmail.success === false) {
           logObject("responseFromSendEmail", responseFromSendEmail);
-          callback(responseFromSendEmail);
+          return responseFromSendEmail;
         }
       } else if (responseFromCreateInquiry.success === false) {
-        callback(responseFromCreateInquiry);
+        return responseFromCreateInquiry;
       }
     } catch (e) {
-      callback({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
 

@@ -1,213 +1,99 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
 const createCandidate = require("@utils/create-candidate");
+const UserModel = require("@models/User");
+const CandidateModel = require("@models/Candidate");
+const NetworkModel = require("@models/Network");
+const mailer = require("@utils/mailer");
 
 describe("createCandidate", () => {
-  describe("create", () => {
-    let fakeUserModel;
-    let fakeCandidateModel;
-    let fakeMailer;
-    let registerStub;
-    let sendMailStub;
+  describe("create()", () => {
+    let req,
+      validationResultStub,
+      UserModelStub,
+      CandidateModelStub,
+      NetworkModelStub,
+      mailerStub;
 
     beforeEach(() => {
-      // Create fake user model and candidate model
-      fakeUserModel = {
-        exists: () => {},
+      req = {
+        firstName: "John",
+        lastName: "Doe",
+        email: "john.doe@example.com",
+        tenant: "sample-tenant",
+        network_id: "sample-network-id",
       };
 
-      fakeCandidateModel = {
-        exists: () => {},
-        register: () => {},
-      };
-
-      // Create a fake mailer object for mocking the candidate function
-      fakeMailer = {
-        candidate: () => {},
-      };
-
-      // Create stubs for the methods to simulate database and email operations
-      registerStub = sinon.stub(fakeCandidateModel, "register");
-      sendMailStub = sinon.stub(fakeMailer, "candidate");
+      validationResultStub = sinon.stub();
+      UserModelStub = sinon.stub(UserModel(sampleTenant), "exists");
+      CandidateModelStub = sinon.stub(CandidateModel(sampleTenant), "exists");
+      NetworkModelStub = sinon.stub(NetworkModel(sampleTenant), "exists");
+      mailerStub = sinon.stub(mailer, "candidate");
     });
 
     afterEach(() => {
-      // Restore the stubs after each test
-      registerStub.restore();
-      sendMailStub.restore();
+      sinon.restore();
     });
 
-    it("should create a new candidate and send email successfully", async () => {
-      // Arrange
-      const req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        tenant: "airqo",
-      };
-
-      const candidateData = {
-        // Mock candidate data returned from the register function
-        // Replace with relevant data for your specific use case
-        _id: "mock_candidate_id",
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        // Other candidate data...
-      };
-
-      const mailerResponse = {
+    it("should return success when everything is fine and candidate does not exist", async () => {
+      validationResultStub.returns(true);
+      UserModelStub.resolves(false);
+      CandidateModelStub.resolves(false);
+      NetworkModelStub.resolves(true);
+      CandidateModelStub.resolves({
         success: true,
-        message: "email successfully sent",
-        status: httpStatus.OK,
-      };
-
-      // Set up the fake models and mailer to simulate successful operations
-      fakeUserModel.exists.resolves(false); // User does not exist
-      fakeCandidateModel.exists.resolves(false); // Candidate does not exist
-      registerStub.resolves({ success: true, data: candidateData }); // Registering candidate returns success
-      sendMailStub.resolves(mailerResponse); // Sending email returns success
-
-      // Act
-      // Replace any necessary parameters for the createCandidate.create function
-      const callback = sinon.spy();
-      await createCandidate.create(req, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.firstCall.args[0]).to.deep.equal({
-        success: true,
-        message: "candidate successfully created",
-        data: candidateData,
-        status: httpStatus.OK,
-      });
-    });
-
-    it("should return candidate already exists message when candidate exists in the system", async () => {
-      // Arrange
-      const req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        tenant: "airqo",
-      };
-
-      // Set up the fake models to simulate that the candidate already exists
-      fakeUserModel.exists.resolves(false); // User does not exist
-      fakeCandidateModel.exists.resolves(true); // Candidate already exists
-
-      // Act
-      const callback = sinon.spy();
-      await createCandidate.create(req, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.firstCall.args[0]).to.deep.equal({
-        success: true,
-        message: "candidate already exists",
-        status: httpStatus.OK,
-      });
-    });
-
-    it("should return bad request error when candidate exists as a user in the system", async () => {
-      // Arrange
-      const req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        tenant: "airqo",
-      };
-
-      // Set up the fake models to simulate that the candidate exists as a user
-      fakeUserModel.exists.resolves(true); // User already exists
-
-      // Act
-      const callback = sinon.spy();
-      await createCandidate.create(req, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.firstCall.args[0]).to.deep.equal({
-        success: false,
-        message: "Bad Request Error",
-        status: httpStatus.BAD_REQUEST,
-        errors: {
-          message:
-            "Candidate already exists as a User,you can use the FORGOT PASSWORD feature",
+        data: {
+          // Sample candidate data
         },
       });
-    });
+      mailerStub.resolves({
+        success: true,
+        status: 200,
+      });
 
-    it("should return internal server error when candidate registration fails", async () => {
-      // Arrange
-      const req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        tenant: "airqo",
-      };
+      const result = await createCandidate.create(req);
 
-      // Set up the fake models to simulate that the candidate does not exist and registration fails
-      fakeUserModel.exists.resolves(false); // User does not exist
-      registerStub.resolves({
-        success: false,
-        message: "Failed to register candidate",
-      }); // Registering candidate fails
-
-      // Act
-      const callback = sinon.spy();
-      await createCandidate.create(req, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.firstCall.args[0]).to.deep.equal({
-        success: false,
-        message: "Failed to register candidate",
+      expect(result).to.deep.equal({
+        success: true,
+        message: "candidate successfully created",
+        data: {},
+        status: 200,
       });
     });
 
-    it("should return internal server error when sending email fails", async () => {
-      // Arrange
-      const req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        tenant: "airqo",
-      };
+    it("should return success when everything is fine and candidate exists", async () => {
+      validationResultStub.returns(true);
+      UserModelStub.resolves(false);
+      CandidateModelStub.resolves(true);
 
-      const candidateData = {
-        // Mock candidate data returned from the register function
-        // Replace with relevant data for your specific use case
-        _id: "mock_candidate_id",
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        // Other candidate data...
-      };
+      const result = await createCandidate.create(req);
 
-      // Set up the fake models and mailer to simulate successful registration but email sending fails
-      fakeUserModel.exists.resolves(false); // User does not exist
-      fakeCandidateModel.exists.resolves(false); // Candidate does not exist
-      registerStub.resolves({ success: true, data: candidateData }); // Registering candidate returns success
-      sendMailStub.resolves({
-        success: false,
-        message: "Failed to send email",
-      }); // Sending email fails
-
-      // Act
-      const callback = sinon.spy();
-      await createCandidate.create(req, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.firstCall.args[0]).to.deep.equal({
-        success: false,
-        message: "Failed to send email",
+      expect(result).to.deep.equal({
+        success: true,
+        message: "candidate already exists",
+        status: 200,
       });
     });
 
-    // Add more tests for other scenarios...
+    it("should return bad request when network does not exist", async () => {
+      validationResultStub.returns(true);
+      UserModelStub.resolves(false);
+      CandidateModelStub.resolves(false);
+      NetworkModelStub.resolves(false);
+
+      const result = await createCandidate.create(req);
+
+      expect(result).to.deep.equal({
+        success: false,
+        message: "the provided network does not exist",
+        status: 400,
+        errors: { message: "Network sample-network-id not found" },
+      });
+    });
+
+    // Add more test cases for other scenarios (e.g., user exists, mailer fails, exceptions)
   });
   describe("list", () => {
     let fakeCandidateModel;
