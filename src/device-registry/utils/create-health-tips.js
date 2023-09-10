@@ -32,7 +32,7 @@ const createHealthTips = {
         limit,
         skip,
       });
-      if (language != null) {
+      if (language !== null) {
         responseFromListHealthTips.data = await translateUtil.translate(responseFromListHealthTips.data, language);
       }
 
