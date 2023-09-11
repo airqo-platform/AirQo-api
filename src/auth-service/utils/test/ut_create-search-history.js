@@ -3,18 +3,9 @@ const sinon = require("sinon");
 const chai = require("chai");
 const expect = chai.expect;
 const httpStatus = require("http-status");
-const SearchHistorySchema = require("@models/searchHistory");
+const SearchHistoryModel = require("@models/SearchHistory");
 
 const { getModelByTenant } = require("@config/database");
-const SearchHistoryModel = (tenant) => {
-  try {
-    let users = mongoose.model("searchhistories");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(tenant, "searchhistory", SearchHistorySchema);
-    return users;
-  }
-};
 
 const UserModel = require("@models/User");
 const searchHistories = require("../create-search-history");

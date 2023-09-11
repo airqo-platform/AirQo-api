@@ -11,6 +11,9 @@ const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- user-model`
+);
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -34,6 +37,10 @@ const UserSchema = new Schema(
     department_id: {
       type: ObjectId,
       ref: "department",
+    },
+    role: {
+      type: ObjectId,
+      ref: "role",
     },
     birthday: { type: Date },
     reports_to: { type: ObjectId, ref: "user" },
@@ -88,26 +95,54 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: {
+    network_roles: {
       type: [
         {
-          type: ObjectId,
-          ref: "network",
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          role: {
+            type: ObjectId,
+            ref: "role",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+          },
         },
       ],
-      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+      default: [],
+      _id: false,
     },
-    groups: [
-      {
-        type: ObjectId,
-        ref: "group",
-      },
-    ],
-    role: {
-      type: ObjectId,
-      ref: "role",
-      default: constants.DEFAULT_ROLE,
+
+    network_groups: {
+      type: [
+        {
+          network: {
+            type: ObjectId,
+            ref: "network",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+          },
+          group: {
+            type: ObjectId,
+            ref: "group",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+          },
+        },
+      ],
+      default: [],
+      _id: false,
     },
+    // groups: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "group",
+    //   },
+    // ],
+    // role: {
+    //   type: ObjectId,
+    //   ref: "role",
+    //   default: constants.DEFAULT_ROLE,
+    // },
     permissions: [
       {
         type: ObjectId,
@@ -167,14 +202,14 @@ UserSchema.pre("save", function (next) {
   }
 
   // Check for duplicate values in the networks array
-  const duplicateValues = this.networks.filter(
-    (value, index, self) => self.indexOf(value) !== index
-  );
+  // const duplicateValues = this.networks.filter(
+  //   (value, index, self) => self.indexOf(value) !== index
+  // );
 
-  if (duplicateValues.length > 0) {
-    const error = new Error("Duplicate values found in networks array.");
-    return next(error);
-  }
+  // if (duplicateValues.length > 0) {
+  //   const error = new Error("Duplicate values found in networks array.");
+  //   return next(error);
+  // }
 
   return next();
 });
@@ -211,6 +246,7 @@ UserSchema.statics = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -269,6 +305,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -284,31 +321,14 @@ UserSchema.statics = {
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "networks",
-          localField: "networks",
+          from: "roles",
+          localField: "role",
           foreignField: "_id",
-          as: "networks",
-        })
-        .lookup({
-          from: "networks",
-          localField: "_id",
-          foreignField: "net_manager",
-          as: "my_networks",
-        })
-        .lookup({
-          from: "clients",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "clients",
-        })
-        .lookup({
-          from: "groups",
-          localField: "_id",
-          foreignField: "grp_users",
-          as: "groups",
+          as: "lol",
         })
         .lookup({
           from: "permissions",
@@ -317,17 +337,16 @@ UserSchema.statics = {
           as: "permissions",
         })
         .lookup({
-          from: "roles",
-          localField: "role",
-          foreignField: "_id",
-          as: "role",
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
         })
-        .unwind("$role")
         .lookup({
-          from: "permissions",
-          localField: "role.role_permissions",
-          foreignField: "_id",
-          as: "role.role_permissions",
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
         })
         .addFields({
           createdAt: {
@@ -337,9 +356,75 @@ UserSchema.statics = {
             },
           },
         })
-        .sort({ createdAt: -1 })
+        .unwind({
+          path: "$network_roles",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$network_groups",
+          preserveNullAndEmptyArrays: true,
+        })
+        .lookup({
+          from: "networks",
+          localField: "network_roles.network",
+          foreignField: "_id",
+          as: "network",
+        })
+        .lookup({
+          from: "roles",
+          localField: "network_roles.role",
+          foreignField: "_id",
+          as: "role",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "role.role_permissions",
+          foreignField: "_id",
+          as: "role_permissions",
+        })
+        .group({
+          _id: "$_id",
+          firstName: { $first: "$firstName" },
+          lastName: { $first: "$lastName" },
+          userName: { $first: "$userName" },
+          email: { $first: "$email" },
+          verified: { $first: "$verified" },
+          country: { $first: "$country" },
+          privilege: { $first: "$privilege" },
+          website: { $first: "$website" },
+          category: { $first: "$category" },
+          jobTitle: { $first: "$jobTitle" },
+          description: { $first: "$description" },
+          profilePicture: { $first: "$profilePicture" },
+          phoneNumber: { $first: "$phoneNumber" },
+          lol: { $first: "$lol" },
+          clients: { $first: "$clients" },
+          permissions: { $first: "$permissions" },
+          my_networks: { $first: "$my_networks" },
+          createdAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$createdAt" },
+          networks: {
+            $push: {
+              net_name: { $arrayElemAt: ["$network.net_name", 0] },
+              _id: { $arrayElemAt: ["$network._id", 0] },
+              role: {
+                $cond: {
+                  if: { $ifNull: ["$role", false] },
+                  then: {
+                    _id: { $arrayElemAt: ["$role._id", 0] },
+                    role_name: { $arrayElemAt: ["$role.role_name", 0] },
+                    role_permissions: "$role_permissions",
+                  },
+                  else: null,
+                },
+              },
+            },
+          },
+        })
         .project(inclusionProjection)
+
         .project(exclusionProjection)
+        .sort({ createdAt: -1 })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
@@ -361,6 +446,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -370,6 +456,7 @@ UserSchema.statics = {
       };
     }
   },
+
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
@@ -382,11 +469,19 @@ UserSchema.statics = {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
 
-      if (modifiedUpdate.networks) {
-        modifiedUpdate["$addToSet"]["networks"] = {};
-        modifiedUpdate["$addToSet"]["networks"]["$each"] =
-          modifiedUpdate.networks;
-        delete modifiedUpdate["networks"];
+      if (modifiedUpdate.network_roles) {
+        modifiedUpdate["$addToSet"] = {
+          network_roles: { $each: modifiedUpdate.network_roles },
+        };
+        delete modifiedUpdate.network_roles;
+        // if (isEmpty(modifiedUpdate.network_roles.network)) {
+        //   delete modifiedUpdate.network_roles;
+        // } else {
+        //   modifiedUpdate["$addToSet"] = {
+        //     network_roles: { $each: modifiedUpdate.network_roles },
+        //   };
+        //   delete modifiedUpdate.network_roles;
+        // }
       }
 
       if (modifiedUpdate.permissions) {
@@ -394,18 +489,6 @@ UserSchema.statics = {
         modifiedUpdate["$addToSet"]["permissions"]["$each"] =
           modifiedUpdate.permissions;
         delete modifiedUpdate["permissions"];
-      }
-
-      if (modifiedUpdate.roles) {
-        modifiedUpdate["$addToSet"]["roles"] = {};
-        modifiedUpdate["$addToSet"]["roles"]["$each"] = modifiedUpdate.roles;
-        delete modifiedUpdate["roles"];
-      }
-
-      if (modifiedUpdate.groups) {
-        modifiedUpdate["$addToSet"]["groups"] = {};
-        modifiedUpdate["$addToSet"]["groups"]["$each"] = modifiedUpdate.groups;
-        delete modifiedUpdate["groups"];
       }
 
       const updatedUser = await this.findOneAndUpdate(
@@ -431,6 +514,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "INTERNAL SERVER ERROR",
@@ -464,61 +548,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-
-  async v2_remove({ filter = {} } = {}) {
-    try {
-      const response = await this.aggregate()
-        .lookup({
-          from: "access_tokens",
-          localField: "_id",
-          foreignField: "user_id",
-          as: "access_tokens",
-        })
-        .unwind("$access_tokens")
-        .lookup({
-          from: "scopes",
-          localField: "access_tokens.scopes",
-          foreignField: "_id",
-          as: "scopes",
-        })
-        .unwind("scopes")
-        .match(filter)
-        .delete({
-          filter: { _id: "$access_tokens._id" },
-          delete: "access_tokens",
-        })
-        .delete({
-          filter: { _id: "$scopes._id" },
-          delete: "scopes",
-        })
-        .allowDiskUse(true);
-
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully deleted the user",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: false,
-          message: "no users exist",
-          data: [],
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "no users exist for this operation" },
-        };
-      }
-    } catch (error) {
-      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -545,7 +575,6 @@ UserSchema.methods = {
         long_organization: this.long_organization,
         privilege: this.privilege,
         role: this.role,
-        networks: this.networks,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
@@ -595,72 +624,9 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
-      networks: this.networks,
       rateLimit: this.rateLimit,
     };
   },
-};
-
-/***
- * prototype functions need to be added here
- */
-const User = {
-  prototype: {},
-};
-
-User.prototype.newToken = async function newToken(device_name = "Web FE") {
-  const plainTextToken = Random(40);
-
-  const token = await this.createToken({
-    name: device_name,
-    token: hash(plainTextToken),
-  });
-
-  return {
-    accessToken: token,
-    plainTextToken: `${token.id}|${plainTextToken}`,
-  };
-};
-
-User.prototype.hasRole = async function hasRole(role) {
-  if (!role || role === "undefined") {
-    return false;
-  }
-  const roles = await this.getRoles();
-  return !!roles.map(({ name }) => name).includes(role);
-};
-
-User.prototype.hasPermission = async function hasPermission(permission) {
-  if (!permission || permission === "undefined") {
-    return false;
-  }
-  const permissions = await this.getPermissions();
-  return !!permissions.map(({ name }) => name).includes(permission.name);
-};
-
-User.prototype.hasPermissionThroughRole =
-  async function hasPermissionThroughRole(permission) {
-    if (!permission || permission === "undefined") {
-      return false;
-    }
-    const roles = await this.getRoles();
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const item of permission.roles) {
-      if (roles.filter((role) => role.name === item.name).length > 0) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-User.prototype.hasPermissionTo = async function hasPermissionTo(permission) {
-  if (!permission || permission === "undefined") {
-    return false;
-  }
-  return (
-    (await this.hasPermissionThroughRole(permission)) ||
-    this.hasPermission(permission)
-  );
 };
 
 const UserModel = (tenant) => {

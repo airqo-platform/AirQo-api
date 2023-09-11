@@ -1,15 +1,15 @@
 require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
+const sinon = require("sinon");
+const chaiAsPromised = require("chai-as-promised");
 const mongoose = require("mongoose");
-
-const UserSchema = require("@models/User");
-
-// Replace this with the actual import path for your User model if applicable
-const UserModel = mongoose.model("User", UserSchema);
+const UserModel = require("@models/User");
+const httpStatus = require("http-status");
+chai.use(chaiAsPromised);
 
 describe("UserSchema static methods", () => {
-  describe("register method", () => {
+  describe("register()", () => {
     it("should register a new user", async () => {
       const args = {
         firstName: "John",
@@ -34,7 +34,7 @@ describe("UserSchema static methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("listStatistics method", () => {
+  describe("listStatistics()", () => {
     it("should list statistics of users", async () => {
       const result = await UserModel.listStatistics();
 
@@ -49,22 +49,65 @@ describe("UserSchema static methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("list method", () => {
-    it("should list users", async () => {
-      const result = await UserModel.list();
+  describe("list()", () => {
+    let sandbox;
 
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "successfully retrieved the user details"
-      );
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.be.an("array");
+    before(() => {
+      mongoose.set("useFindAndModify", false); // To suppress mongoose deprecation warnings
     });
 
-    // Add more test cases to cover other scenarios
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should return user details with valid filter", async () => {
+      // Create a mock response
+      const mockResponse = [
+        // Mock user data here
+      ];
+
+      // Create a mock aggregation object with expected methods
+      const mockAggregation = {
+        match: sandbox.stub().returnsThis(),
+        lookup: sandbox.stub().returnsThis(),
+        addFields: sandbox.stub().returnsThis(),
+        unwind: sandbox.stub().returnsThis(),
+        group: sandbox.stub().returnsThis(),
+        project: sandbox.stub().returnsThis(),
+        sort: sandbox.stub().returnsThis(),
+        skip: sandbox.stub().returnsThis(),
+        limit: sandbox.stub().returnsThis(),
+        allowDiskUse: sandbox.stub().returnsThis(),
+        exec: sandbox.stub().resolves(mockResponse), // Resolve with your mock data
+      };
+
+      // Stub the UserModel.aggregate() method to return the mock aggregation object
+      sandbox.stub(UserModel, "aggregate").returns(mockAggregation);
+
+      // Define the filter you want to test
+      const filter = {
+        // Define your filter here
+      };
+
+      // Call the list function and make assertions
+      const result = await UserModel.list({ filter });
+
+      expect(result).to.deep.equal({
+        success: true,
+        message: "successfully retrieved the user details",
+        data: mockResponse,
+        status: httpStatus.OK,
+      });
+    });
+
+    // Add more test cases here for different scenarios (e.g., empty response, error handling, etc.)
   });
 
-  describe("modify method", () => {
+  describe("modify()", () => {
     it("should modify an existing user", async () => {
       // Assuming there is an existing user with ID "existing_user_id"
       const filter = { _id: "existing_user_id" };
@@ -83,7 +126,7 @@ describe("UserSchema static methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("remove method", () => {
+  describe("remove()", () => {
     it("should remove an existing user", async () => {
       // Assuming there is an existing user with ID "existing_user_id"
       const filter = { _id: "existing_user_id" };
@@ -98,26 +141,10 @@ describe("UserSchema static methods", () => {
 
     // Add more test cases to cover other scenarios
   });
-
-  describe("v2_remove method", () => {
-    it("should remove users with additional operations", async () => {
-      // Assuming there is an existing user with ID "existing_user_id"
-      const filter = { _id: "existing_user_id" };
-
-      const result = await UserModel.v2_remove({ filter });
-
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("successfully deleted the user");
-      expect(result.status).to.equal(httpStatus.OK);
-      expect(result.data).to.be.an("array");
-    });
-
-    // Add more test cases to cover other scenarios
-  });
 });
 
 describe("UserSchema instance methods", () => {
-  describe("authenticateUser method", () => {
+  describe("authenticateUser()", () => {
     it("should return true if the password is correct", () => {
       // Sample user document
       const user = new UserModel({
@@ -157,7 +184,7 @@ describe("UserSchema instance methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("createToken method", () => {
+  describe("createToken()", () => {
     it("should create a valid JWT token", () => {
       // Sample user document
       const user = new UserModel({
@@ -180,7 +207,7 @@ describe("UserSchema instance methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("newToken method", () => {
+  describe("newToken()", () => {
     it("should generate a new access token", () => {
       // Sample user document
       const user = new UserModel({
@@ -204,7 +231,7 @@ describe("UserSchema instance methods", () => {
     // Add more test cases to cover other scenarios
   });
 
-  describe("toAuthJSON method", () => {
+  describe("toAuthJSON()", () => {
     it("should return the JSON representation for authentication", () => {
       // Sample user document
       const user = new UserModel({

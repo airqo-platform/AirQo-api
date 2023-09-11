@@ -21,6 +21,7 @@ class DateUtils:
             is_manual_run = (
                 kwargs["dag_run"].external_trigger if "dag_run" in kwargs else False
             )
+            print("KWARGS:", kwargs)
             print("IS MANUAL RUN:", is_manual_run)
             if historical and is_manual_run:
                 start_date_time = kwargs.get("params", {}).get("start_date_time")
