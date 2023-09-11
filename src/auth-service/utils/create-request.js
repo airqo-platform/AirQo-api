@@ -1,21 +1,36 @@
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("./log");
-const mailer = require("./mailer");
+const { logObject, logElement, logText } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-constants = require("../config/constants");
+const constants = require("@config/constants");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
 );
+const accessCodeGenerator = require("generate-password");
+
+// Helper function to check if the user is authorized to approve the request
+const isUserAuthorizedToApprove = (user, accessRequest) => {
+  // Implement your authorization logic here.
+  // Check if the user has the necessary role or permissions to approve this request.
+  // You can customize this logic based on your application's requirements.
+  // Example: Check if the user is the administrator of the group associated with the request.
+  // Return true if authorized, false otherwise.
+  return user.isAdmin && user.groups.includes(accessRequest.group);
+};
 
 const createAccessRequest = {
   requestAccessToGroup: async (request) => {
     try {
+      /***
+       * Important to note that the user making this
+       * access request must be an existing user
+       */
       const { user, query } = request;
       const { tenant } = query;
       const { group_id } = request.params;
@@ -105,6 +120,10 @@ const createAccessRequest = {
   },
   requestAccessToNetwork: async (request) => {
     try {
+      /***
+       * Important to note that the user making this
+       * access request must be an existing user
+       */
       const { user, query } = request;
       const { tenant } = query;
       const { network_id } = request.params;
@@ -193,48 +212,125 @@ const createAccessRequest = {
       };
     }
   },
-
   approveAccessRequest: async (request) => {
-    const { user } = request; // Assuming an authenticated user is available in the request object
-    const { request_id } = request.params;
+    try {
+      /**
+       * During the approval process, check the request Type
+       * to then target the right Collection for creation
+       * we have 2 types:
+       * 1. Network
+       * 2. Group
+       */
+      const { user, query } = request;
+      const { tenant } = query;
+      const { request_id } = request.params;
+      const accessRequest = await AccessRequestModel(tenant).findById(
+        request_id
+      );
 
-    // Check if the user approving the request has the necessary permissions (e.g., an admin)
-    // You can implement a permission check here.
+      if (!accessRequest) {
+        return {
+          success: false,
+          message: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Access request not found" },
+        };
+      }
 
-    // Find the access request by ID
-    const accessRequest = await AccessRequestModel.findById(request_id);
+      const userDetails = await UserModel(tenant).findById(
+        accessRequest.user_id
+      );
 
-    if (!accessRequest) {
+      if (isEmpty(userDetails)) {
+        return {
+          success: false,
+          message: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User Details in Access Request Not Found" },
+        };
+      }
+
+      // if (!isUserAuthorizedToApprove(user, accessRequest)) {
+      //   return {
+      //     success: false,
+      //     message: "Forbidden!",
+      //     status: httpStatus.FORBIDDEN,
+      //     errors: { message: "User is not authorized to approve this request" },
+      //   };
+      // }
+
+      const update = { status: "approved" };
+      const filter = { _id: ObjectId(accessRequest._id) };
+
+      const responseFromUpdateAccessRequest = await AccessRequestModel(
+        tenant
+      ).modify({
+        filter,
+        update,
+      });
+
+      if (responseFromUpdateAccessRequest.success === true) {
+        const { firstName, lastName, email } = userDetails;
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
+
+        const newUser = {
+          firstName,
+          lastName,
+          email,
+          userName: email,
+          password,
+        };
+
+        const responseFromCreateUser = await UserModel(tenant).register(
+          newUser
+        );
+
+        if (responseFromCreateUser.success === true) {
+          const responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            "confirm"
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "Access request approved successfully",
+              status: httpStatus.OK,
+            };
+          } else {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Failed to send email to the user" },
+            };
+          }
+        } else {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: "Failed to create user" },
+          };
+        }
+      } else if (responseFromUpdateAccessRequest.success === false) {
+        return responseFromUpdateAccessRequest;
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "Access request not found",
-        status: httpStatus.NOT_FOUND,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
-
-    // Check if the requesting user is the group's administrator or has the necessary permissions to approve requests
-    // You can implement this authorization logic based on your application's requirements.
-
-    // Update the status of the access request to 'Approved'
-    accessRequest.status = "Approved";
-
-    // Save the updated access request
-    await accessRequest.save();
-
-    // Optionally, you can add the user to the group's list of members
-    const group = accessRequest.group;
-    await UserModel.findByIdAndUpdate(accessRequest.user, {
-      $addToSet: { groups: group },
-    });
-
-    // Notify the user that their access request has been approved
-    // You can use a notification mechanism (email, in-app notification, etc.)
-
-    return {
-      success: true,
-      message: "Access request approved successfully",
-      status: httpStatus.OK,
-    };
   },
   create: async (request) => {
     try {
@@ -287,7 +383,7 @@ const createAccessRequest = {
       });
       return responseFromListAccessRequest;
     } catch (e) {
-      logger.error(`${e.message}`);
+      logger.error(`${JSON.stringify(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
