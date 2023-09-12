@@ -26,9 +26,7 @@ module.exports = {
                             <tr>
                                 <td style="display: flex; align-items: center;">
                                     <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
-                                    <span
-                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
-                                        Clean</span>
+                                    
                                     </td>
                                     </tr>
                                     <tr>
@@ -159,9 +157,7 @@ module.exports = {
                             <tr>
                                 <td style="display: flex; align-items: center;">
                                     <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
-                                    <span
-                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
-                                        Clean</span>
+                                    
                                 </td>
                             </tr>
 
@@ -290,9 +286,7 @@ module.exports = {
                             <tr>
                                 <td style="display: flex; align-items: center;">
                                     <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
-                                    <span
-                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
-                                        Clean</span>
+                                    
                                 </td>
                             </tr>
                             
