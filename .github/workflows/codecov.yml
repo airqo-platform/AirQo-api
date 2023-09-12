@@ -13,13 +13,21 @@ jobs:
     env:
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       REDIS_SERVER: ${{ secrets.REDIS_SERVER }}
-      REDIS_PORT: ${{ secrets.REDIS_PORT }}
+      REDIS_PORT: ${{ secrets.REDIS_PORT }}      
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-node@v3
       with:
           node-version: 18
-    
+
+    - name: Login to GCP
+      uses: google-github-actions/auth@v1.1.1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+    - name: Setup Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1.1.1
+
     - name: Install dependencies
       run: 
         npm install
