@@ -247,12 +247,7 @@ const createUserModule = {
       if (responseFromModifyUser.success === true) {
         const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
         logObject("updatedUserDetails", updatedUserDetails);
-        return {
-          success: true,
-          message: responseFromModifyUser.message,
-          data: responseFromModifyUser.data,
-        };
-        //temporarily disable email notifications on updating user details
+
         if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
