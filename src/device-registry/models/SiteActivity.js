@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { logObject, logElement, logText } = require("@utils/log");
