@@ -26,14 +26,16 @@ const createHealthTips = {
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.tips(request);
       const language = request.query.language;
+      let translatedHealthTips;
 
-      const responseFromListHealthTips = await HealthTipModel(tenant).list({
+      let responseFromListHealthTips = await HealthTipModel(tenant).list({
         filter,
         limit,
         skip,
       });
-      if (language !== null) {
-        responseFromListHealthTips.data = await translateUtil.translate(responseFromListHealthTips.data, language);
+      if (language) {
+        translatedHealthTips = await translateUtil.translate(responseFromListHealthTips.data, language);
+        responseFromListHealthTips = translatedHealthTips;
       }
 
       logObject("responseFromListHealthTips", responseFromListHealthTips);

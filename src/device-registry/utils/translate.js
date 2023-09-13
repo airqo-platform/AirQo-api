@@ -21,7 +21,12 @@ const translateUtil = {
                 translatedHealthTips.push(translatedTip);
             }
 
-            return translatedHealthTips;
+            return {
+                success: true,
+                message: "Translated Health Tips returned Successfully",
+                data: translatedHealthTips,
+                status: httpStatus.OK,
+            };
         } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
             return {
