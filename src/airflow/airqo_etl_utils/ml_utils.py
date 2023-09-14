@@ -100,6 +100,7 @@ class DecodingUtils:
 
     @staticmethod
     def encode_categorical_training_features(df, freq):
+        df["timestamp"] = pd.to_datetime("timestamp")
         df1 = df.copy()
         columns = ["device_id", "site_id", "device_category"]
         mappings = []
@@ -155,102 +156,118 @@ class ForecastUtils:
         data = data.dropna(subset=["pm2_5"])
         return data
 
+
     @staticmethod
-    def feature_eng_data(data, target_column, data_frequency, job_type):
-        def get_lag_features(df, target_col, freq):
-            df1 = df.copy()  # use copy to prevent terminal warning
-            if freq == "daily":
-                shifts = [1, 2, 3, 7, 14]
-                for s in shifts:
-                    df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
-                        target_col
-                    ].shift(s)
+    def get_lag_and_roll_features(df, target_col, freq):
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
 
-                shifts = [2, 3, 7, 14]
-                functions = ["mean", "std", "max", "min"]
-                for s in shifts:
-                    for f in functions:
-                        df1[f"pm2_5_{f}_{s}_day"] = (
-                            df1.groupby(["device_id"])[target_col]
-                            .shift(1)
-                            .rolling(s)
-                            .agg(f)
-                        )
-            elif freq == "hourly":
-                shifts = [1, 2, 6, 12]
-                for s in shifts:
-                    df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
-                        target_col
-                    ].shift(s)
+        if target_col not in df.columns or "timestamp" not in df.columns or "device_id" not in df.columns:
+            raise ValueError("Required columns missing")
 
-                shifts = [3, 6, 12, 24]
-                functions = ["mean", "std", "median", "skew"]
-                for s in shifts:
-                    for f in functions:
-                        df1[f"pm2_5_{f}_{s}_hour"] = (
-                            df1.groupby(["device_id"])[target_col]
-                            .shift(1)
-                            .rolling(s)
-                            .agg(f)
-                        )
-            else:
-                raise ValueError("Invalid frequency")
-
-            return df1
-
-        def get_time_and_cyclic_features(df, freq):
-            df1 = df.copy()
-            attributes = ["year", "month", "day", "dayofweek"]
-            max_vals = [2023, 12, 30, 7]
-            if freq == "hourly":
-                attributes.append("hour")
-                max_vals.append(23)
-            for a, m in zip(attributes, max_vals):
-                df1[a] = df1["timestamp"].dt.__getattribute__(a)
-                df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
-                df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
-
-            df1["week"] = df1["timestamp"].dt.isocalendar().week
-            df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
-            df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
-            df1.drop(columns=attributes + ["week"], inplace=True)
-            return df1
-
-        def get_location_cord(df):
-            df["x_cord"] = np.cos(df["latitude"]) * np.cos(df["longitude"])
-            df["y_cord"] = np.cos(df["latitude"]) * np.sin(df["longitude"])
-            df["z_cord"] = np.sin(df["latitude"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
         
-            return df
+        df1 = df.copy()  # use copy to prevent terminal warning
+        if freq == "daily":
+            shifts = [1, 2, 3, 7, 14]
+            for s in shifts:
+                df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
+                    target_col
+                ].shift(s)
+            shifts = [2, 3, 7, 14]
+            functions = ["mean", "std", "max", "min"]
+            for s in shifts:
+                for f in functions:
+                    df1[f"pm2_5_{f}_{s}_day"] = (
+                        df1.groupby(["device_id"])[target_col]
+                        .shift(1)
+                        .rolling(s)
+                        .agg(f)
+                    )
+        elif freq == "hourly":
+            shifts = [1, 2, 6, 12]
+            for s in shifts:
+                df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
+                    target_col
+                ].shift(s)
+            shifts = [3, 6, 12, 24]
+            functions = ["mean", "std", "median", "skew"]
+            for s in shifts:
+                for f in functions:
+                    df1[f"pm2_5_{f}_{s}_hour"] = (
+                        df1.groupby(["device_id"])[target_col]
+                        .shift(1)
+                        .rolling(s)
+                        .agg(f)
+                    )
+        else:
+            raise ValueError("Invalid frequency")
+        return df1
 
-        df_tmp = data.copy()
-        df_tmp["timestamp"] = pd.to_datetime(df_tmp["timestamp"])
-        df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
-        df_tmp = get_time_and_cyclic_features(df_tmp, data_frequency)
-        df_tmp = get_location_cord(df_tmp)
-        if job_type == "train":
-            df_tmp = DecodingUtils.encode_categorical_training_features(
-                df_tmp, data_frequency
-            )
-        elif job_type == "predict":
-            df_tmp = DecodingUtils.decode_categorical_features_pred(
-                df_tmp, data_frequency
-            )
-            df_tmp.dropna(
-                subset=["device_id", "site_id", "device_category"], inplace=True
-            )  # only 1 row, not sure why
+    @staticmethod
+    def get_time_and_cyclic_features(df, freq):
 
-            df_tmp["device_id"] = df_tmp["device_id"].astype(int)
-            df_tmp["site_id"] = df_tmp["site_id"].astype(int)
-            df_tmp["device_category"] = df_tmp["device_category"].astype(int)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df1 = df.copy()
+        attributes = ["year", "month", "day", "dayofweek"]
+        max_vals = [2023, 12, 30, 7]
+        if freq == "hourly":
+            attributes.append("hour")
+            max_vals.append(23)
+        for a, m in zip(attributes, max_vals):
+            df1[a] = df1["timestamp"].dt.__getattribute__(a)
+            df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
+            df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
+    
+        df1["week"] = df1["timestamp"].dt.isocalendar().week
+        df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
+        df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
+        df1.drop(columns=attributes + ["week"], inplace=True)
+        return df1
 
-        return df_tmp
+    @staticmethod
+    def get_location_features(df):
+        df["timestamp"] = pd.to_datetime(df)
+        df["x_cord"] = np.cos(df["latitude"]) * np.cos(df["longitude"])
+        df["y_cord"] = np.cos(df["latitude"]) * np.sin(df["longitude"])
+        df["z_cord"] = np.sin(df["latitude"])
+    
+        return df
+
+    #     df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
+    #     df_tmp = get_time_and_cyclic_features(df_tmp, data_frequency)
+    #     df_tmp = get_location_cord(df_tmp)
+    #     if job_type == "train":
+    #         df_tmp = DecodingUtils.encode_categorical_training_features(
+    #             df_tmp, data_frequency
+    #         )
+    #     elif job_type == "predict":
+    #         df_tmp = DecodingUtils.decode_categorical_features_pred(
+    #             df_tmp, data_frequency
+    #         )
+    #         df_tmp.dropna(
+    #             subset=["device_id", "site_id", "device_category"], inplace=True
+    #         )  # only 1 row, not sure why
+    #
+    #         df_tmp["device_id"] = df_tmp["device_id"].astype(int)
+    #         df_tmp["site_id"] = df_tmp["site_id"].astype(int)
+    #         df_tmp["device_category"] = df_tmp["device_category"].astype(int)
+    #
+    #     return df_tmp
 
     @staticmethod
     def train_and_save_forecast_models(training_data, frequency):
         """
         Perform the actual training for hourly data
         """
+        training_data.dropna(
+                        subset=["device_id", "site_id", "device_category"], inplace=True
+                    )
+
+        training_data["device_id"] = training_data["device_id"].astype(int)
+        training_data["site_id"] = training_data["site_id"].astype(int)
+        training_data["device_category"] = training_data["device_category"].astype(int)
+
         training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
         features = [
             c

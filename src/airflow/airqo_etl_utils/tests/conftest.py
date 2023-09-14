@@ -13,7 +13,7 @@ def pytest_configure(config):
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
-    def example_data():
+    def preprocessing_sample_df():
         data = pd.DataFrame(
             {
                 "device_id": ["A", "B"],
@@ -24,6 +24,28 @@ class ForecastFixtures:
             }
         )
         return data
+
+
+    @staticmethod
+    @pytest.fixture
+    def feat_eng_sample_df_daily():
+        data = {
+            "timestamp": pd.date_range(end = pd.Timestamp.now(), periods=365).tolist(),
+            "device_id": ["device1"] * 365,
+            "pm2_5": range(1, 366),
+        }
+        return pd.DataFrame(data)
+
+    @staticmethod
+    @pytest.fixture
+    def feat_eng_sample_df_hourly():
+        data = {
+            "timestamp": pd.date_range(end = pd.Timestamp.now(), periods=24*14, freq='H').tolist(),
+            "device_id": ["device1"] * 24*14,
+            "pm2_5": range(1, 24*14+1),
+        }
+        return pd.DataFrame(data)
+
 
 
 @pytest.fixture(scope="session")
