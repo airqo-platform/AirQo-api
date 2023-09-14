@@ -595,7 +595,9 @@ const createEvent = {
                 let data = responseFromListEvents.data[0].data;
                 for (const event of data) {
                   let translatedHealthTips = await translateUtil.translate(event.health_tips, language);
-                  event.health_tips = translatedHealthTips.success === true ? translatedHealthTips.data : event.health_tips
+                  if (translatedHealthTips.success) {
+                    event.health_tips = translatedHealthTips.data;
+                  }
                 }
               }
 
