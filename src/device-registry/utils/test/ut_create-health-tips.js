@@ -46,6 +46,39 @@ describe("createHealthTips", () => {
       ).to.be.true;
     });
 
+    it("should list translated health tips successfully", async () => {
+      // Arrange
+      const requestMock = {
+        query: { tenant: "testTenant" },
+        query: { limit: 10, skip: 0, language: "fr" },
+      };
+
+      const generateFilterStub = sinon.stub().returns({});
+      const getModelByTenantStub = sinon
+        .stub()
+        .returns({ list: sinon.stub().resolves({}) });
+
+      // Replace the generateFilter and getModelByTenant methods in the createHealthTips object
+      createHealthTips.list = createHealthTips.list.bind({
+        generateFilter: generateFilterStub,
+        getModelByTenant: getModelByTenantStub,
+      });
+
+      // Act
+      const result = await createHealthTips.list(requestMock);
+
+      // Assert
+      expect(result.success).to.equal(true);
+      expect(generateFilterStub.calledWithExactly(requestMock)).to.be.true;
+      expect(
+        getModelByTenantStub.calledWithExactly(
+          "testTenant",
+          "healthtip",
+          HealthTipSchema
+        )
+      ).to.be.true;
+    });
+
     // Add more tests for the list function if needed
   });
 
