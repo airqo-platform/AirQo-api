@@ -24,6 +24,7 @@ const {
 } = require("./date");
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
+const translateUtil = require("./translate");
 
 const listDevices = async (request) => {
   try {
@@ -538,6 +539,7 @@ const createEvent = {
       let limit = parseInt(query.limit) || 0;
       let skip = parseInt(query.skip);
       let filter = {};
+      const language = request.query.language;
 
       const responseFromFilter = generateFilter.events(request);
       if (responseFromFilter.success === true) {
@@ -589,6 +591,14 @@ const createEvent = {
                 filter,
                 page,
               });
+              if (language) {
+                let data = responseFromListEvents.data[0].data;
+                for (const event of data) {
+                  let translatedHealthTips = await translateUtil.translate(event.health_tips, language);
+                  event.health_tips = translatedHealthTips.success === true ? translatedHealthTips.data : event.health_tips
+                }
+              }
+
               if (responseFromListEvents.success === true) {
                 let data = responseFromListEvents.data;
                 data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
