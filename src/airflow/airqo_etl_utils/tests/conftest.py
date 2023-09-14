@@ -1,7 +1,7 @@
-import numpy as np
+from datetime import datetime
+
 import pandas as pd
 import pytest
-from datetime import datetime
 
 
 def pytest_configure(config):
@@ -13,75 +13,17 @@ def pytest_configure(config):
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
-    def hourly_data():
-        return pd.DataFrame(
+    def example_data():
+        data = pd.DataFrame(
             {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                ],
-                "pm2_5": [10.0, np.nan, 12.0, 15.0, np.nan, np.nan],
+                "device_id": ["A", "B"],
+                "site_id": ["X", "Y"],
+                "device_category": ["LOWCOST", "BAM"],
+                "pm2_5": [1, 2],
+                "timestamp": ["2023-01-01", "2023-02-01"],
             }
         )
-
-    @staticmethod
-    @pytest.fixture(scope="session")
-    def daily_data():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                ],
-                "pm2_5": [10.0, np.nan, 12.0, 15.0, np.nan, np.nan],
-            }
-        )
-
-    @staticmethod
-    @pytest.fixture(scope="session")
-    def hourly_output():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                ],
-                "pm2_5": [10.0, 11.0, 12.0, 15.0, 16.0, 17.0],
-            }
-        )
-
-    @staticmethod
-    @pytest.fixture(scope="session")
-    def daily_output():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                ],
-                "pm2_5": [10.0, 11.0, 12.0, 15.0, 16.0, 17.0],
-            }
-        )
+        return data
 
 
 @pytest.fixture(scope="session")

@@ -99,7 +99,7 @@ def mock_bigquery_client2():
 )
 def test_fetch_data_correct_se(mock_bigquery_client2, start_date_time, expected_df):
 
-    """Tests the fetch_data method for the happy path scenarios."""
+    """Tests the fetch_data method for scenarios when correct data is retrieved."""
 
     bq_api = BigQueryApi()
     bq_api.client = mock_bigquery_client2

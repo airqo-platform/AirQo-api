@@ -1,32 +1,22 @@
-# TODO: Add tests for ml_utils.py
+import pytest
 
-import pandas as pd
-
-from airqo_etl_utils.ml_utils import ForecastUtils
+from airqo_etl_utils.ml_utils import ForecastUtils as FUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 
 
-class ForecastTests(ForecastFixtures):
-    def test_preprocess_hourly_training_data(self, hourly_data, hourly_output):
-        assert isinstance(
-            ForecastUtils.preprocess_hourly_training_data(hourly_data), pd.DataFrame
-        )
-        assert (
-            ForecastUtils.preprocess_hourly_training_data(hourly_data).shape[0]
-            == hourly_output.shape[0]
-        )
-        assert ForecastUtils.preprocess_hourly_training_data(hourly_data)[
-            "pm2_5"
-        ].equals(hourly_output["pm2_5"])
+class TestsForecasts(ForecastFixtures):
+    def test_preprocess_data_typical_case(self, example_data):
+        result = FUtils.preprocess_data(example_data, "daily")
+        assert "pm2_5" in result.columns
 
-    def test_preprocess_daily_training_data(self, daily_data, daily_output):
-        assert isinstance(
-            ForecastUtils.preprocess_daily_training_data(daily_data), pd.DataFrame
-        )
-        assert (
-            ForecastUtils.preprocess_daily_training_data(daily_data).shape[0]
-            == daily_output.shape[0]
-        )
-        assert ForecastUtils.preprocess_daily_training_data(daily_data)["pm2_5"].equals(
-            daily_output["pm2_5"]
-        )
+    def test_preprocess_data_invalid_input(self, example_data):
+        df = example_data.drop(columns=["device_id"])
+        with pytest.raises(ValueError):
+            FUtils.preprocess_data(df, "daily")
+
+    def test_preprocess_data_invalid_timestamp(self, example_data):
+        # Invalid timestamp
+        df = example_data.copy()
+        df["timestamp"] = "invalid"
+        with pytest.raises(ValueError):
+            FUtils.preprocess_data(df, "daily")

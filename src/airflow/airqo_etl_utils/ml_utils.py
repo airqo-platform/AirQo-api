@@ -14,7 +14,6 @@ from sklearn.metrics import mean_squared_error
 
 from .config import configuration
 
-fixed_columns = ["site_id"]
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
 environment = configuration.ENVIRONMENT
@@ -126,7 +125,18 @@ class DecodingUtils:
 class ForecastUtils:
     @staticmethod
     def preprocess_data(data, data_frequency):
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        required_columns = {"device_id", "site_id", "device_category", "pm2_5", "timestamp"}
+        if not required_columns.issubset(data.columns):
+            missing_columns = required_columns.difference(data.columns)
+            raise ValueError(
+                f"Provided dataframe missing necessary columns: {', '.join(missing_columns)}"
+            )
+        try:
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
+        except ValueError as e:
+            raise ValueError(
+                "datetime conversion error, please provide timestamp in valid format"
+            )
         data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
             "pm2_5"
         ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))

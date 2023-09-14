@@ -10,7 +10,6 @@ from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.tests.conftest import FaultDetectionFixtures
 
 
-# TODO: Convert to pytest
 class TestAirQoDataUtils(unittest.TestCase):
     def test_map_site_ids_to_historical_data(self):
         logs = pd.DataFrame(
