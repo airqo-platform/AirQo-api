@@ -43,9 +43,12 @@ const translateUtil = {
 
 async function translateText(text, target) {
     try {
-        let [translations] = await translate.translate(text, target);
-        translations = Array.isArray(translations) ? translations : [translations];
-        return translations[0];
+        const translations = await translate.translate(text, target);
+        if (translations && Array.isArray(translations)) {
+            return translations[0];
+        } else {
+            return translations;
+        }
     } catch (error) {
         logger.error(`internal server error -- ${error.message}`);
         throw error;
