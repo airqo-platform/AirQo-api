@@ -197,9 +197,7 @@ const defaultConfig = {
                             <tr>
                                 <td style="display: flex; align-items: center;">
                                     <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
-                                    <span
-                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
-                                        Clean</span>
+                                   
                                 </td>
                             </tr>
 
@@ -362,6 +360,7 @@ const defaultConfig = {
       "net_manager.userName": 0,
       "net_manager.password": 0,
       "net_manager.duration": 0,
+      "net_manager.network_roles": 0,
       "net_manager.createdAt": 0,
       "net_manager.updatedAt": 0,
       "net_manager.groups": 0,
@@ -405,7 +404,7 @@ const defaultConfig = {
           createdAt: 0,
           net_users: 0,
           net_permissions: 0,
-          net_roles: 0,
+
           net_groups: 0,
           net_departments: 0,
           net_data_source: 0,
@@ -428,6 +427,7 @@ const defaultConfig = {
           "net_manager.role": 0,
           "net_manager.updatedAt": 0,
           "net_manager.networks": 0,
+          "net_manager.network_roles": 0,
           "net_manager.jobTitle": 0,
           "net_manager.website": 0,
           "net_manager.description": 0,
@@ -435,6 +435,13 @@ const defaultConfig = {
           "net_manager.country": 0,
           "net_manager.resetPasswordExpires": 0,
           "net_manager.resetPasswordToken": 0,
+          "net_roles.role_status": 0,
+          "net_roles.role_code": 0,
+          "net_roles.network_id": 0,
+          "net_roles.createdAt": 0,
+          "net_roles.updatedAt": 0,
+          "net_roles.role_permissions": 0,
+          "net_roles.__v": 0,
         }
       );
     }
@@ -563,23 +570,31 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
-    user_role: { $arrayElemAt: ["$user_role", 0] },
+    lol: { $ifNull: [{ $arrayElemAt: ["$lol", 0] }, null] },
     networks: {
-      _id: 1,
-      net_name: 1,
-      role: {
-        $cond: {
-          if: {
-            $and: [
-              { $ifNull: ["$role._id", false] },
-              { $ifNull: ["$role.role_name", false] },
-            ],
-          },
-          then: "$role",
-          else: null,
+      $filter: {
+        input: "$networks",
+        as: "network",
+        cond: {
+          $and: [
+            { $ne: ["$$network.net_name", null] },
+            { $ne: ["$$network._id", null] },
+            {
+              $or: [
+                {
+                  $eq: [
+                    { $ifNull: ["$$network.role.role_permissions", []] },
+                    [],
+                  ],
+                },
+                { $ne: ["$$network.role.role_permissions", null] },
+              ],
+            },
+          ],
         },
       },
     },
+
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
@@ -621,22 +636,18 @@ const defaultConfig = {
       "networks.role.role_permissions.createdAt": 0,
       "networks.role.role_permissions.network_id": 0,
       "networks.role.role_permissions.description": 0,
-
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
       "access_tokens.updatedAt": 0,
-
       "permissions.__v": 0,
       "permissions.network_id": 0,
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-
       "groups.__v": 0,
       "groups.createdAt": 0,
       "groups.updatedAt": 0,
-
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -657,6 +668,15 @@ const defaultConfig = {
       "my_networks.net_phoneNumber": 0,
       "my_networks.net_email": 0,
       "my_networks.__v": 0,
+      "lol.role_status": 0,
+      "lol.role_permissions": 0,
+      "lol.role_code": 0,
+      "lol.role_name": 0,
+      "lol.createdAt": 0,
+      "lol.updatedAt": 0,
+      "lol.__v": 0,
+      "lol.role_users": 0,
+      "clients.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

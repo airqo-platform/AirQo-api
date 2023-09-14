@@ -24,6 +24,16 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 
+const transformString = (inputString) => {
+  try {
+    const uppercaseString = inputString.toUpperCase();
+    const transformedString = uppercaseString.replace(/ /g, "_");
+    return transformedString;
+  } catch (error) {
+    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+  }
+};
+
 const findNetworkIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -31,7 +41,10 @@ const findNetworkIdForRole = async ({
 } = {}) => {
   for (const networkRole of networkRoles) {
     const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    if (networkRole.network.toString() === RoleDetails.network_id.toString()) {
+    if (
+      networkRole.network &&
+      networkRole.network.toString() === RoleDetails.network_id.toString()
+    ) {
       return networkRole.network;
     }
   }
@@ -62,16 +75,22 @@ const isUserSuperAdmin = async ({
 
 // const isRoleAlreadyAssigned = (networkRoles, role_id) => {
 //   return (
-//     networkRoles.find(
-//       (netRole) => netRole.role.toString() === role_id.toString()
-//     ) !== undefined
+//     networkRoles.find((netRole) => {
+//       if (isEmpty(netRole.role)) {
+//         return false;
+//       }
+//       return netRole.role.toString() === role_id.toString();
+//     }) !== undefined
 //   );
 // };
 
 const isRoleAlreadyAssigned = (networkRoles, role_id) => {
-  return networkRoles.some(
-    (netRole) => netRole.role.toString() === role_id.toString()
-  );
+  return networkRoles.some((netRole) => {
+    if (isEmpty(netRole.role)) {
+      return false;
+    }
+    return netRole.role.toString() === role_id.toString();
+  });
 };
 
 const generateClientSecret = (length) => {
@@ -89,6 +108,7 @@ const routeDefinitions = [
     service: "deprecated-version-number",
   },
   { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
+  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
   { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
     uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
@@ -1253,6 +1273,35 @@ const controlAccess = {
       if (filter.success === false) {
         return filter;
       }
+
+      if (isEmpty(filter._id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "the role ID is missing -- required when updating corresponding users",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { "network_roles.role": filter._id },
+        { $set: { "network_roles.$.role": null } }
+      );
+
+      if (result.nModified > 0) {
+        logger.info(
+          `Removed role ${filter._id} from ${result.nModified} users.`
+        );
+      }
+
+      if (result.n === 0) {
+        logger.info(
+          `Role ${filter._id} was not found in any users' network_roles.`
+        );
+      }
       const responseFromDeleteRole = await RoleModel(
         tenant.toLowerCase()
       ).remove({ filter });
@@ -1310,10 +1359,13 @@ const controlAccess = {
       }
 
       const organizationName = network.net_name.toUpperCase();
-      newBody.role_name = `${organizationName}_${body.role_name}`;
-      newBody.role_code = `${organizationName}_${
-        body.role_code ? body.role_code : body.role_name
-      }`;
+      const transformedRoleName = transformString(body.role_name);
+      const availableRoleCode = body.role_code
+        ? body.role_code
+        : body.role_name;
+      const transformedRoleCode = transformString(availableRoleCode);
+      newBody.role_name = `${organizationName}_${transformedRoleName}`;
+      newBody.role_code = `${organizationName}_${transformedRoleCode}`;
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
@@ -1495,15 +1547,17 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-        userId,
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userId, "network_roles.network": networkId },
         {
-          $addToSet: {
-            network_roles: { role: role_id, network: networkId },
+          $set: {
+            "network_roles.$.role": role_id,
           },
         },
         { new: true }
       );
+
+      logObject("updatedUser", updatedUser);
 
       return {
         success: true,
@@ -1789,14 +1843,10 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-        user_id,
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: user_id, "network_roles.network": networkId },
         {
-          $pull: {
-            network_roles: {
-              role: role_id,
-            },
-          },
+          $set: { "network_roles.$.role": null },
         },
         { new: true }
       );
@@ -1920,8 +1970,8 @@ const controlAccess = {
 
       // Unassign the users from the role
       const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids } },
-        { $pull: { network_roles: { role: role_id } } }
+        { _id: { $in: user_ids }, "network_roles.role": role_id },
+        { $set: { "network_roles.$.role": null } }
       );
 
       let message = "";
@@ -2429,7 +2479,6 @@ const controlAccess = {
       };
     }
   },
-
   deletePermission: async (request) => {
     try {
       const { query } = request;
@@ -2458,7 +2507,6 @@ const controlAccess = {
       };
     }
   },
-
   updatePermission: async (request) => {
     try {
       const { query, body } = request;
@@ -2486,7 +2534,6 @@ const controlAccess = {
       };
     }
   },
-
   createPermission: async (request) => {
     try {
       const { query, body } = request;

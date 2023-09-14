@@ -1,5 +1,6 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const moment = require("moment-timezone");
@@ -19,6 +20,8 @@ const PermissionModel = require("@models/Permission");
 const DepartmentModel = require("@models/Department");
 const GroupModel = require("@models/Group");
 const ObjectId = require("mongoose").Types.ObjectId;
+const chaiHttp = require("chai-http");
+chai.use(chaiHttp);
 
 describe("controlAccess", () => {
   describe("verifyEmail()", () => {
@@ -1686,84 +1689,76 @@ describe("controlAccess", () => {
     // Add more test cases for different scenarios and edge cases
   });
   describe("deleteRole()", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+    it("should delete role and update corresponding users", async () => {
+      const request = {
+        query: {
+          tenant: "your-tenant", // Replace with your tenant
+        },
+        // Add other request parameters here if needed
+      };
+
+      const UserModelMock = {
+        updateMany: sinon.stub().resolves({ nModified: 2, n: 2 }), // Replace with your desired response
+      };
+
+      const RoleModelMock = {
+        remove: sinon.stub().resolves({ success: true }), // Replace with your desired response
+      };
+
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
+      sinon.stub(yourModule, "RoleModel").returns(RoleModelMock);
+
+      const response = await yourModule.deleteRole(request);
+
+      expect(response.success).to.be.true;
+      expect(UserModelMock.updateMany.calledOnce).to.be.true;
+      expect(RoleModelMock.remove.calledOnce).to.be.true;
+
+      // Restore the stubs after the test
       sinon.restore();
     });
 
-    it("should delete role and send success response", async () => {
+    it("should handle missing role ID", async () => {
       const request = {
         query: {
-          tenant: "sample_tenant",
+          tenant: "your-tenant", // Replace with your tenant
         },
-        // Add other necessary data in the request object
+        // Add other request parameters here if needed
       };
 
-      // Mock the response from the RoleModel remove()
-      const responseFromDeleteRole = {
-        success: true,
-        message: "Role deleted successfully",
-        // Add other properties of the response
-      };
-      sinon
-        .stub(RoleModel("sample_tenant"), "remove")
-        .resolves(responseFromDeleteRole);
+      // Create a stub for UserModel if needed
 
-      // Call the deleteRole()
-      const result = await controlAccess.deleteRole(request);
+      const response = await yourModule.deleteRole(request);
 
-      // Verify the response
-      expect(result).to.deep.equal(responseFromDeleteRole);
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(400); // Check for the expected HTTP status code
+
+      // Restore the stubs after the test
+      sinon.restore();
     });
 
-    it("should handle role not found and return failure response", async () => {
+    it("should handle internal server error", async () => {
       const request = {
         query: {
-          tenant: "sample_tenant",
+          tenant: "your-tenant", // Replace with your tenant
         },
-        // Add other necessary data in the request object
+        // Add other request parameters here if needed
       };
 
-      // Mock the response from the RoleModel remove()
-      const responseFromDeleteRole = {
-        success: false,
-        message: "Role not found",
-        status: httpStatus.BAD_REQUEST,
+      const UserModelMock = {
+        updateMany: sinon.stub().rejects(new Error("Internal server error")), // Simulate an error
       };
-      sinon
-        .stub(RoleModel("sample_tenant"), "remove")
-        .resolves(responseFromDeleteRole);
 
-      // Call the deleteRole()
-      const result = await controlAccess.deleteRole(request);
+      sinon.stub(yourModule, "UserModel").returns(UserModelMock);
 
-      // Verify the response
-      expect(result).to.deep.equal(responseFromDeleteRole);
+      const response = await yourModule.deleteRole(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(500); // Check for the expected HTTP status code
+
+      // Restore the stubs after the test
+      sinon.restore();
     });
-
-    it("should handle errors in deleting role and return failure response", async () => {
-      const request = {
-        query: {
-          tenant: "sample_tenant",
-        },
-        // Add other necessary data in the request object
-      };
-
-      // Mock the response from the RoleModel remove() (error)
-      sinon
-        .stub(RoleModel("sample_tenant"), "remove")
-        .throws(new Error("Database Error"));
-
-      // Call the deleteRole()
-      const result = await controlAccess.deleteRole(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.message).to.equal("Internal Server Error");
-    });
-
-    // Add more test cases for different scenarios and edge cases
   });
   describe("updateRole()", () => {
     beforeEach(() => {

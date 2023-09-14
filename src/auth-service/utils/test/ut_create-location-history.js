@@ -3,7 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 
-const locationHistories = require("@models/locationHistory");
+const locationHistories = require("../create-location-history");
 const LocationHistoryModel = require("@models/LocationHistory");
 
 describe("locationHistories", () => {

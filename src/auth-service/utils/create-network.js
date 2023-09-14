@@ -13,6 +13,25 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
 
+const isUserAssignedToNetwork = (user, networkId) => {
+  if (user && user.network_roles && user.network_roles.length > 0) {
+    return user.network_roles.some((assignment) => {
+      return assignment.network.equals(networkId);
+    });
+  }
+  return false;
+};
+
+const findNetworkAssignmentIndex = (user, net_id) => {
+  if (!user.network_roles || !Array.isArray(user.network_roles)) {
+    return -1;
+  }
+
+  return user.network_roles.findIndex((assignment) =>
+    assignment.network.equals(net_id)
+  );
+};
+
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
     try {
@@ -325,8 +344,8 @@ const createNetwork = {
               {
                 $addToSet: {
                   network_roles: {
-                    network_id: net_id,
-                    role_id: role_id,
+                    network: net_id,
+                    role: role_id,
                   },
                 },
               },
@@ -337,6 +356,7 @@ const createNetwork = {
               return {
                 success: false,
                 message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
                 errors: {
                   message: `Unable to assign the network to the User ${user._id}`,
                 },
@@ -484,9 +504,7 @@ const createNetwork = {
 
       logObject("user", user);
 
-      const isAlreadyAssigned = user.network_roles.find((assignment) => {
-        return assignment.network.equals(net_id);
-      });
+      const isAlreadyAssigned = isUserAssignedToNetwork(user, net_id);
 
       if (isAlreadyAssigned) {
         return {
@@ -516,6 +534,7 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -552,9 +571,7 @@ const createNetwork = {
         };
       }
 
-      const networkAssignmentIndex = user.network_roles.findIndex(
-        (assignment) => assignment.network.equals(net_id)
-      );
+      const networkAssignmentIndex = findNetworkAssignmentIndex(user, net_id);
 
       if (networkAssignmentIndex === -1) {
         return {
@@ -846,19 +863,41 @@ const createNetwork = {
 
       logObject("the filter", filter);
 
+      if (isEmpty(filter._id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "the network ID is missing -- required when updating corresponding users",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { "network_roles.network": filter._id },
+        { $pull: { network_roles: { network: filter._id } } }
+      );
+
+      if (result.nModified > 0) {
+        logger.info(
+          `Removed network ${filter._id} from ${result.nModified} users.`
+        );
+      }
+
+      if (result.n === 0) {
+        logger.info(
+          `Network ${filter._id} was not found in any users' network_roles.`
+        );
+      }
       const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
         filter,
       });
-
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
-
-      if (responseFromRemoveNetwork.success === true) {
-        return responseFromRemoveNetwork;
-      } else if (responseFromRemoveNetwork.success === false) {
-        return responseFromRemoveNetwork;
-      }
+      return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,

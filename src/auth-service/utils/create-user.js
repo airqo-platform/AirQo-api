@@ -247,6 +247,7 @@ const createUserModule = {
       if (responseFromModifyUser.success === true) {
         const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
         logObject("updatedUserDetails", updatedUserDetails);
+
         if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
