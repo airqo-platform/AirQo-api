@@ -87,3 +87,46 @@ class TestsForecasts(ForecastFixtures):
         for a in ["year", "month", "day", "dayofweek", "hour", "week"]:
             for t in ["_sin", "_cos"]:
                 assert f"{a}{t}" in hourly_df.columns
+
+    def test_empty_df_for_location_features(self, sample_dataframe_for_location_features):
+        with pytest.raises(ValueError, match="Empty dataframe provided"):
+            FUtils.get_location_features(pd.DataFrame())
+    
+    
+    def test_missing_timestamp_for_location_features(
+        self,
+        sample_dataframe_for_location_features,
+    ):
+        del sample_dataframe_for_location_features[
+            "timestamp"
+        ]
+        with pytest.raises(ValueError, match="timestamp column is missing"):
+            FUtils.get_location_features(sample_dataframe_for_location_features)
+    
+    
+    # For missing 'latitude' column
+    def test_missing_latitude_for_location_features(
+        self, sample_dataframe_for_location_features
+    ):
+        del sample_dataframe_for_location_features[
+            "latitude"
+        ]  # Test for missing 'latitude'
+        with pytest.raises(ValueError, match="latitude column is missing"):
+            FUtils.get_location_features(sample_dataframe_for_location_features)
+    
+    
+    def test_missing_longitude_for_location_features(
+        self, sample_dataframe_for_location_features
+    ):
+        del sample_dataframe_for_location_features[
+            "longitude"
+        ]  # Test for missing 'longitude'
+        with pytest.raises(ValueError, match="longitude column is missing"):
+            FUtils.get_location_features(sample_dataframe_for_location_features)
+    
+    
+    # Test the normal procedure
+    def test_get_location_features(self, sample_dataframe_for_location_features):
+        df = FUtils.get_location_features(sample_dataframe_for_location_features)
+        for cord in ["x_cord", "y_cord", "z_cord"]:
+            assert cord in df.columns

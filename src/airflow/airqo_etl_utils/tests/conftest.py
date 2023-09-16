@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -8,6 +9,8 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "bq_test: mark a test as a bigquery class method"
     )
+
+
 
 
 class ForecastFixtures:
@@ -46,7 +49,17 @@ class ForecastFixtures:
         }
         return pd.DataFrame(data)
 
-
+    @staticmethod
+    @pytest.fixture
+    def sample_dataframe_for_location_features():
+        data = {
+            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=100)
+            .tolist(),
+            "device_id": ["device1"] * 100,
+            "latitude": np.random.uniform(-90, 90, 100),
+            "longitude": np.random.uniform(-180, 180, 100),
+        }
+        return pd.DataFrame(data)
 
 @pytest.fixture(scope="session")
 def mongo_fixture():

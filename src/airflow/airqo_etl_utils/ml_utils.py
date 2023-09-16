@@ -22,6 +22,7 @@ pd.options.mode.chained_assignment = None
 
 
 class GCSUtils:
+    """ Utility class for saving and retrieving models from GCS"""
     # TODO: In future, save and retrieve models from mlflow instead of GCS
     @staticmethod
     def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
@@ -66,6 +67,7 @@ class GCSUtils:
 
 
 class DecodingUtils:
+    """ Utility class for encoding and decoding categorical features"""
     @staticmethod
     def decode_categorical_features_pred(df, frequency):
         columns = ["device_id", "site_id", "device_category"]
@@ -100,7 +102,7 @@ class DecodingUtils:
 
     @staticmethod
     def encode_categorical_training_features(df, freq):
-        df["timestamp"] = pd.to_datetime("timestamp")
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
         df1 = df.copy()
         columns = ["device_id", "site_id", "device_category"]
         mappings = []
@@ -169,12 +171,12 @@ class ForecastUtils:
         
         df1 = df.copy()  # use copy to prevent terminal warning
         if freq == "daily":
-            shifts = [1, 2, 3, 7, 14]
+            shifts = [1, 2, 3, 7]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
                     target_col
                 ].shift(s)
-            shifts = [2, 3, 7, 14]
+            shifts = [2, 3, 7]
             functions = ["mean", "std", "max", "min"]
             for s in shifts:
                 for f in functions:
@@ -206,7 +208,16 @@ class ForecastUtils:
 
     @staticmethod
     def get_time_and_cyclic_features(df, freq):
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
 
+        if "timestamp" not in df.columns:
+            raise ValueError("Required columns missing")
+
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+        if freq not in ["daily", "hourly"]:
+            raise ValueError("Invalid frequency")
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df1 = df.copy()
         attributes = ["year", "month", "day", "dayofweek"]
@@ -227,7 +238,15 @@ class ForecastUtils:
 
     @staticmethod
     def get_location_features(df):
-        df["timestamp"] = pd.to_datetime(df)
+        if df.empty:
+            raise ValueError("Empty dataframe provided")
+    
+        for column_name in ["timestamp", "latitude", "longitude"]:
+            if column_name not in df.columns:
+                raise ValueError(f"{column_name} column is missing")
+    
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+    
         df["x_cord"] = np.cos(df["latitude"]) * np.cos(df["longitude"])
         df["y_cord"] = np.cos(df["latitude"]) * np.sin(df["longitude"])
         df["z_cord"] = np.sin(df["latitude"])
@@ -480,11 +499,11 @@ class ForecastUtils:
                 # daily frequency
                 if frequency == "daily":
                     df_tmp.tail(1)["timestamp"] += timedelta(days=1)
-                    shifts1 = [1, 2, 3, 7, 14]
+                    shifts1 = [1, 2, 3, 7]
                     for s in shifts1:
                         df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.shift(s, axis=0)["pm2_5"]
                     # rolling features
-                    shifts2 = [2, 3, 7, 14]
+                    shifts2 = [2, 3, 7]
                     functions = ["mean", "std", "max", "min"]
                     for s in shifts2:
                         for f in functions:
