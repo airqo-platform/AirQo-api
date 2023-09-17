@@ -48,10 +48,10 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to join the ${entity_title} entity has been received, we shall get back to you as soon as possible.
+                                    Your request to access ${entity_title} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
-                                    Before utilising the AirQo data, your application record has to undergo the process of approval by the Entity's
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
                                     administration.
                                     <br />
                                     Once your application is approved, you will receive a confirmation email<br />
@@ -235,7 +235,26 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
+  user_assigned: (firstName, lastName, assignedTo, email) => {
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Hello ${firstName} ${lastName},
+                                    <br />
+                                    You have been assigned to a new Group or Network: ${assignedTo}.
+                                    <br />
+                                    Please login to access your new Group or Network.
+                                    <br />
+                                    If you have any questions or concerns, please feel free to contact your organization's administrator.
+                                    <br />
+                                    Click here to log in: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
 
+    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
+  },
   forgotten_password_updated: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>

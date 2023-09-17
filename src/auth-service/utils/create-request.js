@@ -13,28 +13,16 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
 );
 const accessCodeGenerator = require("generate-password");
-
-// Helper function to check if the user is authorized to approve the request
-const isUserAuthorizedToApprove = (user, accessRequest) => {
-  // Implement your authorization logic here.
-  // Check if the user has the necessary role or permissions to approve this request.
-  // You can customize this logic based on your application's requirements.
-  // Example: Check if the user is the administrator of the group associated with the request.
-  // Return true if authorized, false otherwise.
-  return user.isAdmin && user.groups.includes(accessRequest.group);
-};
+const createNetworkUtil = require("@utils/create-network");
+const createGroupUtil = require("@utils/create-group");
 
 const createAccessRequest = {
   requestAccessToGroup: async (request) => {
     try {
-      /***
-       * Important to note that the user making this
-       * access request must be an existing user
-       */
       const { user, query } = request;
       const { tenant } = query;
       const { group_id } = request.params;
-
+      logObject("the user", user);
       const group = await GroupModel(tenant).findById(group_id);
       if (isEmpty(group) || isEmpty(user._id)) {
         return {
@@ -46,8 +34,9 @@ const createAccessRequest = {
       }
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
-        user: user._id,
-        group: group_id,
+        user_id: user._id,
+        targetId: group_id,
+        requestType: "group",
       });
 
       if (!isEmpty(existingRequest)) {
@@ -70,15 +59,14 @@ const createAccessRequest = {
 
       if (responseFromCreateAccessRequest.success === true) {
         const createdAccessRequest = await responseFromCreateAccessRequest.data;
-        const firstName = user.firstName ? user.firstName : "";
-        const lastName = user.lastName ? user.lastName : "";
+        const firstName = user.firstName ? user.firstName : "Unknown";
+        const lastName = user.lastName ? user.lastName : "Unknown";
         if (isEmpty(user.email)) {
           return {
             success: false,
             message: "Internal Server Error",
             errors: {
-              message:
-                "Unable to retrieve the requester's email address, please crosscheck security token details",
+              message: "Unable to retrieve the requester's email address",
             },
             status: httpStatus.INTERNAL_SERVER_ERROR,
           };
@@ -94,7 +82,7 @@ const createAccessRequest = {
         if (responseFromSendEmail.success === true) {
           return {
             success: true,
-            message: "access request successfully created",
+            message: "Access Request completed successfully",
             data: createdAccessRequest,
             status: responseFromSendEmail.status
               ? responseFromSendEmail.status
@@ -120,10 +108,6 @@ const createAccessRequest = {
   },
   requestAccessToNetwork: async (request) => {
     try {
-      /***
-       * Important to note that the user making this
-       * access request must be an existing user
-       */
       const { user, query } = request;
       const { tenant } = query;
       const { network_id } = request.params;
@@ -139,8 +123,9 @@ const createAccessRequest = {
       }
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
-        user: user._id,
-        network: network_id,
+        user_id: user._id,
+        targetId: network_id,
+        requestType: "network",
       });
 
       if (!isEmpty(existingRequest)) {
@@ -188,7 +173,7 @@ const createAccessRequest = {
         if (responseFromSendEmail.success === true) {
           return {
             success: true,
-            message: "Access request successfully created",
+            message: "Access Request completed successfully",
             data: createdAccessRequest,
             status: responseFromSendEmail.status
               ? responseFromSendEmail.status
@@ -214,21 +199,14 @@ const createAccessRequest = {
   },
   approveAccessRequest: async (request) => {
     try {
-      /**
-       * During the approval process, check the request Type
-       * to then target the right Collection for creation
-       * we have 2 types:
-       * 1. Network
-       * 2. Group
-       */
-      const { user, query } = request;
+      const { query } = request;
       const { tenant } = query;
       const { request_id } = request.params;
       const accessRequest = await AccessRequestModel(tenant).findById(
         request_id
       );
 
-      if (!accessRequest) {
+      if (isEmpty(accessRequest)) {
         return {
           success: false,
           message: "Not Found",
@@ -250,15 +228,6 @@ const createAccessRequest = {
         };
       }
 
-      // if (!isUserAuthorizedToApprove(user, accessRequest)) {
-      //   return {
-      //     success: false,
-      //     message: "Forbidden!",
-      //     status: httpStatus.FORBIDDEN,
-      //     errors: { message: "User is not authorized to approve this request" },
-      //   };
-      // }
-
       const update = { status: "approved" };
       const filter = { _id: ObjectId(accessRequest._id) };
 
@@ -271,89 +240,82 @@ const createAccessRequest = {
 
       if (responseFromUpdateAccessRequest.success === true) {
         const { firstName, lastName, email } = userDetails;
-        const password = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(10)
-        );
-
-        const newUser = {
-          firstName,
-          lastName,
-          email,
-          userName: email,
-          password,
-        };
-
-        const responseFromCreateUser = await UserModel(tenant).register(
-          newUser
-        );
-
-        if (responseFromCreateUser.success === true) {
-          const responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "confirm"
-          );
-
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "Access request approved successfully",
-              status: httpStatus.OK,
-            };
-          } else {
-            return {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Failed to send email to the user" },
-            };
-          }
-        } else {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: "Failed to create user" },
+        if (accessRequest.requestType === "group") {
+          const group = await GroupModel(tenant)
+            .findById(accessRequest.targetId)
+            .lean();
+          const request = {
+            params: {
+              grp_id: accessRequest.targetId,
+              user_id: accessRequest.user_id,
+            },
+            query: { tenant: tenant },
           };
+          const responseFromAssignUserToGroup =
+            await createGroupUtil.assignOneUser(request);
+
+          if (responseFromAssignUserToGroup.success === true) {
+            const group_name = group.grp_title ? group.grp_title : "";
+            const responseFromSendEmail = await mailer.update(
+              email,
+              firstName,
+              lastName,
+              group_name
+            );
+
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Access request approved successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToGroup.success === false) {
+            return responseFromAssignUserToGroup;
+          }
+        } else if (accessRequest.requestType === "network") {
+          const network = await NetworkModel(tenant)
+            .findById(accessRequest.targetId)
+            .lean();
+          const request = {
+            params: {
+              net_id: accessRequest.targetId,
+              user_id: accessRequest.user_id,
+            },
+            query: { tenant: tenant },
+          };
+          const responseFromAssignUserToNetwork =
+            await createNetworkUtil.assignOneUser(request);
+
+          if (responseFromAssignUserToNetwork.success === true) {
+            const network_name = network.net_name ? network.net_name : "";
+            const responseFromSendEmail = await mailer.update(
+              email,
+              firstName,
+              lastName,
+              network_name
+            );
+
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Access request approved successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToNetwork.success === false) {
+            return responseFromAssignUserToNetwork;
+          }
         }
       } else if (responseFromUpdateAccessRequest.success === false) {
         return responseFromUpdateAccessRequest;
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  create: async (request) => {
-    try {
-      const { query } = request;
-      const { tenant, limit, skip } = query;
-
-      const responseFromFilter = generateFilter.requests(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-
-      const responseFromRegisterAccessRequest = await AccessRequestModel(
-        tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
-      return responseFromRegisterAccessRequest;
-    } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",

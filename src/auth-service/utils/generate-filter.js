@@ -181,7 +181,10 @@ const filter = {
 
   requests: (req) => {
     try {
-      let { id, user_id, requestType, targetId, status, category } = req.query;
+      const { id, user_id, requestType, targetId, status, category } =
+        req.query;
+
+      const { request_id, grp_id, net_id } = req.params;
       let filter = {};
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
@@ -190,8 +193,17 @@ const filter = {
         filter["requestType"] = requestType;
       }
       if (targetId) {
-        filter["targetId"] = targetId;
+        filter["targetId"] = ObjectId(targetId);
       }
+
+      if (grp_id) {
+        filter["targetId"] = ObjectId(grp_id);
+      }
+
+      if (net_id) {
+        filter["targetId"] = ObjectId(net_id);
+      }
+
       if (status) {
         filter["status"] = status;
       }
@@ -200,6 +212,10 @@ const filter = {
       }
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (request_id) {
+        filter["_id"] = ObjectId(request_id);
       }
       return {
         success: true,

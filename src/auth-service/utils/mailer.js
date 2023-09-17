@@ -93,11 +93,11 @@ const mailer = {
     }
   },
   request: async ({
-    firstName = "",
-    lastName = "",
+    firstName = "Unknown",
+    lastName = "Unknown",
     email,
     tenant = "airqo",
-    entity_title = "",
+    entity_title = "Unknown",
   } = {}) => {
     try {
       let bcc = "";
@@ -111,7 +111,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Join Entity: ${entity_title}`,
+        subject: `AirQo Analytics Request to Access ${entity_title}`,
         html: msgs.joinEntityRequest(firstName, lastName, email, entity_title),
         bcc,
         attachments: attachments,
@@ -138,13 +138,11 @@ const mailer = {
       return {
         success: false,
         message: "Internal Server Error",
-        error: error.message,
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-
   inquiry: async (fullName, email, category, message, tenant) => {
     try {
       let bcc = "";
@@ -214,7 +212,6 @@ const mailer = {
       };
     }
   },
-
   user: async (firstName, lastName, email, password, tenant, type) => {
     try {
       let bcc = "";
@@ -275,7 +272,6 @@ const mailer = {
       };
     }
   },
-
   verifyEmail: async ({
     user_id = "",
     token = "",
@@ -360,7 +356,6 @@ const mailer = {
       };
     }
   },
-
   verifyMobileEmail: async ({
     firebase_uid = "",
     token = "",
@@ -443,7 +438,6 @@ const mailer = {
       };
     }
   },
-
   afterEmailVerification: async ({
     firstName = "",
     username = "",
@@ -573,7 +567,6 @@ const mailer = {
       };
     }
   },
-
   deleteMobileAccountEmail: async (email, token) => {
     try {
       const mailOptions = {
@@ -613,7 +606,6 @@ const mailer = {
       };
     }
   },
-
   authenticateEmail: async (email, token) => {
     try {
       const mailOptions = {
@@ -668,6 +660,46 @@ const mailer = {
           updatedUserDetails,
           email
         )}`,
+        attachments: attachments,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  assign: async (email, firstName, lastName, assignedTo) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Welcome to Your New Group/Network at AirQo Analytics",
+        html: `${msgs.user_assigned(firstName, lastName, assignedTo, email)}`,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -826,7 +858,6 @@ const mailer = {
       };
     }
   },
-
   feedback: async ({ email, message, subject } = {}) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
