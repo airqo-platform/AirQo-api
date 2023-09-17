@@ -181,10 +181,16 @@ const favorites = {
       }
 
       for (let favorite in missing_favorite_places) {
-        responseFromCreateFavorite = await FavoriteModel(
-          tenant.toLowerCase()
-        ).register(missing_favorite_places[favorite]);
-        logObject("responseFromCreateFavorite", responseFromCreateFavorite);
+        const existingFavorite = await FavoriteModel(tenant.toLowerCase()).findOne({
+          firebase_user_id: favorite.firebase_user_id,
+          place_id: favorite.place_id,
+        });
+        if (!existingFavorite) {        
+          responseFromCreateFavorite = await FavoriteModel(
+            tenant.toLowerCase()
+          ).register(missing_favorite_places[favorite]);
+          logObject("responseFromCreateFavorite", responseFromCreateFavorite);
+        }
       }
 
       const extra_favorite_places = unsynced_favorite_places.filter((item) => {
