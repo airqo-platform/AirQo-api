@@ -835,6 +835,39 @@ const defaultConfig = {
     return projection;
   },
 
+  GROUPS_INCLUSION_PROJECTION: {
+    _id: 1,
+    grp_title: 1,
+    grp_status: 1,
+    grp_tasks: 1,
+    grp_description: 1,
+    createdAt: 1,
+    grp_users: "$grp_users",
+  },
+
+  GROUPS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "grp_users.__v": 0,
+      "grp_users.notifications": 0,
+      "grp_users.emailConfirmed": 0,
+      "grp_users.groups": 0,
+      "grp_users.locationCount": 0,
+      "grp_users.group": 0,
+      "grp_users.long_network": 0,
+      "grp_users.privilege": 0,
+      "grp_users.userName": 0,
+      "grp_users.password": 0,
+      "grp_users.duration": 0,
+      "grp_users.createdAt": 0,
+      "grp_users.updatedAt": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
   LOCATION_HISTORIES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,

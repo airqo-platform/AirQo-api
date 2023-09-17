@@ -77,12 +77,6 @@ const NetworkSchema = new Schema(
         ref: "permission",
       },
     ],
-    net_groups: [
-      {
-        type: ObjectId,
-        ref: "group",
-      },
-    ],
   },
   {
     timestamps: true,
@@ -115,7 +109,6 @@ NetworkSchema.methods = {
       net_departments: this.net_departments,
       net_permissions: this.net_permissions,
       net_roles: this.net_roles,
-      net_groups: this.net_groups,
       net_description: this.net_description,
       net_acronym: this.net_acronym,
       net_createdAt: this.createdAt,
@@ -265,12 +258,6 @@ NetworkSchema.statics = {
           as: "net_roles",
         })
         .lookup({
-          from: "groups",
-          localField: "net_groups",
-          foreignField: "_id",
-          as: "net_groups",
-        })
-        .lookup({
           from: "departments",
           localField: "net_departments",
           foreignField: "_id",
@@ -353,14 +340,6 @@ NetworkSchema.statics = {
         modifiedUpdate["$addToSet"]["net_departments"]["$each"] =
           modifiedUpdate.net_departments;
         delete modifiedUpdate["net_departments"];
-      }
-
-      if (modifiedUpdate.net_groups) {
-        modifiedUpdate["$addToSet"] = {};
-        modifiedUpdate["$addToSet"]["net_groups"] = {};
-        modifiedUpdate["$addToSet"]["net_groups"]["$each"] =
-          modifiedUpdate.net_groups;
-        delete modifiedUpdate["net_groups"];
       }
 
       if (modifiedUpdate.net_permissions) {

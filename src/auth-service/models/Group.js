@@ -16,18 +16,6 @@ const GroupSchema = new Schema(
       required: [true, "grp_title is required"],
     },
     grp_status: { type: String, default: "INACTIVE" },
-    grp_network_id: {
-      type: ObjectId,
-      ref: "network",
-      trim: true,
-      required: [true, "grp_network_id is required"],
-    },
-    grp_users: [
-      {
-        type: ObjectId,
-        ref: "user",
-      },
-    ],
     grp_tasks: { type: Number },
     grp_description: {
       type: String,
@@ -51,23 +39,20 @@ GroupSchema.methods = {
       _id: this._id,
       grp_title: this.grp_title,
       grp_status: this.grp_status,
-      grp_users: this.grp_users,
       grp_tasks: this.grp_tasks,
       grp_description: this.grp_description,
-      grp_network_id: this.grp_network_id,
       createdAt: this.createdAt,
     };
   },
 };
 
-const sanitizeName = (name) => {
+const convertToLowerCaseWithUnderscore = (inputString) => {
   try {
-    let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
-    let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
-    let trimmedName = shortenedName.trim();
-    return trimmedName.toLowerCase();
+    const uppercaseString = inputString.toLowerCase();
+    const transformedString = uppercaseString.replace(/ /g, "_");
+    return transformedString;
   } catch (error) {
-    logElement("the sanitise name error", error.message);
+    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
   }
 };
 
@@ -76,9 +61,11 @@ GroupSchema.statics = {
     try {
       let modifiedArgs = Object.assign({}, args);
 
-      // if (modifiedArgs.grp_title) {
-      //   modifiedArgs["grp_title"] = sanitizeName(grp_title);
-      // }
+      if (modifiedArgs.grp_title) {
+        modifiedArgs.grp_title = convertToLowerCaseWithUnderscore(
+          modifiedArgs.grp_title
+        );
+      }
       const data = await this.create({
         ...modifiedArgs,
       });
@@ -127,51 +114,22 @@ GroupSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.GROUPS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "users",
-          localField: "grp_users",
-          foreignField: "_id",
+          localField: "_id",
+          foreignField: "groups.group",
           as: "grp_users",
         })
-        .lookup({
-          from: "networks",
-          localField: "grp_network_id",
-          foreignField: "_id",
-          as: "network",
-        })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          grp_title: 1,
-          grp_status: 1,
-          grp_tasks: 1,
-          grp_description: 1,
-          createdAt: 1,
-          grp_users: "$grp_users",
-          network: { $arrayElemAt: ["$network", 0] },
-        })
-        .project({
-          "network.__v": 0,
-          "network.createdAt": 0,
-          "network.updatedAt": 0,
-        })
-        .project({
-          "grp_users.__v": 0,
-          "grp_users.notifications": 0,
-          "grp_users.emailConfirmed": 0,
-          "grp_users.groups": 0,
-          "grp_users.locationCount": 0,
-          "grp_users.group": 0,
-          "grp_users.long_network": 0,
-          "grp_users.privilege": 0,
-          "grp_users.userName": 0,
-          "grp_users.password": 0,
-          "grp_users.duration": 0,
-          "grp_users.createdAt": 0,
-          "grp_users.updatedAt": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -235,27 +193,20 @@ GroupSchema.statics = {
         delete modifiedUpdate.grp_title;
       }
 
-      if (modifiedUpdate.grp_users) {
-        modifiedUpdate["$addToSet"]["grp_users"] = {};
-        modifiedUpdate["$addToSet"]["grp_users"]["$each"] =
-          modifiedUpdate.grp_users;
-        delete modifiedUpdate["grp_users"];
-      }
-
-      const updatedOrganization = await this.findOneAndUpdate(
+      const updatedGroup = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
 
-      if (!isEmpty(updatedOrganization)) {
+      if (!isEmpty(updatedGroup)) {
         return {
           success: true,
           message: "successfully modified the group",
-          data: updatedOrganization._doc,
+          data: updatedGroup._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedOrganization)) {
+      } else if (isEmpty(updatedGroup)) {
         return {
           success: true,
           message: "group does not exist, please crosscheck",
@@ -303,19 +254,16 @@ GroupSchema.statics = {
           createdAt: 1,
         },
       };
-      const removedOrganization = await this.findOneAndRemove(
-        filter,
-        options
-      ).exec();
+      const removedGroup = await this.findOneAndRemove(filter, options).exec();
 
-      if (!isEmpty(removedOrganization)) {
+      if (!isEmpty(removedGroup)) {
         return {
           success: true,
           message: "successfully removed the group",
-          data: removedOrganization._doc,
+          data: removedGroup._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedOrganization)) {
+      } else if (isEmpty(removedGroup)) {
         return {
           success: true,
           message: "group does not exist, please crosscheck",
