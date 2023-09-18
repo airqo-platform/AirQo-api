@@ -170,6 +170,7 @@ class Config:
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME")
+    ENVIRONMENT = os.getenv("ENVIRONMENT")
 
 
 configuration = Config()

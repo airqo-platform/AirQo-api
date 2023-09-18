@@ -142,7 +142,6 @@ def data_warehouse_cleanup_consolidated_data():
     load(clean_consolidated_data)
 
 
-
 @dag(
     "Historical-Consolidated-Data-ETL",
     schedule=None,
@@ -185,7 +184,7 @@ def data_warehouse_historical_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-             historical=True, **kwargs
+            historical=True, **kwargs
         )
 
         return DataWarehouseUtils.extract_hourly_weather_data(
@@ -238,6 +237,7 @@ def data_warehouse_historical_consolidated_data():
     )
     load(merged_data)
 
+
 @dag(
     "Historical-Cleanup-Consolidated-Data",
     schedule=None,
@@ -279,6 +279,7 @@ def data_warehouse_historical_cleanup_consolidated_data():
     consolidated_data = extract_data()
     clean_consolidated_data = remove_duplicates(consolidated_data)
     load(clean_consolidated_data)
+
 
 data_warehouse_consolidated_data()
 data_warehouse_cleanup_consolidated_data()

@@ -3,6 +3,7 @@ apache-airflow-providers-slack
 confluent-avro
 google-cloud-bigquery
 google-cloud-storage
+optuna
 pyarrow
 sentry-sdk
 pandas
@@ -17,5 +18,4 @@ db_dtypes
 mlflow
 lightgbm
 gcsfs
-pymongo
 pytest

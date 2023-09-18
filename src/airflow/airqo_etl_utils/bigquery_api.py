@@ -615,20 +615,37 @@ class BigQueryApi:
         except Exception as e:
             raise e
 
-    def fetch_data(self, start_date_time: str, historical: bool = False):
-        # historical is for the actual jobs, not training
+    def fetch_data(
+        self,
+        start_date_time: str,
+    ) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError:
+            raise ValueError(f"Invalid start date time: {start_date_time}")
         query = f"""
-                SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
-                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD}`
-                WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
-                ORDER BY created_at, device_number
-        """
+        SELECT DISTINCT 
+            t1.device_id, 
+            t1.timestamp,  
+            t1.site_id, 
+            t1.pm2_5_calibrated_value as pm2_5, 
+            t2.latitude, 
+            t2.longitude, 
+            t3.device_category 
+        FROM `{self.hourly_measurements_table_prod}` t1 
+        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id 
+        JOIN `{self.devices_table}` t3 on t1.device_id = t3.device_id
+        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
+        ORDER BY device_id, timestamp"""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        df = self.client.query(f"{query}", job_config).result().to_dataframe()
-        return df
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery")
 
     @staticmethod
     def save_forecasts_to_bigquery(df, table):
