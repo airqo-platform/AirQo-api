@@ -165,9 +165,15 @@ const locationHistories = {
       }
 
       for (let location_history in missing_location_histories) {
-        responseFromCreateLocationHistories = await LocationHistoryModel(
-          tenant.toLowerCase()
-        ).register(missing_location_histories[location_history]);
+        const existingLocation = await LocationHistoryModel(tenant.toLowerCase()).findOne({
+          firebase_user_id: location_history.firebase_user_id,
+          place_id: location_history.place_id,
+        });
+        if (!existingLocation) {
+          responseFromCreateLocationHistories = await LocationHistoryModel(
+            tenant.toLowerCase()
+          ).register(missing_location_histories[location_history]);
+        }
       }
 
       let synchronizedLocationHistories = (
