@@ -9,7 +9,7 @@ images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
     containers: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow
-  tag: stage-48736f8e-1694104575
+  tag: stage-d1aaf3c2-1694766672
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
