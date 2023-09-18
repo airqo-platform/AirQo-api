@@ -3,7 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.ml_utils import ForecastUtils
+from airqo_etl_utils.ml_utils import ForecastUtils, DecodingUtils
 
 
 @dag(
@@ -44,6 +44,10 @@ def make_forecasts():
     @task()
     def get_location_features_hourly_forecast(data):
         return ForecastUtils.get_location_features(data)
+
+    @task()
+    def encode_hourly_categorical_features(data):
+        return DecodingUtils.decode_categorical_features_pred(data, "hourly")
 
     @task()
     def make_hourly_forecasts(data):
@@ -90,6 +94,9 @@ def make_forecasts():
         return ForecastUtils.get_location_features(data)
 
     @task()
+    def encode_daily_categorical_features(data):
+        return DecodingUtils.decode_categorical_features_pred(data, "daily")
+    @task()
     def make_daily_forecasts(data):
         return ForecastUtils.generate_forecasts(
             data=data, project_name=project_id, bucket_name=bucket, frequency="daily"
@@ -117,7 +124,10 @@ def make_forecasts():
     hourly_location_features = get_location_features_hourly_forecast(
         hourly_time_and_cyclic_features
     )
-    hourly_forecasts = make_hourly_forecasts(hourly_location_features)
+    hourly_encoded_features = encode_hourly_categorical_features(
+        hourly_location_features
+    )
+    hourly_forecasts = make_hourly_forecasts(hourly_encoded_features)
     save_hourly_forecasts_to_bigquery(hourly_forecasts)
     save_hourly_forecasts_to_mongo(hourly_forecasts)
 
@@ -133,7 +143,10 @@ def make_forecasts():
     daily_location_features = get_location_features_daily_forecast(
         daily_time_and_cyclic_features
     )
-    daily_forecasts = make_daily_forecasts(daily_location_features)
+    daily_encoded_features = encode_daily_categorical_features(
+        daily_location_features
+    )
+    daily_forecasts = make_daily_forecasts(daily_encoded_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
 
