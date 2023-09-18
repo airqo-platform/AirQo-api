@@ -34,8 +34,18 @@ def make_forecasts():
         return ForecastUtils.preprocess_data(data, "hourly")
 
     @task
-    def feature_eng_hourly_historical_data(data):
-        return ForecastUtils.feature_eng_data(data, "pm2_5", "hourly", "predict")
+    def generate_lag_and_rolling_features_hourly_forecast(data):
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+    
+    
+    @task()
+    def get_time_and_cyclic_features_hourly_forecast(data):
+        return ForecastUtils.get_time_and_cyclic_features(data, "hourly")
+    
+    
+    @task()
+    def get_location_features_hourly_forecast(data):
+        return ForecastUtils.get_location_features(data)
 
     @task()
     def make_hourly_forecasts(data):
@@ -70,12 +80,22 @@ def make_forecasts():
         return ForecastUtils.preprocess_data(data, "daily")
 
     @task()
-    def feature_engineer_daily_historical_data(data):
-        return ForecastUtils.feature_eng_data(data, "pm2_5", "daily", "predict")
+    def generate_lag_and_rolling_features_daily_forecast(data):
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+
+    @task()
+    def get_time_and_cyclic_features_daily_forecast(data):
+        return ForecastUtils.get_time_and_cyclic_features(data, "daily")
+
+    @task()
+    def get_location_features_daily_forecast(data):
+        return ForecastUtils.get_location_features(data)
 
     @task()
     def make_daily_forecasts(data):
-        return ForecastUtils.generate_forecasts(data, project_id, bucket, "daily")
+        return ForecastUtils.generate_forecasts(
+            data=data, project_name=project_id, bucket_name=bucket, frequency="daily"
+        )
 
     @task()
     def save_daily_forecasts_to_bigquery(data):
@@ -87,17 +107,36 @@ def make_forecasts():
     def save_daily_forecasts_to_mongo(data):
         ForecastUtils.save_forecasts_to_mongo(data, "daily")
 
+
+    # Hourly forecast pipeline
     hourly_data = get_historical_data_for_hourly_forecasts()
-    preprocessed_hourly_data = preprocess_historical_data_hourly_forecast(hourly_data)
-    feat_data = feature_eng_hourly_historical_data(preprocessed_hourly_data)
-    hourly_forecasts = make_hourly_forecasts(feat_data)
+    hourly_preprocessed_data = preprocess_historical_data_hourly_forecast(hourly_data)
+    hourly_lag_and_roll_features = generate_lag_and_rolling_features_hourly_forecast(
+        hourly_preprocessed_data
+    )
+    hourly_time_and_cyclic_features = get_time_and_cyclic_features_hourly_forecast(
+        hourly_lag_and_roll_features
+    )
+    hourly_location_features = get_location_features_hourly_forecast(
+        hourly_time_and_cyclic_features
+    )
+    hourly_forecasts = make_hourly_forecasts(hourly_location_features)
     save_hourly_forecasts_to_bigquery(hourly_forecasts)
     save_hourly_forecasts_to_mongo(hourly_forecasts)
 
+    # Daily forecast pipeline
     daily_data = get_historical_data_for_daily_forecasts()
-    preprocessed_daily_data = preprocess_historical_data_daily_forecast(daily_data)
-    feat_data = feature_engineer_daily_historical_data(preprocessed_daily_data)
-    daily_forecasts = make_daily_forecasts(feat_data)
+    daily_preprocessed_data = preprocess_historical_data_daily_forecast(daily_data)
+    daily_lag_and_roll_features = generate_lag_and_rolling_features_daily_forecast(
+        daily_preprocessed_data
+    )
+    daily_time_and_cyclic_features = get_time_and_cyclic_features_daily_forecast(
+        daily_lag_and_roll_features
+    )
+    daily_location_features = get_location_features_daily_forecast(
+        daily_time_and_cyclic_features
+    )
+    daily_forecasts = make_daily_forecasts(daily_location_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)
 

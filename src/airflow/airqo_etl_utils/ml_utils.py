@@ -609,7 +609,6 @@ class ForecastUtils:
             )
 
             forecasts = pd.concat([forecasts, device_forecasts], ignore_index=True)
-            print(device)
 
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         # forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
