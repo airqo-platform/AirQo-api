@@ -1,7 +1,8 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import pytest
-from datetime import datetime
 
 
 def pytest_configure(config):
@@ -13,75 +14,50 @@ def pytest_configure(config):
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
-    def hourly_data():
-        return pd.DataFrame(
+    def preprocessing_sample_df():
+        data = pd.DataFrame(
             {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                ],
-                "pm2_5": [10.0, np.nan, 12.0, 15.0, np.nan, np.nan],
+                "device_id": ["A", "B"],
+                "site_id": ["X", "Y"],
+                "device_category": ["LOWCOST", "BAM"],
+                "pm2_5": [1, 2],
+                "timestamp": ["2023-01-01", "2023-02-01"],
             }
         )
+        return data
 
     @staticmethod
-    @pytest.fixture(scope="session")
-    def daily_data():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                ],
-                "pm2_5": [10.0, np.nan, 12.0, 15.0, np.nan, np.nan],
-            }
-        )
+    @pytest.fixture
+    def feat_eng_sample_df_daily():
+        data = {
+            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=365).tolist(),
+            "device_id": ["device1"] * 365,
+            "pm2_5": range(1, 366),
+        }
+        return pd.DataFrame(data)
 
     @staticmethod
-    @pytest.fixture(scope="session")
-    def hourly_output():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-01 01:00:00",
-                    "2021-08-01 02:00:00",
-                ],
-                "pm2_5": [10.0, 11.0, 12.0, 15.0, 16.0, 17.0],
-            }
-        )
+    @pytest.fixture
+    def feat_eng_sample_df_hourly():
+        data = {
+            "timestamp": pd.date_range(
+                end=pd.Timestamp.now(), periods=24 * 14, freq="H"
+            ).tolist(),
+            "device_id": ["device1"] * 24 * 14,
+            "pm2_5": range(1, 24 * 14 + 1),
+        }
+        return pd.DataFrame(data)
 
     @staticmethod
-    @pytest.fixture(scope="session")
-    def daily_output():
-        return pd.DataFrame(
-            {
-                "device_number": [1, 1, 1, 2, 2, 2],
-                "created_at": [
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                    "2021-08-01 00:00:00",
-                    "2021-08-02 00:00:00",
-                    "2021-08-03 00:00:00",
-                ],
-                "pm2_5": [10.0, 11.0, 12.0, 15.0, 16.0, 17.0],
-            }
-        )
+    @pytest.fixture
+    def sample_dataframe_for_location_features():
+        data = {
+            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=100).tolist(),
+            "device_id": ["device1"] * 100,
+            "latitude": np.random.uniform(-90, 90, 100),
+            "longitude": np.random.uniform(-180, 180, 100),
+        }
+        return pd.DataFrame(data)
 
 
 @pytest.fixture(scope="session")

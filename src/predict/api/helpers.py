@@ -85,8 +85,8 @@ def geo_coordinates_cache_key():
 def get_health_tips() -> list[dict]:
     try:
         response = requests.get(
-            f"{Config.AIRQO_BASE_URL}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
-            timeout=3,
+            f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+            timeout=10,
         )
         if response.status_code == 200:
             result = response.json()
@@ -200,6 +200,7 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts(
     db_name,
+    device_id=None,
     site_id=None,
     site_name=None,
     parish=None,
@@ -210,6 +211,7 @@ def get_forecasts(
 ):
     query = {}
     params = {
+        "device_id": device_id,
         "site_id": site_id,
         "site_name": site_name,
         "parish": parish,
@@ -227,12 +229,18 @@ def get_forecasts(
 
     results = []
     if site_forecasts:
-        for time, pm2_5 in zip(
-            site_forecasts[0]["time"],
+        for time, pm2_5, margin_of_error, adjusted_forecast in zip(
+            site_forecasts[0]["timestamp"],
             site_forecasts[0]["pm2_5"],
+            site_forecasts[0]["margin_of_error"],
+            site_forecasts[0]["adjusted_forecast"],
         ):
             result = {
-                key: value for key, value in zip(["time", "pm2_5"], [time, pm2_5])
+                key: value
+                for key, value in zip(
+                    ["time", "pm2_5", "margin_of_error", "adjusted_forecast"],
+                    [time, pm2_5, margin_of_error, adjusted_forecast],
+                )
             }
             results.append(result)
 
