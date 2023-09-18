@@ -29,6 +29,7 @@
     "dependencies": {
         "@google-cloud/bigquery": "^5.5.0",
         "@google-cloud/iot": "^1.5.0",
+        "@google-cloud/translate": "^8.0.1",
         "@googlemaps/google-maps-services-js": "^3.1.16",
         "@kafkajs/confluent-schema-registry": "^3.0.1",
         "@log4js-node/slack": "^1.0.0",

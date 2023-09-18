@@ -24,6 +24,7 @@ const {
 } = require("./date");
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
+const translateUtil = require("./translate");
 
 const listDevices = async (request) => {
   try {
@@ -538,6 +539,7 @@ const createEvent = {
       let limit = parseInt(query.limit) || 0;
       let skip = parseInt(query.skip);
       let filter = {};
+      const language = request.query.language;
 
       const responseFromFilter = generateFilter.events(request);
       if (responseFromFilter.success === true) {
@@ -589,6 +591,20 @@ const createEvent = {
                 filter,
                 page,
               });
+              try {
+                if (language !== undefined && constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+                  let data = responseFromListEvents.data[0].data;
+                  for (const event of data) {
+                    let translatedHealthTips = await translateUtil.translate(event.health_tips, language);
+                    if (translatedHealthTips.success === true) {
+                      event.health_tips = translatedHealthTips.data;
+                    }
+                  }
+                }
+              } catch (error) {
+                logger.error(`internal server error -- ${error.message}`);
+              }
+
               if (responseFromListEvents.success === true) {
                 let data = responseFromListEvents.data;
                 data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
@@ -1164,6 +1180,7 @@ const createEvent = {
       latitude,
       longitude,
       network,
+      language
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1187,7 +1204,9 @@ const createEvent = {
       latitude ? latitude : "noLatitude"
     }_${longitude ? longitude : "noLongitude"}__${
       network ? network : "noNetwork"
-    }`;
+      }__${language ? language : "noLanguage"
+      }
+    `;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {

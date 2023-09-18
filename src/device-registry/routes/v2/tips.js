@@ -78,6 +78,16 @@ router.get(
         }),
     ],
   ]),
+  oneOf([
+    [
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim()
+    ],
+  ]),
   healthTipController.list
 );
 router.post(
