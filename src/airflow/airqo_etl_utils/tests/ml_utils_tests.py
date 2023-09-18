@@ -66,44 +66,50 @@ class TestsForecasts(ForecastFixtures):
         with pytest.raises(ValueError, match="Empty dataframe provided"):
             FUtils.get_time_and_cyclic_features(pd.DataFrame(), "daily")
 
-    def test_missing_columns_for_time_and_cyclic_features(self, feat_eng_sample_df_daily):
+    def test_missing_columns_for_time_and_cyclic_features(
+        self, feat_eng_sample_df_daily
+    ):
         with pytest.raises(ValueError, match="Required columns missing"):
             FUtils.get_time_and_cyclic_features(feat_eng_sample_df_daily, "daily")
 
-    def test_invalid_frequency_for_time_and_cyclic_features(self, feat_eng_sample_df_daily):
+    def test_invalid_frequency_for_time_and_cyclic_features(
+        self, feat_eng_sample_df_daily
+    ):
         with pytest.raises(ValueError, match="Invalid frequency"):
             FUtils.get_time_and_cyclic_features(feat_eng_sample_df_daily, "annually")
 
-# For 'daily' frequency
+    # For 'daily' frequency
     def test_daily_freq_for_time_and_cyclic_features(self, feat_eng_sample_df_daily):
-        daily_df = FUtils.get_time_and_cyclic_features(feat_eng_sample_df_daily, "daily")
+        daily_df = FUtils.get_time_and_cyclic_features(
+            feat_eng_sample_df_daily, "daily"
+        )
         for a in ["year", "month", "day", "dayofweek", "week"]:
             for t in ["_sin", "_cos"]:
                 assert f"{a}{t}" in daily_df.columns
 
-# For 'hourly' frequency
+    # For 'hourly' frequency
     def test_hourly_freq_for_time_and_cyclic_features(self, feat_eng_sample_df_hourly):
-        hourly_df = FUtils.get_time_and_cyclic_features(feat_eng_sample_df_hourly, "hourly")
+        hourly_df = FUtils.get_time_and_cyclic_features(
+            feat_eng_sample_df_hourly, "hourly"
+        )
         for a in ["year", "month", "day", "dayofweek", "hour", "week"]:
             for t in ["_sin", "_cos"]:
                 assert f"{a}{t}" in hourly_df.columns
 
-    def test_empty_df_for_location_features(self, sample_dataframe_for_location_features):
+    def test_empty_df_for_location_features(
+        self, sample_dataframe_for_location_features
+    ):
         with pytest.raises(ValueError, match="Empty dataframe provided"):
             FUtils.get_location_features(pd.DataFrame())
-    
-    
+
     def test_missing_timestamp_for_location_features(
         self,
         sample_dataframe_for_location_features,
     ):
-        del sample_dataframe_for_location_features[
-            "timestamp"
-        ]
+        del sample_dataframe_for_location_features["timestamp"]
         with pytest.raises(ValueError, match="timestamp column is missing"):
             FUtils.get_location_features(sample_dataframe_for_location_features)
-    
-    
+
     # For missing 'latitude' column
     def test_missing_latitude_for_location_features(
         self, sample_dataframe_for_location_features
@@ -113,8 +119,7 @@ class TestsForecasts(ForecastFixtures):
         ]  # Test for missing 'latitude'
         with pytest.raises(ValueError, match="latitude column is missing"):
             FUtils.get_location_features(sample_dataframe_for_location_features)
-    
-    
+
     def test_missing_longitude_for_location_features(
         self, sample_dataframe_for_location_features
     ):
@@ -123,8 +128,7 @@ class TestsForecasts(ForecastFixtures):
         ]  # Test for missing 'longitude'
         with pytest.raises(ValueError, match="longitude column is missing"):
             FUtils.get_location_features(sample_dataframe_for_location_features)
-    
-    
+
     # Test the normal procedure
     def test_get_location_features(self, sample_dataframe_for_location_features):
         df = FUtils.get_location_features(sample_dataframe_for_location_features)

@@ -34,11 +34,11 @@ def train_forecasting_models():
 
     @task()
     def get_hourly_lag_and_rolling_features(data):
-        return ForecastUtils.get_lag_and_roll_features(data, 'pm2_5', 'hourly')
+        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
 
     @task()
     def get_hourly_time_and_cyclic_features(data):
-        return ForecastUtils.get_time_and_cyclic_features(data, 'hourly')
+        return ForecastUtils.get_time_and_cyclic_features(data, "hourly")
 
     @task()
     def get_location_features(data):
@@ -46,7 +46,8 @@ def train_forecasting_models():
 
     @task()
     def encode_categorical_features(data):
-        return DecodingUtils.encode_categorical_training_features(data, 'daily')
+        return DecodingUtils.encode_categorical_training_features(data, "daily")
+
     @task()
     def train_and_save_hourly_forecast_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(
@@ -76,7 +77,7 @@ def train_forecasting_models():
 
     @task()
     def get_daily_time_and_cylic_features(data):
-        return  ForecastUtils.get_time_and_cyclic_features(data, 'daily')
+        return ForecastUtils.get_time_and_cyclic_features(data, "daily")
 
     @task()
     def get_location_features(data):
@@ -84,7 +85,8 @@ def train_forecasting_models():
 
     @task()
     def encode_categorical_features(data):
-        return DecodingUtils.encode_categorical_training_features(data, 'daily')
+        return DecodingUtils.encode_categorical_training_features(data, "daily")
+
     @task()
     def train_and_save_daily_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(train_data, "daily")

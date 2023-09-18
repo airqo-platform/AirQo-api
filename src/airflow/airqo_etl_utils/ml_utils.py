@@ -22,7 +22,8 @@ pd.options.mode.chained_assignment = None
 
 
 class GCSUtils:
-    """ Utility class for saving and retrieving models from GCS"""
+    """Utility class for saving and retrieving models from GCS"""
+
     # TODO: In future, save and retrieve models from mlflow instead of GCS
     @staticmethod
     def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
@@ -67,7 +68,8 @@ class GCSUtils:
 
 
 class DecodingUtils:
-    """ Utility class for encoding and decoding categorical features"""
+    """Utility class for encoding and decoding categorical features"""
+
     @staticmethod
     def decode_categorical_features_pred(df, frequency):
         columns = ["device_id", "site_id", "device_category"]
@@ -128,7 +130,13 @@ class DecodingUtils:
 class ForecastUtils:
     @staticmethod
     def preprocess_data(data, data_frequency):
-        required_columns = {"device_id", "site_id", "device_category", "pm2_5", "timestamp"}
+        required_columns = {
+            "device_id",
+            "site_id",
+            "device_category",
+            "pm2_5",
+            "timestamp",
+        }
         if not required_columns.issubset(data.columns):
             missing_columns = required_columns.difference(data.columns)
             raise ValueError(
@@ -158,17 +166,20 @@ class ForecastUtils:
         data = data.dropna(subset=["pm2_5"])
         return data
 
-
     @staticmethod
     def get_lag_and_roll_features(df, target_col, freq):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
-        if target_col not in df.columns or "timestamp" not in df.columns or "device_id" not in df.columns:
+        if (
+            target_col not in df.columns
+            or "timestamp" not in df.columns
+            or "device_id" not in df.columns
+        ):
             raise ValueError("Required columns missing")
 
         df["timestamp"] = pd.to_datetime(df["timestamp"])
-        
+
         df1 = df.copy()  # use copy to prevent terminal warning
         if freq == "daily":
             shifts = [1, 2, 3, 7]
@@ -229,7 +240,7 @@ class ForecastUtils:
             df1[a] = df1["timestamp"].dt.__getattribute__(a)
             df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
             df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
-    
+
         df1["week"] = df1["timestamp"].dt.isocalendar().week
         df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
         df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
@@ -240,17 +251,17 @@ class ForecastUtils:
     def get_location_features(df):
         if df.empty:
             raise ValueError("Empty dataframe provided")
-    
+
         for column_name in ["timestamp", "latitude", "longitude"]:
             if column_name not in df.columns:
                 raise ValueError(f"{column_name} column is missing")
-    
+
         df["timestamp"] = pd.to_datetime(df["timestamp"])
-    
+
         df["x_cord"] = np.cos(df["latitude"]) * np.cos(df["longitude"])
         df["y_cord"] = np.cos(df["latitude"]) * np.sin(df["longitude"])
         df["z_cord"] = np.sin(df["latitude"])
-    
+
         return df
 
     #     df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
@@ -280,8 +291,8 @@ class ForecastUtils:
         Perform the actual training for hourly data
         """
         training_data.dropna(
-                        subset=["device_id", "site_id", "device_category"], inplace=True
-                    )
+            subset=["device_id", "site_id", "device_category"], inplace=True
+        )
 
         training_data["device_id"] = training_data["device_id"].astype(int)
         training_data["site_id"] = training_data["site_id"].astype(int)
@@ -583,7 +594,7 @@ class ForecastUtils:
                 #     + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
                 # )
 
-            return df_tmp.iloc[-int(horizon):, :]
+            return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
         forecast_model = GCSUtils.get_trained_model_from_gcs(

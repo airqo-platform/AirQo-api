@@ -36,13 +36,11 @@ def make_forecasts():
     @task
     def generate_lag_and_rolling_features_hourly_forecast(data):
         return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
-    
-    
+
     @task()
     def get_time_and_cyclic_features_hourly_forecast(data):
         return ForecastUtils.get_time_and_cyclic_features(data, "hourly")
-    
-    
+
     @task()
     def get_location_features_hourly_forecast(data):
         return ForecastUtils.get_location_features(data)
@@ -106,7 +104,6 @@ def make_forecasts():
     @task()
     def save_daily_forecasts_to_mongo(data):
         ForecastUtils.save_forecasts_to_mongo(data, "daily")
-
 
     # Hourly forecast pipeline
     hourly_data = get_historical_data_for_hourly_forecasts()

@@ -54,9 +54,7 @@ def mock_bigquery_client2():
         fake_job = mock.Mock()
 
         if "2023-01-01" in query:
-            fake_job.result.return_value.to_dataframe.return_value = (
-                sample_df
-            )
+            fake_job.result.return_value.to_dataframe.return_value = sample_df
         elif "2023-01-02" in query:
             fake_job.result.return_value.to_dataframe.return_value = (
                 fake_data_empty_result
@@ -71,6 +69,7 @@ def mock_bigquery_client2():
     fake_client.query.side_effect = fake_query
 
     return fake_client
+
 
 @pytest.mark.parametrize(
     "start_date_time, expected_df",
@@ -98,7 +97,6 @@ def mock_bigquery_client2():
     ],
 )
 def test_fetch_data_correct_se(mock_bigquery_client2, start_date_time, expected_df):
-
     """Tests the fetch_data method for scenarios when correct data is retrieved."""
 
     bq_api = BigQueryApi()
@@ -118,6 +116,7 @@ def test_fetch_data_invalid_date(mock_bigquery_client2, start_date_time):
     with pytest.raises(ValueError):
         bq_api.fetch_data(start_date_time)
 
+
 @pytest.mark.parametrize("start_date_time", ["2023-01-03"])
 def test_fetch_data_bigquery_error(mock_bigquery_client2, start_date_time):
     """Tests the fetch_data method for the scenario where a bigquery.GoogleAPIError is raised."""
@@ -128,7 +127,6 @@ def test_fetch_data_bigquery_error(mock_bigquery_client2, start_date_time):
 
     with pytest.raises(Exception):
         bq_api.fetch_data(start_date_time)
-
 
 
 def test_fetch_raw_readings_empty(mock_bigquery_client):

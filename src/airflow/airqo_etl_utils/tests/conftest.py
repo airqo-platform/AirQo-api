@@ -11,8 +11,6 @@ def pytest_configure(config):
     )
 
 
-
-
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
@@ -28,12 +26,11 @@ class ForecastFixtures:
         )
         return data
 
-
     @staticmethod
     @pytest.fixture
     def feat_eng_sample_df_daily():
         data = {
-            "timestamp": pd.date_range(end = pd.Timestamp.now(), periods=365).tolist(),
+            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=365).tolist(),
             "device_id": ["device1"] * 365,
             "pm2_5": range(1, 366),
         }
@@ -43,9 +40,11 @@ class ForecastFixtures:
     @pytest.fixture
     def feat_eng_sample_df_hourly():
         data = {
-            "timestamp": pd.date_range(end = pd.Timestamp.now(), periods=24*14, freq='H').tolist(),
-            "device_id": ["device1"] * 24*14,
-            "pm2_5": range(1, 24*14+1),
+            "timestamp": pd.date_range(
+                end=pd.Timestamp.now(), periods=24 * 14, freq="H"
+            ).tolist(),
+            "device_id": ["device1"] * 24 * 14,
+            "pm2_5": range(1, 24 * 14 + 1),
         }
         return pd.DataFrame(data)
 
@@ -53,13 +52,13 @@ class ForecastFixtures:
     @pytest.fixture
     def sample_dataframe_for_location_features():
         data = {
-            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=100)
-            .tolist(),
+            "timestamp": pd.date_range(end=pd.Timestamp.now(), periods=100).tolist(),
             "device_id": ["device1"] * 100,
             "latitude": np.random.uniform(-90, 90, 100),
             "longitude": np.random.uniform(-180, 180, 100),
         }
         return pd.DataFrame(data)
+
 
 @pytest.fixture(scope="session")
 def mongo_fixture():

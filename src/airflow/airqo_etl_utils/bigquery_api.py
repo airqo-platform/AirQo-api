@@ -647,8 +647,6 @@ class BigQueryApi:
         except Exception as e:
             print("Error fetching data from bigquery")
 
-        
-
     @staticmethod
     def save_forecasts_to_bigquery(df, table):
         """saves the dataframes to the bigquery tables"""
