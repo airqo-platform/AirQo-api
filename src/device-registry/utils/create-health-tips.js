@@ -34,7 +34,7 @@ const createHealthTips = {
         skip,
       });
       if (language !== undefined) {
-        translatedHealthTips = await translateUtil.translate(responseFromListHealthTips.data, language);
+        translatedHealthTips = await translateUtil.translateTips(responseFromListHealthTips.data, language);
         responseFromListHealthTips = translatedHealthTips;
       }
 

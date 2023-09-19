@@ -595,7 +595,7 @@ const createEvent = {
                 if (language !== undefined && constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
                   let data = responseFromListEvents.data[0].data;
                   for (const event of data) {
-                    let translatedHealthTips = await translateUtil.translate(event.health_tips, language);
+                    let translatedHealthTips = await translateUtil.translateTips(event.health_tips, language);
                     if (translatedHealthTips.success === true) {
                       event.health_tips = translatedHealthTips.data;
                     }
