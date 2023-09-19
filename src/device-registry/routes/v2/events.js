@@ -1328,6 +1328,12 @@ router.get(
         .toLowerCase()
         .isIn(["yes", "no"])
         .withMessage("valid values include: YES and NO"),
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim(),
     ],
   ]),
   eventController.listEventsForAllDevices

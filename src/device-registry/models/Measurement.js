@@ -1,6 +1,7 @@
 /*
 This Schema is not in use at the moment
 */
+const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");

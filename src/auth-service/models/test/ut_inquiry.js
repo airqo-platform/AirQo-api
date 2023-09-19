@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const InquirySchema = require("@models/Inquiry");
-
-// Replace this with the actual import path for your Inquiry model if applicable
-const InquiryModel = mongoose.model("Inquiry", InquirySchema);
+const InquiryModel = require("@models/Inquiry");
 
 describe("InquirySchema statics", () => {
   describe("register method", () => {

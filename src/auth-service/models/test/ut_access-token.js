@@ -2,8 +2,7 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
-const AccessTokenSchema = require("@models/AccessToken");
-const AccessTokenModel = require("@models/AccessToken"); // Import the model that uses the schema
+const AccessTokenModel = require("@models/AccessToken");
 
 describe("AccessTokenSchema", () => {
   // Define a sandbox to manage stubs and mocks

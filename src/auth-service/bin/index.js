@@ -22,15 +22,15 @@ try {
 
 const main = async () => {
   try {
-    await kafkaConsumer().catch((error) => {
-      logObject("KAFKA error in the main()", error);
-      logger.error(
-        `KAFKA: internal server error in the main() -- ${JSON.stringify(error)}`
-      );
-      logger.error(
-        `KAFKA error message: internal server error in the main() -- ${error.message}`
-      );
-    });
+    // await kafkaConsumer().catch((error) => {
+    //   logObject("KAFKA error in the main()", error);
+    //   logger.error(
+    //     `KAFKA: internal server error in the main() -- ${JSON.stringify(error)}`
+    //   );
+    //   logger.error(
+    //     `KAFKA error message: internal server error in the main() -- ${error.message}`
+    //   );
+    // });
     createServer();
   } catch (error) {
     logger.error(`error in the main() -- ${JSON.stringify(error)}`);

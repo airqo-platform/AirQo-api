@@ -1,4 +1,4 @@
-const SearchHistoryModel = require("@models/searchHistory");
+const SearchHistoryModel = require("@models/SearchHistory");
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
@@ -166,9 +166,15 @@ const searchHistories = {
       }
 
       for (let search_history in missing_search_histories) {
-        responseFromCreateSearchHistories = await SearchHistoryModel(
-          tenant.toLowerCase()
-        ).register(missing_search_histories[search_history]);
+        const existingSearch = await SearchHistoryModel(tenant.toLowerCase()).findOne({
+          firebase_user_id: search_history.firebase_user_id,
+          place_id: search_history.place_id,
+        });
+        if (!existingSearch) {
+          responseFromCreateSearchHistories = await SearchHistoryModel(
+            tenant.toLowerCase()
+          ).register(missing_search_histories[search_history]);
+        }
       }
 
       let synchronizedSearchHistories = (

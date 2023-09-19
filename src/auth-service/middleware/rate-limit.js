@@ -5,10 +5,12 @@ const AccessTokenModel = require("@models/AccessToken");
 const ClientModel = require("@models/Client");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-const log4js = require("log4js");
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(`${this.ENVIRONMENT} -- middleware/rate-limit`);
+const constants = require("@config/constants");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- middleware/rate-limit`
+);
 
 const getClientLimit = (client) => {
   return client.rateLimit || 100;

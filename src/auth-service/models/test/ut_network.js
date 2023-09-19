@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const NetworkSchema = require("@models/Network");
-
-// Replace this with the actual import path for your Network model if applicable
-const NetworkModel = mongoose.model("Network", NetworkSchema);
+const NetworkModel = require("@models/Network");
 
 describe("NetworkSchema statics", () => {
   describe("register method", () => {

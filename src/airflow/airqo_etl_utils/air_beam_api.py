@@ -24,25 +24,25 @@ class AirBeamApi:
         username: str,
         pollutant: str,
     ):
-        params={
-                "q": json.dumps(
-                    {
-                        "time_from": int(start_date_time.timestamp()),
-                        "time_to": int(end_date_time.timestamp()),
-                        "tags": "",
-                        "usernames": username,
-                        "west": 10.581214853439886,
-                        "east": 38.08577769782265,
-                        "south": -36.799337832603314,
-                        "north": -19.260169583742446,
-                        "limit": 100,
-                        "offset": 0,
-                        "sensor_name": f"airbeam3-{pollutant}",
-                        "measurement_type": "Particulate Matter",
-                        "unit_symbol": "µg/m³",
-                    }
-                )
-            }
+        params = {
+            "q": json.dumps(
+                {
+                    "time_from": int(start_date_time.timestamp()),
+                    "time_to": int(end_date_time.timestamp()),
+                    "tags": "",
+                    "usernames": username,
+                    "west": 10.581214853439886,
+                    "east": 38.08577769782265,
+                    "south": -36.799337832603314,
+                    "north": -19.260169583742446,
+                    "limit": 100,
+                    "offset": 0,
+                    "sensor_name": f"airbeam3-{pollutant}",
+                    "measurement_type": "Particulate Matter",
+                    "unit_symbol": "µg/m³",
+                }
+            )
+        }
         request = self.__request(
             endpoint=f"mobile/sessions.json",
             params=params,
@@ -65,32 +65,32 @@ class AirBeamApi:
             endpoint=f"measurements.json",
             params=params,
         )
-        
-    def __request(self, endpoint, params):
 
+    def __request(self, endpoint, params):
         url = f"{self.AIR_BEAM_BASE_URL}{endpoint}"
         retry_strategy = Retry(
             total=5,
             backoff_factor=5,
         )
-        
+
         http = urllib3.PoolManager(retries=retry_strategy)
-        
+
         try:
             response = http.request(
-                "GET", 
-                url, 
-                fields=params,)
-            
+                "GET",
+                url,
+                fields=params,
+            )
+
             response_data = response.data
             print(response._request_url)
-            
+
             if response.status == 200:
                 return json.loads(response_data)
             else:
                 Utils.handle_api_error(response)
                 return None
-            
+
         except urllib3.exceptions.HTTPError as e:
             print(f"HTTPError: {e}")
             return None

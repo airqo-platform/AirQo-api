@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const requestAccessUtil = require("@utils/request-access");
+const createCandidateUtil = require("@utils/create-candidate");
 const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
@@ -7,11 +7,11 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- request-access-controller`
+  `${constants.ENVIRONMENT} -- create-candidate-controller`
 );
 const { logText, logObject, logElement } = require("@utils/log");
 
-const requestAccess = {
+const createCandidate = {
   create: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -30,7 +30,7 @@ const requestAccess = {
       let request = Object.assign({}, req.body);
       request["tenant"] = tenant.toLowerCase();
 
-      await requestAccessUtil
+      await createCandidateUtil
         .create(request, (value) => {
           if (value.success === true) {
             const status = value.status ? value.status : httpStatus.OK;
@@ -88,7 +88,7 @@ const requestAccess = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromListCandidate = await requestAccessUtil.list(request);
+      const responseFromListCandidate = await createCandidateUtil.list(request);
       logObject("responseFromListCandidate", responseFromListCandidate);
       if (responseFromListCandidate.success === true) {
         const status = responseFromListCandidate.status
@@ -161,7 +161,7 @@ const requestAccess = {
       let request = Object.assign({}, req.body);
       request["tenant"] = tenant.toLowerCase();
       request["filter"] = filter;
-      const responseFromConfirmCandidate = await requestAccessUtil.confirm(
+      const responseFromConfirmCandidate = await createCandidateUtil.confirm(
         request
       );
 
@@ -218,7 +218,7 @@ const requestAccess = {
       const request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromDeleteCandidate = await requestAccessUtil.delete(
+      const responseFromDeleteCandidate = await createCandidateUtil.delete(
         request
       );
 
@@ -276,7 +276,7 @@ const requestAccess = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromUpdateCandidate = await requestAccessUtil.update(
+      const responseFromUpdateCandidate = await createCandidateUtil.update(
         request
       );
 
@@ -316,4 +316,4 @@ const requestAccess = {
   },
 };
 
-module.exports = requestAccess;
+module.exports = createCandidate;

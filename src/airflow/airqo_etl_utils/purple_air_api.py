@@ -32,31 +32,31 @@ class PurpleAirApi:
         return response if response else {}
 
     def __request(self, endpoint, params):
-
         url = f"{self.PURPLE_AIR_BASE_URL}{endpoint}"
         retry_strategy = Retry(
             total=5,
             backoff_factor=5,
         )
-        
+
         http = urllib3.PoolManager(retries=retry_strategy)
-        
+
         try:
             response = http.request(
-                "GET", 
-                url, 
+                "GET",
+                url,
                 fields=params,
-                headers={"x-api-key": self.PURPLE_AIR_API_KEY},)
-            
+                headers={"x-api-key": self.PURPLE_AIR_API_KEY},
+            )
+
             response_data = response.data
             print(response._request_url)
-            
+
             if response.status == 200:
                 return json.loads(response_data)
             else:
                 Utils.handle_api_error(response)
                 return None
-            
+
         except urllib3.exceptions.HTTPError as e:
             print(f"HTTPError: {e}")
             return None

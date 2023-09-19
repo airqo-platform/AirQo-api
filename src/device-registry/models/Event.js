@@ -4,6 +4,7 @@ received from the message broker (Kafka). Consider updating
 the schema `AirQo-api/kafka/schemas/transformed-device-measurements.avsc`
 and following up on its deployment. :)
 */
+const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");

@@ -3,10 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const mongoose = require("mongoose");
 
-const ScopeSchema = require("@models/Scope");
-
-// Replace this with the actual import path for your Scope model if applicable
-const ScopeModel = mongoose.model("Scope", ScopeSchema);
+const ScopeModel = require("@models/Scope");
 
 describe("ScopeSchema static methods", () => {
   describe("register method", () => {
