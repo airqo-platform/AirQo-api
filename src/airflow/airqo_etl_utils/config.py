@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import pymongo as pm
 import urllib3
 from dotenv import load_dotenv
 
@@ -174,3 +175,6 @@ class Config:
 
 
 configuration = Config()
+
+client = pm.MongoClient(configuration.MONGO_URI)
+db = client[configuration.MONGO_DATABASE_NAME]
