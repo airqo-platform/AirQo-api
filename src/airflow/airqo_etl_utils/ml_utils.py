@@ -8,11 +8,10 @@ import mlflow
 import numpy as np
 import optuna
 import pandas as pd
-import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
-from .config import configuration
+from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
@@ -493,6 +492,7 @@ class ForecastUtils:
 
     @staticmethod
     def generate_forecasts(data, project_name, bucket_name, frequency):
+        data = data.dropna(subset=["device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
@@ -641,25 +641,36 @@ class ForecastUtils:
     def save_forecasts_to_mongo(data, frequency):
         device_ids = data["device_id"].unique()
         created_at = pd.to_datetime(datetime.now()).isoformat()
-        forecast_results = [
-            {
-                field: data[data["device_id"] == i][field].tolist()[0]
-                if field not in ["pm2_5", "timestamp"]
-                else data[data["device_id"] == i][field].tolist()
-                for field in data.columns
+
+        forecast_results = []
+        for i in device_ids:
+            doc = {
+                "device_id": i,
+                "created_at": created_at,
+                "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
+                "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
             }
-            | {"created_at": created_at}
-            for i in device_ids
-        ]
-        client = pm.MongoClient(configuration.MONGO_URI)
-        db = client[configuration.MONGO_DATABASE_NAME]
+            forecast_results.append(doc)
+
         if frequency == "hourly":
-            db.hourly_forecasts.delete_many({})
-            db.hourly_forecasts.insert_many(forecast_results)
-            print(db.hourly_forecasts.find_one())  # confirm saving has worked
+            collection = db.hourly_forecasts
         elif frequency == "daily":
-            db.daily_forecasts.delete_many({})
-            db.daily_forecasts.insert_many(forecast_results)
-            print(db.daily_forecasts_1.find_one())
+            collection = db.daily_forecasts
         else:
             raise ValueError("Invalid frequency argument")
+
+        for doc in forecast_results:
+            try:
+                filter_query = {"device_id": doc["device_id"]}
+                update_query = {
+                    "$set": {
+                        "pm2_5": doc["pm2_5"],
+                        "timestamp": doc["timestamp"],
+                        "created_at": doc["created_at"],
+                    }
+                }
+                collection.update_one(filter_query, update_query, upsert=True)
+            except Exception as e:
+                print(
+                    f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
+                )

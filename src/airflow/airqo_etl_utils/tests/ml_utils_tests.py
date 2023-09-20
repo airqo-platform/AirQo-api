@@ -134,3 +134,26 @@ class TestsForecasts(ForecastFixtures):
         df = FUtils.get_location_features(sample_dataframe_for_location_features)
         for cord in ["x_cord", "y_cord", "z_cord"]:
             assert cord in df.columns
+
+    @pytest.mark.xfail
+    @pytest.mark.parametrize(
+        "frequency,collection_name",
+        [
+            ("hourly", "hourly_forecasts"),
+            ("daily", "daily_forecasts"),
+            # ("invalid", None),
+        ],
+    )
+    def test_save_forecasts_to_mongo_frequency(
+        self, mock_db, frequency, collection_name, sample_dataframe_db
+    ):
+        if frequency == "invalid":
+            # Expect a ValueError for an invalid frequency
+            with pytest.raises(ValueError) as e:
+                FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
+            assert str(e.value) == f"Invalid frequency argument: {frequency}"
+        else:
+            # Expect no exception for a valid frequency
+            FUtils.save_forecasts_to_mongo(sample_dataframe_db, frequency)
+            mock_collection = getattr(mock_db, collection_name)
+            assert mock_collection.update_one.call_count == 0

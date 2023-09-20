@@ -1,8 +1,11 @@
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
+
+from airqo_etl_utils.config import configuration
 
 
 def pytest_configure(config):
@@ -59,12 +62,44 @@ class ForecastFixtures:
         }
         return pd.DataFrame(data)
 
+    @staticmethod
+    @pytest.fixture
+    def sample_hourly_forecast_data():
+        return pd.DataFrame(
+            {
+                "device_id": ["dev1", "dev1", "dev2"],
+                "pm2_5": [10, 15, 20],
+                "timestamp": [
+                    datetime(2023, 1, 1, 0),
+                    datetime(2023, 1, 1, 1),
+                    datetime(2023, 1, 1, 2),
+                ],
+            }
+        )
 
-@pytest.fixture(scope="session")
-def mongo_fixture():
-    from airqo_etl_utils.mongo_client import MongoClient
+    @staticmethod
+    @pytest.fixture
+    def sample_daily_forecast_data():
+        return pd.DataFrame(
+            {
+                "device_id": ["dev1", "dev1", "dev2"],
+                "pm2_5": [10, 15, 20],
+                "timestamp": [
+                    datetime(2023, 1, 1),
+                    datetime(2023, 1, 2),
+                    datetime(2023, 1, 3),
+                ],
+            }
+        )
 
-    return MongoClient(uri="mongodb://localhost:27017", db_name="test_db")
+    @staticmethod
+    @pytest.fixture
+    def mock_db():
+        mock_client = MagicMock()
+        mock_db = mock_client[configuration.MONGO_DATABASE_NAME]
+        mock_db.hourly_forecasts = MagicMock()
+        mock_db.daily_forecasts = MagicMock()
+        return mock_db
 
 
 class FaultDetectionFixtures:
