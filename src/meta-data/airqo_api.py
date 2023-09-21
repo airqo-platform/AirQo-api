@@ -15,8 +15,9 @@ class AirQoApi:
             return string[:]
 
     def __init__(self):
-        self.AIRQO_BASE_URL = AirQoApi.remove_suffix(Config.AIRQO_BASE_URL, "/")
-        self.AIRQO_API_KEY = Config.AIRQO_API_KEY
+        self.AIRQO_BASE_URL = AirQoApi.remove_suffix(
+            Config.AIRQO_BASE_URL, "/")
+        self.API_AUTH_TOKEN = Config.API_AUTH_TOKEN
 
     def update_site_meta_data(self, site_details: dict):
 
@@ -33,21 +34,21 @@ class AirQoApi:
     def __request(self, endpoint, params=None, body=None, method=None):
 
         try:
-            headers = {"Authorization": f"JWT {self.AIRQO_API_KEY}"}
+            headers = {"Content-Type": "application/json"}
             if method == "put":
-                headers["Content-Type"] = "application/json"
                 api_request = requests.put(
                     "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                    params=params,
+                    params={
+                        **params, 'token': self.API_AUTH_TOKEN} if params else {'token': self.API_AUTH_TOKEN},
                     headers=headers,
                     data=json.dumps(body),
                     verify=False,
                 )
             elif method == "post":
-                headers["Content-Type"] = "application/json"
                 api_request = requests.post(
                     "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                    params=params,
+                    params={
+                        **params, 'token': self.API_AUTH_TOKEN} if params else {'token': self.API_AUTH_TOKEN},
                     headers=headers,
                     data=json.dumps(body),
                     verify=False,
@@ -78,4 +79,5 @@ def handle_api_error(api_request):
         print(ex)
     finally:
         print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)
+        print("API request failed with status code %s" %
+              api_request.status_code)

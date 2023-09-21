@@ -73,6 +73,7 @@ class Config:
     # AirQo
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+    API_AUTH_TOKEN = os.getenv("API_AUTH_TOKEN")
 
     # Message broker configurations
     SITES_TOPIC = os.getenv("SITES_TOPIC")
