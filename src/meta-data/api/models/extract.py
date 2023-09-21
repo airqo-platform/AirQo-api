@@ -21,9 +21,17 @@ class Extract:
         """
         Gets & returns the average greenness value at the specified coordinates
         for the specified time  period
+        Here is a more detailed interpretation of NDVI values:
+
+        -1.0 to 0.0: Water, clouds, snow, and ice
+        0.0 to 0.1: Bare rock, sand, and urban areas
+        0.1 to 0.2: Sparse vegetation, such as shrubs and grasslands
+        0.2 to 0.5: Moderate vegetation, such as crops and forests
+        0.5 to 0.7: Dense vegetation, such as tropical rainforests
+        0.7 to 1.0: Very dense vegetation, such as algae blooms
         """
         dataset = (
-            ee.ImageCollection("MODIS/006/MOD13Q1")
+            ee.ImageCollection("MODIS/061/MOD13Q1")
             .filter(ee.Filter.date(start_date, end_date))
             .mean()
         )
@@ -31,6 +39,7 @@ class Extract:
         greenness_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, 90)
         mean_greenness = greenness_dict.get("NDVI")
         greenness = mean_greenness.getInfo()
+        greenness = greenness*0.0001
         return greenness
 
     def get_landuse(self, lat, lon):
