@@ -69,7 +69,7 @@
         "rewire": "^6.0.0",
         "sinon": "^15.2.0"
     },
-    "mocha":{
+    "nyc":{
      "coverageReporters": [
          "clover", "json", "lcov", "text"
           ]
