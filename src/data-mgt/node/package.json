@@ -14,7 +14,7 @@
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
         "create-env": "printenv > .env",
         "test": "mocha ./**/test/ut_*.js --exit",
-        "test-coverage": "nyc mocha ./**/test/ut_*.js --exit"
+        "test-coverage": "nyc mocha ./**/test/ut_*.js --exit nyc report --reporter=text-lcov"
         
     },
     "_moduleAliases": {
@@ -68,10 +68,6 @@
         "proxyquire": "^2.1.3",
         "rewire": "^6.0.0",
         "sinon": "^15.2.0"
-    },
-    "nyc":{
-     "coverageReporters": [
-         "clover", "json", "lcov", "text"
-          ]
     }
+  
 }
