@@ -322,7 +322,7 @@ class AirQoApi:
         params.update({"token": self.AIRQO_API_TOKEN})
 
         retry_strategy = Retry(
-            total=5,       
+            total=5,
             backoff_factor=5,
         )
 
@@ -338,21 +338,21 @@ class AirQoApi:
                 encoded_args = urlencode(params)
                 url = url + "?" + encoded_args
                 response = http.request(
-                    "PUT", 
+                    "PUT",
                     url,
-                    headers=headers, 
-                    body=simplejson.dumps(body, ignore_nan=True)
-                    )
+                    headers=headers,
+                    body=simplejson.dumps(body, ignore_nan=True),
+                )
             elif method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
                 url = url + "?" + encoded_args
                 response = http.request(
-                    "POST", 
+                    "POST",
                     url,
-                    headers=headers, 
-                    body=simplejson.dumps(body, ignore_nan=True)
-                    )
+                    headers=headers,
+                    body=simplejson.dumps(body, ignore_nan=True),
+                )
             else:
                 handle_api_error("Invalid")
                 return None
@@ -368,4 +368,3 @@ class AirQoApi:
         except urllib3.exceptions.HTTPError as e:
             print(f"HTTPError: {e}")
             return None
-

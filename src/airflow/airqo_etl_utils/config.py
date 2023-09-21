@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import pymongo as pm
 import urllib3
 from dotenv import load_dotenv
 
@@ -170,6 +171,10 @@ class Config:
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME")
+    ENVIRONMENT = os.getenv("ENVIRONMENT")
 
 
 configuration = Config()
+
+client = pm.MongoClient(configuration.MONGO_URI)
+db = client[configuration.MONGO_DATABASE_NAME]

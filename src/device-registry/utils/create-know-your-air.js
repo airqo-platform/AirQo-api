@@ -13,6 +13,7 @@ const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-kya-util`);
+const translateUtil = require("./translate");
 
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
@@ -44,6 +45,7 @@ const createKnowYourAir = {
       const { user_id } = request.params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
+      const language = request.query.language;
       const filter = generateFilter.kyalessons(request);
       if (filter.success && filter.success === false) {
         return filter;
@@ -57,6 +59,12 @@ const createKnowYourAir = {
           user_id: user_id,
         }
       );
+      if (language !== undefined) {
+        const translatedLessons = await translateUtil.translateLessons(responseFromListLessons.data, language);
+        if (translatedLessons.success === true) {
+          return translatedLessons;
+        }
+      }
       logObject("responseFromListLessons", responseFromListLessons);
       return responseFromListLessons;
     } catch (error) {
@@ -938,6 +946,7 @@ const createKnowYourAir = {
       const { user_id } = request.params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
+      const language = request.query.language;
       const filter = generateFilter.kyaquizzes(request);
       if (filter.success && filter.success === false) {
         return filter;
@@ -949,6 +958,12 @@ const createKnowYourAir = {
         skip,
         user_id: user_id,
       });
+      if (language !== undefined) {
+        const translatedQuizzes = await translateUtil.translateQuizzes(responseFromListQuizzes.data, language);
+        if (translatedQuizzes.success === true) {
+          return translatedQuizzes;
+        }
+      }
       logObject("responseFromListQuizzes", responseFromListQuizzes);
       return responseFromListQuizzes;
     } catch (error) {

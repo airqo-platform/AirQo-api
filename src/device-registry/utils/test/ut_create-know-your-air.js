@@ -42,6 +42,28 @@ describe("createKnowYourAir Utility Functions", () => {
       listStub.restore();
     });
 
+    it("should return a list of translated lessons successfully", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0, language: "fr" },
+      };
+
+      // Stub KnowYourAirLessonModel.list
+      const listStub = sinon
+        .stub(KnowYourAirLessonModel("your-tenant"), "list")
+        .resolves({ success: true, data: [], status: httpStatus.OK });
+
+      const result = await createKnowYourAir.listLesson(request);
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+      expect(result.status).to.equal(httpStatus.OK);
+
+      // Restore the stub
+      listStub.restore();
+    });
+
     it("should handle filter failure", async () => {
       const request = {
         query: { tenant: "your-tenant" },
@@ -1623,6 +1645,27 @@ describe("createKnowYourAir Utility Functions", () => {
         query: { tenant: "your-tenant" },
         params: { user_id: "user-id" },
         query: { limit: 10, skip: 0 },
+      };
+
+      // Stub KnowYourAirQuizModel(tenant).list to return quiz data
+      const quizListStub = sinon
+        .stub(KnowYourAirQuizModel("your-tenant"), "list")
+        .resolves({ success: true /* other response properties */ });
+
+      const result = await createKnowYourAir.listQuiz(request);
+
+      expect(result.success).to.be.true;
+      // Your other assertions here
+
+      // Restore the stub
+      KnowYourAirQuizModel("your-tenant").list.restore();
+    });
+
+    it("should list translated quizzes", async () => {
+      const request = {
+        query: { tenant: "your-tenant" },
+        params: { user_id: "user-id" },
+        query: { limit: 10, skip: 0, language: "fr" },
       };
 
       // Stub KnowYourAirQuizModel(tenant).list to return quiz data

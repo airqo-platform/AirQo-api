@@ -78,10 +78,6 @@ def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-
-    """
-    Get forecasts for the next 1 week from specified start day.
-    """
     params = {
         name: request.args.get(name, default=None, type=str)
         for name in [
@@ -129,6 +125,7 @@ def get_next_1_week_forecasts():
     params = {
         name: request.args.get(name, default=None, type=str)
         for name in [
+            "device_id",
             "site_id",
             "site_name",
             "parish",

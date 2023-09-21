@@ -79,6 +79,16 @@ router.get(
         }),
     ],
   ]),
+  oneOf([
+    [
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim()
+    ],
+  ]),
   knowYourAirController.listLessons
 );
 
@@ -95,6 +105,16 @@ router.get(
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim()
     ],
   ]),
 
@@ -1183,6 +1203,16 @@ router.get(
         }),
     ],
   ]),
+  oneOf([
+    [
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim()
+    ],
+  ]),
   knowYourAirController.listQuizzes
 );
 
@@ -1199,6 +1229,16 @@ router.get(
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("language")
+        .optional()
+        .notEmpty()
+        .withMessage("the language cannot be empty when provided")
+        .bail()
+        .trim()
     ],
   ]),
 
