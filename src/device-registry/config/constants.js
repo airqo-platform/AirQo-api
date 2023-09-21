@@ -141,8 +141,8 @@ const defaultConfig = {
     aspect: "aspect",
     landform_270: "landform-270",
     landform_90: "landform-90",
-    bearing_to_kampala_center: "bearing",
-    distance_to_kampala_center: "distance/kampala",
+    bearing_to_capital_city: "bearing",
+    distance_to_capital_city: "distance/capital",
     distance_to_nearest_road: "distance/road",
     distance_to_nearest_residential_road: "distance/residential/road",
     distance_to_nearest_tertiary_road: "distance/tertiary/road",
@@ -682,11 +682,11 @@ const defaultConfig = {
       projection[as]["distance_to_nearest_tertiary_road"] = 0;
       projection[as]["distance_to_nearest_unclassified_road"] = 0;
       projection[as]["distance_to_nearest_residential_road"] = 0;
-      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["bearing_to_capital_city"] = 0;
       projection[as]["street"] = 0;
       projection[as]["village"] = 0;
       projection[as]["distance_to_nearest_secondary_road"] = 0;
-      projection[as]["distance_to_kampala_center"] = 0;
+      projection[as]["distance_to_capital_city"] = 0;
       return projection;
     } else if (entity === "brief_site") {
       let projection = {};
@@ -709,7 +709,7 @@ const defaultConfig = {
       projection[as]["distance_to_nearest_tertiary_road"] = 0;
       projection[as]["distance_to_nearest_unclassified_road"] = 0;
       projection[as]["distance_to_nearest_residential_road"] = 0;
-      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["bearing_to_capital_city"] = 0;
       projection[as]["longitude"] = 0;
       projection[as]["latitude"] = 0;
       projection[as]["land_use"] = 0;
@@ -724,7 +724,7 @@ const defaultConfig = {
       projection[as]["network"] = 0;
       projection[as]["approximate_distance_in_km"] = 0;
       projection[as]["distance_to_nearest_secondary_road"] = 0;
-      projection[as]["distance_to_kampala_center"] = 0;
+      projection[as]["distance_to_capital_city"] = 0;
       return projection;
     } else {
       return {};
@@ -772,8 +772,8 @@ const defaultConfig = {
     distance_to_nearest_tertiary_road: 1,
     distance_to_nearest_unclassified_road: 1,
     distance_to_nearest_residential_road: 1,
-    bearing_to_kampala_center: 1,
-    distance_to_kampala_center: 1,
+    bearing_to_capital_city: 1,
+    distance_to_capital_city: 1,
     createdAt: 1,
     nearest_tahmo_station: 1,
     devices: "$devices",
@@ -848,7 +848,7 @@ const defaultConfig = {
         approximate_distance_in_km: 0,
         lat_long: 0,
         altitude: 0,
-        distance_to_kampala_center: 0,
+        distance_to_capital_city: 0,
         distance_to_nearest_primary_road: 0,
         distance_to_nearest_residential_road: 0,
         distance_to_nearest_road: 0,
@@ -856,7 +856,7 @@ const defaultConfig = {
         distance_to_nearest_tertiary_road: 0,
         distance_to_nearest_unclassified_road: 0,
         aspect: 0,
-        bearing_to_kampala_center: 0,
+        bearing_to_capital_city: 0,
         landform_270: 0,
         landform_90: 0,
         location_name: 0,
@@ -965,8 +965,8 @@ const defaultConfig = {
       "site.distance_to_nearest_tertiary_road": 0,
       "site.distance_to_nearest_unclassified_road": 0,
       "site.distance_to_nearest_residential_road": 0,
-      "site.bearing_to_kampala_center": 0,
-      "site.distance_to_kampala_center": 0,
+      "site.bearing_to_capital_city": 0,
+      "site.distance_to_capital_city": 0,
       "site.generated_name": 0,
       "site.updatedAt": 0,
       "site.updatedAt": 0,
@@ -1012,8 +1012,8 @@ const defaultConfig = {
       "previous_sites.distance_to_nearest_tertiary_road": 0,
       "previous_sites.distance_to_nearest_unclassified_road": 0,
       "previous_sites.distance_to_nearest_residential_road": 0,
-      "previous_sites.bearing_to_kampala_center": 0,
-      "previous_sites.distance_to_kampala_center": 0,
+      "previous_sites.bearing_to_capital_city": 0,
+      "previous_sites.distance_to_capital_city": 0,
       "previous_sites.generated_name": 0,
       "previous_sites.updatedAt": 0,
       "previous_sites.updatedAt": 0,
@@ -1122,8 +1122,8 @@ const defaultConfig = {
       "sites.distance_to_nearest_tertiary_road": 0,
       "sites.distance_to_nearest_unclassified_road": 0,
       "sites.distance_to_nearest_residential_road": 0,
-      "sites.bearing_to_kampala_center": 0,
-      "sites.distance_to_kampala_center": 0,
+      "sites.bearing_to_capital_city": 0,
+      "sites.distance_to_capital_city": 0,
       "sites.updatedAt": 0,
       "sites.nearest_tahmo_station": 0,
       "sites.formatted_name": 0,
@@ -1232,8 +1232,8 @@ const defaultConfig = {
       "devices.site.distance_to_nearest_tertiary_road": 0,
       "devices.site.distance_to_nearest_unclassified_road": 0,
       "devices.site.distance_to_nearest_residential_road": 0,
-      "devices.site.bearing_to_kampala_center": 0,
-      "devices.site.distance_to_kampala_center": 0,
+      "devices.site.bearing_to_capital_city": 0,
+      "devices.site.distance_to_capital_city": 0,
       "devices.site.generated_name": 0,
       "devices.site.updatedAt": 0,
       "devices.site.updatedAt": 0,
@@ -1303,8 +1303,8 @@ const defaultConfig = {
       "sites.distance_to_nearest_tertiary_road": 0,
       "sites.distance_to_nearest_unclassified_road": 0,
       "sites.distance_to_nearest_residential_road": 0,
-      "sites.bearing_to_kampala_center": 0,
-      "sites.distance_to_kampala_center": 0,
+      "sites.bearing_to_capital_city": 0,
+      "sites.distance_to_capital_city": 0,
       "sites.updatedAt": 0,
       "sites.nearest_tahmo_station": 0,
       "sites.formatted_name": 0,
@@ -1543,8 +1543,8 @@ const defaultConfig = {
     "distance_to_nearest_tertiary_road",
     "distance_to_nearest_unclassified_road",
     "distance_to_nearest_residential_road",
-    "bearing_to_kampala_center",
-    "distance_to_kampala_center",
+    "bearing_to_capital_city",
+    "distance_to_capital_city",
     "updatedAt",
     "nearest_tahmo_station",
     "formatted_name",
