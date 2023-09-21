@@ -138,6 +138,14 @@ const siteSchema = new Schema(
       type: Number,
       trim: true,
     },
+    distance_to_kampala_center: {
+      type: Number,
+      trim: true,
+    },
+    bearing_to_kampala_center: {
+      type: Number,
+      trim: true,
+    },
     distance_to_capital_city: {
       type: Number,
       trim: true,
@@ -424,6 +432,8 @@ siteSchema.methods = {
       distance_to_nearest_tertiary_road: this.distance_to_nearest_tertiary_road,
       distance_to_nearest_unclassified_road: this
         .distance_to_nearest_unclassified_road,
+      bearing_to_kampala_center: this.bearing_to_kampala_center,
+      distance_to_kampala_center: this.distance_to_kampala_center,
       bearing_to_capital_city: this.bearing_to_capital_city,
       distance_to_capital_city: this.distance_to_capital_city,
       distance_to_nearest_residential_road: this
