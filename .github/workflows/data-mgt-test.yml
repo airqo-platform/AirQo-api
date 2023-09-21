@@ -79,6 +79,6 @@ jobs:
         continue-on-error: true
 
       - name: Upload coverage reports to Codecov
-        run: npm run codecov
+        uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }} 
