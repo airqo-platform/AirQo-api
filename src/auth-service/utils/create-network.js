@@ -1044,13 +1044,7 @@ const createNetwork = {
         .aggregate([
           {
             $match: {
-              network_roles: {
-                $not: {
-                  $elemMatch: {
-                    network: net_id,
-                  },
-                },
-              },
+              "network_roles.network": { $ne: net_id },
             },
           },
           {
