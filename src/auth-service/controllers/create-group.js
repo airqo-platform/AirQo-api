@@ -1,7 +1,7 @@
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const controlAccessUtil = require("@utils/control-access");
+const createGroupUtil = require("@utils/create-group");
 const { logText, logElement, logObject, logError } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -31,7 +31,7 @@ const createGroup = {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListGroup = await controlAccessUtil.listGroup(request);
+      const responseFromListGroup = await createGroupUtil.list(request);
 
       if (responseFromListGroup.success === true) {
         const status = responseFromListGroup.status
@@ -91,9 +91,7 @@ const createGroup = {
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
-      const responseFromCreateGroup = await controlAccessUtil.createGroup(
-        request
-      );
+      const responseFromCreateGroup = await createGroupUtil.create(request);
 
       if (responseFromCreateGroup.success === true) {
         const status = responseFromCreateGroup.status
@@ -151,9 +149,7 @@ const createGroup = {
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
-      const responseFromUpdateGroup = await controlAccessUtil.updateGroup(
-        request
-      );
+      const responseFromUpdateGroup = await createGroupUtil.update(request);
       if (responseFromUpdateGroup.success === true) {
         const status = responseFromUpdateGroup.status
           ? responseFromUpdateGroup.status
@@ -209,9 +205,7 @@ const createGroup = {
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
-      const responseFromDeleteGroup = await controlAccessUtil.deleteGroup(
-        request
-      );
+      const responseFromDeleteGroup = await createGroupUtil.delete(request);
       if (responseFromDeleteGroup.success === true) {
         const status = responseFromDeleteGroup.status
           ? responseFromDeleteGroup.status
@@ -249,7 +243,237 @@ const createGroup = {
     }
   },
 
-  listUsersWithGroup: async (req, res) => {
+  assignUsers: async (req, res) => {
+    try {
+      logText("assign many users....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromAssignUsers = await createGroupUtil.assignUsers(
+        request
+      );
+
+      if (responseFromAssignUsers.success === true) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          message: responseFromAssignUsers.message,
+          updated_group: responseFromAssignUsers.data,
+          success: true,
+        });
+      } else if (responseFromAssignUsers.success === false) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromAssignUsers.message,
+          errors: responseFromAssignUsers.errors
+            ? responseFromAssignUsers.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  assignOneUser: async (req, res) => {
+    try {
+      logText("assign one user....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUpdateGroup = await createGroupUtil.assignOneUser(
+        request
+      );
+
+      if (responseFromUpdateGroup.success === true) {
+        const status = responseFromUpdateGroup.status
+          ? responseFromUpdateGroup.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateGroup.message,
+          updated_records: responseFromUpdateGroup.data,
+        });
+      } else if (responseFromUpdateGroup.success === false) {
+        const status = responseFromUpdateGroup.status
+          ? responseFromUpdateGroup.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateGroup.message,
+          errors: responseFromUpdateGroup.errors
+            ? responseFromUpdateGroup.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  unAssignUser: async (req, res) => {
+    try {
+      logText("unAssign user....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUnassignUser = await createGroupUtil.unAssignUser(
+        request
+      );
+
+      logObject("responseFromUnassignUser", responseFromUnassignUser);
+
+      if (responseFromUnassignUser.success === true) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          message: "user successully unassigned",
+          updated_records: responseFromUnassignUser.data,
+          success: true,
+        });
+      } else if (responseFromUnassignUser.success === false) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUnassignUser.message,
+          errors: responseFromUnassignUser.errors
+            ? responseFromUnassignUser.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  unAssignManyUsers: async (req, res) => {
+    try {
+      logText("unAssign user....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUnassignManyUsers =
+        await createGroupUtil.unAssignManyUsers(request);
+
+      logObject("responseFromUnassignManyUsers", responseFromUnassignManyUsers);
+
+      if (responseFromUnassignManyUsers.success === true) {
+        const status = responseFromUnassignManyUsers.status
+          ? responseFromUnassignManyUsers.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          message: "users successully unassigned",
+          updated_records: responseFromUnassignManyUsers.data,
+          success: true,
+        });
+      } else if (responseFromUnassignManyUsers.success === false) {
+        const status = responseFromUnassignManyUsers.status
+          ? responseFromUnassignManyUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUnassignManyUsers.message,
+          errors: responseFromUnassignManyUsers.errors
+            ? responseFromUnassignManyUsers.errors
+            : { message: "Internal Server Errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listAssignedUsers: async (req, res) => {
     try {
       const { query } = req;
       let { tenant } = query;
@@ -270,7 +494,7 @@ const createGroup = {
       }
 
       const responseFromListUserWithGroup =
-        await controlAccessUtil.listUsersWithGroup(request);
+        await createGroupUtil.listUsersWithGroup(request);
 
       if (responseFromListUserWithGroup.success === true) {
         const status = responseFromListUserWithGroup.status
@@ -309,7 +533,7 @@ const createGroup = {
     }
   },
 
-  listAvailableUsersForGroup: async (req, res) => {
+  listAvailableUsers: async (req, res) => {
     try {
       const { query } = req;
       let { tenant } = query;
@@ -328,7 +552,7 @@ const createGroup = {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
       const responseFromListAvailableUsersForGroup =
-        await controlAccessUtil.listAvailableUsersForGroup(request);
+        await createGroupUtil.listAvailableUsersForGroup(request);
 
       if (responseFromListAvailableUsersForGroup.success === true) {
         const status = responseFromListAvailableUsersForGroup.status
@@ -367,12 +591,11 @@ const createGroup = {
     }
   },
 
-  assignUserToGroup: async (req, res) => {
+  listSummary: async (req, res) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
+      logText("listing summary of group....");
+
       const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(
@@ -381,159 +604,44 @@ const createGroup = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = req;
+
+      let { tenant } = req.query;
+      logElement("tenant", tenant);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      request.query.category = "summary";
 
-      const responseFromAssignUserToGroup =
-        await controlAccessUtil.assignUserToGroup(request);
+      const responseFromListGroups = await createGroupUtil.list(request);
 
-      if (responseFromAssignUserToGroup.success === true) {
-        const status = responseFromAssignUserToGroup.status
-          ? responseFromAssignUserToGroup.status
+      logObject("responseFromListGroups in controller", responseFromListGroups);
+
+      if (responseFromListGroups.success === true) {
+        const status = responseFromListGroups.status
+          ? responseFromListGroups.status
           : httpStatus.OK;
+
         return res.status(status).json({
           success: true,
-          message: responseFromAssignUserToGroup.message
-            ? responseFromAssignUserToGroup.message
-            : "",
-          assigned_user_to_group: responseFromAssignUserToGroup.data
-            ? responseFromAssignUserToGroup.data
-            : [],
+          message: responseFromListGroups.message,
+          groups: responseFromListGroups.data,
         });
-      } else if (responseFromAssignUserToGroup.success === false) {
-        const status = responseFromAssignUserToGroup.status
-          ? responseFromAssignUserToGroup.status
+      } else if (responseFromListGroups.success === false) {
+        const status = responseFromListGroups.status
+          ? responseFromListGroups.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+
         return res.status(status).json({
-          success: false,
-          message: responseFromAssignUserToGroup.message
-            ? responseFromAssignUserToGroup.message
-            : "",
-          errors: responseFromAssignUserToGroup.errors
-            ? responseFromAssignUserToGroup.errors
+          message: responseFromListGroups.message,
+          errors: responseFromListGroups.errors
+            ? responseFromListGroups.errors
             : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
-  unAssignUserFromGroup: async (req, res) => {
-    try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromUnAssignUserFromGroup =
-        await controlAccessUtil.unAssignUserFromGroup(request);
-
-      if (responseFromUnAssignUserFromGroup.success === true) {
-        const status = responseFromUnAssignUserFromGroup.status
-          ? responseFromUnAssignUserFromGroup.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromUnAssignUserFromGroup.message
-            ? responseFromUnAssignUserFromGroup.message
-            : "",
-          unassigned_user_from_group: responseFromUnAssignUserFromGroup.data
-            ? responseFromUnAssignUserFromGroup.data
-            : [],
-        });
-      } else if (responseFromUnAssignUserFromGroup.success === false) {
-        const status = responseFromUnAssignUserFromGroup.status
-          ? responseFromUnAssignUserFromGroup.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromUnAssignUserFromGroup.message
-            ? responseFromUnAssignUserFromGroup.message
-            : "",
-          errors: responseFromUnAssignUserFromGroup.errors
-            ? responseFromUnAssignUserFromGroup.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
-  batchAssignUsersToGroup: async (req, res) => {
-    try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromBatchAssignUsersToGroup =
-        await controlAccessUtil.batchAssignUsersToGroup(request);
-
-      if (responseFromBatchAssignUsersToGroup.success === true) {
-        const status = responseFromBatchAssignUsersToGroup.status
-          ? responseFromBatchAssignUsersToGroup.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromBatchAssignUsersToGroup.message
-            ? responseFromBatchAssignUsersToGroup.message
-            : "",
-          unassigned_user_from_group: responseFromBatchAssignUsersToGroup.data
-            ? responseFromBatchAssignUsersToGroup.data
-            : [],
-        });
-      } else if (responseFromBatchAssignUsersToGroup.success === false) {
-        const status = responseFromBatchAssignUsersToGroup.status
-          ? responseFromBatchAssignUsersToGroup.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromBatchAssignUsersToGroup.message
-            ? responseFromBatchAssignUsersToGroup.message
-            : "",
-          errors: responseFromBatchAssignUsersToGroup.errors
-            ? responseFromBatchAssignUsersToGroup.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logElement("internal server error", error.message);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

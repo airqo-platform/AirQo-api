@@ -2,11 +2,12 @@ const express = require("express");
 const router = express.Router();
 const createGroupController = require("@controllers/create-group");
 const { check, oneOf, query, body, param } = require("express-validator");
+
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const checkScope = require("@middleware/check-scope");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -29,7 +30,6 @@ router.use(validatePagination);
 
 router.delete(
   "/:grp_id",
-  checkScope("delete:resource"), //check your resource rights for deleting a group
   oneOf([
     [
       query("tenant")
@@ -46,13 +46,11 @@ router.delete(
   oneOf([
     param("grp_id")
       .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the id"
-      )
+      .withMessage("the group ID parameter should be provided")
       .bail()
       .trim()
       .isMongoId()
-      .withMessage("grp_id must be an object ID")
+      .withMessage("the group ID parameter must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
@@ -62,7 +60,6 @@ router.delete(
   authJWT,
   createGroupController.delete
 );
-
 router.put(
   "/:grp_id",
   oneOf([
@@ -81,11 +78,11 @@ router.put(
   oneOf([
     param("grp_id")
       .exists()
-      .withMessage("the grp_id is missing in request")
+      .withMessage("the group ID parameter is missing in request")
       .bail()
       .trim()
       .isMongoId()
-      .withMessage("grp_id must be an object ID")
+      .withMessage("the group ID parameter must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
@@ -93,114 +90,27 @@ router.put(
   ]),
   oneOf([
     [
-      body("grp_title")
+      body("grp_description")
         .optional()
         .notEmpty()
-        .withMessage("the grp_title should not be empty if provided")
+        .withMessage("the grp_description should not be empty if provided")
         .trim(),
       body("grp_status")
         .optional()
         .notEmpty()
         .withMessage("the grp_status should not be empty if provided")
         .bail()
-        .trim()
-        .toUpperCase()
-        .isIn(["INACTIVE", "ACTIVE"])
-        .withMessage(
-          "the grp_status value is not among the expected ones: INACTIVE or ACTIVE"
-        ),
-      body("grp_tasks")
-        .optional()
-        .notEmpty()
-        .withMessage("the grp_tasks should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("the grp_tasks should be a number")
+        .isBoolean()
+        .withMessage("the grp_status should be a boolean")
         .trim(),
-      body("grp_network")
-        .optional()
-        .notEmpty()
-        .withMessage("the grp_network should not be empty if provided")
-        .bail()
-        .isMongoId()
-        .withMessage("the group_network must be an Object ID")
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        })
-        .trim(),
-      body("grp_description")
-        .optional()
-        .notEmpty()
-        .withMessage("the grp_description should not be empty")
-        .trim(),
-      body("grp_users")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the grp_users should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the grp_users should not be empty"),
-      body("grp_users.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each group user should be an object ID"),
     ],
   ]),
   setJWTAuth,
   authJWT,
   createGroupController.update
 );
-
-router.put(
-  "/:grp_id/assign-user/:user_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("grp_id")
-        .exists()
-        .withMessage("the grp_id param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the grp_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      param("user_id")
-        .exists()
-        .withMessage("the user_id param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createGroupController.update
-);
-
 router.get(
-  "/:grp_id/assigned-users",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -215,46 +125,29 @@ router.get(
     ],
   ]),
   oneOf([
-    param("grp_id")
+    query("grp_id")
       .optional()
       .isMongoId()
-      .withMessage("grp_id must be an object ID")
+      .withMessage("grp_id must be an object ID IF provided")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-  ]),
-  createGroupController.listUsersWithGroup
-);
-
-router.get(
-  "/:grp_id/available-users",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("grp_id")
+    query("grp_title")
       .optional()
-      .isMongoId()
-      .withMessage("grp_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .trim()
+      .notEmpty()
+      .withMessage("grp_title should not be empty IF provided")
+      .bail(),
+    query("grp_status")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("grp_status should not be empty IF provided")
+      .bail(),
   ]),
-  createGroupController.listAvailableUsersForGroup
+  createGroupController.list
 );
-
 router.post(
   "/",
   oneOf([
@@ -274,43 +167,10 @@ router.post(
     [
       body("grp_title")
         .exists()
-        .withMessage("the grp_title must be provided")
+        .withMessage("the grp_title is required")
         .bail()
         .notEmpty()
         .withMessage("the grp_title should not be empty")
-        .trim(),
-      body("grp_network_id")
-        .exists()
-        .withMessage("the grp_network_id must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the grp_network_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("the group_network_id must be an Object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        })
-        .trim(),
-      body("grp_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the grp_status should not be empty if provided")
-        .bail()
-        .trim()
-        .toUpperCase()
-        .isIn(["INACTIVE", "ACTIVE"])
-        .withMessage(
-          "the grp_status value is not among the expected ones: INACTIVE or ACTIVE"
-        ),
-      body("grp_tasks")
-        .optional()
-        .notEmpty()
-        .withMessage("the grp_tasks should not be empty if provided")
-        .bail()
-        .isNumeric()
-        .withMessage("the grp_tasks should be a number")
         .trim(),
       body("grp_description")
         .exists()
@@ -319,28 +179,14 @@ router.post(
         .notEmpty()
         .withMessage("the grp_description should not be empty")
         .trim(),
-      body("grp_users")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the grp_users should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the grp_users should not be empty"),
-      body("grp_users.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each group user should be an object ID"),
     ],
   ]),
   setJWTAuth,
   authJWT,
   createGroupController.create
 );
-
-router.post(
-  "/:grp_id/assign-user",
+router.put(
+  "/:grp_id/assign-user/:user_id",
   oneOf([
     [
       query("tenant")
@@ -358,11 +204,133 @@ router.post(
     [
       param("grp_id")
         .exists()
-        .withMessage("the grp_id param is missing in the request")
+        .withMessage("the group ID parameter is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the grp_id must be an object ID")
+        .withMessage("the group ID parameter must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("user_id")
+        .exists()
+        .withMessage("the user ID parameter is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID parameter must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.assignOneUser
+);
+router.get(
+  "/summary",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createGroupController.listSummary
+);
+router.get(
+  "/:grp_id/assigned-users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grp_id")
+      .exists()
+      .withMessage("the group ID parameter is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the group ID parameter must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGroupController.listAssignedUsers
+);
+router.get(
+  "/:grp_id/available-users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grp_id")
+      .exists()
+      .withMessage("the group ID parameter is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the group ID parameter must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGroupController.listAvailableUsers
+);
+router.post(
+  "/:grp_id/assign-users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the group ID parameter is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the group ID parameter must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -385,9 +353,8 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  createGroupController.update
+  createGroupController.assignUsers
 );
-
 router.delete(
   "/:grp_id/unassign-user/:user_id",
   oneOf([
@@ -407,22 +374,22 @@ router.delete(
     [
       param("grp_id")
         .exists()
-        .withMessage("the grp_id is missing in request")
+        .withMessage("the network ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the grp_id must be an object ID")
+        .withMessage("the network ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user_id is missing in the request")
+        .withMessage("the user ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the user_id must be an object ID")
+        .withMessage("user ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -431,11 +398,10 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  createGroupController.update
+  createGroupController.unAssignUser
 );
-
-router.get(
-  "/",
+router.delete(
+  "/:grp_id/unassign-many-users",
   oneOf([
     [
       query("tenant")
@@ -449,9 +415,39 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  createGroupController.list
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the network ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the network ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("user_ids")
+        .exists()
+        .withMessage("the user_ids should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the user_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the user_ids should not be empty"),
+      body("user_ids.*")
+        .isMongoId()
+        .withMessage("user_id provided must be an object ID"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.unAssignManyUsers
 );
-
 router.get(
   "/:grp_id",
   oneOf([

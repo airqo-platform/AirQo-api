@@ -181,7 +181,10 @@ const filter = {
 
   requests: (req) => {
     try {
-      let { id, user_id, requestType, targetId, status, category } = req.query;
+      const { id, user_id, requestType, targetId, status, category } =
+        req.query;
+
+      const { request_id, grp_id, net_id } = req.params;
       let filter = {};
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
@@ -190,8 +193,17 @@ const filter = {
         filter["requestType"] = requestType;
       }
       if (targetId) {
-        filter["targetId"] = targetId;
+        filter["targetId"] = ObjectId(targetId);
       }
+
+      if (grp_id) {
+        filter["targetId"] = ObjectId(grp_id);
+      }
+
+      if (net_id) {
+        filter["targetId"] = ObjectId(net_id);
+      }
+
       if (status) {
         filter["status"] = status;
       }
@@ -200,6 +212,10 @@ const filter = {
       }
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (request_id) {
+        filter["_id"] = ObjectId(request_id);
       }
       return {
         success: true,
@@ -515,14 +531,7 @@ const filter = {
 
   groups: (req) => {
     try {
-      const {
-        grp_title,
-        grp_status,
-        grp_network_id,
-        grp_users,
-        grp_description,
-        grp_tasks,
-      } = req.query;
+      const { grp_title, grp_status } = req.query;
 
       const { grp_id } = req.params;
 
@@ -533,26 +542,6 @@ const filter = {
       if (grp_status) {
         filter["grp_status"] = grp_status;
       }
-      if (grp_network_id) {
-        filter["grp_network_id"] = ObjectId(grp_network_id);
-      }
-
-      if (grp_users) {
-        let groupUsersArray = grp_users.split(",");
-        let modifiedGroupUsersArray = groupUsersArray.map((grp_user) => {
-          return ObjectId(grp_user);
-        });
-        filter["grp_users"]["$in"] = modifiedGroupUsersArray;
-      }
-
-      if (grp_description) {
-        filter["grp_description"] = grp_description;
-      }
-
-      if (grp_tasks) {
-        filter["grp_tasks"] = grp_tasks;
-      }
-
       if (grp_title) {
         filter["grp_title"] = grp_title;
       }

@@ -688,7 +688,7 @@ const defaultConfig = {
 
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
-    user_id: 1,
+    user: { $arrayElemAt: ["$user", 0] },
     requestType: 1,
     targetId: 1,
     status: 1,
@@ -704,6 +704,48 @@ const defaultConfig = {
   ACCESS_REQUESTS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
       nothing: 0,
+      "user.notifications": 0,
+      "user.emailConfirmed": 0,
+      "user.locationCount": 0,
+      "user.password": 0,
+      "user.privilege": 0,
+      "user.organization": 0,
+      "user.duration": 0,
+      "user.__v": 0,
+      "user.phoneNumber": 0,
+      "user.profilePicture": 0,
+      "user.resetPasswordExpires": 0,
+      "user.resetPasswordToken": 0,
+      "user.updatedAt": 0,
+      "user.role": 0,
+      "user.interest": 0,
+      "user.org_name": 0,
+      "user.accountStatus": 0,
+      "user.hasAccess": 0,
+      "user.collaborators": 0,
+      "user.publisher": 0,
+      "user.bus_nature": 0,
+      "user.org_department": 0,
+      "user.uni_faculty": 0,
+      "user.uni_course_yr": 0,
+      "user.pref_locations": 0,
+      "user.job_title": 0,
+      "user.userName": 0,
+      "user.product": 0,
+      "user.website": 0,
+      "user.description": 0,
+      "user.networks": 0,
+      "user.jobTitle": 0,
+      "user.category": 0,
+      "user.long_organization": 0,
+      "user.groups": 0,
+      "user.permissions": 0,
+      "user.network_roles": 0,
+      "user.verified": 0,
+      "user.email": 0,
+      "user.country": 0,
+      "user.createdAt": 0,
+      "user.is_email_verified": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -790,6 +832,39 @@ const defaultConfig = {
       projection = Object.assign({}, {});
     }
 
+    return projection;
+  },
+
+  GROUPS_INCLUSION_PROJECTION: {
+    _id: 1,
+    grp_title: 1,
+    grp_status: 1,
+    grp_tasks: 1,
+    grp_description: 1,
+    createdAt: 1,
+    grp_users: "$grp_users",
+  },
+
+  GROUPS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "grp_users.__v": 0,
+      "grp_users.notifications": 0,
+      "grp_users.emailConfirmed": 0,
+      "grp_users.groups": 0,
+      "grp_users.locationCount": 0,
+      "grp_users.group": 0,
+      "grp_users.long_network": 0,
+      "grp_users.privilege": 0,
+      "grp_users.userName": 0,
+      "grp_users.password": 0,
+      "grp_users.duration": 0,
+      "grp_users.createdAt": 0,
+      "grp_users.updatedAt": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
     return projection;
   },
 

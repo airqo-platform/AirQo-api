@@ -114,35 +114,18 @@ const UserSchema = new Schema(
       _id: false,
     },
 
-    network_groups: {
+    groups: {
       type: [
         {
-          network: {
-            type: ObjectId,
-            ref: "network",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-          },
           group: {
             type: ObjectId,
             ref: "group",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
         },
       ],
       default: [],
       _id: false,
     },
-    // groups: [
-    //   {
-    //     type: ObjectId,
-    //     ref: "group",
-    //   },
-    // ],
-    // role: {
-    //   type: ObjectId,
-    //   ref: "role",
-    //   default: constants.DEFAULT_ROLE,
-    // },
     permissions: [
       {
         type: ObjectId,
@@ -200,16 +183,6 @@ UserSchema.pre("save", function (next) {
   if (!this.email && !this.phoneNumber) {
     return next(new Error("Phone number or email is required!"));
   }
-
-  // Check for duplicate values in the networks array
-  // const duplicateValues = this.networks.filter(
-  //   (value, index, self) => self.indexOf(value) !== index
-  // );
-
-  // if (duplicateValues.length > 0) {
-  //   const error = new Error("Duplicate values found in networks array.");
-  //   return next(error);
-  // }
 
   return next();
 });
@@ -361,7 +334,7 @@ UserSchema.statics = {
           preserveNullAndEmptyArrays: true,
         })
         .unwind({
-          path: "$network_groups",
+          path: "$groups",
           preserveNullAndEmptyArrays: true,
         })
         .lookup({
@@ -470,18 +443,14 @@ UserSchema.statics = {
       }
 
       if (modifiedUpdate.network_roles) {
-        modifiedUpdate["$addToSet"] = {
-          network_roles: { $each: modifiedUpdate.network_roles },
-        };
-        delete modifiedUpdate.network_roles;
-        // if (isEmpty(modifiedUpdate.network_roles.network)) {
-        //   delete modifiedUpdate.network_roles;
-        // } else {
-        //   modifiedUpdate["$addToSet"] = {
-        //     network_roles: { $each: modifiedUpdate.network_roles },
-        //   };
-        //   delete modifiedUpdate.network_roles;
-        // }
+        if (isEmpty(modifiedUpdate.network_roles.network)) {
+          delete modifiedUpdate.network_roles;
+        } else {
+          modifiedUpdate["$addToSet"] = {
+            network_roles: { $each: modifiedUpdate.network_roles },
+          };
+          delete modifiedUpdate.network_roles;
+        }
       }
 
       if (modifiedUpdate.permissions) {

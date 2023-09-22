@@ -7,7 +7,6 @@ module.exports = {
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
   recovery_email: (token, tenant, email) => {
-
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -25,9 +24,9 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
   },
-    joinRequest: (firstName, lastName, email) => {
-        const name = firstName + " " + lastName;
-        const content = ` <tr>
+  joinRequest: (firstName, lastName, email) => {
+    const name = firstName + " " + lastName;
+    const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to join AirQo Analytics has been received, we shall get back to you as soon as possible.
@@ -41,9 +40,28 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-      return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name);
   },
-    inquiry: (fullName, email, category) => {
+
+  joinEntityRequest: (firstName, lastName, email, entity_title) => {
+    const name = firstName + " " + lastName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Your request to access ${entity_title} has been received, we shall get back to you as soon as possible.
+                                    <br />
+                                    <br />
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
+                                    administration.
+                                    <br />
+                                    Once your application is approved, you will receive a confirmation email<br />
+                                    <br />Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  inquiry: (fullName, email, category) => {
     let content;
     switch (category) {
       case "policy":
@@ -119,9 +137,8 @@ module.exports = {
                             </tr>`;
         break;
     }
-      return constants.EMAIL_BODY(email, content, fullName);
+    return constants.EMAIL_BODY(email, content, fullName);
   },
-
 
   welcome_kcca: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
@@ -218,9 +235,27 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
+  user_assigned: (firstName, lastName, assignedTo, email) => {
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Hello ${firstName} ${lastName},
+                                    <br />
+                                    You have been assigned to a new Group or Network: ${assignedTo}.
+                                    <br />
+                                    Please login to access your new Group or Network.
+                                    <br />
+                                    If you have any questions or concerns, please feel free to contact your organization's administrator.
+                                    <br />
+                                    Click here to log in: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
 
+    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
+  },
   forgotten_password_updated: (firstName, lastName, email) => {
-
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -240,7 +275,6 @@ module.exports = {
     return constants.EMAIL_BODY(email, content, name);
   },
   known_password_updated: (firstName, lastName, email) => {
-
     const name = firstName + " " + lastName;
     const content = `<tr>
                                 <td
@@ -259,8 +293,8 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-    join_by_email: (email, token) => {
-        const content = `<tr>
+  join_by_email: (email, token) => {
+    const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 To get started with "Knowing Your Air" and Breathing Clean, we need to verify your email address.
@@ -274,7 +308,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-      return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content);
   },
   authenticate_email: (token, email) => {
     const content = ` <tr>

@@ -19,11 +19,12 @@ const inquire = {
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        const errorResponse = badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
         );
+        return errorResponse;
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
@@ -41,35 +42,27 @@ const inquire = {
       request["firstName"] = firstName;
       request["lastName"] = lastName;
 
-      await createInquiryUtil
-        .create(request, (value) => {
-          if (value.success === true) {
-            const status = value.status ? value.status : httpStatus.OK;
-            return res.status(status).json({
-              success: true,
-              message: value.message,
-              inquiry: value.data,
-            });
-          } else if (value.success === false) {
-            const status = value.status
-              ? value.status
-              : httpStatus.INTERNAL_SERVER_ERROR;
-            return res.status(status).json({
-              success: false,
-              message: value.message,
-              errors: value.errors
-                ? value.errors
-                : { message: "Internal Server Error" },
-            });
-          }
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: error.message },
-          });
+      const value = await createInquiryUtil.create(request);
+
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          inquiry: value.data,
         });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors: value.errors
+            ? value.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

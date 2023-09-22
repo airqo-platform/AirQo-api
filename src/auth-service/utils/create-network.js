@@ -1040,25 +1040,17 @@ const createNetwork = {
         };
       }
 
-      // Retrieve users who are not part of the network or don't have the specific network role
       const responseFromListAvailableUsers = await UserModel(tenant)
         .aggregate([
           {
             $match: {
-              $or: [
-                {
-                  networks: { $nin: [net_id] },
-                },
-                {
-                  network_roles: {
-                    $not: {
-                      $elemMatch: {
-                        network: network._id,
-                      },
-                    },
+              network_roles: {
+                $not: {
+                  $elemMatch: {
+                    network: net_id,
                   },
                 },
-              ],
+              },
             },
           },
           {
@@ -1123,18 +1115,7 @@ const createNetwork = {
         .aggregate([
           {
             $match: {
-              $or: [
-                {
-                  networks: { $in: [net_id] },
-                },
-                {
-                  network_roles: {
-                    $elemMatch: {
-                      network: network._id,
-                    },
-                  },
-                },
-              ],
+              "network_roles.network": net_id,
             },
           },
           {
