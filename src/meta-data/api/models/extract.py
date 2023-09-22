@@ -38,8 +38,7 @@ class Extract:
         location_geometry = ee.Geometry.Point(lon, lat)
         greenness_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, 90)
         mean_greenness = greenness_dict.get("NDVI")
-        greenness = mean_greenness.getInfo()
-        greenness = greenness*0.0001
+        greenness = mean_greenness.getInfo()*0.0001
         return greenness
 
     def get_landuse(self, lat, lon):
