@@ -307,7 +307,7 @@ UserSchema.statics = {
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
-
+      logObject("the filter being used", filter);
       const response = await this.aggregate()
         .match(filter)
         .lookup({

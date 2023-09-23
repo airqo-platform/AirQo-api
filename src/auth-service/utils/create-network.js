@@ -1049,6 +1049,11 @@ const createNetwork = {
         filter,
       });
 
+      logObject(
+        "responseFromListAvailableUsers.data",
+        responseFromListAvailableUsers.data
+      );
+
       if (responseFromListAvailableUsers.success === true) {
         responseFromListAvailableUsers.message = `retrieved all available users for network ${net_id}`;
       }
