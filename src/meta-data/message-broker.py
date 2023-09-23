@@ -61,10 +61,6 @@ class MessageBroker:
             landform_90 = model.get_landform90(site_latitude, site_longitude)
             print(f"Computing landform 270 for site {site_id} .....")
             landform_270 = model.get_landform270(site_latitude, site_longitude)
-            print(f"Computing bearing from kampala for site {site_id} .....")
-            bearing_from_kampala = model.get_bearing_from_kampala(
-                site_latitude, site_longitude
-            )
             print(f"Computing weather stations for site {site_id} .....")
             weather_stations = model.get_nearest_weather_stations(
                 site_latitude, site_longitude
@@ -76,7 +72,6 @@ class MessageBroker:
                     "aspect": aspect,
                     "landform_90": landform_90,
                     "landform_270": landform_270,
-                    "bearing_to_kampala_center": bearing_from_kampala,
                 }
             )
 
@@ -88,11 +83,8 @@ class MessageBroker:
                 }
             )
 
-            print(f"Computing distance from kampala for site {site_id} .....")
-            distance_from_kampala = model.get_distance_from_kampala(
-                site_latitude, site_longitude
-            )
-            print(f"Computing distance to closest road for site {site_id} .....")
+            print(
+                f"Computing distance to closest road for site {site_id} .....")
             distance_to_closest_road = model.get_distance_to_closest_road(
                 site_latitude, site_longitude
             )
@@ -128,7 +120,8 @@ class MessageBroker:
                     site_latitude, site_longitude
                 )
             )
-            print(f"Computing distance to closest trunk for site {site_id} .....")
+            print(
+                f"Computing distance to closest trunk for site {site_id} .....")
             distance_to_closest_trunk = model.get_distance_to_closest_trunk(
                 site_latitude, site_longitude
             )
@@ -140,7 +133,8 @@ class MessageBroker:
                     site_latitude, site_longitude
                 )
             )
-            print(f"Computing distance to closest motorway for site {site_id} .....")
+            print(
+                f"Computing distance to closest motorway for site {site_id} .....")
             distance_to_closest_motorway = model.get_distance_to_closest_motorway(
                 site_latitude, site_longitude
             )
@@ -152,7 +146,6 @@ class MessageBroker:
             print(f"Saving distances for site {site_id} .....")
             validated_data = remove_invalidate_meta_data_values(
                 {
-                    "distance_to_kampala_center": distance_from_kampala,
                     "distance_to_nearest_road": distance_to_closest_road,
                     "distance_to_nearest_secondary_road": distance_to_closest_secondary_road,
                     "distance_to_nearest_primary_road": distance_to_closest_primary_road,
