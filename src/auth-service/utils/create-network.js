@@ -1041,28 +1041,22 @@ const createNetwork = {
       }
 
       const responseFromListAvailableUsers = await UserModel(tenant)
-        .aggregate([
-          {
-            $match: {
-              "network_roles.network": { $ne: net_id },
+        .find({
+          "network_roles.network": { $ne: net_id },
+        })
+        .select({
+          _id: 1,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
             },
           },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-            },
-          },
-        ])
+          userName: 1,
+        })
         .exec();
 
       logObject(
@@ -1106,33 +1100,27 @@ const createNetwork = {
       }
 
       const responseFromListAssignedUsers = await UserModel(tenant)
-        .aggregate([
-          {
-            $match: {
-              "network_roles.network": net_id,
+        .find({
+          "network_roles.network": net_id,
+        })
+        .select({
+          _id: 1,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
             },
           },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-              jobTitle: 1,
-              website: 1,
-              category: 1,
-              country: 1,
-              description: 1,
-            },
-          },
-        ])
+          userName: 1,
+          jobTitle: 1,
+          website: 1,
+          category: 1,
+          country: 1,
+          description: 1,
+        })
         .exec();
 
       logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
