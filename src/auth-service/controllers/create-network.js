@@ -867,11 +867,6 @@ const createNetwork = {
       const responseFromListAvailableUsers =
         await createNetworkUtil.listAvailableUsers(request);
 
-      logObject(
-        "responseFromListAvailableUsers in controller",
-        responseFromListAvailableUsers
-      );
-
       if (responseFromListAvailableUsers.success === true) {
         const status = responseFromListAvailableUsers.status
           ? responseFromListAvailableUsers.status

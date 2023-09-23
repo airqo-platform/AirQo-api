@@ -413,8 +413,6 @@ UserSchema.statics = {
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
-
-      logObject("response in the model", response);
       if (!isEmpty(response)) {
         return {
           success: true,
