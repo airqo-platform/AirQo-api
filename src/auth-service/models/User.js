@@ -184,6 +184,15 @@ UserSchema.pre("save", function (next) {
     return next(new Error("Phone number or email is required!"));
   }
 
+  if (!this.network_roles || this.network_roles.length === 0) {
+    this.network_roles = [
+      {
+        network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+        role: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+      },
+    ];
+  }
+
   return next();
 });
 
