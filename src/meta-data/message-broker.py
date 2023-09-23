@@ -161,7 +161,7 @@ class MessageBroker:
                     "distance_to_nearest_trunk": distance_to_closest_trunk,
                     "distance_to_nearest_unclassified_road": distance_to_closest_unclassified_road,
                     "distance_to_nearest_motorway": distance_to_closest_motorway,
-                    "greennes_of_the_site":greenness_for_a_site,
+                    "greenness_of_the_site":greenness_for_a_site,
                 }
             )
             airqo_api.update_site_meta_data(
