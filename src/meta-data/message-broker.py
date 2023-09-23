@@ -144,7 +144,7 @@ class MessageBroker:
             distance_to_closest_motorway = model.get_distance_to_closest_motorway(
                 site_latitude, site_longitude
             )
-            print(f"Computing greeness for site{site_id} s....")
+            print(f"Computing greenness for site{site_id} s....")
             greenness_for_a_site = model.get_greenness(
                 site_latitude, site_longitude
             )
@@ -161,7 +161,7 @@ class MessageBroker:
                     "distance_to_nearest_trunk": distance_to_closest_trunk,
                     "distance_to_nearest_unclassified_road": distance_to_closest_unclassified_road,
                     "distance_to_nearest_motorway": distance_to_closest_motorway,
-                    "greenes_of_the_site":greenness_for_a_site,
+                    "greennes_of_the_site":greenness_for_a_site,
                 }
             )
             airqo_api.update_site_meta_data(
