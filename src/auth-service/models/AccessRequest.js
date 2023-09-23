@@ -82,12 +82,11 @@ AccessRequestSchema.statics = {
         constants.ACCESS_REQUESTS_EXCLUSION_PROJECTION(
           filter.category ? filter.category : "none"
         );
-      const search = filter;
-      if (search.category) {
-        delete search.category;
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
       }
       const data = await this.aggregate()
-        .match(search)
+        .match(filter)
         .lookup({
           from: "users",
           localField: "user_id",

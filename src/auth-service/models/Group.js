@@ -119,6 +119,10 @@ GroupSchema.statics = {
         filter.category ? filter.category : "none"
       );
 
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({

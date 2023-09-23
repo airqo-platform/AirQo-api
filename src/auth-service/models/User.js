@@ -297,12 +297,16 @@ UserSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
 
       const response = await this.aggregate()
         .match(filter)
@@ -404,7 +408,6 @@ UserSchema.statics = {
           },
         })
         .project(inclusionProjection)
-
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
         .skip(skip ? skip : 0)

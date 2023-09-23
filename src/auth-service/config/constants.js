@@ -683,6 +683,24 @@ const defaultConfig = {
       projection = Object.assign({}, {});
     }
 
+    if (category === "networks") {
+      projection = Object.assign(
+        {
+          verified: 0,
+          privilege: 0,
+          profilePicture: 0,
+          phoneNumber: 0,
+          updatedAt: 0,
+          lol: 0,
+          networks: 0,
+          clients: 0,
+          permissions: 0,
+          my_networks: 0,
+        },
+        {}
+      );
+    }
+
     return projection;
   },
 

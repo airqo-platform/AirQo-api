@@ -198,12 +198,11 @@ NetworkSchema.statics = {
       logObject("inclusionProjection", inclusionProjection);
       logObject("exclusionProjection", exclusionProjection);
 
-      let filterCopy = Object.assign({}, filter);
-      if (!isEmpty(filterCopy.category)) {
-        delete filterCopy.category;
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
       }
       const response = await this.aggregate()
-        .match(filterCopy)
+        .match(filter)
         .lookup({
           from: "users",
           let: { users: { $ifNull: ["$networks", []] } },
