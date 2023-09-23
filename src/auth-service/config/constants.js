@@ -692,7 +692,7 @@ const defaultConfig = {
           phoneNumber: 0,
           updatedAt: 0,
           lol: 0,
-          networks: 0,
+          "networks.role": 0,
           clients: 0,
           permissions: 0,
           my_networks: 0,
