@@ -59,9 +59,9 @@ describe("Group Router", () => {
 
       const response = await request
         .put(`/groups/${grpId}`)
-        .query({ tenant: "kcca" }) // Replace with valid query parameters
+        .query({ tenant: "kcca" })
         .send(updateData)
-        .set("Authorization", "Bearer YOUR_JWT_TOKEN"); // Replace with a valid JWT token
+        .set("Authorization", "");
 
       // Assertions
       expect(response.status).to.equal(200);
@@ -76,15 +76,15 @@ describe("Group Router", () => {
       const grpId = "invalid-id"; // An invalid group ID
 
       const updateData = {
-        grp_description: "", // Invalid description
-        grp_status: "invalid-boolean", // Invalid status
+        grp_description: "",
+        grp_status: "invalid-boolean",
       };
 
       const response = await request
         .put(`/groups/${grpId}`)
-        .query({ tenant: "invalid-tenant" }) // Invalid tenant
+        .query({ tenant: "invalid-tenant" })
         .send(updateData)
-        .set("Authorization", "Bearer YOUR_INVALID_JWT_TOKEN");
+        .set("Authorization", "");
 
       // Assertions for validation errors
       expect(response.status).to.equal(400); // You can adjust the expected status code
