@@ -144,7 +144,7 @@ class MessageBroker:
             distance_to_closest_motorway = model.get_distance_to_closest_motorway(
                 site_latitude, site_longitude
             )
-            print(f"Computing greenness for site{site_id} s....")
+            print(f"Computing greenness for site{site_id} ....")
             greenness_for_a_site = model.get_greenness(
                 site_latitude, site_longitude
             )
