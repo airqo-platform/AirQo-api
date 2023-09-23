@@ -8,7 +8,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-meta-data-api
     sitesConsumer: eu.gcr.io/airqo-250220/airqo-stage-meta-data-sites-consumer
-  tag: stage-57e991d2-1689862096
+  tag: stage-7722f241-1695510883
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
