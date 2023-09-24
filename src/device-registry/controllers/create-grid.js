@@ -687,10 +687,10 @@ const createGrid = {
       const { query } = req;
       let { tenant } = query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromListGrids = await createGridUtil.list(request);
       logElement(

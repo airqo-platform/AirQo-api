@@ -675,7 +675,19 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const responseFromListDeviceDetails = await createDeviceUtil.list(req);
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK || "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListDeviceDetails = await createDeviceUtil.list(
+        request
+      );
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
         responseFromListDeviceDetails.success

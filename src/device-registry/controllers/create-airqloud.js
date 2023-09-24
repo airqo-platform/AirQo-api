@@ -434,8 +434,6 @@ const createAirqloud = {
 
   list: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all airqlouds by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -456,8 +454,15 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
