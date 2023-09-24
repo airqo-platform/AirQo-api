@@ -215,21 +215,20 @@ airqloudSchema.statics.list = async function({
   skip = 0,
 } = {}) {
   try {
-    const { summary, dashboard } = filter;
-    let filterCategory = "";
-    if (!isEmpty(summary)) {
-      filterCategory = "summary";
-      delete filter.summary;
-    }
-    if (!isEmpty(dashboard)) {
-      filterCategory = "dashboard";
-      delete filter.dashboard;
-    }
-
     const inclusionProjection = constants.AIRQLOUDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.AIRQLOUDS_EXCLUSION_PROJECTION(
-      filterCategory ? filterCategory : "none"
+      filter.category ? filter.category : "none"
     );
+
+    if (!isEmpty(filter.category)) {
+      delete filter.category;
+    }
+    if (!isEmpty(filter.dashboard)) {
+      delete filter.dashboard;
+    }
+    if (!isEmpty(filter.summary)) {
+      delete filter.summary;
+    }
 
     const data = await this.aggregate()
       .match(filter)

@@ -107,6 +107,16 @@ adminLevelSchema.statics.list = async function({
       filter.category ? filter.category : "none"
     );
 
+    if (!isEmpty(filter.category)) {
+      delete filter.category;
+    }
+    if (!isEmpty(filter.dashboard)) {
+      delete filter.dashboard;
+    }
+    if (!isEmpty(filter.summary)) {
+      delete filter.summary;
+    }
+
     const pipeline = this.aggregate()
       .match(filter)
       .sort({ createdAt: -1 })
