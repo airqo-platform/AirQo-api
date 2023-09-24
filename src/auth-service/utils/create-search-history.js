@@ -166,15 +166,19 @@ const searchHistories = {
       }
 
       for (let search_history in missing_search_histories) {
-        const existingSearch = await SearchHistoryModel(tenant.toLowerCase()).findOne({
-          firebase_user_id: search_history.firebase_user_id,
-          place_id: search_history.place_id,
-        });
-        if (!existingSearch) {
-          responseFromCreateSearchHistories = await SearchHistoryModel(
-            tenant.toLowerCase()
-          ).register(missing_search_histories[search_history]);
-        }
+        const updateFilter = {
+          firebase_user_id: firebase_user_id,
+          place_id: missing_search_histories[search_history].place_id,
+        };
+        const update = {
+          ...missing_search_histories[search_history],
+        };
+        responseFromCreateSearchHistories = await SearchHistoryModel(tenant.toLowerCase())
+          .findOneAndUpdate(updateFilter, update, {
+            new: true,
+            upsert: true,
+          })
+          .exec();
       }
 
       let synchronizedSearchHistories = (
