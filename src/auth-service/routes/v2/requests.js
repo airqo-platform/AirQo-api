@@ -28,7 +28,7 @@ router.use(headers);
 router.use(validatePagination);
 
 router.post(
-  "/groups/:group_id",
+  "/groups/:grp_id",
   oneOf([
     [
       query("tenant")
@@ -44,22 +44,24 @@ router.post(
   ]),
   oneOf([
     [
-      param("group_id")
+      param("grp_id")
         .exists()
-        .withMessage("the group_ids should be provided")
+        .withMessage("the grp_ids should be provided")
         .bail()
         .notEmpty()
-        .withMessage("the group_id cannot be empty")
+        .withMessage("the grp_id cannot be empty")
         .bail()
         .isMongoId()
-        .withMessage("the group_id is not a valid Object")
+        .withMessage("the grp_id is not a valid Object")
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.requestAccessToGroup
 );
 router.post(
-  "/networks/:network_id",
+  "/networks/:net_id",
   oneOf([
     [
       query("tenant")
@@ -75,19 +77,40 @@ router.post(
   ]),
   oneOf([
     [
-      param("network_id")
+      param("net_id")
         .exists()
-        .withMessage("the network_id should be provided")
+        .withMessage("the net_id should be provided")
         .bail()
         .notEmpty()
-        .withMessage("the network_id cannot be empty")
+        .withMessage("the net_id cannot be empty")
         .bail()
         .isMongoId()
-        .withMessage("the network_id is not a valid Object")
+        .withMessage("the net_id is not a valid Object")
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.requestAccessToNetwork
+);
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.list
 );
 router.get(
   "/pending",
@@ -104,6 +127,8 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listPendingAccessRequests
 );
 router.post(
@@ -199,7 +224,7 @@ router.post(
   createRequestController.rejectAccessRequest
 );
 router.get(
-  "/groups/:group_id",
+  "/groups",
   oneOf([
     [
       query("tenant")
@@ -213,24 +238,12 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  oneOf([
-    [
-      param("group_id")
-        .exists()
-        .withMessage("the group_id should be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("group_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("the group_id should be an object ID")
-        .trim(),
-    ],
-  ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listAccessRequestsForGroup
 );
 router.get(
-  "/networks/:network_id",
+  "/networks",
   oneOf([
     [
       query("tenant")
@@ -244,20 +257,8 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  oneOf([
-    [
-      param("network_id")
-        .exists()
-        .withMessage("the network_id should be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("network_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("the network_id should be an object ID")
-        .trim(),
-    ],
-  ]),
+  setJWTAuth,
+  authJWT,
   createRequestController.listAccessRequestsForNetwork
 );
 router.delete(
@@ -341,5 +342,104 @@ router.put(
   authJWT,
   createRequestController.update
 );
-
+router.get(
+  "/groups/:grp_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the grp_id should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("grp_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the grp_id should be an object ID")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.listAccessRequestsForGroup
+);
+router.get(
+  "/networks/:net_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("net_id")
+        .exists()
+        .withMessage("the net_id should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("net_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the net_id should be an object ID")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.listAccessRequestsForNetwork
+);
+router.get(
+  "/request_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("request_id")
+      .exists()
+      .withMessage(
+        "the request identifier is missing in request, consider using the request_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("request_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.list
+);
 module.exports = router;

@@ -18,7 +18,7 @@ const logger = log4js.getLogger(
 );
 
 const createCandidate = {
-  create: async (req, callback) => {
+  create: async (req) => {
     try {
       const { firstName, lastName, email, tenant, network_id } = req;
 
@@ -30,42 +30,40 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          callback({
+          return {
             success: false,
             message: "the provided network does not exist",
             status: httpStatus.BAD_REQUEST,
             errors: { message: `Network ${network_id} not found` },
-          });
+          };
         }
       }
 
       const userExists = await UserModel(tenant).exists({ email });
-      const candidateExists = await CandidateModel(tenant).exists({
-        email,
-      });
+      const candidateExists = await CandidateModel(tenant).exists({ email });
 
       if (candidateExists) {
         logger.error(
           `candidate ${email} already exists in the System, they just need to be approved`
         );
-        callback({
+        return {
           success: true,
           message: "candidate already exists",
           status: httpStatus.OK,
-        });
+        };
       } else if (userExists) {
         logger.error(
           `candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
         );
-        callback({
+        return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "Candidate already exists as a User,you can use the FORGOT PASSWORD feature",
+              "Candidate already exists as a User, you can use the FORGOT PASSWORD feature",
           },
-        });
+        };
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
@@ -83,29 +81,29 @@ const createCandidate = {
             const status = responseFromSendEmail.status
               ? responseFromSendEmail.status
               : httpStatus.OK;
-            callback({
+            return {
               success: true,
               message: "candidate successfully created",
               data: createdCandidate,
               status,
-            });
+            };
           } else if (responseFromSendEmail.success === false) {
-            logger.error(`${responseFromCreateCandidate.message}`);
-            callback(responseFromSendEmail);
+            logger.error(`${responseFromSendEmail.message}`);
+            return responseFromSendEmail;
           }
         } else if (responseFromCreateCandidate.success === false) {
           logger.error(`${responseFromCreateCandidate.message}`);
-          callback(responseFromCreateCandidate);
+          return responseFromCreateCandidate;
         }
       }
     } catch (e) {
       logger.error(`${e.message}`);
-      callback({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
 

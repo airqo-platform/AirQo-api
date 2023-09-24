@@ -113,6 +113,11 @@ LocationHistorySchema.statics = {
         constants.LOCATION_HISTORIES_EXCLUSION_PROJECTION(
           filter.category ? filter.category : "none"
         );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+
       let pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })

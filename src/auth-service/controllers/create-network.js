@@ -818,7 +818,7 @@ const createNetwork = {
         }
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the assigned users for this network",
+          message: responseFromListAssignedUsers.message,
           assigned_users: responseFromListAssignedUsers.data,
         });
       } else if (responseFromListAssignedUsers.success === false) {
@@ -866,11 +866,6 @@ const createNetwork = {
 
       const responseFromListAvailableUsers =
         await createNetworkUtil.listAvailableUsers(request);
-
-      logObject(
-        "responseFromListAvailableUsers in controller",
-        responseFromListAvailableUsers
-      );
 
       if (responseFromListAvailableUsers.success === true) {
         const status = responseFromListAvailableUsers.status

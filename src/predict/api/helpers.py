@@ -229,17 +229,17 @@ def get_forecasts(
 
     results = []
     if site_forecasts:
-        for time, pm2_5, margin_of_error, adjusted_forecast in zip(
+        for time, pm2_5 in zip(
             site_forecasts[0]["timestamp"],
             site_forecasts[0]["pm2_5"],
-            site_forecasts[0]["margin_of_error"],
-            site_forecasts[0]["adjusted_forecast"],
+            # site_forecasts[0]["margin_of_error"],
+            # site_forecasts[0]["adjusted_forecast"],
         ):
             result = {
                 key: value
                 for key, value in zip(
-                    ["time", "pm2_5", "margin_of_error", "adjusted_forecast"],
-                    [time, pm2_5, margin_of_error, adjusted_forecast],
+                    ["time", "pm2_5"],
+                    [time, pm2_5],
                 )
             }
             results.append(result)

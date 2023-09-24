@@ -114,35 +114,18 @@ const UserSchema = new Schema(
       _id: false,
     },
 
-    network_groups: {
+    groups: {
       type: [
         {
-          network: {
-            type: ObjectId,
-            ref: "network",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-          },
           group: {
             type: ObjectId,
             ref: "group",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
         },
       ],
       default: [],
       _id: false,
     },
-    // groups: [
-    //   {
-    //     type: ObjectId,
-    //     ref: "group",
-    //   },
-    // ],
-    // role: {
-    //   type: ObjectId,
-    //   ref: "role",
-    //   default: constants.DEFAULT_ROLE,
-    // },
     permissions: [
       {
         type: ObjectId,
@@ -201,15 +184,14 @@ UserSchema.pre("save", function (next) {
     return next(new Error("Phone number or email is required!"));
   }
 
-  // Check for duplicate values in the networks array
-  // const duplicateValues = this.networks.filter(
-  //   (value, index, self) => self.indexOf(value) !== index
-  // );
-
-  // if (duplicateValues.length > 0) {
-  //   const error = new Error("Duplicate values found in networks array.");
-  //   return next(error);
-  // }
+  if (!this.network_roles || this.network_roles.length === 0) {
+    this.network_roles = [
+      {
+        network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+        role: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+      },
+    ];
+  }
 
   return next();
 });
@@ -315,13 +297,17 @@ UserSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
 
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      logObject("the filter being used", filter);
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -361,7 +347,7 @@ UserSchema.statics = {
           preserveNullAndEmptyArrays: true,
         })
         .unwind({
-          path: "$network_groups",
+          path: "$groups",
           preserveNullAndEmptyArrays: true,
         })
         .lookup({
@@ -422,14 +408,11 @@ UserSchema.statics = {
           },
         })
         .project(inclusionProjection)
-
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
-
-      logObject("response in the model", response);
       if (!isEmpty(response)) {
         return {
           success: true,
@@ -470,18 +453,14 @@ UserSchema.statics = {
       }
 
       if (modifiedUpdate.network_roles) {
-        modifiedUpdate["$addToSet"] = {
-          network_roles: { $each: modifiedUpdate.network_roles },
-        };
-        delete modifiedUpdate.network_roles;
-        // if (isEmpty(modifiedUpdate.network_roles.network)) {
-        //   delete modifiedUpdate.network_roles;
-        // } else {
-        //   modifiedUpdate["$addToSet"] = {
-        //     network_roles: { $each: modifiedUpdate.network_roles },
-        //   };
-        //   delete modifiedUpdate.network_roles;
-        // }
+        if (isEmpty(modifiedUpdate.network_roles.network)) {
+          delete modifiedUpdate.network_roles;
+        } else {
+          modifiedUpdate["$addToSet"] = {
+            network_roles: { $each: modifiedUpdate.network_roles },
+          };
+          delete modifiedUpdate.network_roles;
+        }
       }
 
       if (modifiedUpdate.permissions) {

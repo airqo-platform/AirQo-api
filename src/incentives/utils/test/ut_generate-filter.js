@@ -5,6 +5,7 @@ const { expect } = chai;
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const httpStatus = require("http-status");
 
 describe("generateFilter", () => {
   describe("hosts", () => {

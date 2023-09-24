@@ -1,206 +1,508 @@
 require("module-alias/register");
-const { expect } = require("chai");
-const sinon = require("sinon");
+const chai = require("chai");
+const expect = chai.expect;
 const express = require("express");
-const request = require("supertest");
-
-// Import the router file to be tested
-const groupRouter = require("../groups");
-
-// Import the controller file (you need to provide a mock implementation for this)
-const createGroupController = require("@controllers/create-group");
+const supertest = require("supertest");
+const app = express();
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
+const request = supertest(app);
 
 describe("Group Router", () => {
-  let app;
-
-  beforeEach(() => {
-    app = express();
-    app.use(express.json());
-    app.use(groupRouter); // Mount the router to the express app
-  });
-
-  afterEach(() => {
-    sinon.restore(); // Restore Sinon stubs after each test
-  });
-
-  // Test cases for the "/groups" route
-  describe("GET /groups", () => {
-    it("should return a list of groups with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "list").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP GET request
-      const response = await request(app).get("/groups").expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., missing query parameters, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id" route
-  describe("GET /groups/:grp_id", () => {
-    it("should return a group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "list").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP GET request
-      const response = await request(app).get("/groups/groupId123").expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id/assigned-users" route
-  describe("GET /groups/:grp_id/assigned-users", () => {
-    it("should return a list of assigned users for the group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "listUsersWithGroup").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP GET request
-      const response = await request(app)
-        .get("/groups/groupId123/assigned-users")
-        .expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id/available-users" route
-  describe("GET /groups/:grp_id/available-users", () => {
-    it("should return a list of available users for the group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "listAvailableUsersForGroup").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP GET request
-      const response = await request(app)
-        .get("/groups/groupId123/available-users")
-        .expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id/assign-user/:user_id" route
-  describe("PUT /groups/:grp_id/assign-user/:user_id", () => {
-    it("should assign a user to the group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "update").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP PUT request
-      const response = await request(app)
-        .put("/groups/groupId123/assign-user/userId456")
-        .expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, invalid user_id, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id/unassign-user/:user_id" route
-  describe("DELETE /groups/:grp_id/unassign-user/:user_id", () => {
-    it("should unassign a user from the group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "update").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP DELETE request
-      const response = await request(app)
-        .delete("/groups/groupId123/unassign-user/userId456")
-        .expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, invalid user_id, error responses, etc.)
-  });
-
-  // Test cases for the "/groups" route (create a new group)
-  describe("POST /groups", () => {
-    it("should create a new group with status code 201", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "create").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP POST request
-      const response = await request(app).post("/groups").expect(201);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., missing required fields, invalid data, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id" route (update an existing group)
-  describe("PUT /groups/:grp_id", () => {
-    it("should update an existing group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "update").resolves([
-        /* Mocked data here */
-      ]);
-
-      // Perform the HTTP PUT request
-      const response = await request(app).put("/groups/groupId123").expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
-    });
-
-    // Add more test cases for different scenarios (e.g., invalid grp_id, invalid data, error responses, etc.)
-  });
-
-  // Test cases for the "/groups/:grp_id" route (delete a group)
   describe("DELETE /groups/:grp_id", () => {
-    it("should delete a group with status code 200", async () => {
-      // Mock the controller function behavior
-      sinon.stub(createGroupController, "delete").resolves([
-        /* Mocked data here */
-      ]);
+    it("should delete a group successfully", async () => {
+      // Create a new group to be deleted
+      const newGroup = { name: "Test Group" };
+      const group = await GroupModel.create(newGroup);
 
-      // Perform the HTTP DELETE request
-      const response = await request(app)
-        .delete("/groups/groupId123")
+      // Make the DELETE request to delete the group
+      const response = await supertest(app)
+        .delete(`/groups/${group._id}`)
         .expect(200);
 
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
+      // Expectations
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal("Group deleted successfully");
+      expect(response.body.data._id).to.equal(group._id.toString());
+
+      // Check if the group is actually deleted from the database
+      const deletedGroup = await GroupModel.findById(group._id);
+      expect(deletedGroup).to.be.null;
     });
 
-    // Add more test cases for different scenarios (e.g., invalid grp_id, error responses, etc.)
+    it("should return an error if the group ID is not valid", async () => {
+      const invalidGroupId = "invalid-id"; // Provide an invalid group ID
+
+      // Make the DELETE request with an invalid group ID
+      const response = await supertest(app)
+        .delete(`/groups/${invalidGroupId}`)
+        .expect(400);
+
+      // Expectations
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal("Bad Request Error");
+      expect(response.body.errors.message).to.equal(
+        "The group ID parameter must be an object ID"
+      );
+    });
+
+    // Add more test cases for different scenarios
+  });
+  describe("PUT /groups/:grp_id", () => {
+    it("should update a group successfully", async () => {
+      const grpId = new ObjectId(); // Replace with a valid group ID
+
+      const updateData = {
+        grp_description: "Updated Description",
+        grp_status: true,
+      };
+
+      const response = await request
+        .put(`/groups/${grpId}`)
+        .query({ tenant: "kcca" }) // Replace with valid query parameters
+        .send(updateData)
+        .set("Authorization", "Bearer YOUR_JWT_TOKEN"); // Replace with a valid JWT token
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("object");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      const grpId = "invalid-id"; // An invalid group ID
+
+      const updateData = {
+        grp_description: "", // Invalid description
+        grp_status: "invalid-boolean", // Invalid status
+      };
+
+      const response = await request
+        .put(`/groups/${grpId}`)
+        .query({ tenant: "invalid-tenant" }) // Invalid tenant
+        .send(updateData)
+        .set("Authorization", "Bearer YOUR_INVALID_JWT_TOKEN");
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("GET /groups", () => {
+    it("should list groups with valid query parameters", async () => {
+      const queryParams = {
+        tenant: "kcca", // Replace with a valid tenant value
+        grp_id: new ObjectId(), // Replace with a valid group ID
+        grp_title: "Group Title", // Replace with a valid group title
+        grp_status: "Active", // Replace with a valid group status
+      };
+
+      const response = await request.get("/groups").query(queryParams);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("array");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid query parameters
+      const queryParams = {
+        tenant: "invalid-tenant", // Invalid tenant
+        grp_id: "invalid-id", // Invalid group ID
+        grp_title: "", // Invalid group title (empty)
+        grp_status: "", // Invalid group status (empty)
+      };
+
+      const response = await request.get("/groups").query(queryParams);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("POST /groups", () => {
+    it("should create a new group with valid request data", async () => {
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+        grp_title: "New Group", // Replace with a valid group title
+        grp_description: "Group Description", // Replace with a valid group description
+      };
+
+      const response = await request.post("/groups").send(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(201);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("object");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid request data
+      const requestData = {
+        tenant: "invalid-tenant", // Invalid tenant
+        grp_title: "", // Invalid group title (empty)
+        grp_description: "", // Invalid group description (empty)
+      };
+
+      const response = await request.post("/groups").send(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("PUT /groups/:grp_id/assign-user/:user_id", () => {
+    it("should assign a user to a group with valid request data", async () => {
+      // Replace with valid grp_id and user_id
+      const grpId = "valid-group-id";
+      const userId = "valid-user-id";
+
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+      };
+
+      const response = await request
+        .put(`/groups/${grpId}/assign-user/${userId}`)
+        .query(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("object");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid request data
+      const grpId = "invalid-group-id"; // Invalid grp_id
+      const userId = "invalid-user-id"; // Invalid user_id
+
+      const requestData = {
+        tenant: "invalid-tenant", // Invalid tenant
+      };
+
+      const response = await request
+        .put(`/groups/${grpId}/assign-user/${userId}`)
+        .query(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("GET /groups/summary", () => {
+    it("should get a summary of groups with valid request data", async () => {
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+      };
+
+      const response = await request.get("/groups/summary").query(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("array");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid request data
+      const requestData = {
+        tenant: "invalid-tenant", // Invalid tenant
+      };
+
+      const response = await request.get("/groups/summary").query(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("GET /groups/:grp_id/assigned-users", () => {
+    it("should get a list of assigned users for a valid group ID and tenant", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+      };
+
+      const response = await request
+        .get(`/groups/${validGrpId}/assigned-users`)
+        .query(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("array");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const requestData = {
+        tenant: "kcca",
+      };
+
+      const response = await request
+        .get(`/groups/${invalidGrpId}/assigned-users`)
+        .query(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("GET /groups/:grp_id/available-users", () => {
+    it("should get a list of available users for a valid group ID and tenant", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+      };
+
+      const response = await request
+        .get(`/groups/${validGrpId}/available-users`)
+        .query(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("array");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const requestData = {
+        tenant: "kcca",
+      };
+
+      const response = await request
+        .get(`/groups/${invalidGrpId}/available-users`)
+        .query(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("POST /groups/:grp_id/assign-users", () => {
+    it("should assign users to a group for a valid group ID, tenant, and user IDs", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const requestData = {
+        tenant: "kcca", // Replace with a valid tenant value
+        user_ids: [new ObjectId(), new ObjectId()], // Replace with valid user IDs
+      };
+
+      const response = await request
+        .post(`/groups/${validGrpId}/assign-users`)
+        .query(requestData);
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const requestData = {
+        tenant: "kcca",
+        user_ids: ["invalid-user-id"], // Invalid user ID format
+      };
+
+      const response = await request
+        .post(`/groups/${invalidGrpId}/assign-users`)
+        .query(requestData);
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("DELETE /groups/:grp_id/unassign-user/:user_id", () => {
+    it("should unassign a user from a group for a valid group ID, tenant, and user ID", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const validUserId = new ObjectId(); // Replace with a valid user ID
+
+      const response = await request
+        .delete(`/groups/${validGrpId}/unassign-user/${validUserId}`)
+        .query({ tenant: "kcca" }); // Replace with a valid tenant value
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const validUserId = new ObjectId(); // Replace with a valid user ID
+
+      const response = await request
+        .delete(`/groups/${invalidGrpId}/unassign-user/${validUserId}`)
+        .query({ tenant: "kcca" });
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("DELETE /groups/:grp_id/unassign-many-users", () => {
+    it("should unassign multiple users from a group for a valid group ID, tenant, and user IDs", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const validUserIds = [new ObjectId(), new ObjectId()]; // Replace with valid user IDs
+      const tenant = "kcca"; // Replace with a valid tenant value
+
+      const response = await request
+        .delete(`/groups/${validGrpId}/unassign-many-users`)
+        .query({ tenant })
+        .send({ user_ids: validUserIds });
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const validUserIds = [new ObjectId(), new ObjectId()]; // Replace with valid user IDs
+      const tenant = "kcca"; // Replace with a valid tenant value
+
+      const response = await request
+        .delete(`/groups/${invalidGrpId}/unassign-many-users`)
+        .query({ tenant })
+        .send({ user_ids: validUserIds });
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
+  });
+  describe("GET /groups/:grp_id", () => {
+    it("should retrieve group information for a valid group ID and tenant", async () => {
+      const validGrpId = new ObjectId(); // Replace with a valid group ID
+      const tenant = "kcca"; // Replace with a valid tenant value
+
+      const response = await request
+        .get(`/groups/${validGrpId}`)
+        .query({ tenant });
+
+      // Assertions
+      expect(response.status).to.equal(200);
+      expect(response.body).to.have.property("success").to.be.true;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("data").to.be.an("object");
+
+      // Add more specific assertions based on your controller logic
+    });
+
+    it("should handle validation errors", async () => {
+      // Invalid group ID
+      const invalidGrpId = "invalid-group-id";
+      const tenant = "kcca"; // Replace with a valid tenant value
+
+      const response = await request
+        .get(`/groups/${invalidGrpId}`)
+        .query({ tenant });
+
+      // Assertions for validation errors
+      expect(response.status).to.equal(400); // You can adjust the expected status code
+      expect(response.body).to.have.property("success").to.be.false;
+      expect(response.body).to.have.property("message").to.be.a("string");
+      expect(response.body).to.have.property("errors").to.be.an("object");
+
+      // Add more specific assertions based on your validation logic
+    });
+
+    // Add more test cases as needed
   });
 });
