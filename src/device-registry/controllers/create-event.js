@@ -14,9 +14,9 @@ const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
 const distanceUtil = require("@utils/distance");
 
-const getSitesFromAirQloud = async ({ tenant = "airqo", airqloudId } = {}) => {
+const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
-    const filter = { _id: ObjectId(airqloudId) };
+    const filter = { _id: ObjectId(airqloud_id) };
     const responseFromListAirQloud = await AirQloudModel(tenant).list({
       filter,
     });
@@ -63,9 +63,9 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloudId } = {}) => {
     };
   }
 };
-const getSitesFromGrid = async ({ tenant = "airqo", gridId } = {}) => {
+const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
-    const filter = { _id: ObjectId(gridId) };
+    const filter = { _id: ObjectId(grid_id) };
     const responseFromListGrid = await GridModel(tenant).list({ filter });
 
     if (responseFromListGrid.success === true) {
@@ -110,10 +110,10 @@ const getSitesFromGrid = async ({ tenant = "airqo", gridId } = {}) => {
     };
   }
 };
-const getDevicesFromCohort = async ({ tenant = "airqo", cohortId } = {}) => {
+const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
   try {
     // Query the CohortModel to get the cohort by ID
-    const cohort = await CohortModel(tenant).findById(cohortId);
+    const cohort = await CohortModel(tenant).findById(cohort_id);
 
     if (!cohort) {
       return {
@@ -405,8 +405,8 @@ const createEvent = {
 
       logText("we are listing events...");
       const { query } = req;
-      const { siteId, deviceId } = req.params;
-      let { tenant, skip, limit, page } = query;
+      const { site_id, device_id } = req.params;
+      let { tenant } = query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
@@ -414,43 +414,37 @@ const createEvent = {
 
       let request = Object.assign({}, req);
 
-      if (!isEmpty(siteId)) {
-        request["query"]["site_id"] = siteId;
+      if (!isEmpty(site_id)) {
+        request["query"]["site_id"] = site_id;
         request["query"]["recent"] = "no";
       }
 
-      if (!isEmpty(deviceId)) {
-        request["query"]["device_id"] = deviceId;
+      if (!isEmpty(device_id)) {
+        request["query"]["device_id"] = device_id;
         request["query"]["recent"] = "no";
       }
 
       request["query"]["tenant"] = tenant;
-      request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
-      request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+      logObject("the result for listing events", result);
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
@@ -1516,7 +1510,7 @@ const createEvent = {
         );
       }
 
-      let { airqloudId } = req.params;
+      let { airqloud_id } = req.params;
       let { skip, limit, page, tenant } = req.query;
 
       if (isEmpty(tenant)) {
@@ -1533,7 +1527,7 @@ const createEvent = {
       request.query.page = parseInt(page);
 
       const responseFromGetSitesOfAirQloud = await getSitesFromAirQloud({
-        airqloudId,
+        airqloud_id,
       });
 
       logObject(
@@ -1611,7 +1605,7 @@ const createEvent = {
         );
       }
 
-      let { gridId } = req.params;
+      let { grid_id } = req.params;
       let { skip, limit, page, tenant } = req.query;
 
       if (isEmpty(tenant)) {
@@ -1628,7 +1622,7 @@ const createEvent = {
       request.query.page = parseInt(page);
 
       const responseFromGetSitesOfAirQloud = await getSitesFromGrid({
-        gridId,
+        grid_id,
       });
 
       logObject(
@@ -1706,7 +1700,7 @@ const createEvent = {
         );
       }
 
-      let { cohortId } = req.params;
+      let { cohort_id } = req.params;
       let { skip, limit, page, tenant } = req.query;
 
       if (isEmpty(tenant)) {
@@ -1723,7 +1717,7 @@ const createEvent = {
       request.query.page = parseInt(page);
 
       const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
-        cohortId,
+        cohort_id,
       });
 
       logObject(

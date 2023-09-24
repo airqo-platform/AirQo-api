@@ -8,6 +8,7 @@ const {
   addHours,
 } = require("./date");
 const mongoose = require("mongoose");
+const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const constants = require("@config/constants");
@@ -23,148 +24,131 @@ const isLowerCase = (str) => {
 
 const generateFilter = {
   events: (request) => {
-    try {
-      const { query } = request;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        recent,
-        page,
-        network,
-        index,
-        running,
-        brief,
-      } = query;
+    const { query, params } = request;
+    const {
+      device,
+      device_number,
+      site,
+      frequency,
+      startTime,
+      endTime,
+      device_id,
+      site_id,
+      external,
+      metadata,
+      tenant,
+      recent,
+      page,
+      network,
+      index,
+      running,
+      brief,
+      ...otherVariables
+    } = { ...query, ...params };
 
-      let today = monthsInfront(0);
-      let oneWeekBack = addDays(-7);
-      let oneMonthBack = monthsInfront(-1);
-      let threeHoursBack = addHours(-3);
+    // Constants for date calculations
+    const today = monthsInfront(0);
+    const oneWeekBack = addDays(-7);
+    const oneMonthBack = monthsInfront(-1);
+    const threeHoursBack = addHours(-3);
 
-      let filter = {
-        day: {
-          $gte: generateDateFormatWithoutHrs(oneWeekBack),
-          $lte: generateDateFormatWithoutHrs(today),
-        },
-        "values.time": {
-          $gte: oneWeekBack,
-          $lte: today,
-        },
-        "values.device": {},
-        "values.site": {},
-        "values.device_id": {},
-        "values.site_id": {},
-        "values.device_number": {},
-        "values.pm2_5.value": {},
-        device_number: {},
-      };
+    // Initial filter object
+    const filter = {
+      day: {
+        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $lte: generateDateFormatWithoutHrs(today),
+      },
+      "values.time": {
+        $gte: oneWeekBack,
+        $lte: today,
+      },
+      "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
+    };
 
-      if (metadata) {
-        filter["metadata"] = metadata;
-      }
+    // Handle metadata and external properties
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
 
-      if (external) {
-        filter["external"] = external;
-      }
+    if (external) {
+      filter["external"] = external;
+    }
 
-      if (!index) {
-        delete filter["values.pm2_5.value"];
-      } else if (index === "good") {
-        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.good[0];
-        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.good[1];
-        filter["index"] = index;
-      } else if (index === "moderate") {
-        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.moderate[0];
-        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.moderate[1];
-        filter["index"] = index;
-      } else if (index === "u4sg") {
-        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.u4sg[0];
-        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.u4sg[1];
-        filter["index"] = index;
-      } else if (index === "unhealthy") {
-        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.unhealthy[0];
-        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.unhealthy[1];
-        filter["index"] = index;
-      } else if (index === "very_unhealthy") {
-        filter["values.pm2_5.value"]["$gte"] =
-          constants.AQI_INDEX.very_unhealthy[0];
-        filter["values.pm2_5.value"]["$lte"] =
-          constants.AQI_INDEX.very_unhealthy[1];
-        filter["index"] = index;
-      } else if (index === "hazardous") {
-        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.hazardous[0];
-        filter["index"] = index;
+    // Handle index filtering
+    if (!index) {
+      delete filter["values.pm2_5.value"];
+    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
+      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
+      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      filter["index"] = index;
+    } else {
+      delete filter["values.pm2_5.value"];
+    }
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["values.time"]["$gte"] = start;
       } else {
-        delete filter["values.pm2_5.value"];
+        delete filter["values.time"];
       }
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+    }
 
-      if (!external) {
-        filter["external"] = "yes";
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["values.time"]["$lte"] = end;
+      } else {
+        delete filter["values.time"];
       }
-      if (network) {
-        filter["network"] = network;
-      }
-      if (tenant) {
-        filter["tenant"] = tenant;
-      }
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+    }
 
-      if (startTime) {
-        if (isTimeEmpty(startTime) == false) {
-          let start = new Date(startTime);
-          filter["values.time"]["$gte"] = start;
-        } else {
-          delete filter["values.time"];
-        }
-        filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
-      }
-
-      if (running) {
-        filter["running"] = running;
-      }
-
-      if (brief) {
-        filter["brief"] = brief;
-      }
-
-      if (endTime) {
-        if (isTimeEmpty(endTime) === false) {
-          let end = new Date(endTime);
-          filter["values.time"]["$lte"] = end;
-        } else {
-          delete filter["values.time"];
-        }
-        filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
-      }
-
-      if (startTime && !endTime) {
-        if (isTimeEmpty(startTime) === false) {
-          filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
-            startTime,
-            1
-          );
-        } else {
-          delete filter["values.time"];
-        }
-        let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
           startTime,
           1
         );
-        filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-          addedOneMonthToProvidedDateTime
-        );
+      } else {
+        delete filter["values.time"];
       }
+      const addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+        startTime,
+        1
+      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+        addedOneMonthToProvidedDateTime
+      );
+    }
 
-      if (!startTime && endTime) {
-        if (isTimeEmpty(endTime) === false) {
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["values.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["values.time"];
+      }
+      const removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+        endTime,
+        -1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedOneMonthFromProvidedDateTime
+      );
+    }
+
+    if (startTime && endTime) {
+      const months = getDifferenceInMonths(startTime, endTime);
+      if (months > 1) {
+        if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
             endTime,
             -1
@@ -172,7 +156,7 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
-        let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+        const removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
           endTime,
           -1
         );
@@ -180,133 +164,118 @@ const generateFilter = {
           removedOneMonthFromProvidedDateTime
         );
       }
-
-      if (startTime && endTime) {
-        let months = getDifferenceInMonths(startTime, endTime);
-        logElement("the number of months", months);
-        if (months > 1) {
-          if (isTimeEmpty(endTime) === false) {
-            filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
-              endTime,
-              -1
-            );
-          } else {
-            delete filter["values.time"];
-          }
-          let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
-            endTime,
-            -1
-          );
-          filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-            removedOneMonthFromProvidedDateTime
-          );
-        }
-      }
-      /**
-       * unique names for sites and devices
-       */
-      if (device) {
-        let deviceArray = device.split(",");
-        let modifiedDeviceArray = deviceArray.map((value) => {
-          if (isLowerCase(value)) {
-            return value.toUpperCase();
-          }
-          if (!isLowerCase(value)) {
-            return value.toLowerCase();
-          }
-          return value;
-        });
-        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
-        filter["values.device"]["$in"] = mergedArray;
-        filter["device"] = true;
-      }
-
-      if (!device) {
-        delete filter["values.device"];
-        filter["device"] = false;
-      }
-
-      if (device && !recent && (!external || external === "yes")) {
-        filter["recent"] = "no";
-      }
-
-      if (page) {
-        filter["page"] = page;
-      }
-
-      if (device_number) {
-        let deviceArray = device_number.split(",");
-        filter["device_number"]["$in"] = deviceArray;
-        filter["values.device_number"]["$in"] = deviceArray;
-      }
-
-      if (!device_number) {
-        delete filter["device_number"];
-        delete filter["values.device_number"];
-      }
-
-      if (site) {
-        let deviceArray = site.split(",");
-        filter["values.site"]["$in"] = deviceArray;
-      }
-
-      if (!site) {
-        delete filter["values.site"];
-      }
-
-      /**
-       * unique ids for devices and sites
-       */
-      if (device_id) {
-        let deviceIdArray = device_id.split(",");
-        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
-          return ObjectId(device_id);
-        });
-        filter["values.device_id"]["$in"] = modifiedDeviceIdArray;
-      }
-      if (!device_id) {
-        delete filter["values.device_id"];
-      }
-      if (site_id) {
-        let siteIdArray = site_id.split(",");
-        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
-          return ObjectId(site_id);
-        });
-        filter["values.site_id"]["$in"] = modifiedSiteIdArray;
-      }
-      if (!site_id) {
-        delete filter["values.site_id"];
-      }
-      /**
-       * ends unique site and device ids
-       */
-
-      if (frequency) {
-        filter["values.frequency"] = frequency;
-        filter["frequency"] = frequency;
-      }
-      if (!frequency) {
-        filter["values.frequency"] = "hourly";
-        filter["frequency"] = "hourly";
-      }
-
-      if (recent) {
-        filter["recent"] = recent;
-      }
-
-      return {
-        success: true,
-        data: filter,
-        message: "filter successfully generated",
-      };
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "unable to generate the filter",
-        errors: { message: error.message },
-      };
     }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.split(",")];
+      filter["values.device"]["$in"] = mergedArray;
+      filter["device"] = true;
+    } else {
+      delete filter["values.device"];
+      filter["device"] = false;
+    }
+
+    if (device && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (page) {
+      filter["page"] = page;
+    }
+
+    // Handle device_number filtering
+    if (device_number) {
+      const deviceArray = device_number.split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (device_number && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
+    // Handle site filtering
+    if (site) {
+      filter["values.site"]["$in"] = site.split(",");
+    }
+
+    if (site && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      const deviceIdArray = device_id.split(",").map((id) => ObjectId(id));
+      filter["values.device_id"]["$in"] = deviceIdArray;
+    }
+
+    if (device_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id.split(",").map((id) => ObjectId(id));
+      filter["values.site_id"]["$in"] = siteIdArray;
+    }
+
+    if (site_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    } else {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
+    }
+
+    if (recent) {
+      filter["recent"] = recent;
+    }
+
+    if (network) {
+      filter["network"] = network;
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
+    }
+
+    // Handle running and brief properties
+    if (running) {
+      filter["running"] = running;
+    }
+
+    if (brief) {
+      filter["brief"] = brief;
+    }
+
+    return filter;
   },
 
   generateRegexExpressionFromStringElement: (element) => {
@@ -361,6 +330,10 @@ const generateFilter = {
 
     if (category) {
       filter.category = category;
+    }
+
+    if (!isEmpty(category) && category === "public" && isEmpty(device_id)) {
+      filter["visibility"] = false;
     }
 
     if (network) {
@@ -430,6 +403,8 @@ const generateFilter = {
       country,
       county,
       parish,
+      site_id,
+      category,
       name,
       site_codes,
       _id,
@@ -460,6 +435,18 @@ const generateFilter = {
 
     if (_id) {
       filter["_id"] = ObjectId(_id);
+    }
+
+    if (site_id) {
+      filter["_id"] = ObjectId(site_id);
+    }
+
+    if (category) {
+      filter["category"] = category;
+    }
+
+    if (!isEmpty(category) && category === "public" && isEmpty(site_id)) {
+      filter["visibility"] = false;
     }
 
     if (site_codes) {
@@ -510,6 +497,7 @@ const generateFilter = {
       summary,
       dashboard,
       airqloud_codes,
+      category,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -539,11 +527,19 @@ const generateFilter = {
       filter["airqloud_codes"] = { $in: airqloudCodesArray };
     }
 
+    if (category) {
+      filter["category"] = category;
+    }
+
+    if (!isEmpty(category) && category === "public" && isEmpty(airqloud_id)) {
+      filter["visibility"] = false;
+    }
+
     return filter;
   },
 
   grids: (req) => {
-    const { id, admin_level, grid_codes, grid_id } = {
+    const { id, admin_level, grid_codes, grid_id, category } = {
       ...req.query,
       ...req.params,
     };
@@ -567,11 +563,19 @@ const generateFilter = {
       filter["grid_codes"] = { $in: geoCodesArray };
     }
 
+    if (category) {
+      filter["category"] = category;
+    }
+
+    if (!isEmpty(category) && category === "public" && isEmpty(grid_id)) {
+      filter["visibility"] = false;
+    }
+
     return filter;
   },
 
   cohorts: (req) => {
-    const { id, cohort_codes, network_id, name, cohort_id } = {
+    const { id, cohort_codes, network_id, name, cohort_id, category } = {
       ...req.query,
       ...req.params,
     };
@@ -596,6 +600,14 @@ const generateFilter = {
     if (cohort_codes) {
       const cohortCodesArray = cohort_codes.split(",");
       filter["cohort_codes"] = { $in: cohortCodesArray };
+    }
+
+    if (category) {
+      filter["category"] = category;
+    }
+
+    if (!isEmpty(category) && category === "public" && isEmpty(cohort_id)) {
+      filter["visibility"] = false;
     }
 
     return filter;

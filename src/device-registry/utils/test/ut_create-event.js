@@ -1224,7 +1224,7 @@ describe("create Event utils", function() {
       const callback = sinon.stub();
 
       // Act
-      eventUtil.setCache(data, request, callback);
+      eventUtil.setCache(data, request);
 
       // Assert
       const cacheID = eventUtil.generateCacheID(request);
@@ -1262,7 +1262,7 @@ describe("create Event utils", function() {
       redis.set.throws(redisError);
 
       // Act
-      eventUtil.setCache(data, request, callback);
+      eventUtil.setCache(data, request);
 
       // Assert
       expect(
@@ -1307,7 +1307,7 @@ describe("create Event utils", function() {
         .yields(null, JSON.stringify(cacheData));
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;
@@ -1343,7 +1343,7 @@ describe("create Event utils", function() {
         .yields(redisError);
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;
@@ -1378,7 +1378,7 @@ describe("create Event utils", function() {
         .yields(null, null);
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;

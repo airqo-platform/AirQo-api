@@ -41,106 +41,6 @@ router.use(headers);
 router.use(validatePagination);
 
 router.post(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
-  oneOf([
-    [
-      body("*.device_id")
-        .exists()
-        .trim()
-        .withMessage("device_id is missing")
-        .bail()
-        .isMongoId()
-        .withMessage("device_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("*.is_device_primary")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isBoolean()
-        .withMessage("is_device_primary should be Boolean"),
-      body("*.site_id")
-        .optional()
-        .notEmpty()
-        .trim()
-        .withMessage("site_id should not be empty if provided")
-        .bail()
-        .isMongoId()
-        .withMessage("site_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("*.time")
-        .exists()
-        .trim()
-        .withMessage("time is missing")
-        .bail()
-        .toDate()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("time must be a valid datetime."),
-      body("*.frequency")
-        .exists()
-        .trim()
-        .toLowerCase()
-        .withMessage("frequency is missing")
-        .bail()
-        .isIn(["raw", "hourly", "daily"])
-        .withMessage(
-          "the frequency value is not among the expected ones which include: raw, hourly and daily"
-        ),
-      body("*.is_test_data")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isBoolean()
-        .withMessage("is_test_data should be boolean"),
-      body("*.device")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("*.site")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("*.device_number")
-        .optional()
-        .notEmpty()
-        .isInt()
-        .withMessage("the device_number should be an integer value")
-        .bail()
-        .trim(),
-      body("*.network")
-        .optional()
-        .notEmpty()
-        .toLowerCase()
-        .custom(validateNetwork)
-        .withMessage("the network value is not among the expected ones"),
-    ],
-  ]),
-  eventController.addValues
-);
-router.post(
   "/transform",
   oneOf([
     body()
@@ -221,7 +121,7 @@ router.post(
   eventController.transform
 );
 router.post(
-  "/transmit/single",
+  "/single",
   oneOf([
     query("tenant")
       .optional()
@@ -288,7 +188,7 @@ router.post(
   eventController.transmitMultipleSensorValues
 );
 router.post(
-  "/transmit/bulk",
+  "/bulk",
   oneOf([
     query("tenant")
       .optional()
@@ -357,70 +257,6 @@ router.post(
     ],
   ]),
   eventController.bulkTransmitMultipleSensorValues
-);
-router.delete(
-  "/",
-  oneOf([
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("device_number")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the device_number"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the device_number should be an integer value"),
-    query("device_id")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the device_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("site_id")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the device_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("site_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("device")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device name"
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
-  ]),
-  eventController.deleteValuesOnPlatform
 );
 
 module.exports = router;

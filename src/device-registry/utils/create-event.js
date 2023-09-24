@@ -1,5 +1,5 @@
 const EventModel = require("@models/Event");
-const devicesModel = require("@models/Device");
+const DeviceModel = require("@models/Device");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
@@ -33,7 +33,7 @@ const listDevices = async (request) => {
     const skip = parseInt(request.query.skip, 0);
     logObject("the request for the filter", request);
     const filter = generateFilter.devices(request);
-    const responseFromListDevice = await devicesModel(tenant).list({
+    const responseFromListDevice = await DeviceModel(tenant).list({
       filter,
       limit,
       skip,
@@ -71,7 +71,7 @@ const getDevicesCount = async (request) => {
     const { query } = request;
     const { tenant } = query;
 
-    const count = await devicesModel(tenant).countDocuments({});
+    const count = await DeviceModel(tenant).countDocuments({});
 
     if (count) {
       return {
@@ -482,144 +482,112 @@ const createEvent = {
   },
   list: async (request) => {
     try {
-      /**
-       * When listing events, some of the big considerations
-       * include:
-       * 1. Find the corresponding Sites if given the Airqlouds.
-       * 2. Find the corresponding Sites if given the Lat and Long Values.
-       *
-       * And then generate filter object
-       *
-       * For the function that we use to get the sites given some values,
-       * you can export the function and call it in the respective util file.
-       */
-      let missingDataMessage = "";
       const { query } = request;
-      let { recent, tenant, device, site_id } = query;
+      const { limit, skip } = query;
+      const { recent, tenant, device } = query;
       let page = parseInt(query.page);
-      let limit = parseInt(query.limit) || 0;
-      let skip = parseInt(query.skip);
-      let filter = {};
       const language = request.query.language;
+      const filter = generateFilter.events(request);
+      const cacheResult = await createEvent.getCache(request);
 
-      const responseFromFilter = generateFilter.events(request);
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success === false) {
-        const errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        logObject("responseFromFilter", errors);
-      }
-
-      const cacheResult = createEvent.getCache(request);
       if (cacheResult.success === true) {
         logText(cacheResult.message);
         return cacheResult.data;
-      } else if (cacheResult.success === false) {
-        const deviceCountResult = await getDevicesCount(request);
-        if (deviceCountResult.success === true) {
-          if ((device && !recent) || recent === "no") {
-            if (!limit) {
-              limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
-            }
-            if (!skip) {
-              if (page) {
-                skip = parseInt((page - 1) * limit);
-              } else {
-                skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-              }
-            }
-          } else if ((!recent && !device) || recent === "yes") {
-            if (!limit) {
-              limit = deviceCountResult.data;
-            }
-            if (!skip) {
-              if (page) {
-                skip = parseInt((page - 1) * limit);
-              } else {
-                skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-              }
-            }
-          }
-          const responseFromListEvents = await EventModel(tenant).list({
-            skip,
-            limit,
-            filter,
-            page,
-          });
+      }
 
-          try {
-            if (
-              language !== undefined &&
-              constants.ENVIRONMENT === "STAGING ENVIRONMENT"
-            ) {
-              let data = responseFromListEvents.data[0].data;
-              for (const event of data) {
-                let translatedHealthTips = await translateUtil.translateTips(
-                  event.health_tips,
-                  language
-                );
-                if (translatedHealthTips.success === true) {
-                  event.health_tips = translatedHealthTips.data;
-                }
-              }
-            }
-          } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
-          }
-          if (responseFromListEvents.success === true) {
-            let data = responseFromListEvents.data;
-            data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
-            createEvent.setCache(data, request, (cacheResult) => {
-              if (cacheResult.success === true) {
-                logText(cacheResult.message);
-              } else if (cacheResult.success === false) {
-                logText(cacheResult.message);
-              }
-            });
+      const deviceCountResult = await getDevicesCount(request);
 
-            return {
-              success: true,
-              message: !isEmpty(missingDataMessage)
-                ? missingDataMessage
-                : isEmpty(data[0].data)
-                ? "no measurements for this search"
-                : responseFromListEvents.message,
-              data,
-              status: responseFromListEvents.status
-                ? responseFromListEvents.status
-                : "",
-              isCache: false,
-            };
-          } else if (responseFromListEvents.success === false) {
-            logger.error(
-              `unable to retrieve events --- ${JSON.stringify(errors)}`
-            );
+      if (deviceCountResult.success === false) {
+        logger.error(
+          `Unable to retrieve events --- ${JSON.stringify(deviceCountResult)}`
+        );
+        logText(deviceCountResult.message);
+        return deviceCountResult;
+      }
 
-            return {
-              success: false,
-              message: responseFromListEvents.message,
-              errors: responseFromListEvents.errors
-                ? responseFromListEvents.errors
-                : { message: "" },
-              status: responseFromListEvents.status
-                ? responseFromListEvents.status
-                : "",
-              isCache: false,
-            };
-          }
-        } else if (deviceCountResult.success === false) {
-          logger.error(
-            `unable to retrieve events --- ${JSON.stringify(deviceCountResult)}`
-          );
-          logText(deviceCountResult.message);
-          return deviceCountResult;
+      if ((!recent && !device) || recent === "yes") {
+        if (!limit) {
+          limit = deviceCountResult.data;
         }
+        if (!skip) {
+          if (page) {
+            skip = parseInt((page - 1) * limit);
+          } else {
+            skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+          }
+        }
+      } else {
+        if (!limit) {
+          limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
+        }
+        if (!skip) {
+          if (page) {
+            skip = parseInt((page - 1) * limit);
+          } else {
+            skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+          }
+        }
+      }
+
+      const responseFromListEvents = await EventModel(tenant).list({
+        skip,
+        limit,
+        filter,
+        page,
+      });
+
+      if (
+        language !== undefined &&
+        constants.ENVIRONMENT === "STAGING ENVIRONMENT"
+      ) {
+        let data = responseFromListEvents.data[0].data;
+        for (const event of data) {
+          let translatedHealthTips = await translateUtil.translateTips(
+            event.health_tips,
+            language
+          );
+          if (translatedHealthTips.success === true) {
+            event.health_tips = translatedHealthTips.data;
+          }
+        }
+      }
+
+      if (responseFromListEvents.success === true) {
+        let data = responseFromListEvents.data;
+        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+
+        await createEvent.setCache(data, request);
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data[0].data)
+            ? "no measurements for this search"
+            : responseFromListEvents.message,
+          data,
+          status: responseFromListEvents.status || "",
+          isCache: false,
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve events --- ${JSON.stringify(
+            responseFromListEvents.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: responseFromListEvents.message,
+          errors: responseFromListEvents.errors || { message: "" },
+          status: responseFromListEvents.status || "",
+          isCache: false,
+        };
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`Internal server error -- ${error.message}`);
+
       return {
         success: false,
         errors: { message: error.message },
@@ -1156,71 +1124,64 @@ const createEvent = {
     }_${language ? language : "noLanguage"}
     `;
   },
-  setCache: (data, request, callback) => {
+  setCache: async (data, request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      redis.set(
+      await redis.set(
         cacheID,
         JSON.stringify({
           isCache: true,
           success: true,
-          message: `successfully retrieved the measurements`,
+          message: "Successfully retrieved the measurements",
           data,
         })
       );
-      redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
-      callback({
+      await redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+
+      return {
         success: true,
-        message: "response stored in cache",
+        message: "Response stored in cache",
         status: httpStatus.OK,
-      });
+      };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      callback({
+      logger.error(`Internal server error -- ${error.message}`);
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
-  getCache: (request, callback) => {
+  getCache: async (request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      redis.get(cacheID, async (err, result) => {
-        const resultJSON = JSON.parse(result);
-        if (result) {
-          callback({
-            success: true,
-            message: "utilising cache...",
-            data: resultJSON,
-            status: httpStatus.OK,
-          });
-        } else if (err) {
-          logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
-          callback({
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: err.message },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        } else {
-          callback({
-            success: false,
-            message: "no cache present",
-            errors: { message: "no cache present" },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-      });
+      const result = await redis.get(cacheID);
+      const resultJSON = JSON.parse(result);
+
+      if (result) {
+        return {
+          success: true,
+          message: "Utilizing cache...",
+          data: resultJSON,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No cache present",
+          errors: { message: "No cache present" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      callback({
+      logger.error(`Internal server error -- ${error.message}`);
+      return {
         success: false,
         errors: { message: error.message },
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
@@ -1600,14 +1561,7 @@ const createEvent = {
     try {
       const { device, name, id, device_number, tenant } = request.query;
 
-      let filter = {};
-      let responseFromFilter = generateFilter.events(request);
-
-      if (responseFromFilter.success == true) {
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success == false) {
-        return responseFromFilter;
-      }
+      const filter = generateFilter.events(request);
 
       let responseFromClearEvents = { success: false, message: "coming soon" };
 
