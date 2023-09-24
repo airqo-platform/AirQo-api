@@ -551,18 +551,13 @@ const createAirqloud = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
-      let filter = generateFilter.airqlouds(request);
-
-      let responseFromListAirQloud = await AirQloudModel(tenant).list({
+      const { tenant, limit, skip } = request.query;
+      const filter = generateFilter.airqlouds(request);
+      const responseFromListAirQloud = await AirQloudModel(tenant).list({
         filter,
         limit,
         skip,
       });
-
       return responseFromListAirQloud;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);

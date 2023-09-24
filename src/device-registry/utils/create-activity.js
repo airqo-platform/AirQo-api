@@ -319,20 +319,8 @@ const createActivity = {
           errors: { message: `Device ${deviceName} already recalled` },
         };
       } else if (isDeviceRecalled.success === false) {
-        let requestForFilter = {};
         let previousSiteId = {};
-        requestForFilter["query"] = {};
-        requestForFilter["query"]["device"] = deviceName;
-        let filter = {};
-        const responseFromGenerateFilter = generateFilter.devices(
-          requestForFilter
-        );
-        if (responseFromGenerateFilter.success === false) {
-          return responseFromGenerateFilter;
-        } else {
-          filter = responseFromGenerateFilter.data;
-        }
-
+        const filter = generateFilter.devices(request);
         const responseFromListDevice = await DeviceModel(tenant).list({
           filter,
         });

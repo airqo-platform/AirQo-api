@@ -28,47 +28,16 @@ const translateUtil = require("./translate");
 
 const listDevices = async (request) => {
   try {
-    let { tenant } = request.query;
+    const { tenant } = request.query;
     const limit = parseInt(request.query.limit, 0);
     const skip = parseInt(request.query.skip, 0);
-    let filter = {};
     logObject("the request for the filter", request);
-    let responseFromFilter = generateFilter.devices(request);
-    // logger.info(`responseFromFilter -- ${responseFromFilter}`);
-
-    if (responseFromFilter.success === true) {
-      filter = responseFromFilter.data;
-      logObject("the filter being used", filter);
-      // logger.info(`the filter in list -- ${filter}`);
-    } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors
-        ? responseFromFilter.errors
-        : { message: "" };
-      let status = responseFromFilter.status ? responseFromFilter.status : "";
-      try {
-        let errorsString = errors ? JSON.stringify(errors) : "";
-        logger.error(`the error from filter in list -- ${errorsString}`);
-      } catch (error) {
-        logger.error(`internal server error -- ${error.message}`);
-      }
-      return {
-        success: false,
-        message: responseFromFilter.message,
-        errors,
-        status,
-      };
-    }
-
-    let responseFromListDevice = await devicesModel(tenant).list({
+    const filter = generateFilter.devices(request);
+    const responseFromListDevice = await devicesModel(tenant).list({
       filter,
       limit,
       skip,
     });
-
-    // logger.info(
-    //   `the responseFromListDevice in list -- ${responseFromListDevice} `
-    // );
-
     if (responseFromListDevice.success === false) {
       let errors = responseFromListDevice.errors
         ? responseFromListDevice.errors

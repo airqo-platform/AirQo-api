@@ -516,17 +516,8 @@ const createGrid = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
-
+      const { tenant, limit, skip } = request.query;
       const filter = generateFilter.grids(request);
-
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
-
       const responseFromListGrid = await GridModel(tenant).list({
         filter,
         limit,

@@ -293,17 +293,8 @@ const createCohort = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
-
+      const { tenant, limit, skip } = request.query;
       const filter = generateFilter.cohorts(request);
-
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
-
       const responseFromListCohort = await CohortModel(tenant).list({
         filter,
         limit,

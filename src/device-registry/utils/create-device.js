@@ -336,44 +336,14 @@ const createDevice = {
   },
   encryptKeys: async (request) => {
     try {
-      const { id, device_number, name, tenant } = request.query;
+      const { tenant } = request.query;
       const { body } = request;
-      let update = body;
-      let filter = {};
-      let responseFromFilter = generateFilter.devices(request);
-      logElement(
-        "is responseFromFilter in util a success?",
-        responseFromFilter.success
-      );
-      // logger.info(`the filter ${responseFromFilter.data}`);
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      }
-
-      if (responseFromFilter.success === false) {
-        try {
-          let errorsString = responseFromFilter.errors
-            ? JSON.stringify(responseFromFilter.errors)
-            : "";
-          logger.error(
-            `responseFromFilter.error in create-device util--${errorsString}`
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors: responseFromFilter.errors
-            ? responseFromFilter.errors
-            : { message: "" },
-        };
-      }
-      let responseFromEncryptKeys = await DeviceModel(tenant).encryptKeys({
+      const update = body;
+      const filter = generateFilter.devices(request);
+      const responseFromEncryptKeys = await DeviceModel(tenant).encryptKeys({
         filter,
         update,
       });
-
       return responseFromEncryptKeys;
     } catch (error) {
       logger.error(
@@ -459,16 +429,8 @@ const createDevice = {
   },
   list: async (request) => {
     try {
-      let { tenant, category } = request.query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-      const responseFromFilter = generateFilter.devices(request);
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
+      const { tenant, category, limit, skip } = request.query;
+      const filter = generateFilter.devices(request);
       if (!isEmpty(category)) {
         filter.category = category;
       }
@@ -706,43 +668,14 @@ const createDevice = {
     try {
       const { tenant } = request.query;
       const { body } = request;
-      let update = body;
-      let filter = {};
-      let responseFromFilter = generateFilter.devices(request);
-      logElement(
-        "is responseFromFilter in util a success?",
-        responseFromFilter.success
-      );
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        try {
-          let filterString = responseFromFilter.errors
-            ? JSON.stringify(responseFromFilter.errors)
-            : "";
-          logger.error(
-            `responseFromFilter.error in create-device util--${filterString}`
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors,
-        };
-      }
+      const update = body;
+      const filter = generateFilter.devices(request);
       let opts = {};
-
       const responseFromModifyDevice = await DeviceModel(tenant).modify({
         filter,
         update,
         opts,
       });
-
       return responseFromModifyDevice;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -812,39 +745,10 @@ const createDevice = {
   deleteOnPlatform: async (request) => {
     try {
       const { tenant } = request.query;
-      // logger.info(
-      //   `the requesting coming into deleteOnPlatform util --${request}`
-      // );
-      let filter = {};
-      let responseFromFilter = generateFilter.devices(request);
-      if (responseFromFilter.success === true) {
-        // logger.info(`the filter ${responseFromFilter.data}`);
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        try {
-          let filterString = responseFromFilter.errors
-            ? JSON.stringify(responseFromFilter.errors)
-            : "";
-          logger.error(
-            `responseFromFilter.error in create-device util--${filterString}`
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors,
-          status: responseFromFilter.status ? responseFromFilter.status : "",
-        };
-      }
+      const filter = generateFilter.devices(request);
       const responseFromRemoveDevice = await DeviceModel(tenant).remove({
         filter,
       });
-
       return responseFromRemoveDevice;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -974,8 +878,7 @@ const createDevice = {
 
       let modifiedRequest = Object.assign({}, request);
 
-      const responseFromFilter = generateFilter.devices(modifiedRequest);
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.devices(request);
       const { tenant } = modifiedRequest.query;
       logObject("the filter being used to filter", filter);
 

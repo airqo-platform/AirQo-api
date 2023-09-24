@@ -823,25 +823,27 @@ const createSite = {
       };
     }
   },
-  list: async ({ tenant, filter, skip, limit }) => {
+  list: async (request) => {
     try {
+      const { skip, limit, tenant } = request.query;
+      const filter = generateFilter.sites(request);
+
       const responseFromListSite = await SiteModel(tenant).list({
         filter,
         limit,
         skip,
       });
 
-      if (responseFromListSite.success === false) {
+      if (!responseFromListSite.success) {
         return responseFromListSite;
-      } else if (responseFromListSite.success === true) {
-        let modifiedResponseFromListSite = responseFromListSite;
-        modifiedResponseFromListSite.data = responseFromListSite.data.filter(
-          function(obj) {
-            return obj.lat_long !== "4_4";
-          }
-        );
-        return modifiedResponseFromListSite;
       }
+
+      const modifiedResponseFromListSite = {
+        ...responseFromListSite,
+        data: responseFromListSite.data.filter((obj) => obj.lat_long !== "4_4"),
+      };
+
+      return modifiedResponseFromListSite;
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
@@ -852,6 +854,7 @@ const createSite = {
       };
     }
   },
+
   formatSiteName: (name) => {
     try {
       let nameWithoutWhiteSpace = name.replace(/\s/g, "");

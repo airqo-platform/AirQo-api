@@ -314,182 +314,112 @@ const generateFilter = {
     return regex;
   },
   devices: (req) => {
-    try {
-      let filter = { name: {} };
-      let {
-        name,
-        channel,
-        location,
-        siteName,
-        mapAddress,
-        primary,
-        active,
-        chid,
-        loc,
-        map,
-        site,
-        site_id,
-        id,
-        device_name,
-        device_id,
-        device,
-        device_codes,
-        device_number,
-        category,
-        network,
-        visibility,
-      } = req.query;
+    const {
+      name,
+      channel,
+      location,
+      siteName,
+      mapAddress,
+      primary,
+      active,
+      chid,
+      loc,
+      map,
+      site,
+      site_id,
+      id,
+      device_name,
+      device_id,
+      device,
+      device_codes,
+      device_number,
+      category,
+      network,
+      visibility,
+      deviceName,
+    } = { ...req.query, ...req.params };
 
-      if (name) {
-        let deviceArray = name.split(",");
-        let modifiedDeviceArray = deviceArray.map((value) => {
-          if (isLowerCase(value)) {
-            return value.toUpperCase();
-          }
-          if (!isLowerCase(value)) {
-            return value.toLowerCase();
-          }
-          return value;
-        });
-        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
-        filter["name"]["$in"] = mergedArray;
-      } else if (device) {
-        let deviceArray = device.split(",");
-        let modifiedDeviceArray = deviceArray.map((value) => {
-          if (isLowerCase(value)) {
-            return value.toUpperCase();
-          }
-          if (!isLowerCase(value)) {
-            return value.toLowerCase();
-          }
-          return value;
-        });
-        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
-        filter["name"]["$in"] = mergedArray;
-      } else if (device_name) {
-        let deviceArray = device_name.split(",");
-        let modifiedDeviceArray = deviceArray.map((value) => {
-          if (isLowerCase(value)) {
-            return value.toUpperCase();
-          }
-          if (!isLowerCase(value)) {
-            return value.toLowerCase();
-          }
-          return value;
-        });
-        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
-        filter["name"]["$in"] = mergedArray;
-      } else {
-        delete filter["name"];
-      }
+    const filter = {};
 
-      if (channel) {
-        filter["device_number"] = parseInt(channel);
-      }
-
-      if (category) {
-        filter["category"] = category;
-      }
-
-      if (network) {
-        filter["network"] = network;
-      }
-
-      if (device_number) {
-        filter["device_number"] = parseInt(device_number);
-      }
-
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-
-      if (device_id) {
-        filter["_id"] = ObjectId(device_id);
-      }
-
-      if (device_codes) {
-        let deviceCodesArray = device_codes.split(",");
-        filter["device_codes"] = {};
-        filter["device_codes"]["$in"] = deviceCodesArray;
-      }
-
-      if (chid) {
-        filter["device_number"] = parseInt(chid);
-      }
-
-      if (location) {
-        filter["locationID"] = location;
-      }
-      if (loc) {
-        filter["locationID"] = loc;
-      }
-      if (site) {
-        filter["site_id"] = site;
-      }
-
-      if (site_id) {
-        filter["site_id"] = site_id;
-      }
-
-      if (siteName) {
-        filter["siteName"] = siteName;
-      }
-
-      if (mapAddress) {
-        filter["locationName"] = mapAddress;
-      }
-
-      if (map) {
-        filter["locationName"] = map;
-      }
-
-      if (primary) {
-        const primaryStr = primary + "";
-        if (primaryStr.toLowerCase() == "yes") {
-          filter["isPrimaryInLocation"] = true;
-        } else if (primaryStr.toLowerCase() == "no") {
-          filter["isPrimaryInLocation"] = false;
-        } else {
-        }
-      }
-
-      if (active) {
-        const activeStr = active + "";
-        if (activeStr.toLowerCase() === "yes") {
-          filter["isActive"] = true;
-        } else if (activeStr.toLowerCase() === "no") {
-          filter["isActive"] = false;
-        }
-      }
-
-      if (visibility) {
-        const visibilityStr = visibility + "";
-        if (visibilityStr.toLowerCase() === "yes") {
-          filter["visibility"] = true;
-        } else if (visibilityStr.toLowerCase() === "no") {
-          filter["visibility"] = false;
-        }
-      }
-
-      // logger.info(`the filter  -- ${JSON.stringify(filter)}`);
-      return {
-        success: true,
-        message: "successfully generated the filter",
-        data: filter,
-      };
-    } catch (error) {
-      logger.error(
-        `internal server error - generate device filter -- ${error.message}`
+    const modifyAndConcatArray = (value) => {
+      const deviceArray = value.split(",");
+      const modifiedDeviceArray = deviceArray.map((value) =>
+        isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
       );
-      return {
-        success: false,
-        message: "server error - generate device filter",
-        errors: { message: error.message },
+      return [...modifiedDeviceArray, ...deviceArray];
+    };
+
+    if (name || device || device_name || deviceName) {
+      filter.name = {
+        $in: modifyAndConcatArray(name || device || device_name || deviceName),
       };
     }
+
+    if (channel) {
+      filter.device_number = parseInt(channel);
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (network) {
+      filter.network = network;
+    }
+
+    if (device_number) {
+      filter.device_number = parseInt(device_number);
+    }
+
+    if (id) {
+      filter._id = ObjectId(id);
+    }
+
+    if (device_id) {
+      filter._id = ObjectId(device_id);
+    }
+
+    if (device_codes) {
+      filter.device_codes = { $in: device_codes.split(",") };
+    }
+
+    if (chid) {
+      filter.device_number = parseInt(chid);
+    }
+
+    if (location || loc) {
+      filter.locationID = location || loc;
+    }
+
+    if (site || site_id) {
+      filter.site_id = site || site_id;
+    }
+
+    if (siteName) {
+      filter.siteName = siteName;
+    }
+
+    if (mapAddress || map) {
+      filter.locationName = mapAddress || map;
+    }
+
+    if (primary) {
+      filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
+    }
+
+    if (active) {
+      filter.isActive = active.toLowerCase() === "yes";
+    }
+
+    if (visibility) {
+      filter.visibility = visibility.toLowerCase() === "yes";
+    }
+
+    return filter;
   },
+
   sites: (req) => {
-    let {
+    const {
       lat_long,
       id,
       generated_name,
@@ -505,8 +435,8 @@ const generateFilter = {
       _id,
       network,
       google_place_id,
-    } = req.query;
-    let filter = {};
+    } = { ...req.query, ...req.params };
+    const filter = {};
 
     if (name) {
       filter["name"] = name;
@@ -533,9 +463,8 @@ const generateFilter = {
     }
 
     if (site_codes) {
-      let siteCodesArray = site_codes.split(",");
-      filter["site_codes"] = {};
-      filter["site_codes"]["$in"] = siteCodesArray;
+      const siteCodesArray = site_codes.split(",");
+      filter["site_codes"] = { $in: siteCodesArray };
     }
 
     if (google_place_id) {
@@ -572,43 +501,18 @@ const generateFilter = {
 
     return filter;
   },
+
   airqlouds: (req) => {
     const {
       id,
-      name,
+      airqloud_id,
       admin_level,
       summary,
       dashboard,
-      airqloud_id,
-      network,
-      airqloud,
       airqloud_codes,
-    } = req.query;
-    let filter = {};
+    } = { ...req.query, ...req.params };
 
-    if (name) {
-      filter["name"] = name;
-    } else if (airqloud) {
-      filter["name"] = airqloud;
-    }
-
-    if (network) {
-      filter["network"] = network;
-    }
-
-    if (summary === "yes") {
-      filter["summary"] = summary;
-    }
-
-    if (dashboard === "yes") {
-      filter["dashboard"] = dashboard;
-    }
-
-    if (airqloud_codes) {
-      let airqloudCodesArray = airqloud_codes.split(",");
-      filter["airqloud_codes"] = {};
-      filter["airqloud_codes"]["$in"] = airqloudCodesArray;
-    }
+    const filter = {};
 
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -622,83 +526,79 @@ const generateFilter = {
       filter["admin_level"] = admin_level;
     }
 
+    if (summary === "yes") {
+      filter["summary"] = summary;
+    }
+
+    if (dashboard === "yes") {
+      filter["dashboard"] = dashboard;
+    }
+
+    if (airqloud_codes) {
+      const airqloudCodesArray = airqloud_codes.split(",");
+      filter["airqloud_codes"] = { $in: airqloudCodesArray };
+    }
+
     return filter;
   },
 
   grids: (req) => {
-    try {
-      const { id, name, admin_level, grid_codes } = req.query;
-      const { grid_id } = req.params;
-      let filter = {};
-      if (name) {
-        filter["name"] = name;
-      }
+    const { id, admin_level, grid_codes, grid_id } = {
+      ...req.query,
+      ...req.params,
+    };
 
-      if (grid_codes) {
-        let geoCodesArray = grid_codes.split(",");
-        filter["grid_codes"] = {};
-        filter["grid_codes"]["$in"] = geoCodesArray;
-      }
+    const filter = {};
 
-      if (grid_id) {
-        filter["_id"] = ObjectId(grid_id);
-      }
-
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-
-      if (admin_level) {
-        filter["admin_level"] = admin_level;
-      }
-
-      return filter;
-    } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    if (id) {
+      filter["_id"] = ObjectId(id);
     }
+
+    if (grid_id) {
+      filter["_id"] = ObjectId(grid_id);
+    }
+
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
+
+    if (grid_codes) {
+      const geoCodesArray = grid_codes.split(",");
+      filter["grid_codes"] = { $in: geoCodesArray };
+    }
+
+    return filter;
   },
 
   cohorts: (req) => {
-    try {
-      const { id, name, cohort_codes, network_id } = req.query;
-      const { cohort_id } = req.params;
-      let filter = {};
-      if (name) {
-        filter["name"] = name;
-      }
+    const { id, cohort_codes, network_id, name, cohort_id } = {
+      ...req.query,
+      ...req.params,
+    };
+    const filter = {};
 
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
-      }
-
-      if (cohort_id) {
-        filter["_id"] = ObjectId(cohort_id);
-      }
-
-      if (cohort_codes) {
-        let cohortCodesArray = cohort_codes.split(",");
-        filter["cohort_codes"] = {};
-        filter["cohort_codes"]["$in"] = cohortCodesArray;
-      }
-
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-
-      return filter;
-    } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    if (id) {
+      filter["_id"] = ObjectId(id);
     }
+
+    if (cohort_id) {
+      filter["_id"] = ObjectId(cohort_id);
+    }
+
+    if (network_id) {
+      filter["network_id"] = ObjectId(network_id);
+    }
+
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (cohort_codes) {
+      const cohortCodesArray = cohort_codes.split(",");
+      filter["cohort_codes"] = { $in: cohortCodesArray };
+    }
+
+    return filter;
   },
 
   networks: (req) => {
@@ -1064,7 +964,6 @@ const generateFilter = {
       };
     }
   },
-
 };
 
 module.exports = generateFilter;
