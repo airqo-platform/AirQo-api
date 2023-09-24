@@ -23,55 +23,6 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-class GridTransformStream extends Transform {
-  constructor(centers, options) {
-    super({ objectMode: true, ...options });
-    this.centers = centers;
-  }
-
-  _transform(chunk, encoding, callback) {
-    try {
-      // Perform any necessary transformations on 'chunk' before creating a Grid Model
-      const gridModel = new GridModel({
-        // Use the 'chunk' data and the 'centers' as needed
-        // Example: grid_id: chunk.grid_id, centers: this.centers
-        // Modify the code according to your specific requirements
-      });
-      this.push(gridModel);
-      callback();
-    } catch (error) {
-      callback(error);
-    }
-  }
-}
-
-const generateGeoHash = (latitude, longitude, precision = 9) => {
-  try {
-    // Calculate the boundaries for a radius of 1 kilometer around the target location
-    const radius = 1000; // 1 kilometer
-    const bounds = geolib.getBoundsOfDistance({ latitude, longitude }, radius);
-
-    // Get the bounding coordinates
-    const { maxLat, minLat, maxLng, minLng } = bounds;
-
-    // Calculate the center point of the bounding box
-    const centerLat = (maxLat + minLat) / 2;
-    const centerLng = (maxLng + minLng) / 2;
-
-    // Generate the GeoHash string for the center point
-    const geoHash = geohash.encode(centerLat, centerLng, precision);
-
-    return geoHash;
-  } catch (error) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
-  }
-};
-
 const createGrid = {
   batchCreate: async (request) => {
     try {
@@ -96,77 +47,6 @@ const createGrid = {
       }
 
       /************* END batch processing ************ */
-    } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
-    }
-  },
-  streamCreate: async (request) => {
-    try {
-      /****************START stream processing ********** */
-      // const { data } = request.body; // Assuming the input data is passed in the request body as 'data' field
-      const { shape } = request.body;
-      const { type, coordinates } = shape;
-      // Create a Readable stream from the input data
-      const readableStream = new Readable({
-        objectMode: true,
-        read() {
-          // Push each data item into the stream
-          coordinates.forEach((item) => this.push(item));
-          this.push(null); // Signal the end of the stream
-        },
-      });
-
-      const centerResponse = await calculateGeographicalCenter(request);
-      if (!centerResponse.success) {
-        // Handle the error or return an appropriate response
-      }
-      const centers = centerResponse.data;
-
-      // Create a custom Transform stream for processing and transforming the data
-      const transformStream = new GridTransformStream(centers);
-
-      // Create a Writable stream to save the processed data using GridModel.create()
-      const writableStream = new Writable({
-        objectMode: true,
-        write(gridModel, encoding, callback) {
-          GridModel(tenant).create(gridModel, (error) => {
-            if (error) {
-              callback(error);
-            } else {
-              callback();
-            }
-          });
-        },
-      });
-
-      // Connect the streams together using stream.pipeline() or a similar method
-      stream.pipeline(
-        readableStream,
-        transformStream,
-        writableStream,
-        (error) => {
-          if (error) {
-            console.error("Error during streaming processing:", error);
-            res.status(500).json({
-              success: false,
-              message: "Error during streaming processing",
-            });
-          } else {
-            res.status(200).json({
-              success: true,
-              message: "Streaming processing completed",
-            });
-          }
-        }
-      );
-
-      /******************* END stream processing ***************/
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
       return {

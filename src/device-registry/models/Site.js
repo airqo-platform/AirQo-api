@@ -19,6 +19,11 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "name is required!"],
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     grids: {
       type: [
         {
@@ -381,6 +386,7 @@ siteSchema.methods = {
       _id: this._id,
       grids: this.grids,
       name: this.name,
+      visibility: this.visibility,
       generated_name: this.generated_name,
       search_name: this.search_name,
       network: this.network,

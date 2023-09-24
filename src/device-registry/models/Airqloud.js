@@ -73,6 +73,11 @@ const airqloudSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     airqloud_codes: [
       {
         type: String,
@@ -150,6 +155,7 @@ airqloudSchema.methods.toJSON = function() {
     sites: this.sites,
     airqloud_codes: this.airqloud_codes,
     center_point: this.center_point,
+    visibility: this.visibility,
   };
 };
 
