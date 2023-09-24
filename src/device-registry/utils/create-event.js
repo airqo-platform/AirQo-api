@@ -482,18 +482,19 @@ const createEvent = {
   },
   list: async (request) => {
     try {
+      let missingDataMessage = "";
       const { query } = request;
-      const { limit, skip } = query;
+      let { limit, skip } = query;
       const { recent, tenant, device } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
       const filter = generateFilter.events(request);
-      const cacheResult = await createEvent.getCache(request);
+      // const cacheResult = await createEvent.getCache(request);
 
-      if (cacheResult.success === true) {
-        logText(cacheResult.message);
-        return cacheResult.data;
-      }
+      // if (cacheResult.success === true) {
+      //   logText(cacheResult.message);
+      //   return cacheResult.data;
+      // }
 
       const deviceCountResult = await getDevicesCount(request);
 
@@ -556,7 +557,7 @@ const createEvent = {
         let data = responseFromListEvents.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
-        await createEvent.setCache(data, request);
+        // await createEvent.setCache(data, request);
 
         return {
           success: true,
