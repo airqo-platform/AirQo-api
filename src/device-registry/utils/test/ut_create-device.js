@@ -11,6 +11,9 @@ const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const expect = chai.expect;
 const cryptoJS = require("crypto-js");
+const chaiHttp = require("chai-http");
+
+chai.use(chaiHttp);
 
 describe("createDevice", () => {
   describe("doesDeviceSearchExist", () => {
@@ -162,201 +165,118 @@ describe("createDevice", () => {
   });
 
   describe("getDevicesCount", () => {
-    it("should return the number of devices", async () => {
+    it("should return the count of devices when successful", async () => {
       // Arrange
-      const request = {
-        /* Add request properties as needed */
-      };
-      const callback = sinon.stub();
+      const tenant = "example-tenant";
+      const count = 42;
+      const request = { query: { tenant } };
 
-      // Stub the DeviceModel.countDocuments function to return a count
-      const countStub = sinon.stub().callsFake(({}, cb) => cb(null, 10));
-      sinon
-        .stub(createDevice, "DeviceModel")
-        .returns({ countDocuments: countStub });
+      // Mock the DeviceModel countDocuments method
+      const DeviceModel = {
+        countDocuments: sinon.stub().resolves(count),
+      };
 
       // Act
-      await createDevice.getDevicesCount(request, callback);
+      const result = await createDevice.getDevicesCount(request, DeviceModel);
 
       // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.true;
-      expect(callbackArgs.message).to.equal("retrieved the number of devices");
-      expect(callbackArgs.data).to.equal(10);
-
-      // Restore the stubbed function
-      createDevice.DeviceModel.restore();
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal("retrieved the number of devices");
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.equal(count);
     });
 
-    it("should handle internal server error and return failure status", async () => {
+    it("should return an error when DeviceModel throws an exception", async () => {
       // Arrange
-      const request = {
-        /* Add request properties as needed */
-      };
-      const callback = sinon.stub();
+      const tenant = "example-tenant";
+      const error = new Error("Test error");
+      const request = { query: { tenant } };
 
-      // Stub the DeviceModel.countDocuments function to throw an error
-      const countStub = sinon
-        .stub()
-        .callsFake(({}, cb) => cb(new Error("Database error")));
-      sinon
-        .stub(createDevice, "DeviceModel")
-        .returns({ countDocuments: countStub });
+      // Mock the DeviceModel countDocuments method to throw an error
+      const DeviceModel = {
+        countDocuments: sinon.stub().rejects(error),
+      };
 
       // Act
-      await createDevice.getDevicesCount(request, callback);
+      const result = await createDevice.getDevicesCount(request, DeviceModel);
 
       // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.false;
-      expect(callbackArgs.message).to.equal("Internal Server Error");
-      expect(callbackArgs.errors).to.have.property("message");
-
-      // Restore the stubbed function
-      createDevice.DeviceModel.restore();
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Internal Server Error");
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.errors.message).to.equal(error.message);
     });
   });
 
   describe("generateQR", () => {
-    it("should generate QR code for existing device", async () => {
-      // Arrange
+    it("should generate a QR code for a valid device", async () => {
       const request = {
         query: {
-          include_site: "yes", // Modify this as needed
+          include_site: "yes",
         },
       };
-      const callback = sinon.stub();
 
-      // Stub the createDevice.list function to return success and device data
-      sinon.stub(createDevice, "list").resolves({
+      const responseFromListDevice = {
         success: true,
         data: [
           {
-            /* Add device data here */
+            deviceProperty: "value",
+            site: {
+              siteProperty: "siteValue",
+            },
           },
         ],
-      });
+      };
 
-      // Stub QRCode.toDataURL to return a URL
-      const qrStub = sinon
-        .stub(QRCode, "toDataURL")
-        .callsFake((data, cb) => cb(null, "QR_URL"));
+      sinon.stub(QRCode, "toDataURL").callsFake(async () => "fakeQRCodeURL");
 
-      // Act
-      await createDevice.generateQR(request, callback);
+      const result = await createDevice.generateQR(request);
 
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.true;
-      expect(callbackArgs.message).to.equal(
-        "successfully generated the QR Code"
-      );
-      expect(callbackArgs.data).to.equal("QR_URL");
-      expect(callbackArgs.status).to.equal(httpStatus.OK);
+      expect(result.success).to.equal(true);
+      expect(result.message).to.equal("successfully generated the QR Code");
+      expect(result.data).to.equal("fakeQRCodeURL");
+      expect(result.status).to.equal(httpStatus.OK);
 
-      // Restore the stubbed functions
-      createDevice.list.restore();
-      QRCode.toDataURL.restore();
+      QRCode.toDataURL.restore(); // Restore the stubbed function
     });
 
-    it("should handle device not found and return failure status", async () => {
-      // Arrange
+    it("should handle a device that does not exist", async () => {
       const request = {
         query: {
-          include_site: "yes", // Modify this as needed
+          include_site: "yes",
         },
       };
-      const callback = sinon.stub();
 
-      // Stub the createDevice.list function to return success but no device data
-      sinon.stub(createDevice, "list").resolves({
+      const responseFromListDevice = {
         success: true,
-        data: [],
-      });
+        data: [], // Empty array indicating no device exists
+      };
 
-      // Act
-      await createDevice.generateQR(request, callback);
+      const result = await createDevice.generateQR(request);
 
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.false;
-      expect(callbackArgs.message).to.equal("device does not exist");
-      expect(callbackArgs.data).to.be.undefined;
-      expect(callbackArgs.status).to.be.undefined;
-
-      // Restore the stubbed function
-      createDevice.list.restore();
+      expect(result.success).to.equal(false);
+      expect(result.message).to.equal("device does not exist");
     });
 
-    it("should handle internal server error from QRCode.toDataURL and return failure status", async () => {
-      // Arrange
+    it("should handle an internal server error", async () => {
       const request = {
         query: {
-          include_site: "yes", // Modify this as needed
+          include_site: "yes",
         },
       };
-      const callback = sinon.stub();
 
-      // Stub the createDevice.list function to return success and device data
-      sinon.stub(createDevice, "list").resolves({
-        success: true,
-        data: [
-          {
-            /* Add device data here */
-          },
-        ],
-      });
-
-      // Stub QRCode.toDataURL to throw an error
-      const qrStub = sinon
+      sinon
         .stub(QRCode, "toDataURL")
-        .throws(new Error("QRCode error"));
+        .throws(new Error("Internal Server Error"));
 
-      // Act
-      await createDevice.generateQR(request, callback);
+      const result = await createDevice.generateQR(request);
 
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.false;
-      expect(callbackArgs.message).to.equal("unable to generate QR code");
-      expect(callbackArgs.errors).to.have.property("message");
-      expect(callbackArgs.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.success).to.equal(false);
+      expect(result.message).to.equal("Internal Server Error");
+      expect(result.errors).to.deep.equal({ message: "Internal Server Error" });
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
 
-      // Restore the stubbed functions
-      createDevice.list.restore();
-      QRCode.toDataURL.restore();
-    });
-
-    it("should handle internal server error from createDevice.list and return failure status", async () => {
-      // Arrange
-      const request = {
-        query: {
-          include_site: "yes", // Modify this as needed
-        },
-      };
-      const callback = sinon.stub();
-
-      // Stub the createDevice.list function to throw an error
-      sinon.stub(createDevice, "list").throws(new Error("Database error"));
-
-      // Act
-      await createDevice.generateQR(request, callback);
-
-      // Assert
-      expect(callback.calledOnce).to.be.true;
-      const callbackArgs = callback.firstCall.args[0];
-      expect(callbackArgs.success).to.be.false;
-      expect(callbackArgs.message).to.equal("Internal Server Error");
-      expect(callbackArgs.errors).to.have.property("message");
-      expect(callbackArgs.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-
-      // Restore the stubbed function
-      createDevice.list.restore();
+      QRCode.toDataURL.restore(); // Restore the stubbed function
     });
   });
 

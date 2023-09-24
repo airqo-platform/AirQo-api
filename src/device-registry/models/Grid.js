@@ -6,9 +6,9 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grid-model`);
-const commonUtil = require("@utils/common");
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- grid-model`
+);
 const { getModelByTenant } = require("@config/database");
 const shapeSchema = new Schema(
   {
@@ -227,6 +227,12 @@ gridSchema.statics.list = async function({
     );
     if (!isEmpty(filter.category)) {
       delete filter.category;
+    }
+    if (!isEmpty(filter.dashboard)) {
+      delete filter.dashboard;
+    }
+    if (!isEmpty(filter.summary)) {
+      delete filter.summary;
     }
     const pipeline = this.aggregate()
       .match(filter)

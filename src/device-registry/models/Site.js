@@ -19,6 +19,11 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "name is required!"],
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     grids: {
       type: [
         {
@@ -381,6 +386,7 @@ siteSchema.methods = {
       _id: this._id,
       grids: this.grids,
       name: this.name,
+      visibility: this.visibility,
       generated_name: this.generated_name,
       search_name: this.search_name,
       network: this.network,
@@ -497,11 +503,7 @@ siteSchema.statics = {
       };
     }
   },
-  async list({
-    skip = 0,
-    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
-    filter = {},
-  } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
@@ -510,6 +512,12 @@ siteSchema.statics = {
 
       if (!isEmpty(filter.category)) {
         delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
       }
 
       const pipeline = await this.aggregate()
