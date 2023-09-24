@@ -485,28 +485,28 @@ const createEvent = {
       request["query"]["brief"] = "yes";
       request["query"]["metadata"] = "device";
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -551,56 +551,57 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          const measurementsForDeployedDevices = result.data[0].data.filter(
-            (obj) => {
-              if (obj.siteDetails === null) {
-                return false; // Exclude if siteDetails is null
-              }
+      const result = await createEventUtil.list(request);
 
-              const { pm2_5 } = obj;
-              if (pm2_5 && pm2_5.value === null) {
-                logger.error(
-                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
-                    obj.device ? obj.device : ""
-                  } -- the timestamp is ${
-                    obj.time ? obj.time : ""
-                  } -- the frequency is ${
-                    obj.frequency ? obj.frequency : ""
-                  } -- the site_name is ${
-                    obj.siteDetails ? obj.siteDetails.name : ""
-                  }`
-                );
-                return false; // Exclude if either value is null
-              }
-
-              return true; // Include for other cases
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        const measurementsForDeployedDevices = result.data[0].data.filter(
+          (obj) => {
+            if (obj.siteDetails === null) {
+              return false; // Exclude if siteDetails is null
             }
-          );
 
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: measurementsForDeployedDevices,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+            const { pm2_5 } = obj;
+            if (pm2_5 && pm2_5.value === null) {
+              logger.error(
+                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                  obj.device ? obj.device : ""
+                } -- the timestamp is ${
+                  obj.time ? obj.time : ""
+                } -- the frequency is ${
+                  obj.frequency ? obj.frequency : ""
+                } -- the site_name is ${
+                  obj.siteDetails ? obj.siteDetails.name : ""
+                }`
+              );
+              return false; // Exclude if either value is null
+            }
+
+            return true; // Include for other cases
+          }
+        );
+
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: measurementsForDeployedDevices,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -644,29 +645,29 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: "successfully returned the active and running devices",
-            meta: result.data[0].meta,
-            devices: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: "successfully returned the active and running devices",
+          meta: result.data[0].meta,
+          devices: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
@@ -710,29 +711,29 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -775,29 +776,29 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -843,29 +844,29 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -909,29 +910,28 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -976,29 +976,28 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -1044,29 +1043,28 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
-          res.status(status).json({
-            success: false,
-            errors,
-            message: result.message,
-          });
-        }
-      });
+      const result = await createEventUtil.list(request);
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
