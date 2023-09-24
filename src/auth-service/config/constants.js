@@ -196,7 +196,7 @@ const defaultConfig = {
 <table style="width: 100%; padding-bottom: 24px;">
                             <tr>
                                 <td style="display: flex; align-items: center;">
-                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 100px; margin-right: 10px;">
                                    
                                 </td>
                             </tr>
