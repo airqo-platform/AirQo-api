@@ -1040,55 +1040,24 @@ const createNetwork = {
         };
       }
 
-      // Retrieve users who are not part of the network or don't have the specific network role
-      const responseFromListAvailableUsers = await UserModel(tenant)
-        .aggregate([
-          {
-            $match: {
-              $or: [
-                {
-                  networks: { $nin: [net_id] },
-                },
-                {
-                  network_roles: {
-                    $not: {
-                      $elemMatch: {
-                        network: network._id,
-                      },
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-            },
-          },
-        ])
-        .exec();
+      const filter = {
+        "network_roles.network": { $ne: net_id },
+        category: "networks",
+      };
+
+      let responseFromListAvailableUsers = await UserModel(tenant).list({
+        filter,
+      });
 
       logObject(
-        "responseFromListAvailableUsers",
-        responseFromListAvailableUsers
+        "responseFromListAvailableUsers.data",
+        responseFromListAvailableUsers.data
       );
 
-      return {
-        success: true,
-        message: `retrieved all available users for network ${net_id}`,
-        data: responseFromListAvailableUsers,
-      };
+      if (responseFromListAvailableUsers.success === true) {
+        responseFromListAvailableUsers.message = `retrieved all available users for network ${net_id}`;
+      }
+      return responseFromListAvailableUsers;
     } catch (error) {
       logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
@@ -1119,54 +1088,21 @@ const createNetwork = {
         };
       }
 
-      const responseFromListAssignedUsers = await UserModel(tenant)
-        .aggregate([
-          {
-            $match: {
-              $or: [
-                {
-                  networks: { $in: [net_id] },
-                },
-                {
-                  network_roles: {
-                    $elemMatch: {
-                      network: network._id,
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-              jobTitle: 1,
-              website: 1,
-              category: 1,
-              country: 1,
-              description: 1,
-            },
-          },
-        ])
-        .exec();
+      const filter = {
+        "network_roles.network": net_id,
+        category: "networks",
+      };
+
+      let responseFromListAssignedUsers = await UserModel(tenant).list({
+        filter,
+      });
 
       logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
 
-      return {
-        success: true,
-        message: `Retrieved all assigned users for network ${net_id}`,
-        data: responseFromListAssignedUsers,
-      };
+      if (responseFromListAssignedUsers.success === true) {
+        responseFromListAssignedUsers.message = `Retrieved all assigned users for network ${net_id}`;
+      }
+      return responseFromListAssignedUsers;
     } catch (error) {
       logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);

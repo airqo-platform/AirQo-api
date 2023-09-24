@@ -1,167 +1,321 @@
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("./log");
-const mailer = require("./mailer");
+const { logObject, logElement, logText } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-constants = require("../config/constants");
+const constants = require("@config/constants");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
 );
+const accessCodeGenerator = require("generate-password");
+const createNetworkUtil = require("@utils/create-network");
+const createGroupUtil = require("@utils/create-group");
 
 const createAccessRequest = {
   requestAccessToGroup: async (request) => {
     try {
-      const { user } = request; // Assuming user information is available in the request object
+      const { user, query } = request;
+      const { tenant } = query;
       const { group_id } = request.params;
-
-      // Check if the user has already requested access to this group
-      const existingRequest = await AccessRequestModel.findOne({
-        user: user._id,
-        group: group_id,
-      });
-
-      if (existingRequest) {
-        // If a request already exists, you can handle it accordingly
+      logObject("the user", user);
+      const group = await GroupModel(tenant).findById(group_id);
+      if (isEmpty(group) || isEmpty(user._id)) {
         return {
           success: false,
-          message: "Access request already exists for this group",
+          message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
+          errors: { message: "Group or User not found" },
         };
       }
 
-      // Create a new access request record
-      const newAccessRequest = new AccessRequestModel({
-        user: user._id,
-        group: group_id,
-        status: "Pending", // You can set an initial status as 'Pending'
+      const existingRequest = await AccessRequestModel(tenant).findOne({
+        user_id: user._id,
+        targetId: group_id,
+        requestType: "group",
       });
 
-      // Save the access request to the database
-      await newAccessRequest.save();
+      if (!isEmpty(existingRequest)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Access request already exists for this group" },
+        };
+      }
 
-      // Optionally, notify administrators about the new access request
-      // You can use a notification mechanism (email, in-app notification, etc.)
+      const responseFromCreateAccessRequest = await AccessRequestModel(
+        tenant
+      ).register({
+        user_id: user._id,
+        targetId: group_id,
+        status: "pending",
+        requestType: "group",
+      });
 
-      return {
-        success: true,
-        message: "Access request submitted successfully",
-        status: httpStatus.OK,
-      };
+      if (responseFromCreateAccessRequest.success === true) {
+        const createdAccessRequest = await responseFromCreateAccessRequest.data;
+        const firstName = user.firstName ? user.firstName : "Unknown";
+        const lastName = user.lastName ? user.lastName : "Unknown";
+        if (isEmpty(user.email)) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: {
+              message: "Unable to retrieve the requester's email address",
+            },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+        const responseFromSendEmail = await mailer.request({
+          firstName,
+          lastName,
+          email: user.email,
+          tenant,
+          entity_title: group.grp_title,
+        });
+
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "Access Request completed successfully",
+            data: createdAccessRequest,
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : httpStatus.OK,
+          };
+        } else if (responseFromSendEmail.success === false) {
+          logger.error(`${responseFromSendEmail.message}`);
+          return responseFromSendEmail;
+        }
+      } else {
+        logger.error(`${responseFromCreateAccessRequest.message}`);
+        return responseFromCreateAccessRequest;
+      }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: e.message },
+      };
     }
   },
   requestAccessToNetwork: async (request) => {
     try {
-      const { user } = request; // Assuming user information is available in the request object
+      const { user, query } = request;
+      const { tenant } = query;
       const { network_id } = request.params;
 
-      // Check if the user has already requested access to this network
-      const existingRequest = await AccessRequestModel.findOne({
-        user: user._id,
-        network: network_id,
-      });
-
-      if (existingRequest) {
-        // If a request already exists, you can handle it accordingly
+      const network = await NetworkModel(tenant).findById(network_id);
+      if (isEmpty(network) || isEmpty(user._id)) {
         return {
           success: false,
-          message: "Access request already exists for this network",
+          message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
+          errors: { message: "Network or User not found" },
         };
       }
 
-      // Create a new access request record
-      const newAccessRequest = new AccessRequestModel({
-        user: user._id,
-        network: network_id,
-        status: "Pending", // You can set an initial status as 'Pending'
+      const existingRequest = await AccessRequestModel(tenant).findOne({
+        user_id: user._id,
+        targetId: network_id,
+        requestType: "network",
       });
 
-      // Save the access request to the database
-      await newAccessRequest.save();
+      if (!isEmpty(existingRequest)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Access request already exists for this network" },
+        };
+      }
 
-      // Optionally, notify administrators about the new access request
-      // You can use a notification mechanism (email, in-app notification, etc.)
+      const responseFromCreateAccessRequest = await AccessRequestModel(
+        tenant
+      ).register({
+        user_id: user._id,
+        targetId: network_id,
+        status: "pending",
+        requestType: "network",
+      });
 
-      return {
-        success: true,
-        message: "Access request submitted successfully",
-        status: httpStatus.OK,
-      };
+      if (responseFromCreateAccessRequest.success === true) {
+        const createdAccessRequest = await responseFromCreateAccessRequest.data;
+        const firstName = user.firstName ? user.firstName : "";
+        const lastName = user.lastName ? user.lastName : "";
+        if (isEmpty(user.email)) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: {
+              message:
+                "Unable to retrieve the requester's email address, please crosscheck security token details",
+            },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+
+        const responseFromSendEmail = await mailer.request({
+          firstName,
+          lastName,
+          email: user.email,
+          tenant,
+          entity_title: network.net_name,
+        });
+
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "Access Request completed successfully",
+            data: createdAccessRequest,
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : httpStatus.OK,
+          };
+        } else if (responseFromSendEmail.success === false) {
+          logger.error(`${responseFromSendEmail.message}`);
+          return responseFromSendEmail;
+        }
+      } else {
+        logger.error(`${responseFromCreateAccessRequest.message}`);
+        return responseFromCreateAccessRequest;
+      }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
+      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: e.message },
+      };
     }
   },
   approveAccessRequest: async (request) => {
-    const { user } = request; // Assuming an authenticated user is available in the request object
-    const { request_id } = request.params;
-
-    // Check if the user approving the request has the necessary permissions (e.g., an admin)
-    // You can implement a permission check here.
-
-    // Find the access request by ID
-    const accessRequest = await AccessRequestModel.findById(request_id);
-
-    if (!accessRequest) {
-      return {
-        success: false,
-        message: "Access request not found",
-        status: httpStatus.NOT_FOUND,
-      };
-    }
-
-    // Check if the requesting user is the group's administrator or has the necessary permissions to approve requests
-    // You can implement this authorization logic based on your application's requirements.
-
-    // Update the status of the access request to 'Approved'
-    accessRequest.status = "Approved";
-
-    // Save the updated access request
-    await accessRequest.save();
-
-    // Optionally, you can add the user to the group's list of members
-    const group = accessRequest.group;
-    await UserModel.findByIdAndUpdate(accessRequest.user, {
-      $addToSet: { groups: group },
-    });
-
-    // Notify the user that their access request has been approved
-    // You can use a notification mechanism (email, in-app notification, etc.)
-
-    return {
-      success: true,
-      message: "Access request approved successfully",
-      status: httpStatus.OK,
-    };
-  },
-  create: async (request) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant } = query;
+      const { request_id } = request.params;
+      const accessRequest = await AccessRequestModel(tenant).findById(
+        request_id
+      );
 
-      const responseFromFilter = generateFilter.requests(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Access request not found" },
+        };
       }
-      const filter = responseFromFilter.data;
 
-      const responseFromRegisterAccessRequest = await AccessRequestModel(
-        tenant.toLowerCase()
-      ).list({
+      const userDetails = await UserModel(tenant).findById(
+        accessRequest.user_id
+      );
+
+      if (isEmpty(userDetails)) {
+        return {
+          success: false,
+          message: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User Details in Access Request Not Found" },
+        };
+      }
+
+      const update = { status: "approved" };
+      const filter = { _id: ObjectId(accessRequest._id) };
+
+      const responseFromUpdateAccessRequest = await AccessRequestModel(
+        tenant
+      ).modify({
         filter,
-        limit,
-        skip,
+        update,
       });
-      return responseFromRegisterAccessRequest;
+
+      if (responseFromUpdateAccessRequest.success === true) {
+        const { firstName, lastName, email } = userDetails;
+        if (accessRequest.requestType === "group") {
+          const group = await GroupModel(tenant)
+            .findById(accessRequest.targetId)
+            .lean();
+          const request = {
+            params: {
+              grp_id: accessRequest.targetId,
+              user_id: accessRequest.user_id,
+            },
+            query: { tenant: tenant },
+          };
+          const responseFromAssignUserToGroup =
+            await createGroupUtil.assignOneUser(request);
+
+          if (responseFromAssignUserToGroup.success === true) {
+            const group_name = group.grp_title ? group.grp_title : "";
+            const responseFromSendEmail = await mailer.update(
+              email,
+              firstName,
+              lastName,
+              group_name
+            );
+
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Access request approved successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToGroup.success === false) {
+            return responseFromAssignUserToGroup;
+          }
+        } else if (accessRequest.requestType === "network") {
+          const network = await NetworkModel(tenant)
+            .findById(accessRequest.targetId)
+            .lean();
+          const request = {
+            params: {
+              net_id: accessRequest.targetId,
+              user_id: accessRequest.user_id,
+            },
+            query: { tenant: tenant },
+          };
+          const responseFromAssignUserToNetwork =
+            await createNetworkUtil.assignOneUser(request);
+
+          if (responseFromAssignUserToNetwork.success === true) {
+            const network_name = network.net_name ? network.net_name : "";
+            const responseFromSendEmail = await mailer.update(
+              email,
+              firstName,
+              lastName,
+              network_name
+            );
+
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Access request approved successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToNetwork.success === false) {
+            return responseFromAssignUserToNetwork;
+          }
+        }
+      } else if (responseFromUpdateAccessRequest.success === false) {
+        return responseFromUpdateAccessRequest;
+      }
     } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -191,7 +345,7 @@ const createAccessRequest = {
       });
       return responseFromListAccessRequest;
     } catch (e) {
-      logger.error(`${e.message}`);
+      logger.error(`${JSON.stringify(e)}`);
       return {
         success: false,
         message: "Internal Server Error",

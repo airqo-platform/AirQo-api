@@ -1,12 +1,13 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const createUserUtil = require("@utils/create-user");
 const controlAccessUtil = require("@utils/control-access");
 const createUser = require("@controllers/create-user");
-const chai = require("chai");
 chai.use(require("sinon-chai"));
+const { validationResult } = require("express-validator");
 
 describe("createUserController", () => {
   describe("listStatistics", () => {
@@ -1767,249 +1768,225 @@ describe("createUserController", () => {
       updateUser.update.restore();
     });
   });
-  describe("loginInViaEmail", () => {
-    it("should return a successful response with the login link and token when the email sign-in link is generated successfully", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
+  describe("loginInViaEmail()", () => {
+    let req, res, validationResultStub, createUserUtilStub;
+
+    beforeEach(() => {
+      req = {
         query: {},
-        // Add any required properties in the request object
+        body: {},
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
+
+      res = {
+        status: sinon.stub(),
         json: sinon.stub(),
       };
 
-      // Stub the generateSignInWithEmailLink function to simulate a successful login link generation
-      sinon
-        .stub(generateSignInWithEmailLink, "generateSignInWithEmailLink")
-        .callsFake((request, callback) => {
-          const value = {
-            success: true,
-            status: httpStatus.OK,
-            message: "Email sign-in link generated successfully",
-            data: {
-              link: "https://example.com/email-signin-link", // Replace with the actual generated link
-              token: "some-token", // Replace with the actual token
-              email: "testuser@example.com", // Replace with the actual email
-              emailLinkCode: "some-email-link-code", // Replace with the actual email link code
-            },
-          };
-          callback(value);
-        });
-
-      // Call the controller function
-      await loginViaEmailController.loginInViaEmail(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "Email sign-in link generated successfully",
-          login_link: "https://example.com/email-signin-link", // Replace with the actual generated link
-          token: "some-token", // Replace with the actual token
-          email: "testuser@example.com", // Replace with the actual email
-          emailLinkCode: "some-email-link-code", // Replace with the actual email link code
-        })
-      ).to.be.true;
-
-      // Restore the stubbed function
-      generateSignInWithEmailLink.generateSignInWithEmailLink.restore();
+      validationResultStub = sinon.stub();
+      createUserUtilStub = sinon.stub(
+        createUserUtil,
+        "generateSignInWithEmailLink"
+      );
     });
 
-    it("should return an error response when there are validation errors in the request", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
-        query: {},
-        // Add any required properties in the request object
-        // Add properties of the validationResult object to simulate validation errors
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Call the controller function
-      await loginViaEmailController.loginInViaEmail(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "bad request errors",
-          // Add expected errors object based on the validation errors in the request
-        })
-      ).to.be.true;
+    afterEach(() => {
+      sinon.restore();
     });
 
-    it("should return an error response when there is an error generating the email sign-in link", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
-        query: {},
-        // Add any required properties in the request object
+    it("should return a success response when everything is fine", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createUserUtilStub.resolves({
+        success: true,
+        data: {
+          link: "sample-link",
+          token: "sample-token",
+          email: "sample-email",
+          emailLinkCode: "sample-link-code",
+        },
+      });
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: true,
+        message: "Sample success message",
+        login_link: "sample-link",
+        token: "sample-token",
+        email: "sample-email",
+        emailLinkCode: "sample-link-code",
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+
+      await createUser.loginInViaEmail(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 200);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
+
+    it("should return an error response when validation fails", async () => {
+      validationResultStub.returns({
+        isEmpty: () => false,
+        errors: [{ nestedErrors: "Validation error" }],
+      });
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: false,
+        message: "bad request errors",
+        errors: "Validation error",
       };
 
-      // Stub the generateSignInWithEmailLink function to simulate an error while generating the email sign-in link
-      sinon
-        .stub(generateSignInWithEmailLink, "generateSignInWithEmailLink")
-        .callsFake((request, callback) => {
-          const value = {
-            success: false,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            message: "Failed to generate email sign-in link",
-            errors: { message: "Failed to generate email sign-in link" },
-          };
-          callback(value);
-        });
+      await createUser.loginInViaEmail(req, res);
 
-      // Call the controller function
-      await loginViaEmailController.loginInViaEmail(req, res);
+      sinon.assert.calledWithExactly(res.status, 400);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Failed to generate email sign-in link",
-          errors: { message: "Failed to generate email sign-in link" },
-        })
-      ).to.be.true;
+    it("should return an error response when createUserUtil fails", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createUserUtilStub.resolves({
+        success: false,
+        message: "User creation failed",
+      });
+      res.status.returnsThis();
 
-      // Restore the stubbed function
-      generateSignInWithEmailLink.generateSignInWithEmailLink.restore();
+      const expectedResponse = {
+        success: false,
+        message: "User creation failed",
+        errors: { message: "" },
+      };
+
+      await createUser.loginInViaEmail(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
+
+    it("should return an internal server error response when an exception occurs", async () => {
+      validationResultStub.throws(new Error("Test error"));
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Test error" },
+      };
+
+      await createUser.loginInViaEmail(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
     });
   });
-  describe("emailAuth", () => {
-    it("should return a successful response with the authentication link and token when the email sign-in link is generated successfully", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
+  describe("emailAuth()", () => {
+    let req, res, validationResultStub, createUserUtilStub;
+
+    beforeEach(() => {
+      req = {
         query: {},
+        body: {},
         params: {},
-        // Add any required properties in the request object
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
+
+      res = {
+        status: sinon.stub(),
         json: sinon.stub(),
       };
 
-      // Stub the generateSignInWithEmailLink function to simulate a successful email authentication link generation
-      sinon
-        .stub(generateSignInWithEmailLink, "generateSignInWithEmailLink")
-        .callsFake((request, callback) => {
-          const value = {
-            success: true,
-            status: httpStatus.OK,
-            message: "Email authentication link generated successfully",
-            data: {
-              link: "https://example.com/auth-link", // Replace with the actual generated link
-              token: "some-token", // Replace with the actual token
-              emailLinkCode: "some-email-link-code", // Replace with the actual email link code
-              email: "testuser@example.com", // Replace with the actual email
-            },
-          };
-          callback(value);
-        });
-
-      // Call the controller function
-      await emailAuthController.emailAuth(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "Email authentication link generated successfully",
-          auth_link: "https://example.com/auth-link", // Replace with the actual generated link
-          token: "some-token", // Replace with the actual token
-          auth_code: "some-email-link-code", // Replace with the actual email link code
-          email: "testuser@example.com", // Replace with the actual email
-        })
-      ).to.be.true;
-
-      // Restore the stubbed function
-      generateSignInWithEmailLink.generateSignInWithEmailLink.restore();
+      validationResultStub = sinon.stub();
+      createUserUtilStub = sinon.stub(
+        createUserUtil,
+        "generateSignInWithEmailLink"
+      );
     });
 
-    it("should return an error response when there are validation errors in the request", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
-        query: {},
-        params: {},
-        // Add any required properties in the request object
-        // Add properties of the validationResult object to simulate validation errors
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Call the controller function
-      await emailAuthController.emailAuth(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "bad request errors",
-          // Add expected errors object based on the validation errors in the request
-        })
-      ).to.be.true;
+    afterEach(() => {
+      sinon.restore();
     });
 
-    it("should return an error response when there is an error generating the email authentication link", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {},
-        query: {},
-        params: {},
-        // Add any required properties in the request object
+    it("should return a success response when everything is fine", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createUserUtilStub.resolves({
+        success: true,
+        data: {
+          link: "sample-link",
+          token: "sample-token",
+          emailLinkCode: "sample-link-code",
+          email: "sample-email",
+        },
+      });
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: true,
+        message: "Sample success message",
+        token: "sample-token",
+        auth_link: "sample-link",
+        auth_code: "sample-link-code",
+        email: "sample-email",
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+
+      await createUser.emailAuth(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 200);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
+
+    it("should return an error response when validation fails", async () => {
+      validationResultStub.returns({
+        isEmpty: () => false,
+        errors: [{ nestedErrors: "Validation error" }],
+      });
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: false,
+        message: "bad request errors",
+        errors: "Validation error",
       };
 
-      // Stub the generateSignInWithEmailLink function to simulate an error while generating the email authentication link
-      sinon
-        .stub(generateSignInWithEmailLink, "generateSignInWithEmailLink")
-        .callsFake((request, callback) => {
-          const value = {
-            success: false,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            message: "Failed to generate email authentication link",
-            errors: { message: "Failed to generate email authentication link" },
-          };
-          callback(value);
-        });
+      await createUser.emailAuth(req, res);
 
-      // Call the controller function
-      await emailAuthController.emailAuth(req, res);
+      sinon.assert.calledWithExactly(res.status, 400);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Failed to generate email authentication link",
-          errors: { message: "Failed to generate email authentication link" },
-        })
-      ).to.be.true;
+    it("should return an error response when createUserUtil fails", async () => {
+      validationResultStub.returns({ isEmpty: () => true });
+      req.query.tenant = "sample-tenant";
+      createUserUtilStub.resolves({
+        success: false,
+        message: "User creation failed",
+      });
+      res.status.returnsThis();
 
-      // Restore the stubbed function
-      generateSignInWithEmailLink.generateSignInWithEmailLink.restore();
+      const expectedResponse = {
+        success: false,
+        message: "User creation failed",
+        errors: { message: "" },
+      };
+
+      await createUser.emailAuth(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
+    });
+
+    it("should return an internal server error response when an exception occurs", async () => {
+      validationResultStub.throws(new Error("Test error"));
+      res.status.returnsThis();
+
+      const expectedResponse = {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Test error" },
+      };
+
+      await createUser.emailAuth(req, res);
+
+      sinon.assert.calledWithExactly(res.status, 500);
+      sinon.assert.calledWithExactly(res.json, expectedResponse);
     });
   });
   describe("updateForgottenPassword", () => {

@@ -77,12 +77,6 @@ const NetworkSchema = new Schema(
         ref: "permission",
       },
     ],
-    net_groups: [
-      {
-        type: ObjectId,
-        ref: "group",
-      },
-    ],
   },
   {
     timestamps: true,
@@ -115,7 +109,6 @@ NetworkSchema.methods = {
       net_departments: this.net_departments,
       net_permissions: this.net_permissions,
       net_roles: this.net_roles,
-      net_groups: this.net_groups,
       net_description: this.net_description,
       net_acronym: this.net_acronym,
       net_createdAt: this.createdAt,
@@ -205,12 +198,11 @@ NetworkSchema.statics = {
       logObject("inclusionProjection", inclusionProjection);
       logObject("exclusionProjection", exclusionProjection);
 
-      let filterCopy = Object.assign({}, filter);
-      if (!isEmpty(filterCopy.category)) {
-        delete filterCopy.category;
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
       }
       const response = await this.aggregate()
-        .match(filterCopy)
+        .match(filter)
         .lookup({
           from: "users",
           let: { users: { $ifNull: ["$networks", []] } },
@@ -263,12 +255,6 @@ NetworkSchema.statics = {
           localField: "_id",
           foreignField: "network_id",
           as: "net_roles",
-        })
-        .lookup({
-          from: "groups",
-          localField: "net_groups",
-          foreignField: "_id",
-          as: "net_groups",
         })
         .lookup({
           from: "departments",
@@ -353,14 +339,6 @@ NetworkSchema.statics = {
         modifiedUpdate["$addToSet"]["net_departments"]["$each"] =
           modifiedUpdate.net_departments;
         delete modifiedUpdate["net_departments"];
-      }
-
-      if (modifiedUpdate.net_groups) {
-        modifiedUpdate["$addToSet"] = {};
-        modifiedUpdate["$addToSet"]["net_groups"] = {};
-        modifiedUpdate["$addToSet"]["net_groups"]["$each"] =
-          modifiedUpdate.net_groups;
-        delete modifiedUpdate["net_groups"];
       }
 
       if (modifiedUpdate.net_permissions) {

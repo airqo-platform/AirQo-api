@@ -129,13 +129,12 @@ RoleSchema.statics = {
       logObject("inclusionProjection", inclusionProjection);
       logObject("exclusionProjection", exclusionProjection);
 
-      let filterCopy = Object.assign({}, filter);
-      if (!isEmpty(filterCopy.category)) {
-        delete filterCopy.category;
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
       }
 
       const roles = await this.aggregate()
-        .match(filterCopy)
+        .match(filter)
         .lookup({
           from: "networks",
           localField: "network_id",

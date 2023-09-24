@@ -157,34 +157,6 @@ router.put(
 );
 
 router.get(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("net_id")
-      .optional()
-      .isMongoId()
-      .withMessage("net_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createNetworkController.list
-);
-
-router.get(
   "/:net_id/assigned-users",
   oneOf([
     [

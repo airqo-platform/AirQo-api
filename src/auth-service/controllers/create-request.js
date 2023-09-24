@@ -30,7 +30,6 @@ const createAccessRequest = {
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      //might need to add some required details here
 
       const responseFromRequestAccessToGroup =
         await createAccessRequestUtil.requestAccessToGroup(request);
@@ -91,7 +90,6 @@ const createAccessRequest = {
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      //might need to add some required details here
 
       const responseFromRequestAccessToNetwork =
         await createAccessRequestUtil.requestAccessToNetwork(request);
@@ -152,7 +150,6 @@ const createAccessRequest = {
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      //might need to add some required details here
 
       const responseFromApproveAccessRequest =
         await createAccessRequestUtil.approveAccessRequest(request);
@@ -213,10 +210,10 @@ const createAccessRequest = {
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      //might need to add some required details here
+      request.body.status = "rejected";
 
       const responseFromRejectAccessRequest =
-        await createAccessRequestUtil.rejectAccessRequest(request);
+        await createAccessRequestUtil.update(request);
       logObject(
         "responseFromRejectAccessRequest",
         responseFromRejectAccessRequest
@@ -274,7 +271,7 @@ const createAccessRequest = {
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      //add some qualifier for pending access requests
+      request.query.status = "pending";
 
       const responseFromListAccessRequest = await createAccessRequestUtil.list(
         request
@@ -326,15 +323,15 @@ const createAccessRequest = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant } = req.query;
+      let { tenant, grp_id } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-
-      //list something specific for a group
+      request.query.targetId = grp_id;
+      request.query.requestType = "group";
 
       const responseFromListAccessRequest = await createAccessRequestUtil.list(
         request
@@ -386,14 +383,15 @@ const createAccessRequest = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant } = req.query;
+      let { tenant, net_id } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      // add some thing specific for Network
+      request.query.targetId = net_id;
+      request.query.requestType = "network";
 
       const responseFromListAccessRequest = await createAccessRequestUtil.list(
         request
@@ -431,58 +429,6 @@ const createAccessRequest = {
         message: "Internal Server Error",
         error: e.message,
         errors: { message: e.message },
-      });
-    }
-  },
-  create: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req.body);
-      request["tenant"] = tenant.toLowerCase();
-
-      const responseFromCreateAccessUtil = await createAccessRequestUtil.create(
-        request
-      );
-
-      if (responseFromCreateAccessUtil.success === true) {
-        const status = responseFromCreateAccessUtil.status
-          ? responseFromCreateAccessUtil.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateAccessUtil.message,
-          request: responseFromCreateAccessUtil.data,
-        });
-      } else if (responseFromCreateAccessUtil.success === false) {
-        const status = responseFromCreateAccessUtil.status
-          ? responseFromCreateAccessUtil.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromCreateAccessUtil.message,
-          errors: responseFromCreateAccessUtil.errors
-            ? responseFromCreateAccessUtil.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
-    } catch (error) {
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
       });
     }
   },
@@ -539,7 +485,6 @@ const createAccessRequest = {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        error: e.message,
         errors: { message: e.message },
       });
     }
@@ -595,7 +540,6 @@ const createAccessRequest = {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        error: error.message,
         errors: { message: error.message },
       });
     }
@@ -654,7 +598,6 @@ const createAccessRequest = {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        error: error.message,
         errors: { message: error.message },
       });
     }
