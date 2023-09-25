@@ -13,7 +13,7 @@
         "prod-pc": "SET NODE_ENV=production&&nodemon --max-old-space-size=1024 ./bin",
         "stage-pc": "SET NODE_ENV=staging&&nodemon --max-old-space-size=1024 ./bin",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
-        "test": "nyc --reporter=text --reporter=lcov --reporter=clover --reporter=cobertura mocha ./**/test/ut_*.js --exit"
+        "test": "nyc --reporter=text --reporter=clover --reporter=cobertura mocha ./**/test/ut_*.js --exit"
     },
     "_moduleAliases": {
         "@root": ".",
