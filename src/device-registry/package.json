@@ -13,7 +13,7 @@
         "prod-pc": "SET NODE_ENV=production&&nodemon --max-old-space-size=1024 ./bin",
         "stage-pc": "SET NODE_ENV=staging&&nodemon --max-old-space-size=1024 ./bin",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
-        "test": "nyc --reporter=text mocha ./**/test/ut_*.js --exit"
+        "test": "nyc --reporter=text --reporter=lcov --reporter=clover --reporter=cobertura mocha ./**/test/ut_*.js --exit"
     },
     "_moduleAliases": {
         "@root": ".",
@@ -79,7 +79,6 @@
         "node-json-transform": "^1.1.2",
         "npm": "^10.1.0",
         "numeral": "^2.0.6",
-        "nyc": "^15.1.0",
         "passport": "^0.6.0",
         "passport-jwt": "^4.0.0",
         "point-in-polygon": "^1.1.0",
@@ -108,8 +107,8 @@
         "gulp-mocha": "^5.0.0",
         "gulp-util": "^1.0.0",
         "mocha": "^10.2.0",
-        "nyc": "^15.1.0",
         "nodemon": "^3.0.1",
+        "nyc": "^15.1.0",
         "prettier": "1.18.2",
         "proxyquire": "^2.1.3",
         "rewire": "^6.0.0",
