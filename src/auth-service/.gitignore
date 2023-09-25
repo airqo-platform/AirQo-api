@@ -6,3 +6,4 @@ log
 airqo-250220-*
 scripts/*
 coverage/
+.nyc_output
