@@ -14,7 +14,6 @@ def pytest_configure(config):
     )
 
 
-
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")

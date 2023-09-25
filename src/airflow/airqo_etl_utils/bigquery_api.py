@@ -590,11 +590,14 @@ class BigQueryApi:
             if dataframe.empty:
                 raise Exception("No data found from bigquery")
             dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
-            dataframe = dataframe.groupby("device_name").resample("H", on="timestamp").mean()
+            dataframe = (
+                dataframe.groupby("device_name").resample("H", on="timestamp").mean()
+            )
             dataframe.reset_index(inplace=True)
             return dataframe
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
+
     #
     def fetch_data(
         self,

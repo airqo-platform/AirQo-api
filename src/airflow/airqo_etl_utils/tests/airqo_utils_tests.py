@@ -99,7 +99,6 @@ def test_map_site_ids_to_historical_data():
     assert date_to_str(data.iloc[0]["timestamp"]) == "2022-01-01T10:00:00Z"
 
 
-
 def test_map_site_ids_to_historical_data():
     logs = pd.DataFrame(
         [
@@ -191,7 +190,6 @@ class TestFaultDetector(ct.FaultDetectionFixtures):
             AirQoDataUtils.flag_faults(df_invalid_empty)
 
 
-
 mock_client = pm.MongoClient()
 mock_db = mock_client["test_database"]
 collection = mock_db.faulty_devices
@@ -200,8 +198,11 @@ sample_data = pd.DataFrame(
         "device_name": ["aq_1", "aq_2", "aq_3"],
         "correlation_fault": [1, 0, 1],
         "missing_data_fault": [0, 1, 0],
-        "created_at": [datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3)]
-
+        "created_at": [
+            datetime(2021, 1, 1),
+            datetime(2021, 1, 2),
+            datetime(2021, 1, 3),
+        ],
     }
 )
 
@@ -218,9 +219,9 @@ def test_save_faulty_devices():
 
     assert "faulty_devices" in mock_db.list_collection_names()
     assert mock_db.faulty_devices.count_documents({}) == 3
-    assert mock_db.faulty_devices.find_one({"device_name": 'aq_1'}) == {
-        "device_name": 'aq_1',
+    assert mock_db.faulty_devices.find_one({"device_name": "aq_1"}) == {
+        "device_name": "aq_1",
         "correlation_fault": 1,
         "missing_data_fault": 1,
-        "created_at": datetime(2021, 1, 1)
+        "created_at": datetime(2021, 1, 1),
     }
