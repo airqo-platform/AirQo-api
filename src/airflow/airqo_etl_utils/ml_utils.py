@@ -653,9 +653,9 @@ class ForecastUtils:
             forecast_results.append(doc)
 
         if frequency == "hourly":
-            collection = db.hourly_forecasts
+            collection = db.hourly_forecasts_1
         elif frequency == "daily":
-            collection = db.daily_forecasts
+            collection = db.daily_forecasts_1
         else:
             raise ValueError("Invalid frequency argument")
 
