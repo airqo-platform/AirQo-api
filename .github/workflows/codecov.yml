@@ -42,7 +42,7 @@ jobs:
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with: 
-        directory: ./coverage/
+        directory: src/device-registry/coverage/
         
         
         
