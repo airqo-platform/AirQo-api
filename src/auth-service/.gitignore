@@ -5,3 +5,4 @@ config/firebase-admin-sdk.json
 log
 airqo-250220-*
 scripts/*
+coverage/
