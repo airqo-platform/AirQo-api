@@ -538,8 +538,7 @@ const createEvent = {
       });
 
       if (
-        language !== undefined &&
-        constants.ENVIRONMENT === "STAGING ENVIRONMENT"
+        language !== undefined
       ) {
         let data = responseFromListEvents.data[0].data;
         for (const event of data) {
