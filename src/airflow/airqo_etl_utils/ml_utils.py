@@ -661,12 +661,7 @@ class ForecastUtils:
 
         for doc in forecast_results:
             try:
-                existing_doc = collection.find_one({"device_id": doc["device_id"]})
-                if existing_doc:
-                    filter_query = {"_id" : existing_doc["_id"]}
-                else:
-                    filter_query = {"device_id": doc["device_id"]}
-                    
+                filter_query = {"device_id": doc["device_id"]}
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
