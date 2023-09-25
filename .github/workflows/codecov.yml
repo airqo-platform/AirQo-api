@@ -35,14 +35,14 @@ jobs:
     - name: Run tests and collect coverage
       continue-on-error: true
       run: 
-        npm test -- --coverage
+        npm run test
         
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        
-        
+      with: 
+        directory: ./coverage/
         
         
         
