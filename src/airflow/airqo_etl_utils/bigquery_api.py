@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 from google.cloud import bigquery
@@ -589,32 +589,13 @@ class BigQueryApi:
         try:
             if dataframe.empty:
                 raise Exception("No data found from bigquery")
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
-            dataframe = dataframe.groupby(
-                ["device_name", pd.Grouper(key="timestamp", freq="H")]
-            ).mean(numeric_only=True)
-            dataframe = dataframe.reset_index()
-            dataframe.sort_values(by=["device_name", "timestamp"], inplace=True)
-            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-            last_week = today - timedelta(days=7)
-            hourly_timestamps = pd.DataFrame(
-                pd.date_range(
-                    start=last_week, end=today, freq="H", name="timestamp", tz="UTC"
-                )
-            )
-            final_df = pd.DataFrame()
-            for device in dataframe["device_name"].unique():
-                device_df = dataframe[dataframe["device_name"] == device]
-                device_df = device_df.merge(
-                    hourly_timestamps, on="timestamp", how="right"
-                )
-                device_df = device_df.sort_values(by=["timestamp"])
-                final_df = pd.concat([final_df, device_df])
-
-            return final_df
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
+            dataframe = dataframe.groupby("device_name").resample("H", on="timestamp").mean()
+            dataframe.reset_index(inplace=True)
+            return dataframe
         except Exception as e:
-            raise e
-
+            print(f"Error when fetching data from bigquery, {e}")
+    #
     def fetch_data(
         self,
         start_date_time: str,
