@@ -624,8 +624,8 @@ class ForecastUtils:
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         # forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
 
-        DecodingUtils.decode_categorical_features_before_save(forecasts, frequency)
-        forecasts = forecasts[
+        forecasts = DecodingUtils.decode_categorical_features_before_save(forecasts, frequency)
+        return  forecasts[
             [
                 "device_id",
                 "site_id",
@@ -635,7 +635,6 @@ class ForecastUtils:
                 # "adjusted_forecast",
             ]
         ]
-        return forecasts
 
     @staticmethod
     def save_forecasts_to_mongo(data, frequency):
@@ -646,6 +645,7 @@ class ForecastUtils:
         for i in device_ids:
             doc = {
                 "device_id": i,
+                "site_id":data[data["device_id"] == i]["site_id"].unique()[0],
                 "created_at": created_at,
                 "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
                 "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
@@ -661,10 +661,16 @@ class ForecastUtils:
 
         for doc in forecast_results:
             try:
-                filter_query = {"device_id": doc["device_id"]}
+                existing_doc = collection.find_one({"device_id": doc["device_id"]})
+                if existing_doc:
+                    filter_query = {"_id" : existing_doc["_id"]}
+                else:
+                    filter_query = {"device_id": doc["device_id"]}
+                    
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
+                        "site_id":doc["site_id"],
                         "timestamp": doc["timestamp"],
                         "created_at": doc["created_at"],
                     }
