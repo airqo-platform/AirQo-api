@@ -30,35 +30,26 @@ const createCandidate = {
       let request = Object.assign({}, req.body);
       request["tenant"] = tenant.toLowerCase();
 
-      await createCandidateUtil
-        .create(request, (value) => {
-          if (value.success === true) {
-            const status = value.status ? value.status : httpStatus.OK;
-            return res.status(status).json({
-              success: true,
-              message: value.message,
-              candidate: value.data,
-            });
-          } else if (value.success === false) {
-            const status = value.status
-              ? value.status
-              : httpStatus.INTERNAL_SERVER_ERROR;
-            const errors = value.errors ? value.errors : { message: "" };
-            return res.status(status).json({
-              success: false,
-              message: value.message,
-              errors,
-            });
-          }
-        })
-        .catch((error) => {
-          logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: error },
-          });
+      const value = await createCandidateUtil.create(request);
+
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          candidate: value.data,
         });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = value.errors ? value.errors : { message: "" };
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors,
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({

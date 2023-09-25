@@ -29,7 +29,7 @@ const logError = (error) => {
   // console.error(e);
   if (process.env.NODE_ENV !== "production") {
     console.log("an unhandled promise rejection" + ": ");
-    console.error(e);
+    console.error(error);
   }
   return "log deactivated in prod and stage";
 };

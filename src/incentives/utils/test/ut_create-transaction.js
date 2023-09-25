@@ -4,7 +4,7 @@ const chai = require("chai");
 const { expect } = chai;
 const httpStatus = require("http-status");
 
-const TransactionModel = require("@models/Transaction");
+const TransactionModel = require("@models/transaction");
 const createTransaction = require("@utils/create-transaction");
 
 const axios = require("axios");
@@ -509,7 +509,7 @@ describe("createTransaction", () => {
       });
 
       // Execute the function
-      const response = await getTransactionDetails(request);
+      const response = await createTransaction.getTransactionDetails(request);
 
       // Assert the response
       expect(response).to.deep.equal(expectedResponse);
@@ -537,7 +537,7 @@ describe("createTransaction", () => {
         .rejects(new Error("Network Error"));
 
       // Execute the function
-      const response = await getTransactionDetails(request);
+      const response = await createTransaction.getTransactionDetails(request);
 
       // Assert the response
       expect(response).to.deep.equal({
@@ -601,7 +601,7 @@ describe("createTransaction", () => {
       });
 
       // Execute the function
-      const response = await loadDataBundle(request);
+      const response = await createTransaction.loadDataBundle(request);
 
       // Assert the response
       expect(response).to.deep.equal(expectedResponse);
@@ -660,7 +660,7 @@ describe("createTransaction", () => {
         .rejects(new Error("Network Error"));
 
       // Execute the function
-      const response = await loadDataBundle(request);
+      const response = await createTransaction.loadDataBundle(request);
 
       // Assert the response
       expect(response).to.deep.equal({
@@ -721,7 +721,7 @@ describe("createTransaction", () => {
       };
 
       // Execute the function
-      const response = await checkRemainingDataBundleBalance(request);
+      const response = await createTransaction.checkRemainingDataBundleBalance(request);
 
       // Assert the response
       expect(response).to.deep.equal(expectedResponse);
@@ -745,7 +745,7 @@ describe("createTransaction", () => {
       const throwStub = chai.spy.on(errorStub, "throw");
 
       // Execute the function
-      const response = await checkRemainingDataBundleBalance(request);
+      const response = await createTransaction.checkRemainingDataBundleBalance(request);
 
       // Assert the response
       expect(response).to.deep.equal({

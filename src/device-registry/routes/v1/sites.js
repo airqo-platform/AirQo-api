@@ -497,6 +497,22 @@ router.put(
         .withMessage("distance_to_kampala_center must be a number")
         .bail()
         .toFloat(),
+      body("bearing_to_capital_city_center")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("bearing_to_capital_city_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_capital_city_center")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_capital_city_center must be a number")
+        .bail()
+        .toFloat(),
       body("distance_to_nearest_residential_road")
         .optional()
         .notEmpty()

@@ -1,5 +1,6 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
 const createInquiryUtil = require("@utils/create-inquiry");
@@ -9,9 +10,11 @@ const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const { logText, logElement, logObject, logError } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const log4js = require("log4js");
-
 const inquire = require("@controllers/create-inquiry");
+const chaiHttp = require("chai-http");
+chai.use(chaiHttp);
+const InquiryModel = require("@models/Inquiry");
+const mailer = require("@utils/mailer");
 
 describe("inquire controller", () => {
   afterEach(() => {
@@ -19,127 +22,92 @@ describe("inquire controller", () => {
   });
 
   describe("create function", () => {
+    let inquire, InquiryModelStub, mailerStub;
+
+    beforeEach(() => {
+      inquire = {
+        fullName: "John Doe",
+        email: "johndoe@example.com",
+        message: "Test message",
+        category: "General",
+        tenant: "sample-tenant",
+        firstName: "John",
+        lastName: "Doe",
+      };
+
+      InquiryModelStub = sinon.stub(InquiryModel.prototype, "register");
+      mailerStub = sinon.stub(mailer, "inquiry");
+    });
+
     afterEach(() => {
       sinon.restore();
     });
 
-    it("should return bad request when validation has errors", async () => {
-      const req = { body: {}, query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+    it("should return a success response when everything is fine", async () => {
+      InquiryModelStub.resolves({
+        success: true,
+        data: { inquiry: "sample inquiry" },
+      });
+      mailerStub.resolves({ success: true, status: 200 });
+
+      const expectedResponse = {
+        success: true,
+        message: "inquiry successfully created",
+        data: { inquiry: "sample inquiry" },
+        status: 200,
       };
-      const validationResultStub = sinon.stub(validationResult(req));
-      validationResultStub.isEmpty.returns(false);
-      validationResultStub.errors = [
-        { nestedErrors: [{ msg: "Error 1" }, { msg: "Error 2" }] },
-      ];
 
-      await inquire.create(req, res);
+      const response = await inquire.create(inquire);
 
-      expect(validationResultStub.isEmpty).to.be.calledOnce;
-      expect(badRequest).to.be.calledOnceWith(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(validationResultStub.errors[0].nestedErrors)
-      );
+      expect(response).to.deep.equal(expectedResponse);
     });
 
-    it("should return internal server error when createInquiryUtil throws an error", async () => {
-      const req = { body: {}, query: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+    it("should return an error response when InquiryModel registration fails", async () => {
+      InquiryModelStub.resolves({
+        success: false,
+        message: "Registration failed",
+      });
+
+      const expectedResponse = {
+        success: false,
+        message: "Registration failed",
       };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon
-        .stub(createInquiryUtil, "create")
-        .throws(new Error("Database error"));
 
-      await inquire.create(req, res);
+      const response = await inquire.create(inquire);
 
-      expect(res.status).to.be.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(res.json).to.be.calledOnceWith({
+      expect(response).to.deep.equal(expectedResponse);
+    });
+
+    it("should return an error response when mailer fails", async () => {
+      InquiryModelStub.resolves({
+        success: true,
+        data: { inquiry: "sample inquiry" },
+      });
+      mailerStub.resolves({ success: false, message: "Email sending failed" });
+
+      const expectedResponse = {
+        success: false,
+        message: "Email sending failed",
+      };
+
+      const response = await inquire.create(inquire);
+
+      expect(response).to.deep.equal(expectedResponse);
+    });
+
+    it("should return an internal server error response when an exception occurs", async () => {
+      InquiryModelStub.rejects(new Error("Test error"));
+
+      const expectedResponse = {
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Database error" },
-      });
-    });
-
-    it("should create an inquiry successfully", async () => {
-      const req = {
-        body: {
-          fullName: "John Doe",
-          email: "john.doe@example.com",
-          message: "Test inquiry",
-          category: "General",
-          firstName: "John",
-          lastName: "Doe",
-        },
-        query: {},
+        errors: { message: "Test error" },
+        status: 500,
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon.stub(createInquiryUtil, "create").callsFake((request, callback) => {
-        const value = {
-          success: true,
-          status: httpStatus.CREATED,
-          message: "Inquiry created successfully",
-          data: { _id: "inquiry-id", ...req.body },
-        };
-        callback(value);
-      });
 
-      await inquire.create(req, res);
+      const response = await inquire.create(inquire);
 
-      expect(createInquiryUtil.create).to.be.calledOnce;
-      expect(res.status).to.be.calledOnceWith(httpStatus.CREATED);
-      expect(res.json).to.be.calledOnceWith({
-        success: true,
-        message: "Inquiry created successfully",
-        inquiry: { _id: "inquiry-id", ...req.body },
-      });
-    });
-
-    it("should handle createInquiryUtil failure", async () => {
-      const req = {
-        body: {
-          fullName: "John Doe",
-          email: "john.doe@example.com",
-          message: "Test inquiry",
-          category: "General",
-          firstName: "John",
-          lastName: "Doe",
-        },
-        query: {},
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      sinon.stub(validationResult(req)).isEmpty.returns(true);
-      sinon.stub(createInquiryUtil, "create").callsFake((request, callback) => {
-        const value = {
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Inquiry creation failed",
-          errors: { message: "Invalid data" },
-        };
-        callback(value);
-      });
-
-      await inquire.create(req, res);
-
-      expect(createInquiryUtil.create).to.be.calledOnce;
-      expect(res.status).to.be.calledOnceWith(httpStatus.BAD_REQUEST);
-      expect(res.json).to.be.calledOnceWith({
-        success: false,
-        message: "Inquiry creation failed",
-        errors: { message: "Invalid data" },
-      });
+      expect(response).to.deep.equal(expectedResponse);
     });
   });
 

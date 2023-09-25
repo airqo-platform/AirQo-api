@@ -692,9 +692,6 @@ const manageSite = {
 
   list: async (req, res) => {
     try {
-      let { tenant } = req.query;
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -714,16 +711,17 @@ const manageSite = {
         );
       }
 
+      const { query } = req;
+      let { tenant } = query;
+
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
-      let filter = generateFilter.sites(req);
-      let responseFromListSites = await createSiteUtil.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      let responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status

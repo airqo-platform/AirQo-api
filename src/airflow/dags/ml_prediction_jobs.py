@@ -96,6 +96,7 @@ def make_forecasts():
     @task()
     def encode_daily_categorical_features(data):
         return DecodingUtils.decode_categorical_features_pred(data, "daily")
+
     @task()
     def make_daily_forecasts(data):
         return ForecastUtils.generate_forecasts(
@@ -143,9 +144,7 @@ def make_forecasts():
     daily_location_features = get_location_features_daily_forecast(
         daily_time_and_cyclic_features
     )
-    daily_encoded_features = encode_daily_categorical_features(
-        daily_location_features
-    )
+    daily_encoded_features = encode_daily_categorical_features(daily_location_features)
     daily_forecasts = make_daily_forecasts(daily_encoded_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
     save_daily_forecasts_to_mongo(daily_forecasts)

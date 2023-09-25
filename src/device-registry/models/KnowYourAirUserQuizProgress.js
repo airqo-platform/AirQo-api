@@ -115,6 +115,15 @@ userQuizProgressSchema.statics = {
       const exclusionProjection = constants.KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
+      }
       let pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })

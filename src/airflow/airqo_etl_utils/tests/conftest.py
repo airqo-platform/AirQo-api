@@ -1,8 +1,11 @@
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
+
+from airqo_etl_utils.config import configuration
 
 
 def pytest_configure(config):
@@ -59,6 +62,45 @@ class ForecastFixtures:
             "longitude": np.random.uniform(-180, 180, 100),
         }
         return pd.DataFrame(data)
+
+    @staticmethod
+    @pytest.fixture
+    def sample_hourly_forecast_data():
+        return pd.DataFrame(
+            {
+                "device_id": ["dev1", "dev1", "dev2"],
+                "pm2_5": [10, 15, 20],
+                "timestamp": [
+                    datetime(2023, 1, 1, 0),
+                    datetime(2023, 1, 1, 1),
+                    datetime(2023, 1, 1, 2),
+                ],
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def sample_daily_forecast_data():
+        return pd.DataFrame(
+            {
+                "device_id": ["dev1", "dev1", "dev2"],
+                "pm2_5": [10, 15, 20],
+                "timestamp": [
+                    datetime(2023, 1, 1),
+                    datetime(2023, 1, 2),
+                    datetime(2023, 1, 3),
+                ],
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def mock_db():
+        mock_client = MagicMock()
+        mock_db = mock_client[configuration.MONGO_DATABASE_NAME]
+        mock_db.hourly_forecasts = MagicMock()
+        mock_db.daily_forecasts = MagicMock()
+        return mock_db
 
 
 class FaultDetectionFixtures:

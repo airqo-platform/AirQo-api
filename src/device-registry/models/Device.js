@@ -443,8 +443,15 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
       }
       const pipeline = await this.aggregate()
         .match(filter)
