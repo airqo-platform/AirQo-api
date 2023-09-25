@@ -965,10 +965,6 @@ class AirQoDataUtils:
         result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
 
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
-
     @staticmethod
     def save_faulty_devices(data: pd.DataFrame):
         """Save or update faulty devices to MongoDB"""
