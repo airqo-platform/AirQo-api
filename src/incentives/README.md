@@ -1,4 +1,4 @@
-# Incentives API
+# Incentives aPI
 
 The Incentives API is a service that facilitates the management of hosts' data and the loading of data bundles onto devices' SIM cards. It allows organizations to efficiently manage data provisioning.
 
