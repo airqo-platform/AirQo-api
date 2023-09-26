@@ -100,7 +100,7 @@ def get_next_24hr_forecasts():
             ),
             400,
         )
-    result = get_forecasts(**params, db_name="hourly_forecasts")
+    result = get_forecasts(**params, db_name="hourly_forecasts_1")
     if result:
         try:
             add_forecast_health_tips(result)
@@ -145,7 +145,7 @@ def get_next_1_week_forecasts():
             ),
             400,
         )
-    result = get_forecasts(**params, db_name="daily_forecasts")
+    result = get_forecasts(**params, db_name="daily_forecasts_1")
     if result:
         try:
             add_forecast_health_tips(result)
