@@ -14,7 +14,7 @@
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
         "create-env": "printenv > .env",
         "test": " mocha ./**/test/ut_*.js",
-        "test-coverage": "nyc mocha ./**/test/ut_*.js"
+        "test-coverage": "nyc --reporter=lcov mocha ./**/test/ut_*.js"
         
     },
     "_moduleAliases": {
