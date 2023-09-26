@@ -13,8 +13,8 @@
         "stage-pc": "set NODE_ENV=staging&&nodemon ./bin",
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
         "create-env": "printenv > .env",
-        "test": "mocha test",
-        "test-coverage": "nyc --reporter=cobertura mocha test"
+        "test": " mocha ./**/test/ut_*.js --exit",
+        "test-coverage": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
         
     },
     "_moduleAliases": {
