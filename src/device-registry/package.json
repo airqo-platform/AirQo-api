@@ -13,7 +13,7 @@
         "prod-pc": "SET NODE_ENV=production&&nodemon --max-old-space-size=1024 ./bin",
         "stage-pc": "SET NODE_ENV=staging&&nodemon --max-old-space-size=1024 ./bin",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
-        "test": "mocha ./**/test/ut_*.js --exit"
+        "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
     },
     "_moduleAliases": {
         "@root": ".",
@@ -80,6 +80,7 @@
         "node-json-transform": "^1.1.2",
         "npm": "^7.20.5",
         "numeral": "^2.0.6",
+        "nyc": "^15.1.0",
         "passport": "^0.4.0",
         "passport-jwt": "^4.0.0",
         "point-in-polygon": "^1.1.0",

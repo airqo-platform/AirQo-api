@@ -5,3 +5,5 @@ device-reg-secret.yaml
 log
 airqo-250220-*
 data.*
+coverage/
+.nyc_output/
