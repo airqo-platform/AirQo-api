@@ -14,7 +14,7 @@
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
         "create-env": "printenv > .env",
         "test": "mocha test",
-        "test-coverage": "nyc mocha test"
+        "test-coverage": "nyc --reporter=cobertura mocha test"
         
     },
     "_moduleAliases": {
