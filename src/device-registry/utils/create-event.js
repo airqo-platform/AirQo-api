@@ -73,6 +73,8 @@ const getDevicesCount = async (request) => {
 
     const count = await DeviceModel(tenant).countDocuments({});
 
+    logObject("the count for devices", count);
+
     if (count) {
       return {
         success: true,
@@ -489,14 +491,16 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
       const filter = generateFilter.events(request);
-      // const cacheResult = await createEvent.getCache(request);
+      const cacheResult = await createEvent.getCache(request);
+      logObject("Cache result", cacheResult);
 
-      // if (cacheResult.success === true) {
-      //   logText(cacheResult.message);
-      //   return cacheResult.data;
-      // }
+      if (cacheResult.success === true) {
+        logText(cacheResult.message);
+        return cacheResult.data;
+      }
 
       const deviceCountResult = await getDevicesCount(request);
+      logObject("deviceCountResult", deviceCountResult);
 
       if (deviceCountResult.success === false) {
         logger.error(
@@ -557,7 +561,9 @@ const createEvent = {
         let data = responseFromListEvents.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
-        // await createEvent.setCache(data, request);
+        logText("Setting cache...");
+        await createEvent.setCache(data, request);
+        logText("Cache set.");
 
         return {
           success: true,
@@ -1122,13 +1128,12 @@ const createEvent = {
       latitude ? latitude : "noLatitude"
     }_${longitude ? longitude : "noLongitude"}_${
       network ? network : "noNetwork"
-    }_${language ? language : "noLanguage"}
-    `;
+    }_${language ? language : "noLanguage"}`;
   },
   setCache: async (data, request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      await redis.set(
+      redis.set(
         cacheID,
         JSON.stringify({
           isCache: true,
@@ -1137,7 +1142,7 @@ const createEvent = {
           data,
         })
       );
-      await redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
 
       return {
         success: true,
@@ -1157,25 +1162,37 @@ const createEvent = {
   getCache: async (request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      const result = await redis.get(cacheID);
-      const resultJSON = JSON.parse(result);
+      logObject("cacheID", cacheID);
+      return redis.get(cacheID, (error, result) => {
+        logObject("result", result);
+        const resultJSON = JSON.parse(result);
+        logObject("resultJSON", resultJSON);
 
-      if (result) {
-        return {
-          success: true,
-          message: "Utilizing cache...",
-          data: resultJSON,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: "No cache present",
-          errors: { message: "No cache present" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
+        if (result) {
+          return {
+            success: true,
+            message: "Utilizing cache...",
+            data: resultJSON,
+            status: httpStatus.OK,
+          };
+        } else if (error) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        } else if (!result) {
+          return {
+            success: false,
+            message: "No cache present",
+            errors: { message: "No cache present" },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      });
     } catch (error) {
+      logObject("error in the util", error);
       logger.error(`Internal server error -- ${error.message}`);
       return {
         success: false,
