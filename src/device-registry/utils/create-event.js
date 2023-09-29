@@ -25,6 +25,10 @@ const {
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
 const translateUtil = require("./translate");
+const util = require("util");
+const redisGetAsync = util.promisify(redis.get).bind(redis);
+const redisSetAsync = util.promisify(redis.set).bind(redis);
+const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 
 const listDevices = async (request) => {
   try {
@@ -1133,7 +1137,7 @@ const createEvent = {
   setCache: async (data, request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      redis.set(
+      await redisSetAsync(
         cacheID,
         JSON.stringify({
           isCache: true,
@@ -1142,7 +1146,7 @@ const createEvent = {
           data,
         })
       );
-      redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
 
       return {
         success: true,
@@ -1163,34 +1167,28 @@ const createEvent = {
     try {
       const cacheID = createEvent.generateCacheID(request);
       logObject("cacheID", cacheID);
-      return redis.get(cacheID, (error, result) => {
-        logObject("result", result);
-        const resultJSON = JSON.parse(result);
-        logObject("resultJSON", resultJSON);
 
-        if (result) {
-          return {
-            success: true,
-            message: "Utilizing cache...",
-            data: resultJSON,
-            status: httpStatus.OK,
-          };
-        } else if (error) {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: error.message },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
-        } else if (!result) {
-          return {
-            success: false,
-            message: "No cache present",
-            errors: { message: "No cache present" },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
-        }
-      });
+      const result = await redisGetAsync(cacheID); // Use the promise-based version
+
+      logObject("result", result);
+      const resultJSON = JSON.parse(result);
+      logObject("resultJSON", resultJSON);
+
+      if (result) {
+        return {
+          success: true,
+          message: "Utilizing cache...",
+          data: resultJSON,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No cache present",
+          errors: { message: "No cache present" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
     } catch (error) {
       logObject("error in the util", error);
       logger.error(`Internal server error -- ${error.message}`);
