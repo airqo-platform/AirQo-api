@@ -25,6 +25,10 @@ const {
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
 const translateUtil = require("./translate");
+const util = require("util");
+const redisGetAsync = util.promisify(redis.get).bind(redis);
+const redisSetAsync = util.promisify(redis.set).bind(redis);
+const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 
 const listDevices = async (request) => {
   try {
@@ -72,6 +76,8 @@ const getDevicesCount = async (request) => {
     const { tenant } = query;
 
     const count = await DeviceModel(tenant).countDocuments({});
+
+    logObject("the count for devices", count);
 
     if (count) {
       return {
@@ -489,14 +495,16 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
       const filter = generateFilter.events(request);
-      // const cacheResult = await createEvent.getCache(request);
+      const cacheResult = await createEvent.getCache(request);
+      logObject("Cache result", cacheResult);
 
-      // if (cacheResult.success === true) {
-      //   logText(cacheResult.message);
-      //   return cacheResult.data;
-      // }
+      if (cacheResult.success === true) {
+        logText(cacheResult.message);
+        return cacheResult.data;
+      }
 
       const deviceCountResult = await getDevicesCount(request);
+      logObject("deviceCountResult", deviceCountResult);
 
       if (deviceCountResult.success === false) {
         logger.error(
@@ -556,7 +564,9 @@ const createEvent = {
         let data = responseFromListEvents.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
-        // await createEvent.setCache(data, request);
+        logText("Setting cache...");
+        await createEvent.setCache(data, request);
+        logText("Cache set.");
 
         return {
           success: true,
@@ -1121,13 +1131,12 @@ const createEvent = {
       latitude ? latitude : "noLatitude"
     }_${longitude ? longitude : "noLongitude"}_${
       network ? network : "noNetwork"
-    }_${language ? language : "noLanguage"}
-    `;
+    }_${language ? language : "noLanguage"}`;
   },
   setCache: async (data, request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      await redis.set(
+      await redisSetAsync(
         cacheID,
         JSON.stringify({
           isCache: true,
@@ -1136,7 +1145,7 @@ const createEvent = {
           data,
         })
       );
-      await redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
 
       return {
         success: true,
@@ -1156,8 +1165,13 @@ const createEvent = {
   getCache: async (request) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      const result = await redis.get(cacheID);
+      logObject("cacheID", cacheID);
+
+      const result = await redisGetAsync(cacheID); // Use the promise-based version
+
+      logObject("result", result);
       const resultJSON = JSON.parse(result);
+      logObject("resultJSON", resultJSON);
 
       if (result) {
         return {
@@ -1175,6 +1189,7 @@ const createEvent = {
         };
       }
     } catch (error) {
+      logObject("error in the util", error);
       logger.error(`Internal server error -- ${error.message}`);
       return {
         success: false,
