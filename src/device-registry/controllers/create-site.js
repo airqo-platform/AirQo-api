@@ -624,9 +624,7 @@ const manageSite = {
 
   listSummary: async (req, res) => {
     try {
-      let { tenant } = req.query;
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
+      let { tenant, limit, skip } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -649,14 +647,10 @@ const manageSite = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      let filter = generateFilter.sites(req);
-      filter["category"] = "summary";
-      let responseFromListSites = await createSiteUtil.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      request.category = "summary";
+      const responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status
