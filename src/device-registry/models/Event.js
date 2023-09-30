@@ -13,8 +13,12 @@ const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
+const logger = require("log4js").getLogger(
+  `${constants.ENVIRONMENT} -- event-model`
+);
+const DEFAULT_LIMIT = 100;
+const DEFAULT_SKIP = 0;
+const DEFAULT_PAGE = 1;
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -429,21 +433,368 @@ const elementAtIndexName = (metadata, recent) => {
   }
 };
 
+const getConfiguredProjection = (metadata, brief) => {
+  const projection = {
+    _id: 0, // Always exclude _id by default
+  };
+
+  // Customize projection based on metadata
+  if (!metadata || metadata === "device" || metadata === "device_id") {
+    // Customize projection for device metadata
+    projection.device = 1; // Include device field
+    projection.device_id = 1; // Include device_id field
+
+    if (metadata === "device_id") {
+      projection.foreignField = "_id";
+    } else if (metadata === "device" || !metadata) {
+      projection.foreignField = "name";
+    }
+
+    // Add more fields as needed for device metadata
+  } else if (metadata === "site_id" || metadata === "site") {
+    // Customize projection for site metadata
+    projection.site = 1; // Include site field
+    projection.site_id = 1; // Include site_id field
+
+    if (metadata === "site") {
+      projection.foreignField = "generated_name";
+    } else if (metadata === "site_id") {
+      projection.foreignField = "_id";
+    }
+
+    // Add more fields as needed for site metadata
+  }
+
+  // Customize projection based on brief flag
+  if (brief === "yes") {
+    // Customize projection for brief flag
+    projection.additionalField = 1; // Include additionalField when brief is "yes"
+
+    // Add more fields as needed for brief flag
+  }
+
+  // Add more customizations based on your requirements
+
+  return projection;
+};
+
+const getGroupDetails = (filter) => {
+  const groupDetails = {};
+  const { metadata } = filter;
+  // Customize groupId, localField, foreignField, etc. based on metadata
+  if (metadata === "device" || !metadata) {
+    groupDetails.groupId = "$device";
+    groupDetails.localField = "device";
+    groupDetails.foreignField = "name";
+  } else if (metadata === "site_id" || metadata === "site") {
+    groupDetails.groupId = "$" + metadata;
+    groupDetails.localField = metadata;
+    if (metadata === "site") {
+      groupDetails.foreignField = "generated_name";
+    } else if (metadata === "site_id") {
+      groupDetails.foreignField = "_id";
+    }
+  }
+
+  // Customize other group details based on filter or additional conditions
+  if (filter && filter.running === "yes") {
+    // Customize group details for running devices
+    groupDetails.someOtherField = "someValue";
+  }
+
+  // Add more customizations based on your requirements
+
+  return groupDetails;
+};
+
+const createMatchQuery = (filter) => {
+  const matchQuery = {};
+
+  if (filter.metadata) {
+    matchQuery.metadata = filter.metadata;
+  }
+
+  if (filter.frequency) {
+    matchQuery.frequency = filter.frequency;
+  }
+
+  if (filter.external) {
+    matchQuery.external = filter.external;
+  }
+
+  if (filter.tenant) {
+    matchQuery.tenant = filter.tenant;
+  }
+
+  if (filter.device) {
+    matchQuery.device = filter.device;
+  }
+
+  if (filter.running) {
+    matchQuery.running = filter.running;
+  }
+
+  if (filter.recent) {
+    matchQuery.recent = filter.recent;
+  }
+
+  if (filter.brief) {
+    matchQuery.brief = filter.brief;
+  }
+
+  if (filter.index) {
+    matchQuery.index = filter.index;
+  }
+
+  // Add more conditions based on your filter properties
+
+  return matchQuery;
+};
+
+const createSortQuery = (index) => {
+  let sortField;
+  let sortOrder;
+
+  switch (index) {
+    case 0:
+      // Sort by field 1 in ascending order
+      sortField = "field1";
+      sortOrder = 1;
+      break;
+    case 1:
+      // Sort by field 2 in descending order
+      sortField = "field2";
+      sortOrder = -1;
+      break;
+    // Add more cases as needed for different indices
+    default:
+      // Default sorting if the index doesn't match any case
+      sortField = "defaultField";
+      sortOrder = 1; // You can change the order as needed
+      break;
+  }
+
+  return {
+    $sort: {
+      [sortField]: sortOrder,
+    },
+  };
+};
+
+const createFacetProjection = () => {
+  return [
+    {
+      $facet: {
+        total: [{ $count: "device" }],
+        data: [
+          {
+            $addFields: {
+              device: "$device",
+              // Add other fields as needed
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        meta,
+        data: {
+          $slice: [
+            "$data",
+            skip,
+            {
+              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+            },
+          ],
+        },
+      },
+    },
+  ];
+};
+
+const createPipelineForRecent = (search, projection, sort, filter) => {
+  const { groupId, localField, foreignField, from, as, _as } = getGroupDetails(
+    filter
+  );
+  const pipeline = [
+    {
+      $unwind: "$values",
+    },
+    {
+      $match: search,
+    },
+    {
+      $replaceRoot: {
+        newRoot: "$values",
+      },
+    },
+    {
+      $lookup: {
+        from: "photos",
+        localField: "site_id",
+        foreignField: "site_id",
+        as: "site_images",
+      },
+    },
+    {
+      $lookup: {
+        from: "devices",
+        localField: localField,
+        foreignField: foreignField,
+        as: as,
+      },
+    },
+    {
+      $sort: sort,
+    },
+    {
+      $group: {
+        _id: groupId,
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        // ... other fields to group
+        [as]: elementAtIndex0,
+      },
+    },
+    {
+      $project: projection,
+    },
+    {
+      $facet: {
+        total: [{ $count: "device" }],
+        data: [
+          {
+            $addFields: {
+              device: "$device",
+              // ... other fields to add
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        meta,
+        data: {
+          $slice: [
+            "$data",
+            skip,
+            {
+              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+            },
+          ],
+        },
+      },
+    },
+    {
+      $allowDiskUse: true,
+    },
+  ];
+
+  pipeline.push({
+    $group: {
+      _id: groupId,
+      [localField]: {
+        $first: `$${localField}`, // Use localField obtained from getGroupDetails
+      },
+      [foreignField]: {
+        $first: `$${foreignField}`, // Use foreignField obtained from getGroupDetails
+      },
+      // Replace 'collection' with 'from' from getGroupDetails
+      [from]: {
+        $first: `$${from}`,
+      },
+      // ...other group stage configurations
+      [as]: {
+        $first: `$${as}`, // Use as obtained from getGroupDetails
+      },
+      [_as]: {
+        $first: `$${_as}`, // Use _as obtained from getGroupDetails
+      },
+    },
+  });
+
+  return pipeline;
+};
+
+const createPipelineForNonRecent = (search, projection, sort) => {
+  return [
+    {
+      $unwind: "$values",
+    },
+    {
+      $match: search,
+    },
+    {
+      $replaceRoot: {
+        newRoot: "$values",
+      },
+    },
+    {
+      $lookup: {
+        from: from,
+        localField: localField,
+        foreignField: foreignField,
+        as: as,
+      },
+    },
+    {
+      $sort: sort,
+    },
+    {
+      $project: projection,
+    },
+    {
+      $facet: {
+        total: [{ $count: "device" }],
+        data: [
+          {
+            $addFields: {
+              device: "$device",
+              // ... other fields to add
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        meta,
+        data: {
+          $slice: [
+            "$data",
+            skip,
+            {
+              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+            },
+          ],
+        },
+      },
+    },
+    {
+      $allowDiskUse: true,
+    },
+  ];
+};
+
 eventSchema.statics = {
   createEvent(args) {
     return this.create({
       ...args,
     });
   },
-  async list({ skip = 0, limit = 100, filter = {}, page = 1 } = {}) {
+  async list({
+    skip = DEFAULT_SKIP,
+    limit = DEFAULT_LIMIT,
+    filter = {},
+    page = DEFAULT_PAGE,
+  } = {}) {
     try {
       const {
         metadata,
-        frequency,
         external,
         tenant,
-        network,
-        device,
         running,
         recent,
         brief,
@@ -1098,6 +1449,68 @@ eventSchema.statics = {
       };
     }
   },
+};
+
+eventSchema.statics.view = async ({
+  skip = DEFAULT_SKIP,
+  limit = DEFAULT_LIMIT,
+  filter = {},
+  page = DEFAULT_PAGE,
+} = {}) => {
+  try {
+    const { metadata, external, tenant, recent, brief, index } = filter;
+    const projection = getConfiguredProjection(metadata, brief);
+    const matchQuery = createMatchQuery(filter);
+    const sortQuery = createSortQuery(index);
+    const facetProjection = createFacetProjection();
+    let pipeline;
+
+    if (!recent || recent === "yes") {
+      pipeline = createPipelineForRecent(
+        matchQuery,
+        projection,
+        sortQuery,
+        filter
+      );
+    } else {
+      pipeline = createPipelineForNonRecent(matchQuery, projection, sortQuery);
+    }
+
+    // Add the $facet stage to the pipeline to include facetProjection
+    pipeline.push({
+      $facet: {
+        data: [
+          {
+            $project: facetProjection,
+          },
+        ],
+        total: [
+          {
+            $count: "device",
+          },
+        ],
+      },
+    });
+
+    // Execute the aggregation pipeline
+    const data = await this.aggregate(pipeline);
+
+    return {
+      success: true,
+      data,
+      message: "successfully returned the measurements",
+      status: HTTPStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`list events -- ${error.message}`);
+    logObject("error", error);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: HTTPStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
 };
 
 const eventsModel = (tenant) => {
