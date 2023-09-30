@@ -624,9 +624,7 @@ const manageSite = {
 
   listSummary: async (req, res) => {
     try {
-      let { tenant } = req.query;
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
+      let { tenant, limit, skip } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;

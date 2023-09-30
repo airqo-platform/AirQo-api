@@ -32,9 +32,7 @@ const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 
 const listDevices = async (request) => {
   try {
-    const { tenant } = request.query;
-    const limit = parseInt(request.query.limit, 0);
-    const skip = parseInt(request.query.skip, 0);
+    const { tenant, limit, skip } = request.query;
     logObject("the request for the filter", request);
     const filter = generateFilter.devices(request);
     const responseFromListDevice = await DeviceModel(tenant).list({
@@ -545,9 +543,7 @@ const createEvent = {
         page,
       });
 
-      if (
-        language !== undefined
-      ) {
+      if (language !== undefined) {
         let data = responseFromListEvents.data[0].data;
         for (const event of data) {
           let translatedHealthTips = await translateUtil.translateTips(

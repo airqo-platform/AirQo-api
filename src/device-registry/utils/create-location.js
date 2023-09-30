@@ -128,9 +128,7 @@ const createLocation = {
   list: async (request) => {
     try {
       let { query } = request;
-      let { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
+      let { tenant, limit, skip } = query;
       let filter = generateFilter.locations(request);
 
       const responseFromListLocation = await LocationModel(tenant).list({
