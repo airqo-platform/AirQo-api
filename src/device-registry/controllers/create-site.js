@@ -647,14 +647,10 @@ const manageSite = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      let filter = generateFilter.sites(req);
-      filter["category"] = "summary";
-      let responseFromListSites = await createSiteUtil.list({
-        tenant,
-        filter,
-        limit,
-        skip,
-      });
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      request.category = "summary";
+      const responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status

@@ -826,7 +826,12 @@ const createSite = {
   list: async (request) => {
     try {
       const { skip, limit, tenant } = request.query;
-      const filter = generateFilter.sites(request);
+      logObject("the limit", limit);
+      logObject("the skip", skip);
+      let filter = generateFilter.sites(request);
+      if (request.category && request.category === "summary") {
+        filter.category = "summary";
+      }
 
       const responseFromListSite = await SiteModel(tenant).list({
         filter,
@@ -845,6 +850,7 @@ const createSite = {
 
       return modifiedResponseFromListSite;
     } catch (e) {
+      logObject("error", e);
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
