@@ -183,26 +183,6 @@ const getDocumentsByGroupId = async (tenantId, groupId, category) => {
   }
 };
 
-const isValidNetworkId = async (tenant, net_id) => {
-  try {
-    const exists = await NetworkModel(tenant).exists({ _id: net_id });
-    return exists;
-  } catch (error) {
-    logger.error(`internal server error --- ${JSON.stringify(error)}`);
-    return false;
-  }
-};
-
-const isValidGroupId = async (tenant, group_id) => {
-  try {
-    const exists = await GroupModel(tenant).exists({ _id: group_id });
-    return exists;
-  } catch (error) {
-    logger.error(`internal server error --- ${JSON.stringify(error)}`);
-    return false;
-  }
-};
-
 const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
@@ -667,19 +647,6 @@ const createAirqloud = {
       const { tenant, category } = query;
 
       if (groupId) {
-        const isValid = await isValidGroupId(tenant, groupId);
-
-        if (!isValid) {
-          return {
-            success: false,
-            message: "Bad Request",
-            errors: {
-              message: `Invalid groupId: ${groupId}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
         return await getDocumentsByGroupId(tenant, groupId, category)
           .then(({ cohorts, grids }) => {
             return {
@@ -698,19 +665,6 @@ const createAirqloud = {
             };
           });
       } else if (networkId) {
-        const isValid = await isValidNetworkId(tenant, networkId);
-
-        if (!isValid) {
-          return {
-            success: false,
-            message: "Bad Request",
-            errors: {
-              message: `Invalid networkId: ${networkId}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
         return await getDocumentsByNetworkId(tenant, networkId, category)
           .then(({ cohorts, grids }) => {
             return {
