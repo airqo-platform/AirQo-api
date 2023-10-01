@@ -5,15 +5,13 @@ const errors = require("@utils/errors");
 const createLocationUtil = require("@utils/create-location");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-controller`
 );
 
 const createLocation = {
   register: async (req, res) => {
-    let request = {};
-    let { body } = req;
-    let { query } = req;
     logText("registering location.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -35,10 +33,16 @@ const createLocation = {
         );
       }
       const { tenant } = req.query;
-      request["body"] = body;
-      request["query"] = query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
-      let responseFromCreateLocation = await createLocationUtil.create(request);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromCreateLocation = await createLocationUtil.create(
+        request
+      );
 
       if (responseFromCreateLocation.success === true) {
         const status = responseFromCreateLocation.status
@@ -74,12 +78,8 @@ const createLocation = {
 
   delete: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
-
       logText(".................................................");
       logText("inside delete location............");
-      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -98,8 +98,16 @@ const createLocation = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromRemoveLocation = await createLocationUtil.delete(request);
+
+      const { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromRemoveLocation = await createLocationUtil.delete(
+        request
+      );
 
       if (responseFromRemoveLocation.success === true) {
         const status = responseFromRemoveLocation.status
@@ -134,9 +142,6 @@ const createLocation = {
 
   update: async (req, res) => {
     try {
-      let request = {};
-      let { body } = req;
-      let { query } = req;
       logText("updating location................");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -156,9 +161,18 @@ const createLocation = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateLocation = await createLocationUtil.update(request);
+      let tenant = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUpdateLocation = await createLocationUtil.update(
+        request
+      );
 
       if (responseFromUpdateLocation.success === true) {
         const status = responseFromUpdateLocation.status
@@ -194,8 +208,6 @@ const createLocation = {
 
   listSummary: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all locations by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -216,9 +228,14 @@ const createLocation = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      request["query"]["summary"] = "yes";
-      let responseFromListLocations = await createLocationUtil.list(request);
+      let tenant = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.summary = "yes";
+      request.query.tenant = tenant;
+      const responseFromListLocations = await createLocationUtil.list(request);
 
       if (responseFromListLocations.success === true) {
         const status = responseFromListLocations.status
@@ -254,8 +271,6 @@ const createLocation = {
 
   list: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all locations by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -276,8 +291,16 @@ const createLocation = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromListLocations = await createLocationUtil.list(request);
+      let tenant = request.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListLocations = await createLocationUtil.list(request);
       logElement(
         "has the response for listing locations been successful?",
         responseFromListLocations.success
@@ -315,9 +338,6 @@ const createLocation = {
 
   delete: async (req, res) => {
     try {
-      const { query } = req;
-      const { body } = req;
-      let request = {};
       logText(".................................................");
       logText("inside delete location............");
       const hasErrors = !validationResult(req).isEmpty();
@@ -338,9 +358,15 @@ const createLocation = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      request["body"] = body;
-      let responseFromRemoveLocation = await createLocationUtil.delete(request);
+      let tenant = req.query.tenant;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromRemoveLocation = await createLocationUtil.delete(
+        request
+      );
 
       if (responseFromRemoveLocation.success === true) {
         const status = responseFromRemoveLocation.status

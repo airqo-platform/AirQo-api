@@ -26,15 +26,18 @@ const validateNetwork = async (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  // Retrieve the limit and skip values from the query parameters
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-
-  // Validate and sanitize the limit value
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-
-  // Validate and sanitize the skip value
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
 
   next();
 };
@@ -124,6 +127,14 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("the description should not be empty if provided"),
+      body("visibility")
+        .optional()
+        .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("network")
         .optional()
         .notEmpty()
@@ -303,11 +314,11 @@ router.put(
     [
       param("cohort_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the cohort ID param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the cohort ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -344,14 +355,19 @@ router.get(
     ],
   ]),
   oneOf([
-    param("cohort_id")
-      .optional()
-      .isMongoId()
-      .withMessage("cohort_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("cohort_id")
+        .exists()
+        .withMessage("the cohort ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the cohort ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   createCohortController.listAssignedDevices
 );
@@ -371,14 +387,19 @@ router.get(
     ],
   ]),
   oneOf([
-    param("cohort_id")
-      .optional()
-      .isMongoId()
-      .withMessage("cohort_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("cohort_id")
+        .exists()
+        .withMessage("the cohort ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the cohort ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   createCohortController.listAvailableDevices
 );
@@ -401,11 +422,11 @@ router.post(
     [
       param("cohort_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the cohort ID param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the cohort ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -448,11 +469,11 @@ router.delete(
     [
       param("cohort_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the cohort ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the cohort ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -495,11 +516,11 @@ router.delete(
     [
       param("cohort_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the cohort ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the cohort ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -553,10 +574,119 @@ router.post(
   ]),
   createCohortController.createNetwork
 );
-router.put("/networks/:net_id", createCohortController.updateNetwork);
-router.delete("/networks/:net_id", createCohortController.deleteNetwork);
-router.get("/networks", createCohortController.listNetworks);
-router.get("/networks/:net_id", createCohortController.listNetworks);
+router.put(
+  "/networks/:net_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("net_id")
+        .exists()
+        .withMessage("the network ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the network ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createCohortController.updateNetwork
+);
+router.delete(
+  "/networks/:net_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("net_id")
+        .exists()
+        .withMessage("the network ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the network ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createCohortController.deleteNetwork
+);
+router.get(
+  "/networks",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createCohortController.listNetworks
+);
+router.get(
+  "/networks/:net_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("net_id")
+        .exists()
+        .withMessage("the network ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the network ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createCohortController.listNetworks
+);
 router.get(
   "/:cohort_id",
   oneOf([
@@ -573,14 +703,19 @@ router.get(
     ],
   ]),
   oneOf([
-    param("cohort_id")
-      .optional()
-      .isMongoId()
-      .withMessage("cohort_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("cohort_id")
+        .exists()
+        .withMessage("the cohort ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the cohort ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   createCohortController.list
 );

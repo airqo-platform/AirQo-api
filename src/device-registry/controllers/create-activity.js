@@ -38,7 +38,7 @@ const activity = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromDeployDevice = await createActivityUtil.deploy(request);
       if (responseFromDeployDevice.success === true) {
@@ -100,7 +100,7 @@ const activity = {
       }
       let request = Object.assign({}, req);
 
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRecallDevice = await createActivityUtil.recall(request);
       if (responseFromRecallDevice.success === true) {
@@ -137,13 +137,13 @@ const activity = {
   maintain: async (req, res) => {
     try {
       const { query } = req;
-      let { tenant, } = query;
+      let { tenant } = query;
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromMaintainDevice = await createActivityUtil.maintain(
         request
@@ -290,7 +290,7 @@ const activity = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromUpdateActivity = await createActivityUtil.update(
         request
       );
@@ -356,7 +356,7 @@ const activity = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromRemoveActivity = await createActivityUtil.delete(
         request
       );
@@ -423,7 +423,7 @@ const activity = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       let responseFromListActivities = await createActivityUtil.list(request);
       logElement(
         "has the response for listing activities been successful?",

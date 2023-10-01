@@ -16,6 +16,10 @@ const cohortSchema = new Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     name: {
       type: String,
       required: [true, "name is required!"],
@@ -76,6 +80,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
+    group,
     visibility,
   } = this;
   return {
@@ -86,6 +91,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
+    group,
   };
 };
 
@@ -204,6 +210,7 @@ cohortSchema.statics.list = async function({
         cohort_codes: { $first: "$cohort_codes" },
         name: { $first: "$name" },
         network: { $first: "$network" },
+        group: { $first: "$group" },
         numberOfDevices: { $sum: 1 },
         devices: { $push: "$devices" },
       })
@@ -220,12 +227,14 @@ cohortSchema.statics.list = async function({
       cohort_codes: cohort.cohort_codes,
       name: cohort.name,
       network: cohort.network,
+      group: cohort.group,
       numberOfDevices: cohort.numberOfDevices,
       devices: cohort.devices.map((device) => ({
         _id: device._id,
         status: device.status,
         name: device.name,
         network: device.network,
+        group: device.group,
         device_number: device.device_number,
         description: device.description,
         long_name: device.long_name,

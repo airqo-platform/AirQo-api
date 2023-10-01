@@ -1,4 +1,3 @@
-const SiteActivitySchema = require("@models/SiteActivity");
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("@utils/log");
@@ -6,7 +5,6 @@ const { validationResult } = require("express-validator");
 const errors = require("@utils/errors");
 const generateFilter = require("@utils/generate-filter");
 const createSiteUtil = require("@utils/create-site");
-const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -135,8 +133,13 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      let responseFromCreateSite = await createSiteUtil.create(tenant, req);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromCreateSite = await createSiteUtil.create(request);
       if (responseFromCreateSite.success === true) {
         const status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -190,8 +193,15 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        req
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
+        request
       );
       logObject(
         "responseFromGenerateMetadata in controller",
@@ -243,13 +253,14 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query, body } = req;
-      const { id, tenant } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["tenant"] = tenant;
-      let responseFromFindNearestSite = await createSiteUtil.findNearestWeatherStation(
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromFindNearestSite = await createSiteUtil.findNearestWeatherStation(
         request
       );
       if (responseFromFindNearestSite.success === true) {
@@ -337,14 +348,14 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query, body } = req;
-      const { id, tenant } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["tenant"] = tenant;
-      logObject("request", request);
-      let responseFromFindAirQloud = await createSiteUtil.findAirQlouds(
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromFindAirQloud = await createSiteUtil.findAirQlouds(
         request
       );
       logObject("responseFromFindAirQloud", responseFromFindAirQloud);
@@ -383,7 +394,6 @@ const manageSite = {
     try {
       logText(".................................................");
       logText("inside delete site............");
-      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -402,9 +412,13 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let filter = generateFilter.sites(req);
-      logObject("filter", filter);
-      let responseFromRemoveSite = await createSiteUtil.delete(tenant, filter);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromRemoveSite = await createSiteUtil.delete(request);
       if (responseFromRemoveSite.success === true) {
         const status = responseFromRemoveSite.status
           ? responseFromRemoveSite.status
@@ -457,15 +471,13 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      let filter = generateFilter.sites(req);
-
-      let update = req.body;
-      let responseFromUpdateSite = await createSiteUtil.update(
-        tenant,
-        filter,
-        update
-      );
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromUpdateSite = await createSiteUtil.update(request);
 
       if (responseFromUpdateSite.success === true) {
         return res.status(HTTPStatus.OK).json({
@@ -517,10 +529,13 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      let filter = generateFilter.sites(req);
-      let update = req.body;
-      let responseFromRefreshSite = await createSiteUtil.refresh(tenant, req);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromRefreshSite = await createSiteUtil.refresh(request);
       logObject("responseFromRefreshSite", responseFromRefreshSite);
       if (responseFromRefreshSite.success === true) {
         const status = responseFromRefreshSite.status
@@ -575,10 +590,14 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, latitude, longitude, radius } = req.query;
+      let { tenant, latitude, longitude, radius } = req.query;
 
       logElement("latitude ", latitude);
       logElement("longitude ", longitude);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
       let request = {};
       request["radius"] = radius;
@@ -715,7 +734,7 @@ const manageSite = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      let responseFromListSites = await createSiteUtil.list(request);
+      const responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status

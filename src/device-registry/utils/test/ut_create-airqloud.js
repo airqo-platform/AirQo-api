@@ -662,55 +662,71 @@ describe("createAirqloud", () => {
 
     // Add more test cases as needed to cover different scenarios
   });
-  describe("listCohortsAndGrids", () => {
-    it("should return cohorts and grids for the given network ID and category", async () => {
-      // Create a fake request object for testing
+  describe("listCohortsAndGrids()", () => {
+    it("should return success and data for valid groupId", async () => {
       const request = {
-        params: {
-          net_id: "sample_network_id",
-        },
-        query: {
-          tenant: "example_tenant",
-          category: "sample_category",
-        },
+        params: { group_id: "validGroupId" },
+        query: { tenant: "validTenant", category: "summary" },
       };
 
-      // Stub commonUtil.getDocumentsByNetworkId to return fake cohorts and grids
-      const fakeCohorts = [{ _id: "cohort_id_1", name: "Cohort 1" }];
-      const fakeGrids = [{ _id: "grid_id_1", name: "Grid 1" }];
-      const getDocumentsByNetworkIdStub = sinon
-        .stub(commonUtil, "getDocumentsByNetworkId")
-        .resolves({ cohorts: fakeCohorts, grids: fakeGrids });
+      // Stub isValidGroupId to return true
+      const isValidGroupIdStub = sinon.stub().resolves(true);
 
-      // Call the listCohortsAndGrids function with the fake request
-      const result = await createAirqloud.listCohortsAndGrids(request);
+      // Stub getDocumentsByGroupId to return data
+      const getDocumentsByGroupIdStub = sinon.stub().resolves({
+        cohorts: [{ name: "Cohort 1" }],
+        grids: [{ name: "Grid 1" }],
+      });
 
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        `Successfully returned the AirQlouds for network sample_network_id`
+      const response = await createAirqloud.listCohortsAndGrids(
+        request,
+        isValidGroupIdStub,
+        getDocumentsByGroupIdStub
       );
-      expect(result.data.cohorts).to.deep.equal(fakeCohorts);
-      expect(result.data.grids).to.deep.equal(fakeGrids);
-      expect(result.status).to.equal(httpStatus.OK);
 
-      // Check if commonUtil.getDocumentsByNetworkId was called with the correct arguments
-      expect(
-        getDocumentsByNetworkIdStub.calledWithExactly(
-          "example_tenant",
-          "sample_network_id",
-          "sample_category"
-        )
-      ).to.be.true;
+      expect(response.success).to.be.true;
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.data.cohorts).to.have.lengthOf(1);
+      expect(response.data.grids).to.have.lengthOf(1);
 
-      // Restore the stub to its original implementation after the test
-      getDocumentsByNetworkIdStub.restore();
+      sinon.assert.calledOnceWithExactly(
+        isValidGroupIdStub,
+        "validTenant",
+        "validGroupId"
+      );
+      sinon.assert.calledOnceWithExactly(
+        getDocumentsByGroupIdStub,
+        "validTenant",
+        "validGroupId",
+        "summary"
+      );
     });
 
-    it("should handle internal server error and return an error response", async () => {
-      // ... Implement the test for the case when an internal server error occurs
+    it("should return error for invalid groupId", async () => {
+      const request = {
+        params: { group_id: "invalidGroupId" },
+        query: { tenant: "validTenant", category: "summary" },
+      };
+
+      // Stub isValidGroupId to return false
+      const isValidGroupIdStub = sinon.stub().resolves(false);
+
+      const response = await createAirqloud.listCohortsAndGrids(
+        request,
+        isValidGroupIdStub
+      );
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.include("Invalid groupId");
+
+      sinon.assert.calledOnceWithExactly(
+        isValidGroupIdStub,
+        "validTenant",
+        "invalidGroupId"
+      );
     });
 
-    // Add more test cases as needed to cover different scenarios
+    // Add similar test cases for networkId, bad request, and internal server error scenarios
   });
 });

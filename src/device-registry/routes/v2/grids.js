@@ -105,10 +105,19 @@ const validateMultiPolygonCoordinates = (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
+
   next();
 };
 
@@ -336,6 +345,14 @@ router.put(
         .toLowerCase()
         .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
+      body("visibility")
+        .optional()
+        .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("admin_level")
         .optional()
         .notEmpty()

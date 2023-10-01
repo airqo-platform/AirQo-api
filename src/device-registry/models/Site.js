@@ -51,6 +51,10 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "network is required!"],
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     data_provider: {
       type: String,
       trim: true,
@@ -398,6 +402,7 @@ siteSchema.methods = {
       generated_name: this.generated_name,
       search_name: this.search_name,
       network: this.network,
+      group: this.group,
       data_provider: this.data_provider,
       location_name: this.location_name,
       formatted_name: this.formatted_name,
