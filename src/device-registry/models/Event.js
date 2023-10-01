@@ -435,296 +435,164 @@ const elementAtIndexName = (metadata, recent) => {
 
 const getConfiguredProjection = (metadata, brief) => {
   const projection = {
-    _id: 0, // Always exclude _id by default
+    _id: 0, // Exclude _id field
   };
 
-  // Customize projection based on metadata
+  if (brief === "yes" || brief === "true") {
+    // If 'brief' is true, exclude additional fields
+    projection["s2_pm10"] = 0;
+    projection["s1_pm10"] = 0;
+    projection["s2_pm2_5"] = 0;
+    projection["s1_pm2_5"] = 0;
+    projection["rtc_adc"] = 0;
+    projection["rtc_v"] = 0;
+    projection["rtc"] = 0;
+    projection["stc_adc"] = 0;
+    projection["stc_v"] = 0;
+    projection["stc"] = 0;
+    projection["no2"] = 0;
+    projection["pm1"] = 0;
+    projection["pm10"] = 0;
+    projection["externalHumidity"] = 0;
+    projection["externalAltitude"] = 0;
+    projection["internalHumidity"] = 0;
+    projection["externalTemperature"] = 0;
+    projection["internalTemperature"] = 0;
+    projection["hdop"] = 0;
+    projection["satellites"] = 0;
+    projection["speed"] = 0;
+    projection["altitude"] = 0;
+    projection["location"] = 0;
+    projection["network"] = 0;
+    projection["battery"] = 0;
+    projection["average_pm10"] = 0;
+    projection["average_pm2_5"] = 0;
+    projection["device_number"] = 0;
+    projection["pm2_5.uncertaintyValue"] = 0;
+    projection["pm2_5.standardDeviationValue"] = 0;
+    projection["site"] = 0;
+    projection["deviceDetails"] = 0;
+    projection["aqi_color"] = 0;
+    projection["aqi_category"] = 0;
+    projection["aqi_color_name"] = 0;
+  }
+
   if (!metadata || metadata === "device" || metadata === "device_id") {
-    // Customize projection for device metadata
-    projection.device = 1; // Include device field
-    projection.device_id = 1; // Include device_id field
-
-    if (metadata === "device_id") {
-      projection.foreignField = "_id";
-    } else if (metadata === "device" || !metadata) {
-      projection.foreignField = "name";
-    }
-
-    // Add more fields as needed for device metadata
-  } else if (metadata === "site_id" || metadata === "site") {
-    // Customize projection for site metadata
-    projection.site = 1; // Include site field
-    projection.site_id = 1; // Include site_id field
-
-    if (metadata === "site") {
-      projection.foreignField = "generated_name";
-    } else if (metadata === "site_id") {
-      projection.foreignField = "_id";
-    }
-
-    // Add more fields as needed for site metadata
+    // If 'metadata' is not specified or is "device" or "device_id"
+    // Include fields related to the device metadata
+    projection["device"] = 1;
+    projection["device_id"] = 1;
+    projection["device_number"] = 1;
+    // ... Include other fields related to device metadata
   }
 
-  // Customize projection based on brief flag
-  if (brief === "yes") {
-    // Customize projection for brief flag
-    projection.additionalField = 1; // Include additionalField when brief is "yes"
-
-    // Add more fields as needed for brief flag
+  if (metadata === "site_id" || metadata === "site") {
+    // If 'metadata' is "site_id" or "site"
+    // Include fields related to the site metadata
+    projection["site_id"] = 1;
+    // ... Include other fields related to site metadata
   }
-
-  // Add more customizations based on your requirements
 
   return projection;
 };
 
-const getGroupDetails = (filter) => {
-  const groupDetails = {};
-  const { metadata } = filter;
-  // Customize groupId, localField, foreignField, etc. based on metadata
-  if (metadata === "device" || !metadata) {
-    groupDetails.groupId = "$device";
-    groupDetails.localField = "device";
-    groupDetails.foreignField = "name";
-  } else if (metadata === "site_id" || metadata === "site") {
-    groupDetails.groupId = "$" + metadata;
-    groupDetails.localField = metadata;
-    if (metadata === "site") {
-      groupDetails.foreignField = "generated_name";
-    } else if (metadata === "site_id") {
-      groupDetails.foreignField = "_id";
+const createMatchQuery = (filter) => {
+  const { metadata, external, tenant, recent, brief, index } = filter;
+
+  const matchQuery = {};
+
+  // Add conditions based on filter criteria
+  if (metadata) {
+    // Add conditions based on metadata if provided
+    if (metadata === "site" || metadata === "site_id") {
+      matchQuery.site_id = { $exists: true };
+    } else if (metadata === "device" || metadata === "device_id") {
+      matchQuery.device_id = { $exists: true };
     }
   }
 
-  // Customize other group details based on filter or additional conditions
-  if (filter && filter.running === "yes") {
-    // Customize group details for running devices
-    groupDetails.someOtherField = "someValue";
+  if (external === "yes" || brief === "yes") {
+    // Add conditions to exclude certain fields for external or brief data
+    matchQuery.$or = [
+      { s2_pm10: { $exists: false } },
+      { s1_pm10: { $exists: false } },
+      { s2_pm2_5: { $exists: false } },
+      { s1_pm2_5: { $exists: false } },
+      // Add more exclusions as needed
+    ];
   }
 
-  // Add more customizations based on your requirements
-
-  return groupDetails;
-};
-
-const createMatchQuery = (filter) => {
-  const matchQuery = {};
-
-  if (filter.metadata) {
-    matchQuery.metadata = filter.metadata;
+  if (tenant !== "airqo") {
+    // Adjust conditions based on the tenant if not "airqo"
+    // For example, you may need to modify pm2_5 and pm10 fields
+    matchQuery.pm2_5 = { $exists: true };
+    matchQuery.pm10 = { $exists: true };
   }
 
-  if (filter.frequency) {
-    matchQuery.frequency = filter.frequency;
+  if (running) {
+    matchQuery.running = running === "yes" ? true : false;
   }
 
-  if (filter.external) {
-    matchQuery.external = filter.external;
+  if (!recent || recent === "yes") {
+    // Add conditions for recent data
+    // For example, you may want to filter data within a specific time range
+    // matchQuery.timestamp = { $gte: someStartDate, $lte: someEndDate };
   }
 
-  if (filter.tenant) {
-    matchQuery.tenant = filter.tenant;
+  if (brief) {
+    matchQuery.brief = brief === "yes" ? true : false;
   }
 
-  if (filter.device) {
-    matchQuery.device = filter.device;
+  if (index) {
+    // Add conditions related to 'index' property if needed
   }
 
-  if (filter.running) {
-    matchQuery.running = filter.running;
-  }
-
-  if (filter.recent) {
-    matchQuery.recent = filter.recent;
-  }
-
-  if (filter.brief) {
-    matchQuery.brief = filter.brief;
-  }
-
-  if (filter.index) {
-    matchQuery.index = filter.index;
-  }
-
-  // Add more conditions based on your filter properties
+  // Add more conditions based on other filter criteria
 
   return matchQuery;
 };
 
-const createSortQuery = (index) => {
-  let sortField;
-  let sortOrder;
+const createSortQuery = (filter) => {
+  const { index, metadata } = filter;
+  const sortQuery = {};
 
-  switch (index) {
-    case 0:
-      // Sort by field 1 in ascending order
-      sortField = "field1";
-      sortOrder = 1;
-      break;
-    case 1:
-      // Sort by field 2 in descending order
-      sortField = "field2";
-      sortOrder = -1;
-      break;
-    // Add more cases as needed for different indices
-    default:
-      // Default sorting if the index doesn't match any case
-      sortField = "defaultField";
-      sortOrder = 1; // You can change the order as needed
-      break;
+  if (index === "ascending") {
+    // Sort in ascending order based on the specified field or default to "time"
+    sortQuery[metadata || "time"] = 1;
+  } else {
+    // Sort in descending order based on the specified field or default to "time"
+    sortQuery[metadata || "time"] = -1;
   }
 
-  return {
-    $sort: {
-      [sortField]: sortOrder,
-    },
-  };
+  return sortQuery;
 };
 
 const createFacetProjection = () => {
-  return [
-    {
-      $facet: {
-        total: [{ $count: "device" }],
-        data: [
+  return {
+    $project: {
+      meta,
+      data: {
+        $slice: [
+          "$data",
+          skip,
           {
-            $addFields: {
-              device: "$device",
-              // Add other fields as needed
-            },
+            $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
           },
         ],
       },
     },
-    {
-      $project: {
-        meta,
-        data: {
-          $slice: [
-            "$data",
-            skip,
-            {
-              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
-            },
-          ],
-        },
-      },
-    },
-  ];
+  };
 };
 
-const createPipelineForRecent = (search, projection, sort, filter) => {
-  const { groupId, localField, foreignField, from, as, _as } = getGroupDetails(
-    filter
-  );
+const createPipelineForRecent = (matchQuery, projection, sortQuery, filter) => {
+  const { skip = DEFAULT_SKIP, limit = DEFAULT_LIMIT, recent } = filter;
+
   const pipeline = [
     {
       $unwind: "$values",
     },
     {
-      $match: search,
-    },
-    {
-      $replaceRoot: {
-        newRoot: "$values",
-      },
-    },
-    {
-      $lookup: {
-        from: "photos",
-        localField: "site_id",
-        foreignField: "site_id",
-        as: "site_images",
-      },
-    },
-    {
-      $lookup: {
-        from: "devices",
-        localField: localField,
-        foreignField: foreignField,
-        as: as,
-      },
-    },
-    {
-      $sort: sort,
-    },
-    {
-      $group: {
-        _id: groupId,
-        device: { $first: "$device" },
-        device_id: { $first: "$device_id" },
-        // ... other fields to group
-        [as]: elementAtIndex0,
-      },
-    },
-    {
-      $project: projection,
-    },
-    {
-      $facet: {
-        total: [{ $count: "device" }],
-        data: [
-          {
-            $addFields: {
-              device: "$device",
-              // ... other fields to add
-            },
-          },
-        ],
-      },
-    },
-    {
-      $project: {
-        meta,
-        data: {
-          $slice: [
-            "$data",
-            skip,
-            {
-              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
-            },
-          ],
-        },
-      },
-    },
-    {
-      $allowDiskUse: true,
-    },
-  ];
-
-  pipeline.push({
-    $group: {
-      _id: groupId,
-      [localField]: {
-        $first: `$${localField}`, // Use localField obtained from getGroupDetails
-      },
-      [foreignField]: {
-        $first: `$${foreignField}`, // Use foreignField obtained from getGroupDetails
-      },
-      // Replace 'collection' with 'from' from getGroupDetails
-      [from]: {
-        $first: `$${from}`,
-      },
-      // ...other group stage configurations
-      [as]: {
-        $first: `$${as}`, // Use as obtained from getGroupDetails
-      },
-      [_as]: {
-        $first: `$${_as}`, // Use _as obtained from getGroupDetails
-      },
-    },
-  });
-
-  return pipeline;
-};
-
-const createPipelineForNonRecent = (search, projection, sort) => {
-  return [
-    {
-      $unwind: "$values",
-    },
-    {
-      $match: search,
+      $match: matchQuery,
     },
     {
       $replaceRoot: {
@@ -740,7 +608,128 @@ const createPipelineForNonRecent = (search, projection, sort) => {
       },
     },
     {
-      $sort: sort,
+      $lookup: {
+        from: "photos",
+        localField: "site_id",
+        foreignField: "site_id",
+        as: "site_images",
+      },
+    },
+    {
+      $lookup: {
+        from: "devices",
+        localField: "device_id",
+        foreignField: "_id",
+        as: "device_details",
+      },
+    },
+    {
+      $lookup: {
+        from,
+        localField,
+        foreignField,
+        as,
+      },
+    },
+    {
+      $lookup: {
+        from: "healthtips",
+        let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  {
+                    $lte: ["$aqi_category.min", "$$pollutantValue"],
+                  },
+                  {
+                    $gte: ["$aqi_category.max", "$$pollutantValue"],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        as: "healthTips",
+      },
+    },
+    {
+      $sort: sortQuery,
+    },
+    {
+      $group: {
+        _id: "$device",
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        site_image: {
+          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+        },
+        is_reading_primary: {
+          $first: {
+            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+          },
+        },
+        device_number: { $first: "$device_number" },
+        health_tips: { $first: "$healthTips" },
+        site: { $first: "$site" },
+        site_id: { $first: "$site_id" },
+        time: { $first: "$time" },
+        average_pm2_5: { $first: "$average_pm2_5" },
+        pm2_5: { $first: pm2_5 },
+        s1_pm2_5: { $first: s1_pm2_5 },
+        s2_pm2_5: { $first: "$s2_pm2_5" },
+        average_pm10: { $first: "$average_pm10" },
+        pm10: { $first: pm10 },
+        s1_pm10: { $first: s1_pm10 },
+        s2_pm10: { $first: "$s2_pm10" },
+        frequency: { $first: "$frequency" },
+        battery: { $first: "$battery" },
+        network: { $first: "$network" },
+        location: { $first: "$location" },
+        altitude: { $first: "$altitude" },
+        speed: { $first: "$speed" },
+        satellites: { $first: "$satellites" },
+        hdop: { $first: "$hdop" },
+        internalTemperature: { $first: "$internalTemperature" },
+        externalTemperature: { $first: "$externalTemperature" },
+        internalHumidity: { $first: "$internalHumidity" },
+        externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
+        pm1: { $first: "$pm1" },
+        no2: { $first: "$no2" },
+        rtc_adc: { $first: "$rtc_adc" },
+        rtc_v: { $first: "$rtc_v" },
+        rtc: { $first: "$rtc" },
+        stc_adc: { $first: "$stc_adc" },
+        stc_v: { $first: "$stc_v" },
+        stc: { $first: "$stc" },
+        [as]: elementAtIndex0,
+      },
+    },
+    {
+      $project: {
+        "health_tips.aqi_category": 0,
+        "health_tips.value": 0,
+        "health_tips.createdAt": 0,
+        "health_tips.updatedAt": 0,
+        "health_tips.__v": 0,
+      },
+    },
+    {
+      $project: {
+        "site_image.createdAt": 0,
+        "site_image.updatedAt": 0,
+        "site_image.metadata": 0,
+        "site_image.__v": 0,
+        "site_image.device_name": 0,
+        "site_image.device_id": 0,
+        "site_image._id": 0,
+        "site_image.tags": 0,
+        "site_image.image_code": 0,
+        "site_image.site_id": 0,
+        "site_image.airqloud_id": 0,
+      },
     },
     {
       $project: projection,
@@ -752,7 +741,184 @@ const createPipelineForNonRecent = (search, projection, sort) => {
           {
             $addFields: {
               device: "$device",
-              // ... other fields to add
+              aqi_color: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lt: ["$pm2_5.value", 12.1] },
+                        ],
+                      },
+                      then: "00e400",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 12.1] },
+                          { $lt: ["$pm2_5.value", 35.5] },
+                        ],
+                      },
+                      then: "ffff00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 35.5] },
+                          { $lt: ["$pm2_5.value", 55.5] },
+                        ],
+                      },
+                      then: "ff7e00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 55.5] },
+                          { $lt: ["$pm2_5.value", 150.5] },
+                        ],
+                      },
+                      then: "ff0000",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 150.5] },
+                          { $lt: ["$pm2_5.value", 250.5] },
+                        ],
+                      },
+                      then: "8f3f97",
+                    },
+                    {
+                      case: { $gte: ["$pm2_5.value", 250.5] },
+                      then: "7e0023",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_category: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lte: ["$pm2_5.value", 12] },
+                        ],
+                      },
+                      then: "Good",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 35.4] },
+                        ],
+                      },
+                      then: "Moderate",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 35.4] },
+                          { $lte: ["$pm2_5.value", 55.4] },
+                        ],
+                      },
+                      then: "Unhealthy for Sensitive Groups",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 55.4] },
+                          { $lte: ["$pm2_5.value", 150.4] },
+                        ],
+                      },
+                      then: "Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 250.4] },
+                        ],
+                      },
+                      then: "Very Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 250.4] },
+                          { $lte: ["$pm2_5.value", 500] },
+                        ],
+                      },
+                      then: "Hazardous",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_color_name: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lte: ["$pm2_5.value", 12] },
+                        ],
+                      },
+                      then: "Green",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 35.4] },
+                        ],
+                      },
+                      then: "Yellow",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 35.4] },
+                          { $lte: ["$pm2_5.value", 55.4] },
+                        ],
+                      },
+                      then: "Orange",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 55.4] },
+                          { $lte: ["$pm2_5.value", 150.4] },
+                        ],
+                      },
+                      then: "Red",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 250.4] },
+                        ],
+                      },
+                      then: "Purple",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 250.4] },
+                          { $lte: ["$pm2_5.value", 500] },
+                        ],
+                      },
+                      then: "Maroon",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
             },
           },
         ],
@@ -776,6 +942,372 @@ const createPipelineForNonRecent = (search, projection, sort) => {
       $allowDiskUse: true,
     },
   ];
+
+  return pipeline;
+};
+
+const createPipelineForNonRecent = (
+  matchQuery,
+  projection,
+  sortQuery,
+  skip,
+  limit
+) => {
+  const pipeline = [
+    {
+      $match: matchQuery,
+    },
+    {
+      $sort: sortQuery,
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    },
+    {
+      $lookup: {
+        from: from,
+        localField: localField,
+        foreignField: foreignField,
+        as: as,
+      },
+    },
+    {
+      $lookup: {
+        from: "photos",
+        localField: "site_id",
+        foreignField: "site_id",
+        as: "site_images",
+      },
+    },
+    {
+      $lookup: {
+        from: "devices",
+        localField: "device_id",
+        foreignField: "_id",
+        as: "device_details",
+      },
+    },
+    {
+      $lookup: {
+        from,
+        localField,
+        foreignField,
+        as,
+      },
+    },
+    {
+      $lookup: {
+        from: "healthtips",
+        let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  {
+                    $lte: ["$aqi_category.min", "$$pollutantValue"],
+                  },
+                  {
+                    $gte: ["$aqi_category.max", "$$pollutantValue"],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        as: "healthTips",
+      },
+    },
+    {
+      $group: {
+        _id: "$device",
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        site_image: {
+          $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+        },
+        is_reading_primary: {
+          $first: {
+            $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+          },
+        },
+        device_number: { $first: "$device_number" },
+        health_tips: { $first: "$healthTips" },
+        site: { $first: "$site" },
+        site_id: { $first: "$site_id" },
+        time: { $first: "$time" },
+        average_pm2_5: { $first: "$average_pm2_5" },
+        pm2_5: { $first: pm2_5 },
+        s1_pm2_5: { $first: s1_pm2_5 },
+        s2_pm2_5: { $first: "$s2_pm2_5" },
+        average_pm10: { $first: "$average_pm10" },
+        pm10: { $first: pm10 },
+        s1_pm10: { $first: s1_pm10 },
+        s2_pm10: { $first: "$s2_pm2_5" },
+        frequency: { $first: "$frequency" },
+        battery: { $first: "$battery" },
+        network: { $first: "$network" },
+        location: { $first: "$location" },
+        altitude: { $first: "$altitude" },
+        speed: { $first: "$speed" },
+        satellites: { $first: "$satellites" },
+        hdop: { $first: "$hdop" },
+        internalTemperature: { $first: "$internalTemperature" },
+        externalTemperature: { $first: "$externalTemperature" },
+        internalHumidity: { $first: "$internalHumidity" },
+        externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
+        pm1: { $first: "$pm1" },
+        no2: { $first: "$no2" },
+        rtc_adc: { $first: "$rtc_adc" },
+        rtc_v: { $first: "$rtc_v" },
+        rtc: { $first: "$rtc" },
+        stc_adc: { $first: "$stc_adc" },
+        stc_v: { $first: "$stc_v" },
+        stc: { $first: "$stc" },
+        [as]: elementAtIndex0,
+      },
+    },
+    {
+      $project: {
+        "health_tips.aqi_category": 0,
+        "health_tips.value": 0,
+        "health_tips.createdAt": 0,
+        "health_tips.updatedAt": 0,
+        "health_tips.__v": 0,
+      },
+    },
+    {
+      $project: {
+        "site_image.createdAt": 0,
+        "site_image.updatedAt": 0,
+        "site_image.metadata": 0,
+        "site_image.__v": 0,
+        "site_image.device_name": 0,
+        "site_image.device_id": 0,
+        "site_image._id": 0,
+        "site_image.tags": 0,
+        "site_image.image_code": 0,
+        "site_image.site_id": 0,
+        "site_image.airqloud_id": 0,
+      },
+    },
+    {
+      $project: projection,
+    },
+    {
+      $facet: {
+        total: [{ $count: "device" }],
+        data: [
+          {
+            $addFields: {
+              device: "$device",
+              aqi_color: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lt: ["$pm2_5.value", 12.1] },
+                        ],
+                      },
+                      then: "00e400",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 12.1] },
+                          { $lt: ["$pm2_5.value", 35.5] },
+                        ],
+                      },
+                      then: "ffff00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 35.5] },
+                          { $lt: ["$pm2_5.value", 55.5] },
+                        ],
+                      },
+                      then: "ff7e00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 55.5] },
+                          { $lt: ["$pm2_5.value", 150.5] },
+                        ],
+                      },
+                      then: "ff0000",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 150.5] },
+                          { $lt: ["$pm2_5.value", 250.5] },
+                        ],
+                      },
+                      then: "8f3f97",
+                    },
+                    {
+                      case: { $gte: ["$pm2_5.value", 250.5] },
+                      then: "7e0023",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_category: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lte: ["$pm2_5.value", 12] },
+                        ],
+                      },
+                      then: "Good",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 35.4] },
+                        ],
+                      },
+                      then: "Moderate",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 35.4] },
+                          { $lte: ["$pm2_5.value", 55.4] },
+                        ],
+                      },
+                      then: "Unhealthy for Sensitive Groups",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 55.4] },
+                          { $lte: ["$pm2_5.value", 150.4] },
+                        ],
+                      },
+                      then: "Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 250.4] },
+                        ],
+                      },
+                      then: "Very Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 250.4] },
+                          { $lte: ["$pm2_5.value", 500] },
+                        ],
+                      },
+                      then: "Hazardous",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_color_name: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", 0] },
+                          { $lte: ["$pm2_5.value", 12] },
+                        ],
+                      },
+                      then: "Green",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 35.4] },
+                        ],
+                      },
+                      then: "Yellow",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 35.4] },
+                          { $lte: ["$pm2_5.value", 55.4] },
+                        ],
+                      },
+                      then: "Orange",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 55.4] },
+                          { $lte: ["$pm2_5.value", 150.4] },
+                        ],
+                      },
+                      then: "Red",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 250.4] },
+                        ],
+                      },
+                      then: "Purple",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gt: ["$pm2_5.value", 250.4] },
+                          { $lte: ["$pm2_5.value", 500] },
+                        ],
+                      },
+                      then: "Maroon",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        meta,
+        data: {
+          $slice: [
+            "$data",
+            skip,
+            {
+              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+            },
+          ],
+        },
+      },
+    },
+    {
+      $allowDiskUse: true,
+    },
+  ];
+
+  return pipeline;
 };
 
 eventSchema.statics = {
@@ -1458,48 +1990,56 @@ eventSchema.statics.view = async ({
   page = DEFAULT_PAGE,
 } = {}) => {
   try {
-    const { metadata, external, tenant, recent, brief, index } = filter;
-    const projection = getConfiguredProjection(metadata, brief);
-    const matchQuery = createMatchQuery(filter);
-    const sortQuery = createSortQuery(index);
-    const facetProjection = createFacetProjection();
-    let pipeline;
+    const { recent } = filter;
+    const isRecent = !recent || recent === "yes";
 
-    if (!recent || recent === "yes") {
-      pipeline = createPipelineForRecent(
-        matchQuery,
-        projection,
-        sortQuery,
-        filter
-      );
-    } else {
-      pipeline = createPipelineForNonRecent(matchQuery, projection, sortQuery);
-    }
+    // Create a match query based on the filter
+    const matchQuery = createMatchQuery(filter);
+
+    // Create a sort query based on the index
+    const sortQuery = createSortQuery(filter.index);
+
+    // Create a projection based on the metadata and brief flags
+    const projection = getConfiguredProjection(filter.metadata, filter.brief);
+
+    // Create a pipeline based on whether it's recent or non-recent
+    const pipeline = isRecent
+      ? createPipelineForRecent(matchQuery, projection, sortQuery, filter)
+      : createPipelineForNonRecent(
+          matchQuery,
+          projection,
+          sortQuery,
+          skip,
+          limit
+        );
 
     // Add the $facet stage to the pipeline to include facetProjection
     pipeline.push({
       $facet: {
-        data: [
-          {
-            $project: facetProjection,
-          },
-        ],
-        total: [
-          {
-            $count: "device",
-          },
-        ],
+        data: [createFacetProjection()],
+        total: [{ $count: "device" }],
       },
     });
 
     // Execute the aggregation pipeline
     const data = await this.aggregate(pipeline);
 
+    // Calculate pagination metadata
+    const totalDevices = data[0]?.total[0]?.device || 0;
+    const totalPages = Math.ceil(totalDevices / limit);
+
     return {
       success: true,
       data,
-      message: "successfully returned the measurements",
+      message: "Successfully returned the measurements",
       status: HTTPStatus.OK,
+      meta: {
+        total: totalDevices,
+        skip,
+        limit,
+        page,
+        pages: totalPages,
+      },
     };
   } catch (error) {
     logger.error(`list events -- ${error.message}`);

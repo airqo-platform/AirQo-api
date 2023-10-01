@@ -512,10 +512,10 @@ const createEvent = {
         page,
       });
 
-      if (language !== undefined) {
-        let data = responseFromListEvents.data[0].data;
+      if (language !== undefined && responseFromListEvents.success === true) {
+        const data = responseFromListEvents.data[0].data;
         for (const event of data) {
-          let translatedHealthTips = await translateUtil.translateTips(
+          const translatedHealthTips = await translateUtil.translateTips(
             event.health_tips,
             language
           );
@@ -526,7 +526,7 @@ const createEvent = {
       }
 
       if (responseFromListEvents.success === true) {
-        let data = responseFromListEvents.data;
+        const data = responseFromListEvents.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
         logText("Setting cache...");
