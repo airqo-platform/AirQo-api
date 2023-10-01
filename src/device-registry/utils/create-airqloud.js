@@ -113,6 +113,96 @@ const getDocumentsByNetworkId = async (tenantId, network, category) => {
     };
   }
 };
+
+const getDocumentsByGroupId = async (tenantId, groupId, category) => {
+  try {
+    if (category === "summary") {
+      // Make modifications to the exclusion projection for summary category
+    }
+    if (category === "dashboard") {
+      // Make modifications to the exclusion projection for dashboard category
+    }
+
+    const cohortsQuery = CohortModel(tenantId).aggregate([
+      {
+        $match: { group: groupId }, // Match with group instead of network
+      },
+      {
+        $lookup: {
+          from: "devices",
+          localField: "_id",
+          foreignField: "cohorts",
+          as: "devices",
+        },
+      },
+      {
+        $project: cohortsInclusionProjection,
+      },
+      {
+        $project: devicesExclusionProjection,
+      },
+    ]);
+
+    const gridsQuery = GridModel(tenantId).aggregate([
+      {
+        $match: { group: groupId }, // Match with group instead of network
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id",
+          foreignField: "grids",
+          as: "sites",
+        },
+      },
+      {
+        $project: gridsInclusionProjection,
+      },
+      {
+        $project: sitesExclusionProjection,
+      },
+      {
+        $project: gridShapeExclusionProjection,
+      },
+    ]);
+
+    const [cohorts, grids] = await Promise.all([
+      cohortsQuery.exec(),
+      gridsQuery.exec(),
+    ]);
+
+    return { cohorts, grids };
+  } catch (error) {
+    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+      message: "Internal Server Error",
+    };
+  }
+};
+
+const isValidNetworkId = async (tenant, net_id) => {
+  try {
+    const exists = await NetworkModel(tenant).exists({ _id: net_id });
+    return exists;
+  } catch (error) {
+    logger.error(`internal server error --- ${JSON.stringify(error)}`);
+    return false;
+  }
+};
+
+const isValidGroupId = async (tenant, group_id) => {
+  try {
+    const exists = await GroupModel(tenant).exists({ _id: group_id });
+    return exists;
+  } catch (error) {
+    logger.error(`internal server error --- ${JSON.stringify(error)}`);
+    return false;
+  }
+};
+
 const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
@@ -571,26 +661,84 @@ const createAirqloud = {
   },
   listCohortsAndGrids: async (request) => {
     try {
-      const { params } = request;
-      const network = params.net_id;
-      const { tenant, category } = request.query;
-      return await getDocumentsByNetworkId(tenant, network, category)
-        .then(({ cohorts, grids }) => {
-          return {
-            success: true,
-            message: `Successfully returned the AirQlouds for network ${network}`,
-            data: { cohorts, grids },
-            status: httpStatus.OK,
-          };
-        })
-        .catch((error) => {
+      const { params, query } = request;
+      const groupId = params.group_id;
+      const networkId = params.net_id;
+      const { tenant, category } = query;
+
+      if (groupId) {
+        const isValid = await isValidGroupId(tenant, groupId);
+
+        if (!isValid) {
           return {
             success: false,
-            message: "Internal Server Error",
-            errors: { message: error.message },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            message: "Bad Request",
+            errors: {
+              message: `Invalid groupId: ${groupId}`,
+            },
+            status: httpStatus.BAD_REQUEST,
           };
-        });
+        }
+
+        return await getDocumentsByGroupId(tenant, groupId, category)
+          .then(({ cohorts, grids }) => {
+            return {
+              success: true,
+              message: `Successfully returned the Cohorts and Grids for group ${groupId}`,
+              data: { cohorts, grids },
+              status: httpStatus.OK,
+            };
+          })
+          .catch((error) => {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: { message: error.message },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          });
+      } else if (networkId) {
+        const isValid = await isValidNetworkId(tenant, networkId);
+
+        if (!isValid) {
+          return {
+            success: false,
+            message: "Bad Request",
+            errors: {
+              message: `Invalid networkId: ${networkId}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        return await getDocumentsByNetworkId(tenant, networkId, category)
+          .then(({ cohorts, grids }) => {
+            return {
+              success: true,
+              message: `Successfully returned the Cohorts and Grids for network ${networkId}`,
+              data: { cohorts, grids },
+              status: httpStatus.OK,
+            };
+          })
+          .catch((error) => {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: { message: error.message },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          });
+      } else {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "Invalid request parameters. Specify either 'group_id' or 'net_id'.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
     } catch (error) {
       return {
         success: false,

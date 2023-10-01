@@ -341,7 +341,7 @@ const generateFilter = {
     }
 
     if (!isEmpty(category) && category === "public" && isEmpty(device_id)) {
-      filter["visibility"] = false;
+      filter["visibility"] = true;
     }
 
     if (network) {
@@ -454,7 +454,7 @@ const generateFilter = {
     }
 
     if (!isEmpty(category) && category === "public" && isEmpty(site_id)) {
-      filter["visibility"] = false;
+      filter["visibility"] = true;
     }
 
     if (site_codes) {
@@ -540,7 +540,7 @@ const generateFilter = {
     }
 
     if (!isEmpty(category) && category === "public" && isEmpty(airqloud_id)) {
-      filter["visibility"] = false;
+      filter["visibility"] = true;
     }
 
     return filter;
@@ -576,7 +576,7 @@ const generateFilter = {
     }
 
     if (!isEmpty(category) && category === "public" && isEmpty(grid_id)) {
-      filter["visibility"] = false;
+      filter["visibility"] = true;
     }
 
     return filter;
@@ -615,7 +615,7 @@ const generateFilter = {
     }
 
     if (!isEmpty(category) && category === "public" && isEmpty(cohort_id)) {
-      filter["visibility"] = false;
+      filter["visibility"] = true;
     }
 
     return filter;
