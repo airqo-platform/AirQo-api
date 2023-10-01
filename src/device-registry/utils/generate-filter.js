@@ -169,11 +169,12 @@ const generateFilter = {
     // Handle unique names for sites and devices
     if (device) {
       const deviceArray = device
+        .toString()
         .split(",")
         .map((value) =>
           isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
         );
-      const mergedArray = [...deviceArray, ...device.split(",")];
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
       filter["values.device"]["$in"] = mergedArray;
       filter["device"] = true;
     } else {
@@ -191,7 +192,7 @@ const generateFilter = {
 
     // Handle device_number filtering
     if (device_number) {
-      const deviceArray = device_number.split(",");
+      const deviceArray = device_number.toString().split(",");
       filter["device_number"]["$in"] = deviceArray;
       filter["values.device_number"]["$in"] = deviceArray;
     }
@@ -207,7 +208,7 @@ const generateFilter = {
 
     // Handle site filtering
     if (site) {
-      filter["values.site"]["$in"] = site.split(",");
+      filter["values.site"]["$in"] = site.toString().split(",");
     }
 
     if (site && !recent && (!external || external === "yes")) {
@@ -220,7 +221,11 @@ const generateFilter = {
 
     // Handle unique ids for devices and sites
     if (device_id) {
-      const deviceIdArray = device_id.split(",").map((id) => ObjectId(id));
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
       filter["values.device_id"]["$in"] = deviceIdArray;
     }
 
@@ -233,7 +238,10 @@ const generateFilter = {
     }
 
     if (site_id) {
-      const siteIdArray = site_id.split(",").map((id) => ObjectId(id));
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
       filter["values.site_id"]["$in"] = siteIdArray;
     }
 
@@ -311,7 +319,7 @@ const generateFilter = {
     const filter = {};
 
     const modifyAndConcatArray = (value) => {
-      const deviceArray = value.split(",");
+      const deviceArray = value.toString().split(",");
       const modifiedDeviceArray = deviceArray.map((value) =>
         isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
       );
@@ -353,7 +361,7 @@ const generateFilter = {
     }
 
     if (device_codes) {
-      filter.device_codes = { $in: device_codes.split(",") };
+      filter.device_codes = { $in: device_codes.toString().split(",") };
     }
 
     if (chid) {
@@ -450,7 +458,7 @@ const generateFilter = {
     }
 
     if (site_codes) {
-      const siteCodesArray = site_codes.split(",");
+      const siteCodesArray = site_codes.toString().split(",");
       filter["site_codes"] = { $in: siteCodesArray };
     }
 
@@ -523,7 +531,7 @@ const generateFilter = {
     }
 
     if (airqloud_codes) {
-      const airqloudCodesArray = airqloud_codes.split(",");
+      const airqloudCodesArray = airqloud_codes.toString().split(",");
       filter["airqloud_codes"] = { $in: airqloudCodesArray };
     }
 
@@ -559,7 +567,7 @@ const generateFilter = {
     }
 
     if (grid_codes) {
-      const geoCodesArray = grid_codes.split(",");
+      const geoCodesArray = grid_codes.toString().split(",");
       filter["grid_codes"] = { $in: geoCodesArray };
     }
 
@@ -598,7 +606,7 @@ const generateFilter = {
     }
 
     if (cohort_codes) {
-      const cohortCodesArray = cohort_codes.split(",");
+      const cohortCodesArray = cohort_codes.toString().split(",");
       filter["cohort_codes"] = { $in: cohortCodesArray };
     }
 
@@ -627,7 +635,7 @@ const generateFilter = {
       }
 
       if (network_codes) {
-        let networkCodesArray = network_codes.split(",");
+        let networkCodesArray = network_codes.toString().split(",");
         filter["network_codes"] = {};
         filter["network_codes"]["$in"] = networkCodesArray;
       }
@@ -657,7 +665,7 @@ const generateFilter = {
       }
 
       if (admin_level_codes) {
-        let adminLevelCodesArray = admin_level_codes.split(",");
+        let adminLevelCodesArray = admin_level_codes.toString().split(",");
         filter["admin_level_codes"] = {};
         filter["admin_level_codes"]["$in"] = adminLevelCodesArray;
       }
@@ -742,7 +750,7 @@ const generateFilter = {
     }
 
     if (activity_codes) {
-      const activityCodesArray = activity_codes.split(",");
+      const activityCodesArray = activity_codes.toString().split(",");
       filter["activity_codes"] = {};
       filter["activity_codes"]["$in"] = activityCodesArray;
     }
@@ -796,7 +804,7 @@ const generateFilter = {
     }
 
     if (tags) {
-      let tagsArray = tags.split(",");
+      let tagsArray = tags.toString().split(",");
       filter["tags"] = {};
       filter["tags"]["$in"] = tagsArray;
     }

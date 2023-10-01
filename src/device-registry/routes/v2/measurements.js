@@ -8,6 +8,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const NetworkModel = require("@models/Network");
 const decimalPlaces = require("decimal-places");
+const numeral = require("numeral");
 
 const addCategoryQueryParam = (req, res, next) => {
   req.query.category = "public";
@@ -27,10 +28,19 @@ const validateNetwork = async (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
+
   next();
 };
 
@@ -166,6 +176,7 @@ router.get(
       query("site")
         .optional()
         .notEmpty()
+        .withMessage("the provided site cannot be empty IF provided")
         .trim(),
       query("site_id")
         .optional()

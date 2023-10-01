@@ -489,7 +489,7 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip } = query;
-      const { recent, tenant, device } = query;
+      const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
       const filter = generateFilter.events(request);
@@ -501,39 +501,8 @@ const createEvent = {
         return cacheResult.data;
       }
 
-      const deviceCountResult = await getDevicesCount(request);
-      logObject("deviceCountResult", deviceCountResult);
-
-      if (deviceCountResult.success === false) {
-        logger.error(
-          `Unable to retrieve events --- ${JSON.stringify(deviceCountResult)}`
-        );
-        logText(deviceCountResult.message);
-        return deviceCountResult;
-      }
-
-      if ((!recent && !device) || recent === "yes") {
-        if (!limit) {
-          limit = deviceCountResult.data;
-        }
-        if (!skip) {
-          if (page) {
-            skip = parseInt((page - 1) * limit);
-          } else {
-            skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-          }
-        }
-      } else {
-        if (!limit) {
-          limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
-        }
-        if (!skip) {
-          if (page) {
-            skip = parseInt((page - 1) * limit);
-          } else {
-            skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-          }
-        }
+      if (page) {
+        skip = parseInt((page - 1) * limit);
       }
 
       const responseFromListEvents = await EventModel(tenant).list({
