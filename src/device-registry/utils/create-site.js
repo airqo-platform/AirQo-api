@@ -829,9 +829,6 @@ const createSite = {
       logObject("the limit", limit);
       logObject("the skip", skip);
       let filter = generateFilter.sites(request);
-      if (request.category && request.category === "summary") {
-        filter.category = "summary";
-      }
 
       const responseFromListSite = await SiteModel(tenant).list({
         filter,

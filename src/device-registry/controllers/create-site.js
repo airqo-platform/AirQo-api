@@ -715,7 +715,7 @@ const manageSite = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      let responseFromListSites = await createSiteUtil.list(request);
+      const responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status
