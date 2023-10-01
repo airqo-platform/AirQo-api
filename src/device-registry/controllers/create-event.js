@@ -411,16 +411,16 @@ const createEvent = {
       let request = Object.assign({}, req);
 
       if (!isEmpty(site_id)) {
-        request["query"]["site_id"] = site_id;
-        request["query"]["recent"] = "no";
+        request.query.site_id = site_id;
+        request.query.recent = "no";
       }
 
       if (!isEmpty(device_id)) {
-        request["query"]["device_id"] = device_id;
-        request["query"]["recent"] = "no";
+        request.query.device_id = device_id;
+        request.query.recent = "no";
       }
 
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const result = await createEventUtil.list(request);
       logObject("the result for listing events", result);
@@ -471,10 +471,18 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      let { tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       let request = Object.assign({}, req);
-      request["query"]["recent"] = "no";
-      request["query"]["brief"] = "yes";
-      request["query"]["metadata"] = "device";
+      request.query.recent = "no";
+      request.query.brief = "yes";
+      request.query.metadata = "device";
+      request.query.tenant = tenant;
 
       const result = await createEventUtil.list(request);
 
@@ -534,10 +542,10 @@ const createEvent = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["external"] = "no";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.external = "no";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
       const result = await createEventUtil.list(request);
 
       logObject("the result for listing events", result);
@@ -626,8 +634,8 @@ const createEvent = {
 
       let request = Object.assign({}, req);
 
-      request["query"]["tenant"] = tenant;
-      request["query"]["running"] = "yes";
+      request.query.tenant = tenant;
+      request.query.running = "yes";
 
       const result = await createEventUtil.list(request);
 
@@ -687,10 +695,10 @@ const createEvent = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["index"] = "good";
-      request["query"]["tenant"] = tenant;
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.index = "good";
+      request.query.tenant = tenant;
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
 
@@ -749,10 +757,10 @@ const createEvent = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "moderate";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.index = "moderate";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
 
@@ -814,10 +822,10 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "u4sg";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.index = "u4sg";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
 
@@ -877,10 +885,10 @@ const createEvent = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "unhealthy";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.index = "unhealthy";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
       logObject("the result for listing events", result);
@@ -940,10 +948,10 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "very_unhealthy";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.index = "very_unhealthy";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
       logObject("the result for listing events", result);
@@ -1004,10 +1012,10 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "hazardous";
-      request["query"]["metadata"] = "site_id";
-      request["query"]["brief"] = "yes";
+      request.query.tenant = tenant;
+      request.query.index = "hazardous";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
       logObject("the result for listing events", result);
@@ -1048,7 +1056,7 @@ const createEvent = {
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromTransformEvents = await createEventUtil.transformManyEvents(
         request
@@ -1109,7 +1117,7 @@ const createEvent = {
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromCreateEvents = await createEventUtil.create(request);
       logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
@@ -1169,8 +1177,8 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = device_number || chid;
+      request.query.tenant = tenant;
+      request.query.device_number = device_number || chid;
 
       const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
         request
@@ -1234,8 +1242,8 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = device_number || chid;
+      request.query.tenant = tenant;
+      request.query.device_number = device_number || chid;
 
       const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
         request
@@ -1290,9 +1298,12 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = {};
-      request["query"] = {};
-      request["body"] = {};
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromTransmitValues = await createEventUtil.transmitValues(
         request
@@ -1331,7 +1342,6 @@ const createEvent = {
   deleteValuesOnPlatform: async (req, res) => {
     try {
       logText("the delete values operation starts....");
-      // logger.info(`the delete values operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -1348,16 +1358,7 @@ const createEvent = {
       }
       const { body } = req;
       let request = {};
-      request["query"] = { ...req.query, body };
-      // logger.info(`the request -- ${JSON.stringify(request)}`);
-      // let responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
-      //   request
-      // );
-      // logger.info(
-      //   `responseFromClearValuesOnPlatform -- ${JSON.stringify(
-      //     responseFromClearValuesOnPlatform
-      //   )}`
-      // );
+      request.query = { ...req.query, body };
 
       if (responseFromClearValuesOnPlatform.success === false) {
         const status = responseFromClearValuesOnPlatform.status
@@ -1417,7 +1418,7 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
 

@@ -99,14 +99,17 @@ router.post(
 router.put(
   "/encrypt",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("device_number")
@@ -149,6 +152,8 @@ router.put(
       body("visibility")
         .optional()
         .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
@@ -334,8 +339,9 @@ router.get(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -351,13 +357,18 @@ router.get(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
       query("device_number")
         .optional()
         .notEmpty()
@@ -400,13 +411,18 @@ router.get(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
       query("device_number")
         .optional()
         .notEmpty()
@@ -739,14 +755,17 @@ router.post(
 router.delete(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("device_number")
@@ -791,14 +810,17 @@ router.delete(
 router.put(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("device_number")
@@ -1304,14 +1326,17 @@ router.delete(
 router.put(
   "/soft",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("device_number")
@@ -1354,6 +1379,8 @@ router.put(
       body("visibility")
         .optional()
         .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
@@ -1537,14 +1564,17 @@ router.put(
 router.get(
   "/qrcode",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("device_number")

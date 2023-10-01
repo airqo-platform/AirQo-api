@@ -61,8 +61,9 @@ router.delete(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -122,8 +123,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -210,8 +212,9 @@ router.put(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -309,8 +312,9 @@ router.get(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -385,8 +389,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -520,8 +525,9 @@ router.put(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -724,8 +730,9 @@ router.delete(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()

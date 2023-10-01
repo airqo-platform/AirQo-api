@@ -345,6 +345,14 @@ router.put(
         .toLowerCase()
         .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
+      body("visibility")
+        .optional()
+        .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("admin_level")
         .optional()
         .notEmpty()

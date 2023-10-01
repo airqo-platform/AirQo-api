@@ -36,11 +36,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromListKYALesson = await createKnowYourAirUtil.listLesson(
         request
       );
@@ -105,11 +105,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateKYALesson = await createKnowYourAirUtil.createLesson(
         request
@@ -172,11 +172,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromDeleteKYALesson = await createKnowYourAirUtil.deleteLesson(
         request
       );
@@ -237,11 +237,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateKYALesson = await createKnowYourAirUtil.updateLesson(
         request
@@ -306,11 +306,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromListUserLessonProgress = await createKnowYourAirUtil.listUserLessonProgress(
         request
@@ -375,11 +375,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromDeleteUserLessonProgress = await createKnowYourAirUtil.deleteUserLessonProgress(
         request
@@ -443,11 +443,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateUserLessonProgress = await createKnowYourAirUtil.updateUserLessonProgress(
         request
@@ -512,11 +512,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateUserLessonProgress = await createKnowYourAirUtil.createUserLessonProgress(
         request
@@ -582,11 +582,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromSyncUserLessonProgress = await createKnowYourAirUtil.syncUserLessonProgress(
         request
@@ -653,11 +653,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromListKYATask = await createKnowYourAirUtil.listTask(
         request
       );
@@ -721,11 +721,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateKYATask = await createKnowYourAirUtil.createTask(
         request
@@ -787,11 +787,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromDeleteKYATask = await createKnowYourAirUtil.deleteTask(
         request
       );
@@ -852,11 +852,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateKYATask = await createKnowYourAirUtil.updateTask(
         request
@@ -920,11 +920,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromAssignTaskToLesson = await createKnowYourAirUtil.assignTaskToLesson(
         request
@@ -989,11 +989,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromAssignManyTasksToLesson = await createKnowYourAirUtil.assignManyTasksToLesson(
         request
@@ -1058,11 +1058,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveTaskFromLesson = await createKnowYourAirUtil.removeTaskFromLesson(
         request
@@ -1127,11 +1127,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveManyTasksFromLesson = await createKnowYourAirUtil.removeManyTasksFromLesson(
         request
@@ -1327,11 +1327,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromListKYAQuiz = await createKnowYourAirUtil.listQuiz(
         request
       );
@@ -1396,11 +1396,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateKYAQuiz = await createKnowYourAirUtil.createQuiz(
         request
@@ -1463,11 +1463,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromDeleteKYAQuiz = await createKnowYourAirUtil.deleteQuiz(
         request
       );
@@ -1528,11 +1528,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateKYAQuiz = await createKnowYourAirUtil.updateQuiz(
         request
@@ -1597,11 +1597,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromListUserQuizProgress = await createKnowYourAirUtil.listUserQuizProgress(
         request
@@ -1666,11 +1666,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromDeleteUserQuizProgress = await createKnowYourAirUtil.deleteUserQuizProgress(
         request
@@ -1734,11 +1734,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateUserQuizProgress = await createKnowYourAirUtil.updateUserQuizProgress(
         request
@@ -1803,11 +1803,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateUserQuizProgress = await createKnowYourAirUtil.createUserQuizProgress(
         request
@@ -1873,11 +1873,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromSyncUserQuizProgress = await createKnowYourAirUtil.syncUserQuizProgress(
         request
@@ -1944,11 +1944,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromListKYAQuestion = await createKnowYourAirUtil.listQuestions(
         request
       );
@@ -2012,11 +2012,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateKYAQuestion = await createKnowYourAirUtil.createQuestion(
         request
@@ -2078,11 +2078,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromDeleteKYAQuestion = await createKnowYourAirUtil.deleteQuestion(
         request
       );
@@ -2143,11 +2143,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateKYAQuestion = await createKnowYourAirUtil.updateQuestion(
         request
@@ -2212,11 +2212,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswers(
         request
       );
@@ -2280,11 +2280,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateKYAAnswer = await createKnowYourAirUtil.createAnswer(
         request
@@ -2346,11 +2346,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromDeleteKYAAnswer = await createKnowYourAirUtil.deleteAnswer(
         request
       );
@@ -2411,11 +2411,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateKYAAnswer = await createKnowYourAirUtil.updateAnswer(
         request
@@ -2479,11 +2479,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromAssignManyQuestionsToQuiz = await createKnowYourAirUtil.assignManyQuestionsToQuiz(
         request
@@ -2548,11 +2548,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveManyQuestionsFromQuiz = await createKnowYourAirUtil.removeManyQuestionsFromQuiz(
         request
@@ -2618,11 +2618,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromAssignManyAnswersToQuestion = await createKnowYourAirUtil.assignManyAnswersToQuestion(
         request
@@ -2687,11 +2687,11 @@ const createKnowYourAir = {
       let { tenant } = query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveManyAnswersFromQuestion = await createKnowYourAirUtil.removeManyAnswersFromQuestion(
         request

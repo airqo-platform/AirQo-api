@@ -35,12 +35,12 @@ const createGrid = {
       const { query } = req;
       let { tenant } = query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
-      let responseFromListAdminLevels = await createGridUtil.listAdminLevels(
+      const responseFromListAdminLevels = await createGridUtil.listAdminLevels(
         request
       );
       logObject(
@@ -98,15 +98,13 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
-
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateAdminLevel = await createGridUtil.updateAdminLevel(
         request
@@ -166,15 +164,15 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromDeleteAdminLevel = await createGridUtil.deleteAdminLevel(
         request
@@ -234,15 +232,15 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateAdminLevel = await createGridUtil.createAdminLevel(
         request
@@ -305,17 +303,16 @@ const createGrid = {
         );
       }
 
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
-      let responseFromCreateGrid = await createGridUtil.create(request);
+      const responseFromCreateGrid = await createGridUtil.create(request);
       // logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
       if (responseFromCreateGrid.success === true) {
         const status = responseFromCreateGrid.status
@@ -369,15 +366,14 @@ const createGrid = {
         );
       }
 
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCalculateGeographicalCenter = await createGridUtil.calculateGeographicalCenter(
         request
@@ -443,13 +439,12 @@ const createGrid = {
         );
       }
 
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveGrid = await createGridUtil.delete(request);
 
@@ -503,14 +498,12 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRefreshGrid = await createGridUtil.refresh(request);
       if (responseFromRefreshGrid.success === true) {
@@ -562,14 +555,14 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      let responseFromFindSites = await createGridUtil.findSites(request);
+      request.query.tenant = tenant;
+      const responseFromFindSites = await createGridUtil.findSites(request);
       logObject("responseFromFindSites", responseFromFindSites);
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
@@ -625,11 +618,11 @@ const createGrid = {
       const { query } = req;
       let { tenant } = query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      let responseFromUpdateGrid = await createGridUtil.update(request);
+      request.query.tenant = tenant;
+      const responseFromUpdateGrid = await createGridUtil.update(request);
       logObject("responseFromUpdateGrid", responseFromUpdateGrid);
       if (responseFromUpdateGrid.success === true) {
         const status = responseFromUpdateGrid.status
@@ -684,10 +677,9 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK || "airqo";
+        tenant = constants.DEFAULT_NETWORK || "airqo" || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -750,15 +742,14 @@ const createGrid = {
         );
       }
 
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["summary"] = "yes";
-      let responseFromListGrids = await createGridUtil.list(request);
+      request.query.tenant = tenant;
+      request.query.summary = "yes";
+      const responseFromListGrids = await createGridUtil.list(request);
       logElement(
         "has the response for listing grids been successful?",
         responseFromListGrids.success
@@ -815,15 +806,13 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["dashboard"] = "yes";
+      request.query.tenant = tenant;
+      request.query.dashboard = "yes";
 
       const responseFromListGrids = await createGridUtil.list(request);
       logElement(
@@ -884,13 +873,12 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromFindGridUsingGPSCoordinates = await createGridUtil.findGridUsingGPSCoordinates(
         request
       );
@@ -930,13 +918,13 @@ const createGrid = {
         errors: { message: "Not Yet Implemented" },
       });
       logText("uploading the shapefile.....");
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
       const responseFromCreateGridFromShapefile = await createGridUtil.createGridFromShapefile(
         request
       );
@@ -971,7 +959,7 @@ const createGrid = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -1032,7 +1020,7 @@ const createGrid = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);

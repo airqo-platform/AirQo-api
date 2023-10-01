@@ -211,7 +211,11 @@ const device = {
       }
 
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
       const request = {
         query: { tenant },
@@ -226,9 +230,7 @@ const device = {
           message: result.message,
           devices: result.data,
         });
-      }
-
-      if (result.success === false) {
+      } else if (result.success === false) {
         const status = result.status
           ? result.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -277,12 +279,8 @@ const device = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      let responseFromCreateDevice = await createDeviceUtil.create(request);
-      // logger.info(
-      //   `responseFromCreateDevice -- ${JSON.stringify(
-      //     responseFromCreateDevice
-      //   )}`
-      // );
+      const responseFromCreateDevice = await createDeviceUtil.create(request);
+
       if (responseFromCreateDevice.success === true) {
         const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
@@ -331,18 +329,15 @@ const device = {
         );
       }
 
-      const { body, query } = req;
-      const { tenant, device_number, id, name, include_site } = query;
-
-      const request = {
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request = {
         query: {
           tenant,
-          device_number,
-          include_site,
-          id,
-          name,
         },
-        body,
       };
 
       const response = await createDeviceUtil.generateQR(request);
@@ -354,9 +349,7 @@ const device = {
           message: response.message,
           data: response.data,
         });
-      }
-
-      if (response.success === false) {
+      } else if (response.success === false) {
         const status = response.status
           ? response.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -396,26 +389,14 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { device, name, id, device_number, tenant } = req.query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
-      let requestObject = {};
-      requestObject["query"] = {
-        device,
-        name,
-        id,
-        device_number,
-        tenant,
-      };
-
-      let responseFromRemoveDevice = await createDeviceUtil.delete(
-        requestObject
-      );
-
-      // logger.info(
-      //   `responseFromRemoveDevice -- ${JSON.stringify(
-      //     responseFromRemoveDevice
-      //   )}`
-      // );
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromRemoveDevice = await createDeviceUtil.delete(request);
 
       if (responseFromRemoveDevice.success === true) {
         const status = responseFromRemoveDevice.status
@@ -469,21 +450,15 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, device_number, id, name, device } = req.query;
-      const { body } = req;
-      let requestBody = {};
-      requestBody["query"] = {};
-      requestBody["query"]["tenant"] = tenant;
-      requestBody["query"]["device_number"] = device_number;
-      requestBody["query"]["id"] = id;
-      requestBody["query"]["name"] = name;
-      requestBody["query"]["device"] = device;
-      requestBody["body"] = body;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      let responseFromUpdateDevice = await createDeviceUtil.update(requestBody);
-      // logger.info(
-      //   `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
-      // );
+      const responseFromUpdateDevice = await createDeviceUtil.update(request);
+
       if (responseFromUpdateDevice.success === true) {
         const status = responseFromUpdateDevice.status
           ? responseFromUpdateDevice.status
@@ -543,7 +518,7 @@ const device = {
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       let responseFromRefreshDevice = await createDeviceUtil.refresh(request);
       logObject("responseFromRefreshDevice", responseFromRefreshDevice);
@@ -601,25 +576,17 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, device, device_number, name, id } = req.query;
-      const { body } = req;
-      let requestObject = {};
-      requestObject["query"] = {};
-      requestObject["query"]["id"] = id;
-      requestObject["query"]["device_number"] = device_number;
-      requestObject["query"]["name"] = name;
-      requestObject["query"]["device"] = device;
-      requestObject["query"]["tenant"] = tenant;
-      requestObject["body"] = body;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
-      logObject("we see", requestObject);
-      let responseFromEncryptKeys = await createDeviceUtil.encryptKeys(
-        requestObject
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromEncryptKeys = await createDeviceUtil.encryptKeys(
+        request
       );
-
-      // logger.info(
-      //   `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
-      // );
 
       if (responseFromEncryptKeys.success === true) {
         const status = responseFromEncryptKeys.status
@@ -748,7 +715,7 @@ const device = {
       }
       let tenant = req.query.tenant;
       let request = Object.assign({}, req);
-      if (!isEmpty) {
+      if (!isEmpty(tenant)) {
         tenant = "airqo";
       }
       request.query.tenant = tenant;
@@ -794,15 +761,7 @@ const device = {
 
   listAllByNearestCoordinates: async (req, res) => {
     try {
-      const {
-        tenant,
-        latitude,
-        longitude,
-        radius,
-        name,
-        chid,
-        device_number,
-      } = req.query;
+      const { tenant, latitude, longitude, radius, chid } = req.query;
       logText("list all devices by coordinates...");
       try {
         if (!(tenant && latitude && longitude && radius)) {
@@ -815,13 +774,14 @@ const device = {
         logElement("latitude ", latitude);
         logElement("longitude ", longitude);
 
-        let request = {};
-        request["query"] = {};
-        request["query"]["name"] = device;
-        request["query"]["name"] = name;
-        request["query"]["tenant"] = tenant;
-        request["query"]["device_number"] = chid;
-        request["query"]["device_number"] = device_number;
+        if (isEmpty(tenant)) {
+          tenant = "airqo";
+        }
+
+        let request = Object.assign({}, req);
+        request.query.name = device;
+        request.query.tenant = tenant;
+        request.query.device_number = chid;
 
         const responseFromListDevice = await createDeviceUtil.list(request);
 
@@ -880,27 +840,16 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, device, device_number, name, id } = req.query;
-      const { body } = req;
-      let requestObject = {};
-      requestObject["query"] = {};
-      requestObject["query"]["id"] = id;
-      requestObject["query"]["device_number"] = device_number;
-      requestObject["query"]["name"] = name;
-      requestObject["query"]["device"] = device;
-      requestObject["query"]["tenant"] = tenant;
-      requestObject["body"] = body;
+      const { tenant, device } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      logObject("we see", requestObject);
-      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
-        requestObject
+      const responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
+        request
       );
-
-      // logger.info(
-      //   `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
-      //     responseFromUpdateDeviceOnPlatform
-      //   )}`
-      // );
 
       if (responseFromUpdateDeviceOnPlatform.success === true) {
         const status = responseFromUpdateDeviceOnPlatform.status
@@ -954,26 +903,20 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { device, name, id, device_number, tenant } = req.query;
+      let { tenant } = req.query;
 
-      let requestObject = {};
-      requestObject["query"] = {
-        device,
-        name,
-        id,
-        device_number,
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query = {
         tenant,
       };
 
       let responseFromRemoveDevice = await createDeviceUtil.deleteOnPlatform(
-        requestObject
+        request
       );
-
-      // logger.info(
-      //   `responseFromRemoveDevice -- ${JSON.stringify(
-      //     responseFromRemoveDevice
-      //   )}`
-      // );
 
       if (responseFromRemoveDevice.success === true) {
         const status = responseFromRemoveDevice.status
@@ -1034,19 +977,13 @@ const device = {
         tenant = "airqo";
       }
 
-      let requestBody = {};
-      requestBody["query"] = {};
-      requestBody["query"]["tenant"] = tenant;
-      requestBody["body"] = body;
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
-        requestBody
+      const responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
+        request
       );
-      // logger.info(
-      //   `responseFromCreateOnPlatform -- ${JSON.stringify(
-      //     responseFromCreateOnPlatform
-      //   )}`
-      // );
+
       if (responseFromCreateOnPlatform.success === true) {
         const status = responseFromCreateOnPlatform.status
           ? responseFromCreateOnPlatform.status

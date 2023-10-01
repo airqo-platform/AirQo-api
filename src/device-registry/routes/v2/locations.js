@@ -62,8 +62,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -176,14 +177,17 @@ router.post(
 router.get(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -232,14 +236,17 @@ router.get(
 router.put(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -362,14 +369,17 @@ router.put(
 router.delete(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
