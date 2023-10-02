@@ -28,9 +28,7 @@ const createActivity = {
   list: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.activities(request);
 
       const responseFromListActivity = await ActivityModel(tenant).list({

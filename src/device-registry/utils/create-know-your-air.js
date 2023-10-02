@@ -40,12 +40,9 @@ const createKnowYourAir = {
   /*************** lessons *******************************/
   listLesson: async (request) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const { user_id } = request.params;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      const language = request.query.language;
+      const { query, params } = request;
+      const { tenant, limit, skip, language } = query;
+      const { user_id } = params;
       const filter = generateFilter.kyalessons(request);
       if (filter.success && filter.success === false) {
         return filter;
@@ -60,7 +57,10 @@ const createKnowYourAir = {
         }
       );
       if (language !== undefined) {
-        const translatedLessons = await translateUtil.translateLessons(responseFromListLessons.data, language);
+        const translatedLessons = await translateUtil.translateLessons(
+          responseFromListLessons.data,
+          language
+        );
         if (translatedLessons.success === true) {
           return translatedLessons;
         }
@@ -285,9 +285,7 @@ const createKnowYourAir = {
   listUserLessonProgress: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const filter = generateFilter.kyaprogress(request);
       if (filter.success && filter.success === false) {
@@ -504,9 +502,7 @@ const createKnowYourAir = {
   listTask: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const filter = generateFilter.kyatasks(request);
       if (filter.success && filter.success === false) {
@@ -941,12 +937,9 @@ const createKnowYourAir = {
   /*************** quizzes *******************************/
   listQuiz: async (request) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const { user_id } = request.params;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      const language = request.query.language;
+      const { query, params } = request;
+      const { tenant, limit, skip, language } = query;
+      const { user_id } = params;
       const filter = generateFilter.kyaquizzes(request);
       if (filter.success && filter.success === false) {
         return filter;
@@ -959,7 +952,10 @@ const createKnowYourAir = {
         user_id: user_id,
       });
       if (language !== undefined) {
-        const translatedQuizzes = await translateUtil.translateQuizzes(responseFromListQuizzes.data, language);
+        const translatedQuizzes = await translateUtil.translateQuizzes(
+          responseFromListQuizzes.data,
+          language
+        );
         if (translatedQuizzes.success === true) {
           return translatedQuizzes;
         }
@@ -1084,9 +1080,7 @@ const createKnowYourAir = {
   listUserQuizProgress: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const filter = generateFilter.kyaprogress(request);
       if (filter.success && filter.success === false) {
@@ -1303,9 +1297,7 @@ const createKnowYourAir = {
   listQuestions: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const filter = generateFilter.kyaquestions(request);
       if (filter.success && filter.success === false) {
@@ -1440,9 +1432,7 @@ const createKnowYourAir = {
   listAnswers: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const filter = generateFilter.kyaquestions(request);
       if (filter.success && filter.success === false) {

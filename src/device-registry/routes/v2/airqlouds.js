@@ -26,15 +26,18 @@ const validateNetwork = async (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  // Retrieve the limit and skip values from the query parameters
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-
-  // Validate and sanitize the limit value
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-
-  // Validate and sanitize the skip value
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
 
   next();
 };
@@ -86,8 +89,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -218,14 +222,17 @@ router.post(
 router.put(
   "/refresh",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -255,14 +262,17 @@ router.put(
 router.get(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -307,14 +317,17 @@ router.get(
 router.get(
   "/summary",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -359,14 +372,17 @@ router.get(
 router.get(
   "/dashboard",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -411,14 +427,17 @@ router.get(
 router.get(
   "/sites",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -471,14 +490,17 @@ router.get(
 router.put(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -512,6 +534,14 @@ router.put(
         })
         .withMessage("the name should not have whitespace in it")
         .trim(),
+      body("visibility")
+        .optional()
+        .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("admin_level")
         .optional()
         .notEmpty()
@@ -610,14 +640,17 @@ router.put(
 router.delete(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -640,14 +673,17 @@ router.delete(
 router.get(
   "/center",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -736,6 +772,30 @@ router.get(
 );
 
 router.get(
+  "/groups/:group_id/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("group_id")
+      .exists()
+      .withMessage("the group ID param is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the group ID cannot be empty"),
+  ]),
+  airqloudController.listCohortsAndGridsSummary
+);
+
+router.get(
   "/combined/:net_id",
   oneOf([
     query("tenant")
@@ -756,6 +816,31 @@ router.get(
       .bail()
       .notEmpty()
       .withMessage("the network should not be empty"),
+  ]),
+  airqloudController.listCohortsAndGrids
+);
+
+router.get(
+  "/groups/:group_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("group_id")
+      .trim()
+      .exists()
+      .withMessage("the group is is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the group should not be empty"),
   ]),
   airqloudController.listCohortsAndGrids
 );

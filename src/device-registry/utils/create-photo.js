@@ -170,9 +170,7 @@ const createPhoto = {
   list: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.photos(request);
 
       const responseFromListPhotos = await PhotoModel(tenant).list({

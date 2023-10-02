@@ -21,25 +21,23 @@ const validateNetwork = async (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  // Retrieve the limit and skip values from the query parameters
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-
-  // Validate and sanitize the limit value
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-
-  // Validate and sanitize the skip value
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
 
   next();
 };
 
 const headers = (req, res, next) => {
-  // const allowedOrigins = constants.DOMAIN_WHITELIST;
-  // const origin = req.headers.origin;
-  // if (allowedOrigins.includes(origin)) {
-  //   res.setHeader("Access-Control-Allow-Origin", origin);
-  // }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
@@ -56,8 +54,9 @@ router.get(
   "/running",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -178,8 +177,9 @@ router.get(
   "/good",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -300,8 +300,9 @@ router.get(
   "/moderate",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -422,8 +423,9 @@ router.get(
   "/u4sg",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -544,8 +546,9 @@ router.get(
   "/unhealthy",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -666,8 +669,9 @@ router.get(
   "/very_unhealthy",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -788,8 +792,9 @@ router.get(
   "/hazardous",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -909,16 +914,15 @@ router.get(
 router.post(
   "/",
   oneOf([
-    [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     body()
@@ -1008,6 +1012,17 @@ router.post(
 
 router.post(
   "/transform",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
   oneOf([
     body()
       .isArray()
@@ -1343,8 +1358,9 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1464,15 +1480,14 @@ router.post(
   "/transmit/single",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant query parameter should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
       .isIn(constants.NETWORKS)
-      .withMessage(
-        "the tenant query parameter value is not among the expected ones"
-      ),
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     query("id")
@@ -1689,15 +1704,14 @@ router.post(
   "/transmit/bulk",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant query parameter should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
       .isIn(constants.NETWORKS)
-      .withMessage(
-        "the tenant query parameter value is not among the expected ones"
-      ),
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     query("id")
@@ -1920,8 +1934,9 @@ router.delete(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()

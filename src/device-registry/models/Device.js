@@ -57,6 +57,10 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     access_code: {
       type: String,
     },
@@ -255,6 +259,7 @@ deviceSchema.methods = {
       alias: this.alias,
       mobility: this.mobility,
       network: this.network,
+      group: this.group,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
