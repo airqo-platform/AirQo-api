@@ -21,7 +21,7 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 | [auth-service](./src/auth-service)             | Node.js                | Authentication services for this endpoint                                                                                                                           |
 | [data-mgt](./src/data-mgt)                     | Node.js & MongoDB      | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness |
 | [device-registry](./src/device-registry) .     | Node.js                | Carry out the management of the devices.                                                                                                                            |
-| [incetives](./src/incetives-service)           | Node.js                | The payment service to incetivise various stakeholders                                                                                                              |
+| [incentives](./src/incentives-service)           | Node.js                | The payment service to incentivise various stakeholders                                                                                                              |
 | [predict](./src/predict)                       | Flask/Python & MongoDB | microservice to handle predictions or forecasts of air quality                                                                                                      |
 | [device-monitoring](./src/device-monitoring)   | Flask/Python & MongoDB | Monitoring the status of all devices on the network.                                                                                                                |
 | [locate](./src/locate)                         | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
@@ -32,7 +32,7 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 - Multi-protocol connectivity (HTTP and MQTT)
 - Device management
 - Access control
-- Incetives
+- Incentives
 - Message persistence (MongoDB and PostgresSQL)
 - Container-based deployment using [Docker](https://www.docker.com/) and [Kubernetes](https://kubernetes.io/)
 - Microservices architecture, high-quality code and test coverage
