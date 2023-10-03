@@ -68,39 +68,6 @@ const listDevices = async (request) => {
     };
   }
 };
-const getDevicesCount = async (request) => {
-  try {
-    const { query } = request;
-    const { tenant } = query;
-
-    const count = await DeviceModel(tenant).countDocuments({});
-
-    logObject("the count for devices", count);
-
-    if (count) {
-      return {
-        success: true,
-        message: "retrieved the number of devices",
-        status: httpStatus.OK,
-        data: count,
-      };
-    } else {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "No devices found" }, // You can customize the error message as needed
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  } catch (error) {
-    logger.error(`internal server error -- ${error.message}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-    };
-  }
-};
 const decryptKey = async (encryptedKey) => {
   try {
     let bytes = cryptoJS.AES.decrypt(
@@ -493,12 +460,28 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
       const filter = generateFilter.events(request);
-      const cacheResult = await createEvent.getCache(request);
-      logObject("Cache result", cacheResult);
 
-      if (cacheResult.success === true) {
-        logText(cacheResult.message);
-        return cacheResult.data;
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request),
+          new Promise((resolve) =>
+            setTimeout(resolve, 3000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        logObject("Cache result", cacheResult);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
       }
 
       if (page) {
@@ -530,7 +513,26 @@ const createEvent = {
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
         logText("Setting cache...");
-        await createEvent.setCache(data, request);
+
+        try {
+          const resultOfCacheOperation = await Promise.race([
+            createEvent.setCache(data, request),
+            new Promise((resolve) =>
+              setTimeout(resolve, 3000, {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: { message: "Cache timeout" },
+              })
+            ),
+          ]);
+          if (resultOfCacheOperation.success === false) {
+            return resultOfCacheOperation;
+          }
+        } catch (error) {
+          logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+        }
+
         logText("Cache set.");
 
         return {
