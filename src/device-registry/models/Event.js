@@ -1487,6 +1487,7 @@ eventSchema.statics = {
           aqi_color_name: 0,
           pm2_5: 0,
           average_pm10: 0,
+          average_pm2_5: 0,
           pm10: 0,
           frequency: 0,
           network: 0,
@@ -1517,9 +1518,6 @@ eventSchema.statics = {
           stc_v: 0,
           stc: 0,
           siteDetails: 0,
-          aqi_color: 0,
-          aqi_category: 0,
-          aqi_color_name: 0,
         });
       }
 
