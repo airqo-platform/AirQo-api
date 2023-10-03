@@ -26,7 +26,6 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 | [device-monitoring](./src/device-monitoring)   | Flask/Python & MongoDB | Monitoring the status of all devices on the network.                                                                                                                |
 | [locate](./src/locate)                         | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
 | [calibrate](./src/locate)                      | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
-| [location-registry](./src/location-registry)   | Flask/Python & MongoDB | microservice that handles the registration of locations in the network                                                                                              |
 
 ## Features
 
