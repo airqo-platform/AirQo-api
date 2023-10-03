@@ -642,12 +642,22 @@ const createEvent = {
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
+        const devices = result.data[0].data || [];
+        const meta = result.data[0].meta;
+        if (devices && Array.isArray(devices)) {
+          devices.forEach((device) => {
+            delete device.aqi_color;
+            delete device.aqi_category;
+            delete device.aqi_color_name;
+          });
+        }
+
         res.status(status).json({
           success: true,
           isCache: result.isCache,
           message: "successfully returned the active and running devices",
-          meta: result.data[0].meta,
-          devices: result.data[0].data,
+          meta,
+          devices,
         });
       } else if (result.success === false) {
         const status = result.status
