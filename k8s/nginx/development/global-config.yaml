@@ -4,9 +4,9 @@ metadata:
   name: nginx-config
   namespace: nginx-ingress
 data:
-  proxy-body-size: "350m"
+  proxy-body-size:  "350m"
   client-max-body-size: "350m"
-  location-snippets: "
+  location-snippets: "  
     auth_request /auth;
     error_page 500 = @internal_server_error;
     error_page 404 = @page_not_found;
@@ -17,7 +17,7 @@ data:
     location @page_not_found { return 404 '{\"success\":false, \"message\":\"Resource not found :(\", \"error\":\"Not Found\"}'; }
     location @access_denied { return 403 '{\"success\":false, \"message\":\"Access denied :|\", \"error\":\"Insufficient Permissions\"}'; }
     location @unauthorized { return 401 '{\"success\":false, \"message\":\"Invalid authentication\", \"error\":\"Unauthorized.\"}'; }
-
+    
     location = /auth {      
       if ($request_method = 'OPTIONS') { return 204; } 
       if ($request_uri ~ '(/api/v1/users/emailAuth)|(/api/v2/users/emailAuth)') { return 200; }
@@ -31,7 +31,7 @@ data:
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
-      
+
       if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
 
       set $method POST;
@@ -43,19 +43,11 @@ data:
       }
 
       internal;
-      resolver kube-dns.kube-system.svc.cluster.local valid=5s;
-      proxy_method $method;
-      proxy_pass http://airqo-dev-auth-api-svc.development.svc.cluster.local:3000/api/v2/users/$verification_path;
+      resolver                kube-dns.kube-system.svc.cluster.local valid=5s;
+      proxy_method            $method;
+      proxy_pass              http://airqo-dev-auth-api-svc.development.svc.cluster.local:3000/api/v2/users/$verification_path;
       proxy_pass_request_body on;
-      proxy_set_header Content-Length '';
-      proxy_set_header X-Original-URI $request_uri;
-      proxy_set_header X-Original-Method $request_method;
-      
-      # Capture the domain name and IP address
-      set $domain_name $host;
-      set $ip_address $remote_addr;
-      
-      # Pass domain name and IP address as headers
-      proxy_set_header X-Domain-Name $domain_name;
-      proxy_set_header X-IP-Address $ip_address;
+      proxy_set_header        Content-Length '';
+      proxy_set_header        X-Original-URI $request_uri;
+      proxy_set_header        X-Original-Method $request_method;
     }"
