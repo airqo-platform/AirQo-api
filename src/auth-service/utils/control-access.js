@@ -566,14 +566,14 @@ const controlAccess = {
         request.headers["x-original-method"]
       );
 
-      logObject(
-        "request.headers['x-domain-name']",
-        request.headers["x-domain-name"]
-      );
-      logObject(
-        "request.headers['x-ip-address']",
-        request.headers["x-ip-address"]
-      );
+      // logObject(
+      //   "request.headers['x-domain-name']",
+      //   request.headers["x-domain-name"]
+      // );
+      // logObject(
+      //   "request.headers['x-ip-address']",
+      //   request.headers["x-ip-address"]
+      // );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
