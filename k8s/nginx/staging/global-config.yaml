@@ -46,10 +46,6 @@ data:
         set $verification_path tokens/$token/verify;
       }
 
-      # Capture the domain name and IP address
-      set $domain_name $host;
-      set $ip_address $remote_addr;
-
       internal;
       resolver                kube-dns.kube-system.svc.cluster.local valid=5s;
       proxy_method            $method;
@@ -58,8 +54,4 @@ data:
       proxy_set_header        Content-Length '';
       proxy_set_header        X-Original-URI $request_uri;
       proxy_set_header        X-Original-Method $request_method;
-      
-      # Pass domain name and IP address as headers
-      proxy_set_header        X-Domain-Name $domain_name;
-      proxy_set_header        X-IP-Address $ip_address;
     }"
