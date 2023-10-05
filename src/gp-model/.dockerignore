@@ -1,6 +1,5 @@
-venv/
+env/
 __pycache__/
 .vscode
 .DS_Store
 Jenkinsfile
-google_application_credentials.json
