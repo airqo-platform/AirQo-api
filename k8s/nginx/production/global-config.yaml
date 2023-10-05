@@ -59,6 +59,7 @@ data:
       proxy_set_header        X-Original-Method $request_method;
       
       # Pass domain name and IP address as headers
-      proxy_set_header        X-Domain-Name $domain_name;
-      proxy_set_header        X-IP-Address $ip_address;
+      proxy_set_header X-Domain-Name $host;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Real-IP $remote_addr;
     }"
