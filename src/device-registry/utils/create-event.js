@@ -465,7 +465,7 @@ const createEvent = {
         const cacheResult = await Promise.race([
           createEvent.getCache(request),
           new Promise((resolve) =>
-            setTimeout(resolve, 3000, {
+            setTimeout(resolve, 60000, {
               success: false,
               message: "Internal Server Error",
               status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -518,7 +518,7 @@ const createEvent = {
           const resultOfCacheOperation = await Promise.race([
             createEvent.setCache(data, request),
             new Promise((resolve) =>
-              setTimeout(resolve, 3000, {
+              setTimeout(resolve, 60000, {
                 success: false,
                 message: "Internal Server Error",
                 status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -527,7 +527,11 @@ const createEvent = {
             ),
           ]);
           if (resultOfCacheOperation.success === false) {
-            return resultOfCacheOperation;
+            const errors = resultOfCacheOperation.errors
+              ? resultOfCacheOperation.errors
+              : { message: "Internal Server Error" };
+            logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
+            // return resultOfCacheOperation;
           }
         } catch (error) {
           logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
