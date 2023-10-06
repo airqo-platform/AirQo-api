@@ -1,24 +1,187 @@
 const AirQloudModel = require("@models/Airqloud");
 const SiteModel = require("@models/Site");
+const CohortModel = require("@models/Cohort");
+const GridModel = require("@models/Grid");
+const geolib = require("geolib");
 const { logObject } = require("./log");
-const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
-const commonUtil = require("@utils/common");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
+const createLocationUtil = require("./create-location");
+const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-util`
 );
-const createLocationUtil = require("./create-location");
-const geolib = require("geolib");
-
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
+const gridShapeFieldsToExclude = constants.GRID_SHAPE_FIELDS_TO_EXCLUDE;
+const gridsInclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
+const cohortsInclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
+
+const sitesExclusionProjection = siteFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`sites.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const devicesExclusionProjection = deviceFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`devices.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
+  (projection, fieldName) => {
+    projection[`shape.${fieldName}`] = 0;
+    return projection;
+  },
+  {}
+);
+
+const getDocumentsByNetworkId = async (tenantId, network, category) => {
+  try {
+    if (category === "summary") {
+      //make modifications to the exclusion projection
+    }
+    if (category === "dashboard") {
+      //make modifications to the exclusion projection
+    }
+    const cohortsQuery = CohortModel(tenantId).aggregate([
+      {
+        $match: { network },
+      },
+      {
+        $lookup: {
+          from: "devices",
+          localField: "_id",
+          foreignField: "cohorts",
+          as: "devices",
+        },
+      },
+      {
+        $project: cohortsInclusionProjection,
+      },
+      {
+        $project: devicesExclusionProjection,
+      },
+    ]);
+
+    const gridsQuery = GridModel(tenantId).aggregate([
+      {
+        $match: { network },
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id",
+          foreignField: "grids",
+          as: "sites",
+        },
+      },
+      {
+        $project: gridsInclusionProjection,
+      },
+      {
+        $project: sitesExclusionProjection,
+      },
+      {
+        $project: gridShapeExclusionProjection,
+      },
+    ]);
+
+    const [cohorts, grids] = await Promise.all([
+      cohortsQuery.exec(),
+      gridsQuery.exec(),
+    ]);
+
+    return { cohorts, grids };
+  } catch (error) {
+    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+      message: "Internal Server Error",
+    };
+  }
+};
+
+const getDocumentsByGroupId = async (tenantId, groupId, category) => {
+  try {
+    if (category === "summary") {
+      // Make modifications to the exclusion projection for summary category
+    }
+    if (category === "dashboard") {
+      // Make modifications to the exclusion projection for dashboard category
+    }
+
+    const cohortsQuery = CohortModel(tenantId).aggregate([
+      {
+        $match: { group: groupId }, // Match with group instead of network
+      },
+      {
+        $lookup: {
+          from: "devices",
+          localField: "_id",
+          foreignField: "cohorts",
+          as: "devices",
+        },
+      },
+      {
+        $project: cohortsInclusionProjection,
+      },
+      {
+        $project: devicesExclusionProjection,
+      },
+    ]);
+
+    const gridsQuery = GridModel(tenantId).aggregate([
+      {
+        $match: { group: groupId }, // Match with group instead of network
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id",
+          foreignField: "grids",
+          as: "sites",
+        },
+      },
+      {
+        $project: gridsInclusionProjection,
+      },
+      {
+        $project: sitesExclusionProjection,
+      },
+      {
+        $project: gridShapeExclusionProjection,
+      },
+    ]);
+
+    const [cohorts, grids] = await Promise.all([
+      cohortsQuery.exec(),
+      gridsQuery.exec(),
+    ]);
+
+    return { cohorts, grids };
+  } catch (error) {
+    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+      message: "Internal Server Error",
+    };
+  }
+};
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -458,18 +621,13 @@ const createAirqloud = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
-      let filter = generateFilter.airqlouds(request);
-
-      let responseFromListAirQloud = await AirQloudModel(tenant).list({
+      const { tenant, limit, skip } = request.query;
+      const filter = generateFilter.airqlouds(request);
+      const responseFromListAirQloud = await AirQloudModel(tenant).list({
         filter,
         limit,
         skip,
       });
-
       return responseFromListAirQloud;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
@@ -483,27 +641,58 @@ const createAirqloud = {
   },
   listCohortsAndGrids: async (request) => {
     try {
-      const { params } = request;
-      const network = params.net_id;
-      const { tenant, category } = request.query;
-      return await commonUtil
-        .getDocumentsByNetworkId(tenant, network, category)
-        .then(({ cohorts, grids }) => {
-          return {
-            success: true,
-            message: `Successfully returned the AirQlouds for network ${network}`,
-            data: { cohorts, grids },
-            status: httpStatus.OK,
-          };
-        })
-        .catch((error) => {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: error.message },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
-        });
+      const { params, query } = request;
+      const groupId = params.group_id;
+      const networkId = params.net_id;
+      const { tenant, category } = query;
+
+      if (groupId) {
+        return await getDocumentsByGroupId(tenant, groupId, category)
+          .then(({ cohorts, grids }) => {
+            return {
+              success: true,
+              message: `Successfully returned the Cohorts and Grids for group ${groupId}`,
+              data: { cohorts, grids },
+              status: httpStatus.OK,
+            };
+          })
+          .catch((error) => {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: { message: error.message },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          });
+      } else if (networkId) {
+        return await getDocumentsByNetworkId(tenant, networkId, category)
+          .then(({ cohorts, grids }) => {
+            return {
+              success: true,
+              message: `Successfully returned the Cohorts and Grids for network ${networkId}`,
+              data: { cohorts, grids },
+              status: httpStatus.OK,
+            };
+          })
+          .catch((error) => {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: { message: error.message },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          });
+      } else {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "Invalid request parameters. Specify either 'group_id' or 'net_id'.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
     } catch (error) {
       return {
         success: false,

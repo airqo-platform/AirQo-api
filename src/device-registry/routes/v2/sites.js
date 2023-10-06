@@ -25,15 +25,18 @@ const validateNetwork = async (value) => {
 };
 
 const validatePagination = (req, res, next) => {
-  // Retrieve the limit and skip values from the query parameters
-  const limit = parseInt(req.query.limit, 10);
+  let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-
-  // Validate and sanitize the limit value
-  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-
-  // Validate and sanitize the skip value
-  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  if (isNaN(limit) || limit < 1) {
+    limit = 1000;
+  }
+  if (limit > 2000) {
+    limit = 2000;
+  }
+  if (isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
+  req.query.limit = limit;
 
   next();
 };
@@ -92,14 +95,17 @@ router.get("/weather", siteController.listWeatherStations);
 router.get(
   "/weather/nearest",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -136,14 +142,17 @@ router.get(
 router.get(
   "/airqlouds/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -181,13 +190,18 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
       body("latitude")
         .exists()
         .withMessage("the latitude is is missing in your request")
@@ -317,14 +331,17 @@ router.post(
 router.put(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -366,6 +383,14 @@ router.put(
         .withMessage(
           "the status value is not among the expected ones which include: decommissioned, active"
         ),
+      body("visibility")
+        .optional()
+        .notEmpty()
+        .withMessage("visibility cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("nearest_tahmo_station")
         .optional()
         .notEmpty()
@@ -455,6 +480,22 @@ router.put(
         .trim()
         .isFloat()
         .withMessage("distance_to_kampala_center must be a number")
+        .bail()
+        .toFloat(),
+      body("bearing_to_capital_city_center")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("bearing_to_capital_city_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_capital_city_center")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_capital_city_center must be a number")
         .bail()
         .toFloat(),
       body("distance_to_nearest_residential_road")
@@ -602,14 +643,17 @@ router.put(
 router.put(
   "/refresh",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -645,14 +689,19 @@ router.put(
 
 router.delete(
   "/",
-  query("tenant")
-    .exists()
-    .withMessage("tenant should be provided")
-    .bail()
-    .trim()
-    .toLowerCase()
-    .isIn(constants.NETWORKS)
-    .withMessage("the tenant value is not among the expected ones"),
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
   oneOf([
     query("id")
       .exists()
@@ -675,14 +724,17 @@ router.delete(
 router.get(
   "/nearest",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(constants.NETWORKS)
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [

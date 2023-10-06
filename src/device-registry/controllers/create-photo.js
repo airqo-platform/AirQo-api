@@ -26,7 +26,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromCreatePhoto = await createPhotoUtil.create(request);
 
       if (responseFromCreatePhoto.success === true) {
@@ -74,7 +79,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromUpdatePhoto = await createPhotoUtil.update(request);
 
       if (responseFromUpdatePhoto.success === true) {
@@ -127,10 +137,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromDeletePhoto = await createPhotoUtil.delete(request);
 
       logObject("responseFromDeletePhoto", responseFromDeletePhoto);
@@ -188,7 +200,12 @@ const processImage = {
         );
       }
 
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromListPhoto = await createPhotoUtil.list(request);
       logObject("responseFromListPhoto in controller", responseFromListPhoto);
 
@@ -245,16 +262,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
-
-      let request = Object.assign({}, req);
-
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-
-      request["query"]["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request
@@ -316,7 +329,12 @@ const processImage = {
         );
       }
 
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromDeletePhotoOnPlatform = await createPhotoUtil.deletePhotoOnPlatform(
         request
@@ -378,7 +396,12 @@ const processImage = {
         );
       }
 
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromUpdatePhotoOnPlatform = await createPhotoUtil.updatePhotoOnPlatform(
         request
@@ -441,7 +464,12 @@ const processImage = {
         );
       }
 
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromDeletePhotoOnCloudinary = await createPhotoUtil.deletePhotoOnCloudinary(
         request
@@ -492,8 +520,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromUpdatePhotoOnCloudinary = await createPhotoUtil.updatePhotoOnCloudinary(
         request
       );
@@ -543,8 +575,12 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
         request
       );

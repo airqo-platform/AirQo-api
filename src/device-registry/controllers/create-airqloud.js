@@ -46,9 +46,6 @@ const createAirqloud = {
   },
 
   register: async (req, res) => {
-    let request = {};
-    let { body } = req;
-    let { query } = req;
     logText("registering airqloud.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -69,11 +66,16 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      let responseFromCreateAirQloud = await createAirQloudUtil.create(request);
+      const responseFromCreateAirQloud = await createAirQloudUtil.create(
+        request
+      );
       logObject(
         "responseFromCreateAirQloud in controller",
         responseFromCreateAirQloud
@@ -112,10 +114,6 @@ const createAirqloud = {
 
   calculateGeographicalCenter: async (req, res) => {
     try {
-      const { body, query } = req;
-      const { coordinates } = body;
-      const { id, tenant } = query;
-
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -134,13 +132,13 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
-      let request = {};
-      request["body"] = {};
-      request["query"] = {};
-      request["body"]["coordinates"] = coordinates;
-      request["query"]["id"] = id;
-      request["query"]["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
       const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
         request
@@ -185,12 +183,8 @@ const createAirqloud = {
   },
   delete: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
-
       logText(".................................................");
       logText("inside delete airqloud............");
-      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -209,7 +203,13 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
       const responseFromRemoveAirQloud = await createAirQloudUtil.delete(
         request
       );
@@ -246,9 +246,6 @@ const createAirqloud = {
   },
   refresh: async (req, res) => {
     try {
-      const { query, body } = req;
-      const { id, admin_level, name, tenant } = query;
-
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -268,12 +265,13 @@ const createAirqloud = {
         );
       }
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["admin_level"] = admin_level;
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
         request
       );
@@ -328,16 +326,15 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query, body } = req;
-      const { id, name, admin_level, tenant } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["name"] = name;
-      request["query"]["admin_level"] = admin_level;
-      request["query"]["tenant"] = tenant;
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
       logObject("request", request);
-      let responseFromFindSites = await createAirQloudUtil.findSites(request);
+      const responseFromFindSites = await createAirQloudUtil.findSites(request);
       logObject("responseFromFindSites", responseFromFindSites);
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
@@ -374,9 +371,6 @@ const createAirqloud = {
 
   update: async (req, res) => {
     try {
-      let request = {};
-      let { body } = req;
-      let { query } = req;
       logText("updating airqloud................");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -396,9 +390,16 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateAirQloud = await createAirQloudUtil.update(request);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUpdateAirQloud = await createAirQloudUtil.update(
+        request
+      );
       logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
       if (responseFromUpdateAirQloud.success === true) {
         const status = responseFromUpdateAirQloud.status
@@ -434,8 +435,6 @@ const createAirqloud = {
 
   list: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all airqlouds by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -456,8 +455,15 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromListAirQlouds = await createAirQloudUtil.list(request);
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -495,8 +501,6 @@ const createAirqloud = {
 
   listSummary: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all airqlouds by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -517,9 +521,15 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      request["query"]["summary"] = "yes";
-      let responseFromListAirQlouds = await createAirQloudUtil.list(request);
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.summary = "yes";
+      request.query.tenant = tenant;
+      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -557,8 +567,6 @@ const createAirqloud = {
 
   listDashboard: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all airqlouds by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -579,9 +587,15 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      request["query"]["dashboard"] = "yes";
-      let responseFromListAirQlouds = await createAirQloudUtil.list(request);
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.dashboard = "yes";
+      request.query.tenant = tenant;
+      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -640,15 +654,14 @@ const createAirqloud = {
         );
       }
 
-      const { query } = req;
       let request = Object.assign({}, req);
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      request["query"]["dashboard"] = "yes";
-      request["query"]["tenant"] = tenant;
+      request.query.dashboard = "yes";
+      request.query.tenant = tenant;
       const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
         request
       );
@@ -710,16 +723,14 @@ const createAirqloud = {
         );
       }
 
-      const { query } = req;
       let request = Object.assign({}, req);
-      let { tenant } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
-
-      request["query"]["dashboard"] = "yes";
-      request["query"]["tenant"] = tenant;
-      request["query"]["category"] = "summary";
+      request.query.dashboard = "yes";
+      request.query.tenant = tenant;
+      request.query.category = "summary";
       const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
         request
       );

@@ -73,6 +73,11 @@ const airqloudSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     airqloud_codes: [
       {
         type: String,
@@ -150,6 +155,7 @@ airqloudSchema.methods.toJSON = function() {
     sites: this.sites,
     airqloud_codes: this.airqloud_codes,
     center_point: this.center_point,
+    visibility: this.visibility,
   };
 };
 
@@ -215,21 +221,20 @@ airqloudSchema.statics.list = async function({
   skip = 0,
 } = {}) {
   try {
-    const { summary, dashboard } = filter;
-    let filterCategory = "";
-    if (!isEmpty(summary)) {
-      filterCategory = "summary";
-      delete filter.summary;
-    }
-    if (!isEmpty(dashboard)) {
-      filterCategory = "dashboard";
-      delete filter.dashboard;
-    }
-
     const inclusionProjection = constants.AIRQLOUDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.AIRQLOUDS_EXCLUSION_PROJECTION(
-      filterCategory ? filterCategory : "none"
+      filter.category ? filter.category : "none"
     );
+
+    if (!isEmpty(filter.category)) {
+      delete filter.category;
+    }
+    if (!isEmpty(filter.dashboard)) {
+      delete filter.dashboard;
+    }
+    if (!isEmpty(filter.summary)) {
+      delete filter.summary;
+    }
 
     const data = await this.aggregate()
       .match(filter)

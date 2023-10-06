@@ -10,7 +10,6 @@ router.use("/locations", require("@routes/v1/locations"));
 router.use("/photos", require("@routes/v1/photos"));
 router.use("/tips", require("@routes/v1/tips"));
 router.use("/kya", require("@routes/v1/kya"));
-router.use("/sensors", require("@routes/v1/sensors"));
 router.use("/cohorts", require("@routes/v1/cohorts"));
 router.use("/grids", require("@routes/v1/grids"));
 router.use("/", require("@routes/v1/devices"));

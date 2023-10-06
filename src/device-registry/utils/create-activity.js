@@ -28,9 +28,7 @@ const createActivity = {
   list: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = 1000;
-      const skip = parseInt(query.skip) || 0;
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.activities(request);
 
       const responseFromListActivity = await ActivityModel(tenant).list({
@@ -319,20 +317,8 @@ const createActivity = {
           errors: { message: `Device ${deviceName} already recalled` },
         };
       } else if (isDeviceRecalled.success === false) {
-        let requestForFilter = {};
         let previousSiteId = {};
-        requestForFilter["query"] = {};
-        requestForFilter["query"]["device"] = deviceName;
-        let filter = {};
-        const responseFromGenerateFilter = generateFilter.devices(
-          requestForFilter
-        );
-        if (responseFromGenerateFilter.success === false) {
-          return responseFromGenerateFilter;
-        } else {
-          filter = responseFromGenerateFilter.data;
-        }
-
+        const filter = generateFilter.devices(request);
         const responseFromListDevice = await DeviceModel(tenant).list({
           filter,
         });

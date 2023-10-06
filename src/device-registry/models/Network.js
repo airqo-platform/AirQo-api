@@ -109,6 +109,12 @@ networkSchema.statics.list = async function({
     if (!isEmpty(filter.category)) {
       delete filter.category;
     }
+    if (!isEmpty(filter.dashboard)) {
+      delete filter.dashboard;
+    }
+    if (!isEmpty(filter.summary)) {
+      delete filter.summary;
+    }
 
     const pipeline = this.aggregate()
       .match(filter)

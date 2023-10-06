@@ -31,15 +31,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateNetwork = await createCohortUtil.createNetwork(
         request
@@ -100,15 +100,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromListNetworks = await createCohortUtil.listNetworks(
         request
@@ -168,15 +168,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateNetwork = await createCohortUtil.updateNetwork(
         request
@@ -234,15 +234,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveNetwork = await createCohortUtil.deleteNetwork(
         request
@@ -300,15 +300,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromListCohorts = await createCohortUtil.list(request);
       logElement(
@@ -366,15 +366,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromUpdateCohort = await createCohortUtil.update(request);
       logObject("responseFromUpdateCohort", responseFromUpdateCohort);
@@ -430,15 +430,14 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromRemoveCohort = await createCohortUtil.delete(request);
 
@@ -493,15 +492,14 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      request.query.tenant = tenant;
 
       const responseFromCreateCohort = await createCohortUtil.create(request);
       logObject(
@@ -562,17 +560,16 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["summary"] = "yes";
-      let responseFromListCohorts = await createCohortUtil.list(request);
+      request.query.tenant = tenant;
+      request.query.summary = "yes";
+      const responseFromListCohorts = await createCohortUtil.list(request);
       logElement(
         "has the response for listing cohorts been successful?",
         responseFromListCohorts.success
@@ -629,17 +626,16 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        tenant = constants.DEFAULT_NETWORK || "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      request["query"]["dashboard"] = "yes";
-      let responseFromListCohorts = await createCohortUtil.list(request);
+      request.query.tenant = tenant;
+      request.query.dashboard = "yes";
+      const responseFromListCohorts = await createCohortUtil.list(request);
       logElement(
         "has the response for listing cohorts been successful?",
         responseFromListCohorts.success
@@ -690,7 +686,7 @@ const createCohort = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -751,7 +747,7 @@ const createCohort = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -878,7 +874,7 @@ const createCohort = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -939,7 +935,7 @@ const createCohort = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -996,7 +992,7 @@ const createCohort = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;

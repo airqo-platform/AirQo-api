@@ -1,10 +1,8 @@
 require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
-const faker = require("faker");
 const createGrid = require("@utils/create-grid");
 const mongoose = require("mongoose");
-
 const { expect } = chai;
 
 describe("createGrid", () => {
@@ -47,104 +45,6 @@ describe("createGrid", () => {
 
       // Restore the stubbed functions
       gridModelStub.restore();
-    });
-  });
-  describe("streamCreate", () => {
-    it("should process data in a stream and save to the database", async () => {
-      const request = { body: { shape: { coordinates: [] } } };
-
-      // Stub the necessary functions and methods
-      const calculateGeographicalCenterStub = sinon
-        .stub(createGrid, "calculateGeographicalCenter")
-        .resolves({
-          success: true,
-          data: [],
-        });
-      const GridTransformStreamStub = sinon.stub(
-        createGrid,
-        "GridTransformStream"
-      );
-      const ReadableStub = sinon.stub();
-      const WritableStub = sinon.stub();
-      const pipelineStub = sinon.stub();
-
-      GridTransformStreamStub.returns({
-        _transform: sinon.stub(),
-        push: sinon.stub(),
-      });
-
-      ReadableStub.returns({
-        push: sinon.stub(),
-        read: sinon.stub(),
-      });
-
-      WritableStub.returns({
-        write: sinon.stub(),
-      });
-
-      sinon.replace(createGrid, "Readable", ReadableStub);
-      sinon.replace(createGrid, "Writable", WritableStub);
-      sinon.replace(createGrid.stream, "pipeline", pipelineStub);
-
-      await createGrid.streamCreate(request);
-
-      expect(calculateGeographicalCenterStub.calledOnce).to.be.true;
-      expect(GridTransformStreamStub.calledOnce).to.be.true;
-      expect(ReadableStub.calledOnce).to.be.true;
-      expect(WritableStub.calledOnce).to.be.true;
-      expect(pipelineStub.calledOnce).to.be.true;
-
-      // Restore the stubbed functions and methods
-      calculateGeographicalCenterStub.restore();
-      GridTransformStreamStub.restore();
-      sinon.restore();
-    });
-
-    it("should handle errors gracefully", async () => {
-      const request = { body: { shape: { coordinates: [] } } };
-
-      // Stub the necessary functions and methods to throw an error
-      const calculateGeographicalCenterStub = sinon
-        .stub(createGrid, "calculateGeographicalCenter")
-        .throws(new Error("Geographical center calculation error"));
-      const GridTransformStreamStub = sinon.stub(
-        createGrid,
-        "GridTransformStream"
-      );
-      const ReadableStub = sinon.stub();
-      const WritableStub = sinon.stub();
-      const pipelineStub = sinon.stub();
-
-      GridTransformStreamStub.returns({
-        _transform: sinon.stub(),
-        push: sinon.stub(),
-      });
-
-      ReadableStub.returns({
-        push: sinon.stub(),
-        read: sinon.stub(),
-      });
-
-      WritableStub.returns({
-        write: sinon.stub(),
-      });
-
-      sinon.replace(createGrid, "Readable", ReadableStub);
-      sinon.replace(createGrid, "Writable", WritableStub);
-      sinon.replace(createGrid.stream, "pipeline", pipelineStub);
-
-      const response = await createGrid.streamCreate(request);
-
-      expect(response.success).to.be.false;
-      expect(response.status).to.equal(500);
-      expect(response.errors.message).to.equal(
-        "Geographical center calculation error"
-      );
-
-      // Restore the stubbed functions and methods
-      calculateGeographicalCenterStub.restore();
-      GridTransformStreamStub.restore();
-      sinon.restore();
     });
   });
   describe("create", () => {

@@ -165,15 +165,19 @@ const locationHistories = {
       }
 
       for (let location_history in missing_location_histories) {
-        const existingLocation = await LocationHistoryModel(tenant.toLowerCase()).findOne({
-          firebase_user_id: location_history.firebase_user_id,
-          place_id: location_history.place_id,
-        });
-        if (!existingLocation) {
-          responseFromCreateLocationHistories = await LocationHistoryModel(
-            tenant.toLowerCase()
-          ).register(missing_location_histories[location_history]);
-        }
+        const updateFilter = {
+          firebase_user_id: firebase_user_id,
+          place_id: missing_location_histories[location_history].place_id,
+        };
+        const update = {
+          ...missing_location_histories[location_history],
+        };
+        responseFromCreateLocationHistories = await LocationHistoryModel(tenant.toLowerCase())
+          .findOneAndUpdate(updateFilter, update, {
+            new: true,
+            upsert: true,
+          })
+          .exec();
       }
 
       let synchronizedLocationHistories = (

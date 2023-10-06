@@ -8,7 +8,7 @@ const logger = log4js.getLogger(
 );
 const { validationResult } = require("express-validator");
 const createHealthTipUtil = require("@utils/create-health-tips");
-const { isEmpty } = require("underscore");
+const isEmpty = require("is-empty");
 
 const createHealthTips = {
   list: async (req, res) => {

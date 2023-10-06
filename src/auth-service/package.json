@@ -13,7 +13,7 @@
         "stage-pc": "set NODE_ENV=staging&&nodemon ./bin",
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
         "create-env": "printenv > .env",
-        "test": "mocha ./**/test/ut_*.js --exit"
+        "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
     },
     "_moduleAliases": {
         "@root": ".",
@@ -71,6 +71,7 @@
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
         "nodemailer": "^6.6.1",
+        "nyc": "^15.1.0",
         "passport": "^0.6.0",
         "passport-auth-token": "^1.0.1",
         "passport-google-oauth20": "^2.0.0",

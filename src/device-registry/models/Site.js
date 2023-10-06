@@ -19,6 +19,11 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "name is required!"],
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     grids: {
       type: [
         {
@@ -45,6 +50,10 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
       required: [true, "network is required!"],
+    },
+    group: {
+      type: String,
+      trim: true,
     },
     data_provider: {
       type: String,
@@ -143,6 +152,14 @@ const siteSchema = new Schema(
       trim: true,
     },
     bearing_to_kampala_center: {
+      type: Number,
+      trim: true,
+    },
+    distance_to_capital_city_center: {
+      type: Number,
+      trim: true,
+    },
+    bearing_to_capital_city_center: {
       type: Number,
       trim: true,
     },
@@ -381,9 +398,11 @@ siteSchema.methods = {
       _id: this._id,
       grids: this.grids,
       name: this.name,
+      visibility: this.visibility,
       generated_name: this.generated_name,
       search_name: this.search_name,
       network: this.network,
+      group: this.group,
       data_provider: this.data_provider,
       location_name: this.location_name,
       formatted_name: this.formatted_name,
@@ -426,6 +445,8 @@ siteSchema.methods = {
         .distance_to_nearest_unclassified_road,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
+      bearing_to_capital_city_center: this.bearing_to_capital_city_center,
+      distance_to_capital_city_center: this.distance_to_capital_city_center,
       distance_to_nearest_residential_road: this
         .distance_to_nearest_residential_road,
       nearest_tahmo_station: this.nearest_tahmo_station,
@@ -497,11 +518,7 @@ siteSchema.statics = {
       };
     }
   },
-  async list({
-    skip = 0,
-    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
-    filter = {},
-  } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
@@ -510,6 +527,12 @@ siteSchema.statics = {
 
       if (!isEmpty(filter.category)) {
         delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
       }
 
       const pipeline = await this.aggregate()

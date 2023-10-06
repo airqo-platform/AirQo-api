@@ -1,81 +1,41 @@
 import json
 import traceback
-
 import requests
-
 from config import Config
 
-
 class AirQoApi:
-    @staticmethod
-    def remove_suffix(string: str, suffix):
-        if string.endswith(suffix):
-            return string[: -len(suffix)]
-        else:
-            return string[:]
-
     def __init__(self):
-        self.AIRQO_BASE_URL = AirQoApi.remove_suffix(Config.AIRQO_BASE_URL, "/")
-        self.AIRQO_API_KEY = Config.AIRQO_API_KEY
+        self.AIRQO_BASE_URL = Config.AIRQO_BASE_URL.rstrip("/")
+        self.API_AUTH_TOKEN = Config.API_AUTH_TOKEN
 
     def update_site_meta_data(self, site_details: dict):
-
         params = {"tenant": "airqo", "id": site_details.pop("id")}
-
-        for key, value in site_details.copy().items():
-            if value is None:
-                site_details.pop(key)
-
-        self.__request(
-            endpoint="devices/sites", params=params, body=site_details, method="put"
-        )
+        site_details = {k: v for k, v in site_details.items() if v is not None}
+        self.__request("devices/sites", params=params, body=site_details, method="PUT")
 
     def __request(self, endpoint, params=None, body=None, method=None):
-
         try:
-            headers = {"Authorization": f"JWT {self.AIRQO_API_KEY}"}
-            if method == "put":
-                headers["Content-Type"] = "application/json"
-                api_request = requests.put(
-                    "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                    params=params,
-                    headers=headers,
-                    data=json.dumps(body),
-                    verify=False,
-                )
-            elif method == "post":
-                headers["Content-Type"] = "application/json"
-                api_request = requests.post(
-                    "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                    params=params,
-                    headers=headers,
-                    data=json.dumps(body),
-                    verify=False,
-                )
-            else:
-                handle_api_error("Invalid")
-                return None
-
+            headers = {"Content-Type": "application/json"}
+            params = {**params, 'token': self.API_AUTH_TOKEN} if params else {'token': self.API_AUTH_TOKEN}
+            url = f"{self.AIRQO_BASE_URL}/{endpoint}"
+            api_request = requests.request(method, url, params=params, headers=headers, data=json.dumps(body), verify=False)
             print(f"Request Url : {api_request.request.url}")
             print(f"Request Body : {api_request.request.body}")
-
-            if api_request.status_code == 200 or api_request.status_code == 201:
+            if api_request.status_code in [200, 201]:
                 print(f"Request Response : {api_request.json()}")
             else:
-                handle_api_error(api_request)
-                return None
+                self.handle_api_error(api_request)
         except Exception as ex:
             print(ex)
             traceback.print_exc()
-            return None
 
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)
+    @staticmethod
+    def handle_api_error(api_request):
+        try:
+            print(api_request.request.url)
+            print(api_request.request.body)
+        except Exception as ex:
+            print(ex)
+        finally:
+            print(api_request.content)
+            print(f"API request failed with status code {api_request.status_code}")

@@ -317,23 +317,13 @@ const createSite = {
       };
     }
   },
-  create: async (tenant, req) => {
+  create: async (req) => {
     try {
       const { body, query } = req;
       const { tenant } = query;
-      const {
-        name,
-        latitude,
-        longitude,
-        airqlouds,
-        network,
-        approximate_distance_in_km,
-      } = body;
+      const { name, latitude, longitude, approximate_distance_in_km } = body;
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = {};
-      request["query"]["tenant"] = tenant;
+      let request = Object.assign({}, req);
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km }
@@ -431,8 +421,11 @@ const createSite = {
       };
     }
   },
-  update: async (tenant, filter, update) => {
+  update: async (request) => {
     try {
+      const filter = generateFilter.sites(request);
+      const { tenant } = request.query;
+      const update = request.body;
       const responseFromModifySite = await SiteModel(tenant).modify({
         filter,
         update,
@@ -639,9 +632,9 @@ const createSite = {
     let availableName = arrayOfSiteNames.find(Boolean);
     return availableName;
   },
-  refresh: async (tenant, req) => {
+  refresh: async (req) => {
     try {
-      const { id } = req.query;
+      const { tenant, id } = req.query;
       let filter = generateFilter.sites(req);
       let update = {};
       let request = {};
@@ -800,7 +793,7 @@ const createSite = {
       };
     }
   },
-  delete: async (tenant, filter) => {
+  delete: async (request) => {
     try {
       return {
         success: false,
@@ -808,6 +801,9 @@ const createSite = {
         status: httpStatus.SERVICE_UNAVAILABLE,
         errors: { message: "Service Unavailable" },
       };
+      const { tenant } = request.query;
+      let filter = generateFilter.sites(request);
+      logObject("filter", filter);
       const responseFromRemoveSite = await SiteModel(tenant).remove({
         filter,
       });
@@ -823,26 +819,31 @@ const createSite = {
       };
     }
   },
-  list: async ({ tenant, filter, skip, limit }) => {
+  list: async (request) => {
     try {
+      const { skip, limit, tenant } = request.query;
+      logObject("the limit", limit);
+      logObject("the skip", skip);
+      let filter = generateFilter.sites(request);
+
       const responseFromListSite = await SiteModel(tenant).list({
         filter,
         limit,
         skip,
       });
 
-      if (responseFromListSite.success === false) {
+      if (!responseFromListSite.success) {
         return responseFromListSite;
-      } else if (responseFromListSite.success === true) {
-        let modifiedResponseFromListSite = responseFromListSite;
-        modifiedResponseFromListSite.data = responseFromListSite.data.filter(
-          function(obj) {
-            return obj.lat_long !== "4_4";
-          }
-        );
-        return modifiedResponseFromListSite;
       }
+
+      const modifiedResponseFromListSite = {
+        ...responseFromListSite,
+        data: responseFromListSite.data.filter((obj) => obj.lat_long !== "4_4"),
+      };
+
+      return modifiedResponseFromListSite;
     } catch (e) {
+      logObject("error", e);
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
@@ -852,6 +853,7 @@ const createSite = {
       };
     }
   },
+
   formatSiteName: (name) => {
     try {
       let nameWithoutWhiteSpace = name.replace(/\s/g, "");

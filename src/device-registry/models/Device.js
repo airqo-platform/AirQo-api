@@ -57,6 +57,10 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     access_code: {
       type: String,
     },
@@ -255,6 +259,7 @@ deviceSchema.methods = {
       alias: this.alias,
       mobility: this.mobility,
       network: this.network,
+      group: this.group,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -443,8 +448,15 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
       }
       const pipeline = await this.aggregate()
         .match(filter)

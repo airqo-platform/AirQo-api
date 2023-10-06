@@ -21,9 +21,7 @@ const createHealthTips = {
   list: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
       const filter = generateFilter.tips(request);
       const language = request.query.language;
       let translatedHealthTips;
@@ -34,7 +32,10 @@ const createHealthTips = {
         skip,
       });
       if (language !== undefined) {
-        translatedHealthTips = await translateUtil.translateTips(responseFromListHealthTips.data, language);
+        translatedHealthTips = await translateUtil.translateTips(
+          responseFromListHealthTips.data,
+          language
+        );
         responseFromListHealthTips = translatedHealthTips;
       }
 

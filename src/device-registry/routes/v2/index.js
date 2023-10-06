@@ -11,9 +11,10 @@ router.use("/locations", require("@routes/v2/locations"));
 router.use("/photos", require("@routes/v2/photos"));
 router.use("/tips", require("@routes/v2/tips"));
 router.use("/kya", require("@routes/v2/kya"));
-router.use("/sensors", require("@routes/v2/sensors"));
 router.use("/cohorts", require("@routes/v2/cohorts"));
 router.use("/grids", require("@routes/v2/grids"));
+router.use("/metadata", require("@routes/v2/metadata"));
+router.use("/transmit", require("@routes/v2/transmit"));
 router.use("/", require("@routes/v2/devices"));
 
 module.exports = router;

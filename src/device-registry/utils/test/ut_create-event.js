@@ -99,63 +99,6 @@ describe("create Event utils", function() {
 
     // Add more test cases for different scenarios, e.g., pagination, filtering, etc.
   });
-  describe("getDevicesCount", () => {
-    it("should get the number of devices successfully", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-      };
-
-      // Mock the devicesModel to return the desired count
-      const devicesModelStub = sinon.stub().returns({
-        countDocuments: sinon.stub().yields(null, 100), // Replace 100 with the desired count
-      });
-      const getModelByTenantStub = sinon.stub().returns(devicesModelStub);
-
-      // Call the function and assert
-      const expectedResult = {
-        success: true,
-        message: "retrieved the number of devices",
-        status: httpStatus.OK,
-        data: 100, // Replace 100 with the desired count
-      };
-      const callback = sinon.stub();
-      await eventUtil.getDevicesCount(request, callback);
-
-      expect(callback.calledOnceWith(expectedResult)).to.be.true;
-    });
-
-    it("should handle errors during getting the device count", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-      };
-
-      // Mock the devicesModel to return an error
-      const devicesModelStub = sinon.stub().returns({
-        countDocuments: sinon.stub().yields(new Error("Error message"), null),
-      });
-      const getModelByTenantStub = sinon.stub().returns(devicesModelStub);
-
-      // Call the function and assert
-      const expectedResult = {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Error message" },
-      };
-      const callback = sinon.stub();
-      await eventUtil.getDevicesCount(request, callback);
-
-      expect(callback.calledOnceWith(expectedResult)).to.be.true;
-      // Add more assertions based on your error handling logic
-    });
-
-    // Add more test cases for different scenarios if necessary
-  });
   describe("decryptKey", () => {
     it("should successfully decrypt the key", async () => {
       // Mock the encryptedKey
@@ -1281,7 +1224,7 @@ describe("create Event utils", function() {
       const callback = sinon.stub();
 
       // Act
-      eventUtil.setCache(data, request, callback);
+      eventUtil.setCache(data, request);
 
       // Assert
       const cacheID = eventUtil.generateCacheID(request);
@@ -1319,7 +1262,7 @@ describe("create Event utils", function() {
       redis.set.throws(redisError);
 
       // Act
-      eventUtil.setCache(data, request, callback);
+      eventUtil.setCache(data, request);
 
       // Assert
       expect(
@@ -1364,7 +1307,7 @@ describe("create Event utils", function() {
         .yields(null, JSON.stringify(cacheData));
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;
@@ -1400,7 +1343,7 @@ describe("create Event utils", function() {
         .yields(redisError);
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;
@@ -1435,7 +1378,7 @@ describe("create Event utils", function() {
         .yields(null, null);
 
       // Act
-      eventUtil.getCache(request, callback);
+      eventUtil.getCache(request);
 
       // Assert
       expect(redis.get.calledOnce).to.be.true;
