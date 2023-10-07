@@ -870,7 +870,7 @@ const createUser = {
     }
   },
 
-  login: (req, res) => {
+  login: async (req, res) => {
     logText("..................................");
     logText("user login......");
     try {
@@ -910,8 +910,8 @@ const createUser = {
 
       if (req.auth.success === true) {
         // logObject("req.user", req.user);
-        logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
-        return res.status(httpStatus.OK).json(req.user.toAuthJSON());
+        logObject("req.user.toAuthJSON()", await req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(await req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
           return res.status(httpStatus.BAD_REQUEST).json({

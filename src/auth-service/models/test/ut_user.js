@@ -185,26 +185,79 @@ describe("UserSchema instance methods", () => {
   });
 
   describe("createToken()", () => {
-    it("should create a valid JWT token", () => {
-      // Sample user document
-      const user = new UserModel({
-        _id: "user_id_1",
+    it("should create a valid JWT token for a user", async () => {
+      const fakeUser = {
+        _id: "fakeUserId",
         firstName: "John",
         lastName: "Doe",
-        userName: "john_doe",
+        userName: "johndoe",
         email: "john@example.com",
-        password: "password123",
+        organization: "TestOrg",
+        long_organization: "TestLongOrg",
+        privilege: "user",
+        role: "UserRole",
+        country: "US",
+        profilePicture: "profile.jpg",
+        phoneNumber: "1234567890",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        rateLimit: 100,
+        networks: ["Network1", "Network2"],
+      };
+
+      // Stub UserModel.list method to return a fake user
+      const listStub = sinon.stub(UserModel("airqo"), "list").resolves({
+        success: true,
+        data: [fakeUser],
       });
 
-      // Call the createToken method
-      const token = user.createToken();
+      // Mock logger.error to track errors (optional)
+      const errorLog = sinon.stub(console, "error");
 
-      // Assertions
-      expect(token).to.be.a("string");
-      // Add more assertions to verify the token contents if needed
+      try {
+        const userSchema = new UserSchema(); // Create an instance of UserSchema
+        userSchema._id = "fakeUserId"; // Set the user ID
+
+        const token = await userSchema.createToken();
+
+        // Verify that UserModel.list was called with the correct filter
+        expect(listStub.calledOnce).to.be.true;
+        expect(listStub.firstCall.args[0]).to.deep.equal({ _id: "fakeUserId" });
+
+        // Verify that the token is a string
+        expect(token).to.be.a("string");
+
+        // Verify the token content (you may adjust this based on your actual token generation)
+        const decodedToken = jwt.verify(token, constants.JWT_SECRET);
+
+        expect(decodedToken).to.deep.equal({
+          _id: fakeUser._id,
+          firstName: fakeUser.firstName,
+          lastName: fakeUser.lastName,
+          userName: fakeUser.userName,
+          email: fakeUser.email,
+          organization: fakeUser.organization,
+          long_organization: fakeUser.long_organization,
+          privilege: fakeUser.privilege,
+          role: fakeUser.role,
+          country: fakeUser.country,
+          profilePicture: fakeUser.profilePicture,
+          phoneNumber: fakeUser.phoneNumber,
+          createdAt: fakeUser.createdAt,
+          updatedAt: fakeUser.updatedAt,
+          rateLimit: fakeUser.rateLimit,
+          networks: fakeUser.networks,
+        });
+      } catch (error) {
+        // Handle any unexpected errors
+        console.error(error);
+        throw error;
+      } finally {
+        // Restore the stubs and mocks
+        listStub.restore();
+        errorLog.restore();
+      }
     });
-
-    // Add more test cases to cover other scenarios
   });
 
   describe("newToken()", () => {

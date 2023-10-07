@@ -379,6 +379,9 @@ UserSchema.statics = {
           privilege: { $first: "$privilege" },
           website: { $first: "$website" },
           category: { $first: "$category" },
+          organization: { $first: "$organization" },
+          long_organization: { $first: "$long_organization" },
+          rateLimit: { $first: "$rateLimit" },
           jobTitle: { $first: "$jobTitle" },
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
@@ -439,7 +442,6 @@ UserSchema.statics = {
       };
     }
   },
-
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
@@ -542,28 +544,6 @@ UserSchema.methods = {
   authenticateUser(password) {
     return bcrypt.compareSync(password, this.password);
   },
-  createToken() {
-    return jwt.sign(
-      {
-        _id: this._id,
-        firstName: this.firstName,
-        lastName: this.lastName,
-        userName: this.userName,
-        email: this.email,
-        organization: this.organization,
-        long_organization: this.long_organization,
-        privilege: this.privilege,
-        role: this.role,
-        country: this.country,
-        profilePicture: this.profilePicture,
-        phoneNumber: this.phoneNumber,
-        createdAt: this.createdAt,
-        updatedAt: this.updatedAt,
-        rateLimit: this.rateLimit,
-      },
-      constants.JWT_SECRET
-    );
-  },
   newToken() {
     const token = accessCodeGenerator.generate(
       constants.RANDOM_PASSWORD_CONFIGURATION(10)
@@ -574,11 +554,12 @@ UserSchema.methods = {
       plainTextToken: `${token.id}|${plainTextToken}`,
     };
   },
-  toAuthJSON() {
+  async toAuthJSON() {
+    const token = await this.createToken();
     return {
       _id: this._id,
       userName: this.userName,
-      token: `JWT ${this.createToken()}`,
+      token: `JWT ${token}`,
       email: this.email,
     };
   },
@@ -615,6 +596,45 @@ const UserModel = (tenant) => {
   } catch (error) {
     let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
+  }
+};
+
+UserSchema.methods.createToken = async function () {
+  try {
+    const filter = { _id: this._id };
+    const userWithNetworks = await UserModel("airqo").list({ filter });
+    if (userWithNetworks.success && userWithNetworks.success === false) {
+      logger.error(
+        `Internal Server Error -- ${JSON.stringify(userWithNetworks)}`
+      );
+      return userWithNetworks;
+    } else {
+      const user = userWithNetworks.data[0];
+      logObject("user", user);
+      return jwt.sign(
+        {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          userName: user.userName,
+          email: user.email,
+          organization: user.organization,
+          long_organization: user.long_organization,
+          privilege: user.privilege,
+          role: user.role,
+          country: user.country,
+          profilePicture: user.profilePicture,
+          phoneNumber: user.phoneNumber,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          rateLimit: user.rateLimit,
+          networks: user.networks,
+        },
+        constants.JWT_SECRET
+      );
+    }
+  } catch (error) {
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
 };
 
