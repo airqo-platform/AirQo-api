@@ -527,7 +527,7 @@ const createAirqloud = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request.query.summary = "yes";
+      request.query.category = "summary";
       request.query.tenant = tenant;
       const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
@@ -593,7 +593,7 @@ const createAirqloud = {
         tenant = "airqo";
       }
       let request = Object.assign({}, req);
-      request.query.dashboard = "yes";
+      request.query.category = "dashboard";
       request.query.tenant = tenant;
       const responseFromListAirQlouds = await createAirQloudUtil.list(request);
       logElement(
