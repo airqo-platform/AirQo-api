@@ -1455,18 +1455,23 @@ const defaultConfig = {
       "sites.weather_stations": 0,
       "sites.site_codes": 0,
       "sites.network": 0,
+      "sites.grids": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      projection = Object.assign(initialProjection, {
-        location: 0,
-        isCustom: 0,
-        metadata: 0,
-        center_point: 0,
-        airqloud_codes: 0,
-        description: 0,
-        airqloud_tags: 0,
-      });
+      projection = Object.assign(
+        {},
+        {
+          location: 0,
+          isCustom: 0,
+          metadata: 0,
+          center_point: 0,
+          airqloud_codes: 0,
+          description: 0,
+          airqloud_tags: 0,
+          sites: 0,
+        }
+      );
     }
     if (category === "dashboard") {
       projection = Object.assign(initialProjection, { location: 0 });
