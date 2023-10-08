@@ -120,9 +120,9 @@ const createAccessRequest = {
         query,
       } = request;
       const { tenant } = query;
-      const { network_id } = request.params;
+      const { net_id } = request.params;
 
-      const network = await NetworkModel(tenant).findById(network_id);
+      const network = await NetworkModel(tenant).findById(net_id);
       if (isEmpty(network) || isEmpty(user._id)) {
         return {
           success: false,
@@ -134,7 +134,7 @@ const createAccessRequest = {
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
         user_id: user._id,
-        targetId: network_id,
+        targetId: net_id,
         requestType: "network",
       });
 
@@ -151,7 +151,7 @@ const createAccessRequest = {
         tenant
       ).register({
         user_id: user._id,
-        targetId: network_id,
+        targetId: net_id,
         status: "pending",
         requestType: "network",
       });
