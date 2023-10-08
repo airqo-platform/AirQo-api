@@ -249,54 +249,100 @@ describe("generate-filter util", function () {
       });
     });
   });
-  describe("filter roles", function () {
-    it("should generate a filter for roles", function () {
-      // Mock the request object with query parameters and params
+  describe("filter roles", () => {
+    it("should generate a filter object with valid parameters", () => {
       const req = {
         query: {
-          id: "example_id",
-          role_name: "example_role_name",
-          role_code: "example_role_code",
-          network_id: "example_network_id",
-          role_status: "example_role_status",
-          category: "example_category",
+          role_id: "role_id",
+          net_id: "network_id",
+          group_id: "group_id",
+          category: "category",
+          role_name: "role_name",
+          role_code: "role_code",
+          role_status: "active",
         },
         params: {
-          role_id: "example_role_id",
+          id: "role_id_param",
         },
       };
 
-      // Call the roles function with the mocked request object
-      const result = generateFilterUtil.roles(req);
+      const filter = generateFilterUtil.roles(req);
 
-      // Assert the expected output
-      expect(result).to.deep.equal({
-        _id: "example_role_id",
-        role_name: "example_role_name",
-        role_code: "example_role_code",
-        network_id: "example_network_id",
-        role_status: "example_role_status",
-        category: "example_category",
+      expect(filter).to.deep.equal({
+        _id: "role_id",
+        network_id: "network_id",
+        group_id: "group_id",
+        category: "category",
+        role_name: "role_name",
+        role_code: "role_code",
+        role_status: "active",
       });
     });
 
-    it("should handle errors and return the appropriate response", function () {
-      // Mock the request object with an error
+    it("should handle both params and query parameters", () => {
+      const req = {
+        query: {
+          role_id: "role_id",
+          network_id: "network_id",
+        },
+        params: {
+          id: "role_id_param",
+          net_id: "network_id_param",
+        },
+      };
+
+      const filter = generateFilterUtil.roles(req);
+
+      expect(filter).to.deep.equal({
+        _id: "role_id_param",
+        network_id: "network_id_param",
+      });
+    });
+
+    it("should handle missing parameters", () => {
       const req = {
         query: {},
         params: {},
       };
 
-      // Call the roles function with the mocked request object
-      const result = generateFilterUtil.roles(req);
+      const filter = generateFilterUtil.roles(req);
 
-      // Assert the expected error response
-      expect(result).to.deep.equal({
+      expect(filter).to.deep.equal({});
+    });
+
+    it("should handle an error and return an error response", () => {
+      const req = {
+        query: {
+          role_id: "role_id",
+        },
+        params: {
+          id: "role_id_param",
+        },
+      };
+
+      // Stub the logger.error method to check if it's called with the correct message
+      const loggerStub = sinon.stub(console, "error");
+
+      // Import your module after stubbing the logger to ensure the stub is used
+      const { roles } = require("./yourUtilityModule");
+
+      const filter = generateFilterUtil.roles(req);
+
+      expect(filter).to.deep.equal({
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Cannot read property 'toLowerCase' of undefined" }, // Replace with the actual error message
-        status: 500, // Replace with the appropriate HTTP status code for internal server errors
+        errors: { message: "An error occurred" },
+        status: 500,
       });
+
+      // Verify that the logger.error method was called with the correct message
+      sinon.assert.calledWith(
+        loggerStub,
+        "internal server error, Error: An error occurred"
+      );
+
+      // Restore the original console.error method
+      loggerStub.restore();
     });
   });
   describe("filter permissions", function () {
@@ -530,55 +576,73 @@ describe("generate-filter util", function () {
       });
     });
   });
-  describe("filter groups", function () {
-    it("should generate a filter for groups", function () {
-      // Mock the request object with query parameters and params
+  describe("filter groups", () => {
+    it("should generate a filter object with valid parameters", () => {
       const req = {
         query: {
-          grp_status: "example_status",
-          grp_network_id: "example_network_id",
-          grp_users: "user_id1,user_id2",
-          grp_description: "example_description",
-          grp_tasks: "example_tasks",
-          grp_title: "example_title",
+          grp_title: "Group Title",
+          grp_status: "active",
+          category: "category",
         },
         params: {
-          grp_id: "example_grp_id",
+          grp_id: "group_id",
         },
       };
 
-      // Call the groups function with the mocked request object
-      const result = generateFilterUtil.groups(req);
+      const filter = generateFilterUtil.groups(req);
 
-      // Assert the expected output
-      expect(result).to.deep.equal({
-        _id: "example_grp_id",
-        grp_status: "example_status",
-        grp_network_id: "example_network_id",
-        grp_users: { $in: ["user_id1", "user_id2"] },
-        grp_description: "example_description",
-        grp_tasks: "example_tasks",
-        grp_title: "example_title",
+      expect(filter).to.deep.equal({
+        _id: "group_id",
+        grp_title: "Group Title",
+        grp_status: "active",
+        category: "category",
       });
     });
 
-    it("should handle errors and return the appropriate response", function () {
-      // Mock the request object with an error
+    it("should handle missing parameters", () => {
       const req = {
         query: {},
         params: {},
       };
 
-      // Call the groups function with the mocked request object
-      const result = generateFilterUtil.groups(req);
+      const filter = generateFilterUtil.groups(req);
 
-      // Assert the expected error response
-      expect(result).to.deep.equal({
+      expect(filter).to.deep.equal({});
+    });
+
+    it("should handle an error and return an error response", () => {
+      const req = {
+        query: {
+          grp_id: "group_id",
+        },
+        params: {
+          grp_id: "group_id_param",
+        },
+      };
+
+      // Stub the logger.error method to check if it's called with the correct message
+      const loggerStub = sinon.stub(console, "error");
+
+      // Import your module after stubbing the logger to ensure the stub is used
+      const { groups } = require("./yourUtilityModule");
+
+      const filter = generateFilterUtil.groups(req);
+
+      expect(filter).to.deep.equal({
         success: false,
         message: "internal server error",
-        errors: { message: "Cannot read property 'split' of undefined" }, // Replace with the actual error message
-        status: 500, // Replace with the appropriate HTTP status code for internal server errors
+        errors: { message: "An error occurred" },
+        status: 500,
       });
+
+      // Verify that the logger.error method was called with the correct message
+      sinon.assert.calledWith(
+        loggerStub,
+        "internal server error, Error: An error occurred"
+      );
+
+      // Restore the original console.error method
+      loggerStub.restore();
     });
   });
   describe("filter logs", function () {

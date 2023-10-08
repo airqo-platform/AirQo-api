@@ -12,323 +12,599 @@ const { mockRequest, mockResponse } = require("mock-req-res");
 const { expect } = chai;
 
 describe("createAccessRequest Util", () => {
-  describe(" requestAccessToGroup()", () => {
-    it("should handle a valid request and return a success response", async () => {
-      // Mock request and response objects
-      const user = {
-        _id: "user_id",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+  describe("requestAccessToGroup()", () => {
+    let requestMock;
+
+    beforeEach(() => {
+      requestMock = {
+        user: {
+          _doc: {
+            _id: "user_id",
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+          },
+        },
+        query: {},
+        params: {},
       };
-      const group_id = "group_id";
-      const tenant = "airqo";
+    });
 
-      const request = mockRequest({
-        user,
-        query: { tenant },
-        params: { group_id },
-      });
-      const response = mockResponse();
+    it("should request access to a group and send an email", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const groupTitle = "Test Group";
 
-      // Mock GroupModel and AccessRequestModel functions
+      // Stub the GroupModel.findById method to return the group
       sinon
         .stub(GroupModel(tenant), "findById")
-        .resolves({ grp_title: "Test Group" });
+        .resolves({ _id: groupId, grp_title: groupTitle });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
       sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
-      sinon.stub(AccessRequestModel(tenant), "register").resolves({
-        success: true,
-        data: {
-          /* Access Request data */
-        },
+
+      // Stub the AccessRequestModel.register method to create a new request
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .resolves({ success: true, data: {} });
+
+      // Stub the mailer.request method to simulate sending an email
+      sinon
+        .stub(mailer, "request")
+        .resolves({ success: true, status: httpStatus.OK });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createAccessRequest.requestAccessToGroup(
+        requestMock
+      );
+
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
+        "Access Request completed successfully"
+      );
+      expect(response.data).to.deep.equal({});
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: groupId,
+        requestType: "group",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: groupId,
+        status: "pending",
+        requestType: "group",
+      });
+      sinon.assert.calledOnceWithExactly(mailer.request, {
+        firstName: "John",
+        lastName: "Doe",
+        email: "john@example.com",
+        tenant,
+        entity_title: groupTitle,
       });
 
-      // Mock mailer.request function
-      sinon.stub(mailer, "request").resolves({
-        success: true,
-        status: httpStatus.OK,
-      });
-
-      // Call the function under test
-      await createAccessRequest.requestAccessToGroup(request, response);
-
-      // Assertions
-      expect(response.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(response.json.calledWithMatch({ success: true })).to.be.true;
-
-      // Restore the stubbed functions
       GroupModel(tenant).findById.restore();
       AccessRequestModel(tenant).findOne.restore();
       AccessRequestModel(tenant).register.restore();
       mailer.request.restore();
     });
-    it("should handle a request when an access request already exists and return a bad request response", async () => {
-      // Mock request and response objects
-      const user = {
-        _id: "user_id",
-      };
-      const group_id = "group_id";
-      const tenant = "airqo";
 
-      const request = mockRequest({
-        user,
-        query: { tenant },
-        params: { group_id },
-      });
-      const response = mockResponse();
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
 
-      // Mock GroupModel and AccessRequestModel functions
-      sinon.stub(GroupModel(tenant), "findById").resolves({});
+      // Stub the GroupModel.findById method to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createAccessRequest.requestAccessToGroup(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.message).to.equal("Bad Request Error");
+      expect(response.errors.message).to.equal("Group or User not found");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+
+      GroupModel(tenant).findById.restore();
+    });
+
+    it("should handle the case where an access request already exists", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the AccessRequestModel.findOne method to return an existing request
       sinon.stub(AccessRequestModel(tenant), "findOne").resolves({});
 
-      // Call the function under test
-      await createAccessRequest.requestAccessToGroup(request, response);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
 
-      // Assertions
-      expect(response.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(response.json.calledWithMatch({ success: false })).to.be.true;
+      const response = await createAccessRequest.requestAccessToGroup(
+        requestMock
+      );
 
-      // Restore the stubbed functions
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.message).to.equal("Bad Request Error");
+      expect(response.errors.message).to.equal(
+        "Access request already exists for this group"
+      );
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: groupId,
+        requestType: "group",
+      });
+
       GroupModel(tenant).findById.restore();
       AccessRequestModel(tenant).findOne.restore();
     });
-    // Add more test cases for different scenarios as needed
+
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
+      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
+
+      // Stub the AccessRequestModel.register method to throw an error
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createAccessRequest.requestAccessToGroup(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: groupId,
+        requestType: "group",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: groupId,
+        status: "pending",
+        requestType: "group",
+      });
+
+      GroupModel(tenant).findById.restore();
+      AccessRequestModel(tenant).findOne.restore();
+      AccessRequestModel(tenant).register.restore();
+    });
+
+    it("should handle the case where user email is missing", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
+      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
+
+      // Stub the AccessRequestModel.register method to create a new request
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .resolves({ success: true, data: {} });
+
+      // Set user email to null
+      requestMock.user._doc.email = null;
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createAccessRequest.requestAccessToGroup(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+      expect(response.errors.message).to.equal(
+        "Unable to retrieve the requester's email address"
+      );
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: groupId,
+        requestType: "group",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: groupId,
+        status: "pending",
+        requestType: "group",
+      });
+
+      GroupModel(tenant).findById.restore();
+      AccessRequestModel(tenant).findOne.restore();
+      AccessRequestModel(tenant).register.restore();
+    });
   });
   describe("requestAccessToNetwork()", () => {
-    it("should handle a valid request and return a success response", async () => {
-      // Mock request and response objects
-      const user = {
-        _id: "user_id",
+    let requestMock;
+
+    beforeEach(() => {
+      requestMock = {
+        user: {
+          _doc: {
+            _id: "user_id",
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+          },
+        },
+        query: {},
+        params: {},
+      };
+    });
+
+    it("should request access to a network and send an email", async () => {
+      const tenant = "test_tenant";
+      const networkId = "test_network_id";
+      const networkName = "Test Network";
+
+      // Stub the NetworkModel.findById method to return the network
+      sinon
+        .stub(NetworkModel(tenant), "findById")
+        .resolves({ _id: networkId, net_name: networkName });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
+      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
+
+      // Stub the AccessRequestModel.register method to create a new request
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .resolves({ success: true, data: {} });
+
+      // Stub the mailer.request method to simulate sending an email
+      sinon
+        .stub(mailer, "request")
+        .resolves({ success: true, status: httpStatus.OK });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.net_id = networkId;
+
+      const response = await createAccessRequest.requestAccessToNetwork(
+        requestMock
+      );
+
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
+        "Access Request completed successfully"
+      );
+      expect(response.data).to.deep.equal({});
+
+      sinon.assert.calledOnceWithExactly(
+        NetworkModel(tenant).findById,
+        networkId
+      );
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: networkId,
+        requestType: "network",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: networkId,
+        status: "pending",
+        requestType: "network",
+      });
+      sinon.assert.calledOnceWithExactly(mailer.request, {
         firstName: "John",
         lastName: "Doe",
         email: "john@example.com",
-      };
-      const network_id = "network_id";
-      const tenant = "airqo";
-
-      const request = mockRequest({
-        user,
-        query: { tenant },
-        params: { network_id },
-      });
-      const response = mockResponse();
-
-      // Mock NetworkModel and AccessRequestModel functions
-      sinon
-        .stub(NetworkModel(tenant), "findById")
-        .resolves({ net_name: "Test Network" });
-      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
-      sinon.stub(AccessRequestModel(tenant), "register").resolves({
-        success: true,
-        data: {
-          /* Access Request data */
-        },
+        tenant,
+        entity_title: networkName,
       });
 
-      // Mock mailer.request function
-      sinon.stub(mailer, "request").resolves({
-        success: true,
-        status: httpStatus.OK,
-      });
-
-      // Call the function under test
-      await createAccessRequest.requestAccessToNetwork(request, response);
-
-      // Assertions
-      expect(response.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(response.json.calledWithMatch({ success: true })).to.be.true;
-
-      // Restore the stubbed functions
       NetworkModel(tenant).findById.restore();
       AccessRequestModel(tenant).findOne.restore();
       AccessRequestModel(tenant).register.restore();
       mailer.request.restore();
     });
-    it("should handle a request when an access request already exists and return a bad request response", async () => {
-      // Mock request and response objects
-      const user = {
-        _id: "user_id",
-      };
-      const network_id = "network_id";
-      const tenant = "airqo";
 
-      const request = mockRequest({
-        user,
-        query: { tenant },
-        params: { network_id },
-      });
-      const response = mockResponse();
+    it("should handle the case where the network does not exist", async () => {
+      const tenant = "test_tenant";
+      const networkId = "non_existent_network_id";
 
-      // Mock NetworkModel and AccessRequestModel functions
-      sinon.stub(NetworkModel(tenant), "findById").resolves({});
+      // Stub the NetworkModel.findById method to return null
+      sinon.stub(NetworkModel(tenant), "findById").resolves(null);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.net_id = networkId;
+
+      const response = await createAccessRequest.requestAccessToNetwork(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.message).to.equal("Bad Request Error");
+      expect(response.errors.message).to.equal("Network or User not found");
+
+      sinon.assert.calledOnceWithExactly(
+        NetworkModel(tenant).findById,
+        networkId
+      );
+
+      NetworkModel(tenant).findById.restore();
+    });
+
+    it("should handle the case where an access request already exists", async () => {
+      const tenant = "test_tenant";
+      const networkId = "test_network_id";
+
+      // Stub the NetworkModel.findById method to return the network
+      sinon.stub(NetworkModel(tenant), "findById").resolves({ _id: networkId });
+
+      // Stub the AccessRequestModel.findOne method to return an existing request
       sinon.stub(AccessRequestModel(tenant), "findOne").resolves({});
 
-      // Call the function under test
-      await createAccessRequest.requestAccessToNetwork(request, response);
+      requestMock.query.tenant = tenant;
+      requestMock.params.net_id = networkId;
 
-      // Assertions
-      expect(response.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(response.json.calledWithMatch({ success: false })).to.be.true;
+      const response = await createAccessRequest.requestAccessToNetwork(
+        requestMock
+      );
 
-      // Restore the stubbed functions
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.message).to.equal("Bad Request Error");
+      expect(response.errors.message).to.equal(
+        "Access request already exists for this network"
+      );
+
+      sinon.assert.calledOnceWithExactly(
+        NetworkModel(tenant).findById,
+        networkId
+      );
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: networkId,
+        requestType: "network",
+      });
+
       NetworkModel(tenant).findById.restore();
       AccessRequestModel(tenant).findOne.restore();
     });
-    // Add more test cases for different scenarios as needed
+
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const networkId = "test_network_id";
+
+      // Stub the NetworkModel.findById method to return the network
+      sinon.stub(NetworkModel(tenant), "findById").resolves({ _id: networkId });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
+      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
+
+      // Stub the AccessRequestModel.register method to throw an error
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.net_id = networkId;
+
+      const response = await createAccessRequest.requestAccessToNetwork(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(
+        NetworkModel(tenant).findById,
+        networkId
+      );
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: networkId,
+        requestType: "network",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: networkId,
+        status: "pending",
+        requestType: "network",
+      });
+
+      NetworkModel(tenant).findById.restore();
+      AccessRequestModel(tenant).findOne.restore();
+      AccessRequestModel(tenant).register.restore();
+    });
+
+    it("should handle the case where user email is missing", async () => {
+      const tenant = "test_tenant";
+      const networkId = "test_network_id";
+
+      // Stub the NetworkModel.findById method to return the network
+      sinon.stub(NetworkModel(tenant), "findById").resolves({ _id: networkId });
+
+      // Stub the AccessRequestModel.findOne method to return null (no existing request)
+      sinon.stub(AccessRequestModel(tenant), "findOne").resolves(null);
+
+      // Stub the AccessRequestModel.register method to create a new request
+      sinon
+        .stub(AccessRequestModel(tenant), "register")
+        .resolves({ success: true, data: {} });
+
+      // Set user email to null
+      requestMock.user._doc.email = null;
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.net_id = networkId;
+
+      const response = await createAccessRequest.requestAccessToNetwork(
+        requestMock
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+      expect(response.errors.message).to.equal(
+        "Unable to retrieve the requester's email address, please crosscheck security token details"
+      );
+
+      sinon.assert.calledOnceWithExactly(
+        NetworkModel(tenant).findById,
+        networkId
+      );
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).findOne, {
+        user_id: "user_id",
+        targetId: networkId,
+        requestType: "network",
+      });
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).register, {
+        user_id: "user_id",
+        targetId: networkId,
+        status: "pending",
+        requestType: "network",
+      });
+
+      NetworkModel(tenant).findById.restore();
+      AccessRequestModel(tenant).findOne.restore();
+      AccessRequestModel(tenant).register.restore();
+    });
   });
   describe("approveAccessRequest()", () => {
-    it("should handle a valid request for group access and return a success response", async () => {
-      // Mock request and response objects
-      const request_id = "request_id";
-      const tenant = "airqo";
+    let requestMock;
+    let accessRequestMock;
+    let userDetailsMock;
+    let groupMock;
+    let networkMock;
 
-      const userDetails = {
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
+      };
+
+      accessRequestMock = {
+        _id: "access_request_id",
+        user_id: "user_id",
+        requestType: "group",
+        targetId: "group_id",
+      };
+
+      userDetailsMock = {
         _id: "user_id",
         firstName: "John",
         lastName: "Doe",
         email: "john@example.com",
       };
 
-      const group = {
+      groupMock = {
+        _id: "group_id",
         grp_title: "Test Group",
       };
 
-      const request = mockRequest({
-        query: { tenant },
-        params: { request_id },
-      });
-      const response = mockResponse();
-
-      // Mock AccessRequestModel and UserModel functions
-      sinon.stub(AccessRequestModel(tenant), "findById").resolves({
-        _id: "request_id",
-        user_id: userDetails._id,
-        requestType: "group",
-        targetId: "group_id",
-      });
-      sinon.stub(UserModel(tenant), "findById").resolves(userDetails);
-      sinon.stub(GroupModel(tenant), "findById").resolves(group);
-      sinon.stub(AccessRequestModel(tenant), "modify").resolves({
-        success: true,
-      });
-
-      // Mock mailer.update function
-      sinon.stub(mailer, "update").resolves({
-        success: true,
-        status: httpStatus.OK,
-      });
-
-      // Mock createGroupUtil.assignOneUser function
-      sinon.stub(createGroupUtil, "assignOneUser").resolves({
-        success: true,
-      });
-
-      // Call the function under test
-      await createAccessRequest.approveAccessRequest(request, response);
-
-      // Assertions
-      expect(response.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(response.json.calledWithMatch({ success: true })).to.be.true;
-
-      // Restore the stubbed functions
-      AccessRequestModel(tenant).findById.restore();
-      UserModel(tenant).findById.restore();
-      GroupModel(tenant).findById.restore();
-      AccessRequestModel(tenant).modify.restore();
-      mailer.update.restore();
-      createGroupUtil.assignOneUser.restore();
-    });
-
-    it("should handle a valid request for network access and return a success response", async () => {
-      // Mock request and response objects
-      const request_id = "request_id";
-      const tenant = "airqo";
-
-      const userDetails = {
-        _id: "user_id",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-      };
-
-      const network = {
+      networkMock = {
+        _id: "network_id",
         net_name: "Test Network",
       };
+    });
 
-      const request = mockRequest({
+    it("should approve a group access request and send an email", async () => {
+      const tenant = "test_tenant";
+
+      // Stub AccessRequestModel.findById to return the access request
+      sinon
+        .stub(AccessRequestModel(tenant), "findById")
+        .resolves(accessRequestMock);
+
+      // Stub UserModel.findById to return the user details
+      sinon.stub(UserModel(tenant), "findById").resolves(userDetailsMock);
+
+      // Stub AccessRequestModel.modify to update the access request
+      sinon
+        .stub(AccessRequestModel(tenant), "modify")
+        .resolves({ success: true });
+
+      // Stub GroupModel.findById to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves(groupMock);
+
+      // Stub createGroupUtil.assignOneUser to simulate assigning the user to the group
+      sinon.stub(createGroupUtil, "assignOneUser").resolves({ success: true });
+
+      // Stub mailer.update to simulate sending an email
+      sinon
+        .stub(mailer, "update")
+        .resolves({ success: true, status: httpStatus.OK });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.request_id = "access_request_id";
+
+      const response = await createAccessRequest.approveAccessRequest(
+        requestMock
+      );
+
+      expect(response.success).to.equal(true);
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal("Access request approved successfully");
+
+      sinon.assert.calledOnceWithExactly(
+        AccessRequestModel(tenant).findById,
+        "access_request_id"
+      );
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, "user_id");
+      sinon.assert.calledOnceWithExactly(AccessRequestModel(tenant).modify, {
+        filter: { _id: "access_request_id" },
+        update: { status: "approved" },
+      });
+      sinon.assert.calledOnceWithExactly(
+        GroupModel(tenant).findById,
+        "group_id"
+      );
+      sinon.assert.calledOnceWithExactly(createGroupUtil.assignOneUser, {
+        params: { grp_id: "group_id", user_id: "user_id" },
         query: { tenant },
-        params: { request_id },
       });
-      const response = mockResponse();
+      sinon.assert.calledOnceWithExactly(
+        mailer.update,
+        "john@example.com",
+        "John",
+        "Doe",
+        "Test Group"
+      );
 
-      // Mock AccessRequestModel and UserModel functions
-      sinon.stub(AccessRequestModel(tenant), "findById").resolves({
-        _id: "request_id",
-        user_id: userDetails._id,
-        requestType: "network",
-        targetId: "network_id",
-      });
-      sinon.stub(UserModel(tenant), "findById").resolves(userDetails);
-      sinon.stub(NetworkModel(tenant), "findById").resolves(network);
-      sinon.stub(AccessRequestModel(tenant), "modify").resolves({
-        success: true,
-      });
-
-      // Mock mailer.update function
-      sinon.stub(mailer, "update").resolves({
-        success: true,
-        status: httpStatus.OK,
-      });
-
-      // Mock createNetworkUtil.assignOneUser function
-      sinon.stub(createNetworkUtil, "assignOneUser").resolves({
-        success: true,
-      });
-
-      // Call the function under test
-      await createAccessRequest.approveAccessRequest(request, response);
-
-      // Assertions
-      expect(response.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(response.json.calledWithMatch({ success: true })).to.be.true;
-
-      // Restore the stubbed functions
       AccessRequestModel(tenant).findById.restore();
       UserModel(tenant).findById.restore();
-      NetworkModel(tenant).findById.restore();
       AccessRequestModel(tenant).modify.restore();
+      GroupModel(tenant).findById.restore();
+      createGroupUtil.assignOneUser.restore();
       mailer.update.restore();
-      createNetworkUtil.assignOneUser.restore();
     });
 
-    it("should handle a request when access request or user details are not found and return a not found response", async () => {
-      // Mock request and response objects
-      const request_id = "request_id";
-      const tenant = "airqo";
-
-      const request = mockRequest({
-        query: { tenant },
-        params: { request_id },
-      });
-      const response = mockResponse();
-
-      // Mock AccessRequestModel and UserModel functions to return empty results
-      sinon.stub(AccessRequestModel(tenant), "findById").resolves(null);
-      sinon.stub(UserModel(tenant), "findById").resolves(null);
-
-      // Call the function under test
-      await createAccessRequest.approveAccessRequest(request, response);
-
-      // Assertions
-      expect(response.status.calledWith(httpStatus.NOT_FOUND)).to.be.true;
-      expect(response.json.calledWithMatch({ success: false })).to.be.true;
-
-      // Restore the stubbed functions
-      AccessRequestModel(tenant).findById.restore();
-      UserModel(tenant).findById.restore();
-    });
-
-    // Add more test cases for different scenarios as needed
+    // Additional test cases for network access requests, missing data, errors, etc.
   });
   describe("list()", () => {
     it("should handle a valid request and return a success response", async () => {

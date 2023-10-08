@@ -457,6 +457,7 @@ const defaultConfig = {
     role_permissions: 1,
     role_users: 1,
     network: { $arrayElemAt: ["$network", 0] },
+    group: { $arrayElemAt: ["$group", 0] },
     createdAt: 1,
     updatedAt: 1,
   },
@@ -598,8 +599,27 @@ const defaultConfig = {
         },
       },
     },
-
     clients: "$clients",
+    groups: {
+      $filter: {
+        input: "$groups",
+        as: "group",
+        cond: {
+          $and: [
+            { $ne: ["$$group.grp_title", null] },
+            { $ne: ["$$group._id", null] },
+            {
+              $or: [
+                {
+                  $eq: [{ $ifNull: ["$$group.role.role_permissions", []] }, []],
+                },
+                { $ne: ["$$group.role.role_permissions", null] },
+              ],
+            },
+          ],
+        },
+      },
+    },
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
@@ -882,10 +902,31 @@ const defaultConfig = {
       "grp_users.duration": 0,
       "grp_users.createdAt": 0,
       "grp_users.updatedAt": 0,
+      "grp_users.updatedAt": 0,
+      "grp_users.organization": 0,
+      "grp_users.jobTitle": 0,
+      "grp_users.website": 0,
+      "grp_users.category": 0,
+      "grp_users.resetPasswordExpires": 0,
+      "grp_users.resetPasswordToken": 0,
+      "grp_users.phoneNumber": 0,
+      "grp_users.networks": 0,
+      "grp_users.role": 0,
+      "grp_users.profilePicture": 0,
+      "grp_users.network_roles": 0,
+      "grp_users.group_roles": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      projection = Object.assign({}, {});
+      projection = Object.assign(
+        {},
+        {
+          grp_tasks: 0,
+          grp_description: 0,
+          createdAt: 0,
+          grp_users: 0,
+        }
+      );
     }
     return projection;
   },

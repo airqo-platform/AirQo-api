@@ -1,5 +1,6 @@
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
+const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
 const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
@@ -19,11 +20,17 @@ const createGroupUtil = require("@utils/create-group");
 const createAccessRequest = {
   requestAccessToGroup: async (request) => {
     try {
-      const { user, query } = request;
+      const {
+        user: { _doc: user },
+        query,
+      } = request;
       const { tenant } = query;
-      const { group_id } = request.params;
+      const { grp_id } = request.params;
       logObject("the user", user);
-      const group = await GroupModel(tenant).findById(group_id);
+      logObject("grp_id", grp_id);
+      const group = await GroupModel(tenant).findById(grp_id);
+      logObject("group", group);
+      logObject("user._id", user._id);
       if (isEmpty(group) || isEmpty(user._id)) {
         return {
           success: false,
@@ -35,7 +42,7 @@ const createAccessRequest = {
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
         user_id: user._id,
-        targetId: group_id,
+        targetId: grp_id,
         requestType: "group",
       });
 
@@ -52,7 +59,7 @@ const createAccessRequest = {
         tenant
       ).register({
         user_id: user._id,
-        targetId: group_id,
+        targetId: grp_id,
         status: "pending",
         requestType: "group",
       });
@@ -108,11 +115,14 @@ const createAccessRequest = {
   },
   requestAccessToNetwork: async (request) => {
     try {
-      const { user, query } = request;
+      const {
+        user: { _doc: user },
+        query,
+      } = request;
       const { tenant } = query;
-      const { network_id } = request.params;
+      const { net_id } = request.params;
 
-      const network = await NetworkModel(tenant).findById(network_id);
+      const network = await NetworkModel(tenant).findById(net_id);
       if (isEmpty(network) || isEmpty(user._id)) {
         return {
           success: false,
@@ -124,7 +134,7 @@ const createAccessRequest = {
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
         user_id: user._id,
-        targetId: network_id,
+        targetId: net_id,
         requestType: "network",
       });
 
@@ -141,7 +151,7 @@ const createAccessRequest = {
         tenant
       ).register({
         user_id: user._id,
-        targetId: network_id,
+        targetId: net_id,
         status: "pending",
         requestType: "network",
       });
@@ -205,7 +215,7 @@ const createAccessRequest = {
       const accessRequest = await AccessRequestModel(tenant).findById(
         request_id
       );
-
+      logObject("accessRequest", accessRequest);
       if (isEmpty(accessRequest)) {
         return {
           success: false,
@@ -253,6 +263,11 @@ const createAccessRequest = {
           };
           const responseFromAssignUserToGroup =
             await createGroupUtil.assignOneUser(request);
+
+          logObject(
+            "responseFromAssignUserToGroup",
+            responseFromAssignUserToGroup
+          );
 
           if (responseFromAssignUserToGroup.success === true) {
             const group_name = group.grp_title ? group.grp_title : "";
@@ -315,6 +330,7 @@ const createAccessRequest = {
         return responseFromUpdateAccessRequest;
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
@@ -335,6 +351,8 @@ const createAccessRequest = {
         return responseFromFilter;
       }
       const filter = responseFromFilter.data;
+
+      logObject("listing filter", filter);
 
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()

@@ -9,7 +9,7 @@ const UserModel = require("@models/User");
 const generateFilter = require("@utils/generate-filter");
 
 describe("createGroup Module", () => {
-  describe("create Function", () => {
+  describe("create()", () => {
     it("should return a success response when group is successfully created", async () => {
       // Mock GroupModel.register to return a successful response
       const groupModelStub = sinon.stub(GroupModel, "register");
@@ -32,7 +32,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the create function
+      // Call the create()
       const response = await createGroup.create(request);
 
       // Assertions
@@ -61,7 +61,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the create function
+      // Call the create()
       const response = await createGroup.create(request);
 
       // Assertions
@@ -77,7 +77,7 @@ describe("createGroup Module", () => {
 
     // Add more test cases for different scenarios
   });
-  describe("update Function", () => {
+  describe("update()", () => {
     it("should return a success response when group is successfully updated", async () => {
       // Mock GroupModel.exists to return true
       const groupModelExistsStub = sinon.stub(GroupModel, "exists");
@@ -116,7 +116,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the update function
+      // Call the update()
       const response = await updateGroup.update(request);
 
       // Assertions
@@ -150,7 +150,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the update function
+      // Call the update()
       const response = await updateGroup.update(request);
 
       // Assertions
@@ -184,7 +184,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the update function
+      // Call the update()
       const response = await updateGroup.update(request);
 
       // Assertions
@@ -200,7 +200,7 @@ describe("createGroup Module", () => {
 
     // Add more test cases for different scenarios
   });
-  describe("delete Function", () => {
+  describe("delete()", () => {
     it("should return a success response when group is successfully deleted", async () => {
       // Mock GroupModel.exists to return true
       const groupModelExistsStub = sinon.stub(GroupModel, "exists");
@@ -236,7 +236,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the delete function
+      // Call the delete()
       const response = await deleteGroup.delete(request);
 
       // Assertions
@@ -267,7 +267,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the delete function
+      // Call the delete()
       const response = await deleteGroup.delete(request);
 
       // Assertions
@@ -298,7 +298,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the delete function
+      // Call the delete()
       const response = await deleteGroup.delete(request);
 
       // Assertions
@@ -314,7 +314,7 @@ describe("createGroup Module", () => {
 
     // Add more test cases for different scenarios
   });
-  describe("list Function", () => {
+  describe("list()", () => {
     it("should return a list of groups when successful", async () => {
       // Mock generateFilter.groups to return a filter
       const generateFilterStub = sinon.stub(generateFilter, "groups");
@@ -347,7 +347,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the list function
+      // Call the list()
       const response = await listGroup.list(request);
 
       // Assertions
@@ -382,7 +382,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the list function
+      // Call the list()
       const response = await listGroup.list(request);
 
       // Assertions
@@ -410,7 +410,7 @@ describe("createGroup Module", () => {
         },
       };
 
-      // Call the list function
+      // Call the list()
       const response = await listGroup.list(request);
 
       // Assertions
@@ -426,1028 +426,1121 @@ describe("createGroup Module", () => {
 
     // Add more test cases for different scenarios
   });
-  describe("assignUsers Function", () => {
-    it("should assign users to a group successfully", async () => {
-      // Mock the GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-        grp_network_id: "networkId",
-      });
+  describe("assignUsers()", () => {
+    let requestMock;
 
-      // Mock the UserModel.findById method to return a user
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub
-        .onFirstCall()
-        .resolves({ _id: "userId1", groups: [] });
-      userModelFindByIdStub
-        .onSecondCall()
-        .resolves({ _id: "userId2", groups: [] });
-
-      // Mock UserModel.bulkWrite to return a success response
-      const userModelBulkWriteStub = sinon.stub(UserModel, "bulkWrite");
-      userModelBulkWriteStub.resolves({ nModified: 2, n: 2 });
-
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-        },
-        body: {
-          user_ids: ["userId1", "userId2"],
-        },
-        query: {
-          tenant: "tenant",
-        },
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
+        body: {},
       };
+    });
 
-      // Call the assignUsers function
-      const response = await assignUsersModule.assignUsers(request);
+    it("should assign multiple users to a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user_ids = ["user1", "user2", "user3"];
 
-      // Assertions
+      // Stub the GroupModel.findById method to return the group
+      sinon
+        .stub(GroupModel(tenant), "findById")
+        .resolves({ grp_network_id: "network_id" });
+
+      // Stub the UserModel.findById method to return existing users
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: "user1", group_roles: [] });
+
+      // Stub the UserModel.bulkWrite method to return modified count
+      sinon
+        .stub(UserModel(tenant), "bulkWrite")
+        .resolves({ nModified: user_ids.length, n: user_ids.length });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.assignUsers(requestMock);
+
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
         "Successfully assigned all the provided users to the Group"
       );
-      expect(response.data).to.be.an("array").that.is.empty;
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
-      userModelBulkWriteStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledThrice(UserModel(tenant).findById);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).bulkWrite,
+        sinon.match.array
+      );
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).bulkWrite.restore();
     });
 
-    it("should handle user not found error", async () => {
-      // Mock the GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-        grp_network_id: "networkId",
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
+      const user_ids = ["user1", "user2", "user3"];
+
+      // Stub the GroupModel.findById method to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.assignUsers(requestMock);
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.message).to.equal("Bad Request Error");
+      expect(response.errors.message).to.equal(`Invalid group ID ${groupId}`);
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+
+      GroupModel(tenant).findById.restore();
+    });
+
+    it("should handle the case where some users do not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user_ids = ["user1", "non_existent_user", "user2"];
+
+      // Stub the GroupModel.findById method to return the group
+      sinon
+        .stub(GroupModel(tenant), "findById")
+        .resolves({ grp_network_id: "network_id" });
+
+      // Stub the UserModel.findById method to return existing users
+      sinon.stub(UserModel(tenant), "findById").callsFake((userId) => {
+        if (userId === "non_existent_user") {
+          return null;
+        }
+        return { _id: userId, group_roles: [] };
       });
 
-      // Mock the UserModel.findById method to return a user for the first call
-      // and null (user not found) for the second call
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub
-        .onFirstCall()
-        .resolves({ _id: "userId1", groups: [] });
-      userModelFindByIdStub.onSecondCall().resolves(null);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
 
-      // Mock UserModel.bulkWrite to return a success response
-      const userModelBulkWriteStub = sinon.stub(UserModel, "bulkWrite");
-      userModelBulkWriteStub.resolves({ nModified: 1, n: 2 });
+      const response = await createGroup.assignUsers(requestMock);
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-        },
-        body: {
-          user_ids: ["userId1", "userId2"],
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
-
-      // Call the assignUsers function
-      const response = await assignUsersModule.assignUsers(request);
-
-      // Assertions
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
         "Operation partially successful; some 1 of the provided users were not found in the system"
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
-      userModelBulkWriteStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledThrice(UserModel(tenant).findById);
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
     });
 
-    it("should handle existing user assignment error", async () => {
-      // Mock the GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-        grp_network_id: "networkId",
+    it("should handle the case where users are already assigned to the group", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user_ids = ["user1", "user2", "user3"];
+
+      // Stub the GroupModel.findById method to return the group
+      sinon
+        .stub(GroupModel(tenant), "findById")
+        .resolves({ grp_network_id: "network_id" });
+
+      // Stub the UserModel.findById method to return users with existing assignments
+      sinon.stub(UserModel(tenant), "findById").callsFake((userId) => {
+        return { _id: userId, group_roles: [{ group: groupId }] };
       });
 
-      // Mock the UserModel.findById method to return a user
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub
-        .onFirstCall()
-        .resolves({ _id: "userId1", groups: [{ group: "groupId" }] });
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
 
-      // Mock UserModel.bulkWrite to return a success response
-      const userModelBulkWriteStub = sinon.stub(UserModel, "bulkWrite");
-      userModelBulkWriteStub.resolves({ nModified: 0, n: 1 });
+      const response = await createGroup.assignUsers(requestMock);
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-        },
-        body: {
-          user_ids: ["userId1"],
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
-
-      // Call the assignUsers function
-      const response = await assignUsersModule.assignUsers(request);
-
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "User userId1 is already assigned to the Group groupId"
+        `User user1 is already assigned to the Group ${groupId}`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
-      userModelBulkWriteStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledThrice(UserModel(tenant).findById);
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
     });
 
-    it("should handle group not found error", async () => {
-      // Mock the GroupModel.findById method to return null (group not found)
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves(null);
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user_ids = ["user1", "user2", "user3"];
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-        },
-        body: {
-          user_ids: ["userId1"],
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      // Stub the GroupModel.findById method to return the group
+      sinon
+        .stub(GroupModel(tenant), "findById")
+        .resolves({ grp_network_id: "network_id" });
 
-      // Call the assignUsers function
-      const response = await assignUsersModule.assignUsers(request);
+      // Stub the UserModel.findById method to return existing users
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: "user1", group_roles: [] });
 
-      // Assertions
+      // Stub the UserModel.bulkWrite method to throw an error
+      sinon
+        .stub(UserModel(tenant), "bulkWrite")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.assignUsers(requestMock);
+
       expect(response.success).to.equal(false);
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal("Invalid group ID groupId");
-      // Add more assertions as needed
-      // ...
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledThrice(UserModel(tenant).findById);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).bulkWrite,
+        sinon.match.array
+      );
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).bulkWrite.restore();
+    });
+  });
+  describe("assignOneUser()", () => {
+    let requestMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
+      };
     });
 
-    // Add more test cases for different scenarios
-  });
-  describe("assignOneUser Function", () => {
-    it("should assign a user to a group successfully", async () => {
-      // Mock UserModel.exists method to return true (user exists)
-      const userModelExistsStub = sinon.stub(UserModel, "exists");
-      userModelExistsStub.resolves(true);
+    it("should assign a user to a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
 
-      // Mock GroupModel.exists method to return true (group exists)
-      const groupModelExistsStub = sinon.stub(GroupModel, "exists");
-      groupModelExistsStub.resolves(true);
+      // Stub the UserModel.exists and GroupModel.exists methods to return true
+      sinon.stub(UserModel(tenant), "exists").resolves(true);
+      sinon.stub(GroupModel(tenant), "exists").resolves(true);
 
-      // Mock UserModel.findById method to return a user
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves({
-        _id: "userId",
-        groups: [],
-      });
+      // Stub the UserModel.findById method to return the user
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [] });
 
-      // Mock UserModel.findByIdAndUpdate method to return an updated user
-      const userModelFindByIdAndUpdateStub = sinon.stub(
-        UserModel,
-        "findByIdAndUpdate"
-      );
-      userModelFindByIdAndUpdateStub.resolves({
-        _id: "userId",
-        groups: [{ group: "groupId" }],
-      });
+      // Stub the UserModel.findByIdAndUpdate method to return the updated user
+      sinon
+        .stub(UserModel(tenant), "findByIdAndUpdate")
+        .resolves({ _id: userId, group_roles: [{ group: groupId }] });
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Call the assignOneUser function
-      const response = await assignOneUserModule.assignOneUser(request);
+      const response = await createGroup.assignOneUser(requestMock);
 
-      // Assertions
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal("User assigned to the Group");
-      expect(response.data).to.deep.equal({
-        _id: "userId",
-        groups: [{ group: "groupId" }],
-      });
-      // Add more assertions as needed
-      // ...
+      expect(response.data._id).to.equal(userId);
 
-      // Restore stubs
-      userModelExistsStub.restore();
-      groupModelExistsStub.restore();
-      userModelFindByIdStub.restore();
-      userModelFindByIdAndUpdateStub.restore();
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).exists, {
+        _id: userId,
+      });
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).exists, {
+        _id: groupId,
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).findByIdAndUpdate,
+        userId,
+        sinon.match.object,
+        { new: true }
+      );
+
+      UserModel(tenant).exists.restore();
+      GroupModel(tenant).exists.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).findByIdAndUpdate.restore();
     });
 
-    it("should handle user not found error", async () => {
-      // Mock UserModel.exists method to return false (user not found)
-      const userModelExistsStub = sinon.stub(UserModel, "exists");
-      userModelExistsStub.resolves(false);
+    it("should handle the case where the user does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "non_existent_user_id";
 
-      // Mock GroupModel.exists method to return true (group exists)
-      const groupModelExistsStub = sinon.stub(GroupModel, "exists");
-      groupModelExistsStub.resolves(true);
+      // Stub the UserModel.exists method to return false
+      sinon.stub(UserModel(tenant), "exists").resolves(false);
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Call the assignOneUser function
-      const response = await assignOneUserModule.assignOneUser(request);
+      const response = await createGroup.assignOneUser(requestMock);
 
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("User or Group not found");
       expect(response.errors.message).to.equal("User or Group not found");
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      userModelExistsStub.restore();
-      groupModelExistsStub.restore();
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).exists, {
+        _id: userId,
+      });
+
+      UserModel(tenant).exists.restore();
     });
 
-    it("should handle group not found error", async () => {
-      // Mock UserModel.exists method to return true (user exists)
-      const userModelExistsStub = sinon.stub(UserModel, "exists");
-      userModelExistsStub.resolves(true);
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
+      const userId = "test_user_id";
 
-      // Mock GroupModel.exists method to return false (group not found)
-      const groupModelExistsStub = sinon.stub(GroupModel, "exists");
-      groupModelExistsStub.resolves(false);
+      // Stub the UserModel.exists method to return true
+      sinon.stub(UserModel(tenant), "exists").resolves(true);
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      // Stub the GroupModel.exists method to return false
+      sinon.stub(GroupModel(tenant), "exists").resolves(false);
 
-      // Call the assignOneUser function
-      const response = await assignOneUserModule.assignOneUser(request);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Assertions
+      const response = await createGroup.assignOneUser(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("User or Group not found");
       expect(response.errors.message).to.equal("User or Group not found");
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      userModelExistsStub.restore();
-      groupModelExistsStub.restore();
-    });
-
-    it("should handle user already assigned error", async () => {
-      // Mock UserModel.exists method to return true (user exists)
-      const userModelExistsStub = sinon.stub(UserModel, "exists");
-      userModelExistsStub.resolves(true);
-
-      // Mock GroupModel.exists method to return true (group exists)
-      const groupModelExistsStub = sinon.stub(GroupModel, "exists");
-      groupModelExistsStub.resolves(true);
-
-      // Mock UserModel.findById method to return a user with an existing assignment
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves({
-        _id: "userId",
-        groups: [{ group: "groupId" }],
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).exists, {
+        _id: userId,
+      });
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).exists, {
+        _id: groupId,
       });
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      UserModel(tenant).exists.restore();
+      GroupModel(tenant).exists.restore();
+    });
 
-      // Call the assignOneUser function
-      const response = await assignOneUserModule.assignOneUser(request);
+    it("should handle the case where the user is already assigned to the group", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
 
-      // Assertions
+      // Stub the UserModel.exists and GroupModel.exists methods to return true
+      sinon.stub(UserModel(tenant), "exists").resolves(true);
+      sinon.stub(GroupModel(tenant), "exists").resolves(true);
+
+      // Stub the UserModel.findById method to return the user with an existing assignment
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [{ group: groupId }] });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
+
+      const response = await createGroup.assignOneUser(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
         "Group already assigned to User"
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      userModelExistsStub.restore();
-      groupModelExistsStub.restore();
-      userModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).exists, {
+        _id: userId,
+      });
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).exists, {
+        _id: groupId,
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+
+      UserModel(tenant).exists.restore();
+      GroupModel(tenant).exists.restore();
+      UserModel(tenant).findById.restore();
     });
 
-    // Add more test cases for different scenarios
-  });
-  describe("unAssignUser Function", () => {
-    it("should unassign a user from a group successfully", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
 
-      // Mock UserModel.findById method to return a user with an existing assignment
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves({
-        _id: "userId",
-        groups: [{ group: "groupId" }],
-      });
+      // Stub the UserModel.exists and GroupModel.exists methods to return true
+      sinon.stub(UserModel(tenant), "exists").resolves(true);
+      sinon.stub(GroupModel(tenant), "exists").resolves(true);
 
-      // Mock UserModel.findByIdAndUpdate method to return an updated user
-      const userModelFindByIdAndUpdateStub = sinon.stub(
-        UserModel,
-        "findByIdAndUpdate"
+      // Stub the UserModel.findById method to return the user
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [] });
+
+      // Stub the UserModel.findByIdAndUpdate method to throw an error
+      sinon
+        .stub(UserModel(tenant), "findByIdAndUpdate")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
+
+      const response = await createGroup.assignOneUser(requestMock);
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).exists, {
+        _id: userId,
+      });
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).exists, {
+        _id: groupId,
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).findByIdAndUpdate,
+        userId,
+        sinon.match.object,
+        { new: true }
       );
-      userModelFindByIdAndUpdateStub.resolves({
-        _id: "userId",
-        groups: [],
-      });
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
+      UserModel(tenant).exists.restore();
+      GroupModel(tenant).exists.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).findByIdAndUpdate.restore();
+    });
+  });
+  describe("unAssignUser()", () => {
+    let requestMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
       };
+    });
 
-      // Call the unAssignUser function
-      const response = await unAssignUserModule.unAssignUser(request);
+    it("should unassign a user from a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
+      const groupAssignmentIndex = 0; // Assuming it's the first assignment
 
-      // Assertions
+      // Stub the GroupModel.findById and UserModel.findById methods to return group and user
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [{ group: groupId }] });
+
+      // Stub the UserModel.findByIdAndUpdate method to return the updated user
+      sinon
+        .stub(UserModel(tenant), "findByIdAndUpdate")
+        .resolves({ _id: userId, group_roles: [] });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
+
+      const response = await createGroup.unAssignUser(requestMock);
+
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
         "Successfully unassigned User from the Group"
       );
-      expect(response.data).to.deep.equal({
-        _id: "userId",
-        groups: [],
-      });
-      // Add more assertions as needed
-      // ...
+      expect(response.data._id).to.equal(userId);
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
-      userModelFindByIdAndUpdateStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).findByIdAndUpdate,
+        userId,
+        { group_roles: [] },
+        { new: true }
+      );
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).findByIdAndUpdate.restore();
     });
 
-    it("should handle group not found error", async () => {
-      // Mock GroupModel.findById method to return null (group not found)
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves(null);
+    it("should handle the case where the group or user does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
+      const userId = "non_existent_user_id";
 
-      // Mock UserModel.findById method to return a user
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves({
-        _id: "userId",
-        groups: [{ group: "groupId" }],
-      });
+      // Stub the GroupModel.findById and UserModel.findById methods to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
+      sinon.stub(UserModel(tenant), "findById").resolves(null);
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Call the unAssignUser function
-      const response = await unAssignUserModule.unAssignUser(request);
+      const response = await createGroup.unAssignUser(requestMock);
 
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "Group groupId or User userId not found"
+        `Group ${groupId} or User ${userId} not found`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
     });
 
-    it("should handle user not found error", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+    it("should handle the case where the user is not assigned to the group", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
 
-      // Mock UserModel.findById method to return null (user not found)
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves(null);
+      // Stub the GroupModel.findById and UserModel.findById methods to return group and user
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [] });
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Call the unAssignUser function
-      const response = await unAssignUserModule.unAssignUser(request);
+      const response = await createGroup.unAssignUser(requestMock);
 
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "Group groupId or User userId not found"
+        `Group ${groupId.toString()} is not assigned to the user`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
     });
 
-    it("should handle user not assigned error", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const userId = "test_user_id";
+      const groupAssignmentIndex = 0; // Assuming it's the first assignment
 
-      // Mock UserModel.findById method to return a user without the assignment
-      const userModelFindByIdStub = sinon.stub(UserModel, "findById");
-      userModelFindByIdStub.resolves({
-        _id: "userId",
-        groups: [],
-      });
+      // Stub the GroupModel.findById and UserModel.findById methods to return group and user
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+      sinon
+        .stub(UserModel(tenant), "findById")
+        .resolves({ _id: userId, group_roles: [{ group: groupId }] });
 
-      // Mock the request object
-      const request = {
-        params: {
-          grp_id: "groupId",
-          user_id: "userId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      // Stub the UserModel.findByIdAndUpdate method to throw an error
+      sinon
+        .stub(UserModel(tenant), "findByIdAndUpdate")
+        .throws(new Error("Internal server error"));
 
-      // Call the unAssignUser function
-      const response = await unAssignUserModule.unAssignUser(request);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.params.user_id = userId;
 
-      // Assertions
+      const response = await createGroup.unAssignUser(requestMock);
+
       expect(response.success).to.equal(false);
-      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal(
-        "Group groupId is not assigned to the user"
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).findById, userId);
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).findByIdAndUpdate,
+        userId,
+        sinon.match.object,
+        { new: true }
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindByIdStub.restore();
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).findById.restore();
+      UserModel(tenant).findByIdAndUpdate.restore();
     });
-
-    // Add more test cases for different scenarios
   });
-  describe("unAssignManyUsers Function", () => {
-    it("should unassign many users from a group successfully", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+  describe("unAssignManyUsers()", () => {
+    let requestMock;
 
-      // Mock UserModel.find method to return existing users
-      const userModelFindStub = sinon.stub(UserModel, "find");
-      userModelFindStub.resolves([
-        {
-          _id: "userId1",
-          groups: [{ group: "groupId" }],
-        },
-        {
-          _id: "userId2",
-          groups: [{ group: "groupId" }],
-        },
-      ]);
-
-      // Mock UserModel.updateMany method to return the number of modified users
-      const userModelUpdateManyStub = sinon.stub(UserModel, "updateMany");
-      userModelUpdateManyStub.resolves({
-        nModified: 2,
-      });
-
-      // Mock the request object
-      const request = {
-        body: {
-          user_ids: ["userId1", "userId2"],
-        },
-        params: {
-          grp_id: "groupId",
-        },
-        query: {
-          tenant: "tenant",
-        },
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
+        body: {},
       };
+    });
 
-      // Call the unAssignManyUsers function
-      const response = await unAssignManyUsersModule.unAssignManyUsers(request);
+    it("should unassign many users from a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user1Id = "user_id_1";
+      const user2Id = "user_id_2";
+      const user_ids = [user1Id, user2Id];
 
-      // Assertions
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.find and updateMany methods to return the users and update result
+      sinon.stub(UserModel(tenant), "find").resolves([
+        { _id: user1Id, group_roles: [{ group: groupId }] },
+        { _id: user2Id, group_roles: [{ group: groupId }] },
+      ]);
+      sinon.stub(UserModel(tenant), "updateMany").resolves({ nModified: 2 });
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.unAssignManyUsers(requestMock);
+
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
-        "Successfully unassigned all the provided users from the group groupId"
+        `Successfully unassigned all the provided users from the group ${groupId}`
       );
-      expect(response.data).to.deep.equal([]);
-      // Add more assertions as needed
-      // ...
+      expect(response.data).to.be.an("array").that.is.empty;
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindStub.restore();
-      userModelUpdateManyStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).find, {
+        _id: { $in: user_ids },
+        "group_roles.group": groupId,
+      });
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).updateMany,
+        {
+          _id: { $in: user_ids },
+          group_roles: { $elemMatch: { group: groupId } },
+        },
+        {
+          $pull: {
+            group_roles: { group: groupId },
+          },
+        }
+      );
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).find.restore();
+      UserModel(tenant).updateMany.restore();
     });
 
-    it("should handle group not found error", async () => {
-      // Mock GroupModel.findById method to return null (group not found)
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves(null);
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
+      const user_ids = ["user_id_1", "user_id_2"];
 
-      // Mock UserModel.find method to return existing users
-      const userModelFindStub = sinon.stub(UserModel, "find");
-      userModelFindStub.resolves([
-        {
-          _id: "userId1",
-          groups: [{ group: "groupId" }],
-        },
-      ]);
+      // Stub the GroupModel.findById method to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
 
-      // Mock the request object
-      const request = {
-        body: {
-          user_ids: ["userId1"],
-        },
-        params: {
-          grp_id: "groupId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
 
-      // Call the unAssignManyUsers function
-      const response = await unAssignManyUsersModule.unAssignManyUsers(request);
+      const response = await createGroup.unAssignManyUsers(requestMock);
 
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
-      expect(response.errors.message).to.equal("Group groupId not found");
-      // Add more assertions as needed
-      // ...
+      expect(response.errors.message).to.equal(`Group ${groupId} not found`);
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+
+      GroupModel(tenant).findById.restore();
     });
 
-    it("should handle user not found error", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+    it("should handle the case where some users do not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const existingUserId = "user_id_1";
+      const nonExistentUserId = "non_existent_user_id";
+      const user_ids = [existingUserId, nonExistentUserId];
 
-      // Mock UserModel.find method to return empty users array (users not found)
-      const userModelFindStub = sinon.stub(UserModel, "find");
-      userModelFindStub.resolves([]);
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
 
-      // Mock the request object
-      const request = {
-        body: {
-          user_ids: ["userId1"],
-        },
-        params: {
-          grp_id: "groupId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      // Stub the UserModel.find method to return only one existing user
+      sinon
+        .stub(UserModel(tenant), "find")
+        .resolves([{ _id: existingUserId, group_roles: [{ group: groupId }] }]);
 
-      // Call the unAssignManyUsers function
-      const response = await unAssignManyUsersModule.unAssignManyUsers(request);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
 
-      // Assertions
+      const response = await createGroup.unAssignManyUsers(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "The following users do not exist: userId1"
+        `The following users do not exist: ${nonExistentUserId}`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindStub.restore();
-    });
-
-    it("should handle users not assigned error", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).find, {
+        _id: { $in: user_ids },
+        "group_roles.group": groupId,
       });
 
-      // Mock UserModel.find method to return existing users
-      const userModelFindStub = sinon.stub(UserModel, "find");
-      userModelFindStub.resolves([
-        {
-          _id: "userId1",
-          groups: [],
-        },
-      ]);
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).find.restore();
+    });
 
-      // Mock the request object
-      const request = {
-        body: {
-          user_ids: ["userId1"],
-        },
-        params: {
-          grp_id: "groupId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+    it("should handle the case where some users are not assigned to the group", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user1Id = "user_id_1";
+      const user2Id = "user_id_2";
+      const user_ids = [user1Id, user2Id];
 
-      // Call the unAssignManyUsers function
-      const response = await unAssignManyUsersModule.unAssignManyUsers(request);
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
 
-      // Assertions
+      // Stub the UserModel.find method to return only one user assigned to the group
+      sinon
+        .stub(UserModel(tenant), "find")
+        .resolves([{ _id: user1Id, group_roles: [{ group: groupId }] }]);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.unAssignManyUsers(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "Some of the provided User IDs are not assigned to this group groupId"
+        `Some of the provided User IDs are not assigned to this group ${groupId}`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).find, {
+        _id: { $in: user_ids },
+        "group_roles.group": groupId,
+      });
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).find.restore();
     });
 
-    it("should handle no matching users found error", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
-      });
+    it("should handle the case where no users are found for update", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user_ids = ["user_id_1", "user_id_2"];
 
-      // Mock UserModel.find method to return existing users
-      const userModelFindStub = sinon.stub(UserModel, "find");
-      userModelFindStub.resolves([
-        {
-          _id: "userId1",
-          groups: [],
-        },
-        {
-          _id: "userId2",
-          groups: [],
-        },
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.find and updateMany methods to return the users but no updates
+      sinon.stub(UserModel(tenant), "find").resolves([
+        { _id: "user_id_1", group_roles: [] },
+        { _id: "user_id_2", group_roles: [] },
       ]);
+      sinon.stub(UserModel(tenant), "updateMany").resolves({ nModified: 0 });
 
-      // Mock UserModel.updateMany method to return no modified users
-      const userModelUpdateManyStub = sinon.stub(UserModel, "updateMany");
-      userModelUpdateManyStub.resolves({
-        nModified: 0,
-      });
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
 
-      // Mock the request object
-      const request = {
-        body: {
-          user_ids: ["userId1", "userId2"],
-        },
-        params: {
-          grp_id: "groupId",
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      const response = await createGroup.unAssignManyUsers(requestMock);
 
-      // Call the unAssignManyUsers function
-      const response = await unAssignManyUsersModule.unAssignManyUsers(request);
-
-      // Assertions
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
         "No matching User found in the system"
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelFindStub.restore();
-      userModelUpdateManyStub.restore();
-    });
-
-    // Add more test cases for different scenarios
-  });
-  describe("listAvailableUsers Function", () => {
-    it("should list available users for a group successfully", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).find, {
+        _id: { $in: user_ids },
+        "group_roles.group": groupId,
       });
-
-      // Mock UserModel.aggregate method to return available users
-      const userModelAggregateStub = sinon.stub(UserModel, "aggregate");
-      userModelAggregateStub.returns([
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).updateMany,
         {
-          _id: "userId1",
-          grp_title: "User1",
-          grp_status: "Active",
-          grp_tasks: [],
-          createdAt: "2023-09-15 10:30:00",
-          grp_description: "Description1",
+          _id: { $in: user_ids },
+          group_roles: { $elemMatch: { group: groupId } },
         },
         {
-          _id: "userId2",
-          grp_title: "User2",
-          grp_status: "Inactive",
-          grp_tasks: [],
-          createdAt: "2023-09-15 11:30:00",
-          grp_description: "Description2",
-        },
-      ]);
-
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "tenant",
-        },
-        params: {
-          grp_id: "groupId",
-        },
-      };
-
-      // Call the listAvailableUsers function
-      const response = await listAvailableUsersModule.listAvailableUsers(
-        request
+          $pull: {
+            group_roles: { group: groupId },
+          },
+        }
       );
 
-      // Assertions
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).find.restore();
+      UserModel(tenant).updateMany.restore();
+    });
+
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+      const user1Id = "user_id_1";
+      const user2Id = "user_id_2";
+      const user_ids = [user1Id, user2Id];
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.find and updateMany methods to return the users and throw an error
+      sinon.stub(UserModel(tenant), "find").resolves([
+        { _id: user1Id, group_roles: [{ group: groupId }] },
+        { _id: user2Id, group_roles: [{ group: groupId }] },
+      ]);
+      sinon
+        .stub(UserModel(tenant), "updateMany")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+      requestMock.body.user_ids = user_ids;
+
+      const response = await createGroup.unAssignManyUsers(requestMock);
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant).find, {
+        _id: { $in: user_ids },
+        "group_roles.group": groupId,
+      });
+      sinon.assert.calledOnceWithExactly(
+        UserModel(tenant).updateMany,
+        {
+          _id: { $in: user_ids },
+          group_roles: { $elemMatch: { group: groupId } },
+        },
+        {
+          $pull: {
+            group_roles: { group: groupId },
+          },
+        }
+      );
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).find.restore();
+      UserModel(tenant).updateMany.restore();
+    });
+  });
+  describe("listAvailableUsers()", () => {
+    let requestMock;
+
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
+      };
+    });
+
+    it("should list available users for a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.aggregate method to return available users
+      const availableUsers = [
+        {
+          _id: "user_id_1",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          createdAt: new Date(),
+          email: "john@example.com",
+        },
+        {
+          _id: "user_id_2",
+          firstName: "Jane",
+          lastName: "Smith",
+          userName: "janesmith",
+          createdAt: new Date(),
+          email: "jane@example.com",
+        },
+      ];
+      sinon.stub(UserModel(tenant), "aggregate").resolves(availableUsers);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createGroup.listAvailableUsers(requestMock);
+
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
-        "retrieved all available users for group groupId"
+        `retrieved all available users for group ${groupId}`
       );
-      expect(response.data).to.deep.equal([
-        {
-          _id: "userId1",
-          grp_title: "User1",
-          grp_status: "Active",
-          grp_tasks: [],
-          createdAt: "2023-09-15 10:30:00",
-          grp_description: "Description1",
-        },
-        {
-          _id: "userId2",
-          grp_title: "User2",
-          grp_status: "Inactive",
-          grp_tasks: [],
-          createdAt: "2023-09-15 11:30:00",
-          grp_description: "Description2",
-        },
-      ]);
-      // Add more assertions as needed
-      // ...
+      expect(response.data).to.deep.equal(availableUsers);
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelAggregateStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $match: {
+          "group_roles.group": { $ne: groupId },
+        },
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $project: {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          userName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          email: 1,
+        },
+      });
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).aggregate.restore();
     });
 
-    it("should handle invalid group ID error", async () => {
-      // Mock GroupModel.findById method to return null (group not found)
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves(null);
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
 
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "tenant",
-        },
-        params: {
-          grp_id: "invalidGroupId",
-        },
-      };
+      // Stub the GroupModel.findById method to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
 
-      // Call the listAvailableUsers function
-      const response = await listAvailableUsersModule.listAvailableUsers(
-        request
-      );
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
 
-      // Assertions
+      const response = await createGroup.listAvailableUsers(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "Invalid group ID invalidGroupId, please crosscheck"
+        `Invalid group ID ${groupId}, please crosscheck`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+
+      GroupModel(tenant).findById.restore();
     });
 
-    // Add more test cases for different scenarios
-  });
-  describe("listAssignedUsers Function", () => {
-    it("should list assigned users for a group successfully", async () => {
-      // Mock GroupModel.findById method to return a group
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves({
-        _id: "groupId",
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.aggregate method to throw an error
+      sinon
+        .stub(UserModel(tenant), "aggregate")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createGroup.listAvailableUsers(requestMock);
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $match: {
+          "group_roles.group": { $ne: groupId },
+        },
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $project: {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          userName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          email: 1,
+        },
       });
 
-      // Mock UserModel.aggregate method to return assigned users
-      const userModelAggregateStub = sinon.stub(UserModel, "aggregate");
-      userModelAggregateStub.returns([
-        {
-          _id: "userId1",
-          grp_title: "User1",
-          grp_status: "Active",
-          grp_tasks: [],
-          createdAt: "2023-09-15 10:30:00",
-          grp_description: "Description1",
-        },
-        {
-          _id: "userId2",
-          grp_title: "User2",
-          grp_status: "Inactive",
-          grp_tasks: [],
-          createdAt: "2023-09-15 11:30:00",
-          grp_description: "Description2",
-        },
-      ]);
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).aggregate.restore();
+    });
+  });
+  describe("listAssignedUsers()", () => {
+    let requestMock;
 
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "tenant",
-        },
-        params: {
-          grp_id: "groupId",
-        },
+    beforeEach(() => {
+      requestMock = {
+        query: {},
+        params: {},
       };
+    });
 
-      // Call the listAssignedUsers function
-      const response = await listAssignedUsersModule.listAssignedUsers(request);
+    it("should list assigned users for a group and return success", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
 
-      // Assertions
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.aggregate method to return assigned users
+      const assignedUsers = [
+        {
+          _id: "user_id_1",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          createdAt: new Date(),
+          email: "john@example.com",
+        },
+        {
+          _id: "user_id_2",
+          firstName: "Jane",
+          lastName: "Smith",
+          userName: "janesmith",
+          createdAt: new Date(),
+          email: "jane@example.com",
+        },
+      ];
+      sinon.stub(UserModel(tenant), "aggregate").resolves(assignedUsers);
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createGroup.listAssignedUsers(requestMock);
+
       expect(response.success).to.equal(true);
       expect(response.status).to.equal(httpStatus.OK);
       expect(response.message).to.equal(
-        "Retrieved all assigned users for group groupId"
+        `Retrieved all assigned users for group ${groupId}`
       );
-      expect(response.data).to.deep.equal([
-        {
-          _id: "userId1",
-          grp_title: "User1",
-          grp_status: "Active",
-          grp_tasks: [],
-          createdAt: "2023-09-15 10:30:00",
-          grp_description: "Description1",
-        },
-        {
-          _id: "userId2",
-          grp_title: "User2",
-          grp_status: "Inactive",
-          grp_tasks: [],
-          createdAt: "2023-09-15 11:30:00",
-          grp_description: "Description2",
-        },
-      ]);
-      // Add more assertions as needed
-      // ...
+      expect(response.data).to.deep.equal(assignedUsers);
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
-      userModelAggregateStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $match: {
+          "group_roles.group": groupId,
+        },
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $project: {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          userName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          email: 1,
+        },
+      });
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).aggregate.restore();
     });
 
-    it("should handle invalid group ID error", async () => {
-      // Mock GroupModel.findById method to return null (group not found)
-      const groupModelFindByIdStub = sinon.stub(GroupModel, "findById");
-      groupModelFindByIdStub.resolves(null);
+    it("should handle the case where the group does not exist", async () => {
+      const tenant = "test_tenant";
+      const groupId = "non_existent_group_id";
 
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "tenant",
-        },
-        params: {
-          grp_id: "invalidGroupId",
-        },
-      };
+      // Stub the GroupModel.findById method to return null
+      sinon.stub(GroupModel(tenant), "findById").resolves(null);
 
-      // Call the listAssignedUsers function
-      const response = await listAssignedUsersModule.listAssignedUsers(request);
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
 
-      // Assertions
+      const response = await createGroup.listAssignedUsers(requestMock);
+
       expect(response.success).to.equal(false);
       expect(response.status).to.equal(httpStatus.BAD_REQUEST);
       expect(response.message).to.equal("Bad Request Error");
       expect(response.errors.message).to.equal(
-        "Invalid group ID invalidGroupId, please crosscheck"
+        `Invalid group ID ${groupId}, please crosscheck`
       );
-      // Add more assertions as needed
-      // ...
 
-      // Restore stubs
-      groupModelFindByIdStub.restore();
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+
+      GroupModel(tenant).findById.restore();
     });
 
-    // Add more test cases for different scenarios
+    it("should handle internal server errors gracefully", async () => {
+      const tenant = "test_tenant";
+      const groupId = "test_group_id";
+
+      // Stub the GroupModel.findById method to return the group
+      sinon.stub(GroupModel(tenant), "findById").resolves({ _id: groupId });
+
+      // Stub the UserModel.aggregate method to throw an error
+      sinon
+        .stub(UserModel(tenant), "aggregate")
+        .throws(new Error("Internal server error"));
+
+      requestMock.query.tenant = tenant;
+      requestMock.params.grp_id = groupId;
+
+      const response = await createGroup.listAssignedUsers(requestMock);
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      sinon.assert.calledOnceWithExactly(GroupModel(tenant).findById, groupId);
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $match: {
+          "group_roles.group": groupId,
+        },
+      });
+      sinon.assert.calledOnceWithExactly(UserModel(tenant), {
+        $project: {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          userName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          email: 1,
+        },
+      });
+
+      GroupModel(tenant).findById.restore();
+      UserModel(tenant).aggregate.restore();
+    });
   });
 });

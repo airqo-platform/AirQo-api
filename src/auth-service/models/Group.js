@@ -114,6 +114,7 @@ GroupSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      logObject("filter", filter);
       const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.GROUPS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
