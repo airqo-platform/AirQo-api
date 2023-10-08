@@ -10,6 +10,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`
 );
 
+const controlAccessUtil = require("@utils/control-access");
+
 const createGroup = {
   list: async (req, res) => {
     try {
@@ -59,6 +61,63 @@ const createGroup = {
             : "",
           errors: responseFromListGroup.errors
             ? responseFromListGroup.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listRolesForGroup: async (req, res) => {
+    try {
+      logText("unAssignPermissionFromRole....");
+      const { query, body } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListRolesForGroup =
+        await controlAccessUtil.listRolesForGroup(request);
+
+      if (responseFromListRolesForGroup.success === true) {
+        const status = responseFromListRolesForGroup.status
+          ? responseFromListRolesForGroup.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListRolesForGroup.message,
+          group_roles: responseFromListRolesForGroup.data,
+        });
+      } else if (responseFromListRolesForGroup.success === false) {
+        const status = responseFromListRolesForGroup.status
+          ? responseFromListRolesForGroup.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListRolesForGroup.message,
+          errors: responseFromListRolesForGroup.errors
+            ? responseFromListRolesForGroup.errors
             : { message: "" },
         });
       }
@@ -494,7 +553,7 @@ const createGroup = {
       }
 
       const responseFromListUserWithGroup =
-        await createGroupUtil.listUsersWithGroup(request);
+        await createGroupUtil.listAssignedUsers(request);
 
       if (responseFromListUserWithGroup.success === true) {
         const status = responseFromListUserWithGroup.status

@@ -12,11 +12,22 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
 );
 
+const isUserAssignedToGroup = (user, grp_id) => {
+  if (user && user.group_roles && user.group_roles.length > 0) {
+    return user.group_roles.some((assignment) => {
+      return assignment.group.equals(grp_id);
+    });
+  }
+  return false;
+};
+
 const findGroupAssignmentIndex = (user, grp_id) => {
-  if (!user.groups || !Array.isArray(user.groups)) {
+  if (!user.group_roles || !Array.isArray(user.group_roles)) {
     return -1;
   }
-  return user.groups.findIndex((assignment) => assignment.group.equals(grp_id));
+  return user.group_roles.findIndex((assignment) =>
+    assignment.group.equals(grp_id)
+  );
 };
 
 const createGroup = {
@@ -145,7 +156,7 @@ const createGroup = {
       if (responseFromGenerateFilter.success === false) {
         return responseFromGenerateFilter;
       } else {
-        filter = responseFromGenerateFilter.data;
+        filter = responseFromGenerateFilter;
         logObject("filter", filter);
       }
 
@@ -198,7 +209,7 @@ const createGroup = {
           };
         }
 
-        const existingAssignment = user.groups.find((assignment) => {
+        const existingAssignment = user.group_roles.find((assignment) => {
           return assignment.group.toString() === grp_id.toString();
         });
 
@@ -224,7 +235,7 @@ const createGroup = {
             },
             update: {
               $addToSet: {
-                groups: {
+                group_roles: {
                   group: grp_id,
                 },
               },
@@ -290,7 +301,7 @@ const createGroup = {
 
       logObject("user", user);
 
-      const isAlreadyAssigned = isUserAssignedToNetwork(user, grp_id);
+      const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
 
       if (isAlreadyAssigned) {
         return {
@@ -304,7 +315,7 @@ const createGroup = {
         user_id,
         {
           $addToSet: {
-            groups: {
+            group_roles: {
               group: grp_id,
             },
           },
@@ -359,12 +370,12 @@ const createGroup = {
       }
 
       // Remove the group assignment from the user's groups array
-      user.groups.splice(networkAssignmentIndex, 1);
+      user.group_roles.splice(networkAssignmentIndex, 1);
 
       // Update the user with the modified groups array
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
-        { groups: user.groups },
+        { group_roles: user.group_roles },
         { new: true }
       );
 
@@ -425,7 +436,7 @@ const createGroup = {
       // Check if all the provided user_ids are assigned to the group in groups
       const users = await UserModel(tenant).find({
         _id: { $in: user_ids },
-        "groups.group": grp_id,
+        "group_roles.group": grp_id,
       });
 
       if (users.length !== user_ids.length) {
@@ -445,11 +456,11 @@ const createGroup = {
         const { nModified, n } = await UserModel(tenant).updateMany(
           {
             _id: { $in: user_ids },
-            groups: { $elemMatch: { group: grp_id } },
+            group_roles: { $elemMatch: { group: grp_id } },
           },
           {
             $pull: {
-              groups: { group: grp_id },
+              group_roles: { group: grp_id },
             },
           }
         );
@@ -520,22 +531,22 @@ const createGroup = {
         .aggregate([
           {
             $match: {
-              "groups.group": { $ne: group._id },
+              "group_roles.group": { $ne: group._id },
             },
           },
           {
             $project: {
               _id: 1,
-              grp_title: 1,
-              grp_status: 1,
-              grp_tasks: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
               createdAt: {
                 $dateToString: {
                   format: "%Y-%m-%d %H:%M:%S",
                   date: "$_id",
                 },
               },
-              grp_description: 1,
+              email: 1,
             },
           },
         ])
@@ -585,22 +596,22 @@ const createGroup = {
         .aggregate([
           {
             $match: {
-              "groups.group": group._id,
+              "group_roles.group": group._id,
             },
           },
           {
             $project: {
               _id: 1,
-              grp_title: 1,
-              grp_status: 1,
-              grp_tasks: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
               createdAt: {
                 $dateToString: {
                   format: "%Y-%m-%d %H:%M:%S",
                   date: "$_id",
                 },
               },
-              grp_description: 1,
+              email: 1,
             },
           },
         ])
@@ -612,6 +623,7 @@ const createGroup = {
         success: true,
         message: `Retrieved all assigned users for group ${grp_id}`,
         data: responseFromListAssignedUsers,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logElement("internal server error", error.message);
