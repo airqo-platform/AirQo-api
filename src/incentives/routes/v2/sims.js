@@ -4,8 +4,6 @@ const createSimController = require("@controllers/create-sim");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const { logObject } = require("@utils/log");
-const phoneUtil =
-  require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const validatePagination = (req, res, next) => {
@@ -52,13 +50,9 @@ router.post(
         .notEmpty()
         .withMessage("the msisdn should not be empty")
         .bail()
-        .trim()
-        .custom((value) => {
-          let parsedPhoneNumber = phoneUtil.parse(value);
-          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
-          return isValid;
-        })
-        .withMessage("msisdn must be a valid one"),
+        .isInt()
+        .withMessage("the msisdn should be a number")
+        .trim(),
     ],
   ]),
   createSimController.create
@@ -138,13 +132,9 @@ router.put(
         .notEmpty()
         .withMessage("msisdn should not be empty IF provided")
         .bail()
-        .trim()
-        .custom((value) => {
-          let parsedPhoneNumber = phoneUtil.parse(value);
-          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
-          return isValid;
-        })
-        .withMessage("msisdn must be a valid one"),
+        .isInt()
+        .withMessage("the msisdn should be a number")
+        .trim(),
       body("dataBalanceThreshold")
         .optional()
         .trim()
@@ -251,7 +241,7 @@ router.get(
         .trim(),
     ],
   ]),
-  createSimController.checkStatus
+  createSimController.activateSim
 );
 router.delete(
   "/:sim_id/deactivate",
