@@ -884,6 +884,13 @@ const defaultConfig = {
     grp_tasks: 1,
     grp_description: 1,
     createdAt: 1,
+    numberOfGroupUsers: {
+      $cond: {
+        if: { $isArray: "$grp_users" },
+        then: { $size: "$grp_users" },
+        else: "NA",
+      },
+    },
     grp_users: "$grp_users",
   },
 
