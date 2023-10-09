@@ -672,8 +672,6 @@ UserSchema.methods.createToken = async function () {
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
-          networks: user.networks,
-          groups: user.groups,
         },
         constants.JWT_SECRET
       );
