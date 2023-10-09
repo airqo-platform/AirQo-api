@@ -97,9 +97,7 @@ const defaults = {
         );
       }
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let request = Object.assign({}, req);
 
       let responseFromCreateDefault = await createDefaultUtil.create(request);
       logObject("responseFromCreateDefault", responseFromCreateDefault);
@@ -127,6 +125,7 @@ const defaults = {
         });
       }
     } catch (errors) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
       tryCatchErrors(res, errors, "defaults controller");
     }
   },
