@@ -84,13 +84,13 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("site_id")
+      query("device_id")
         .optional()
         .notEmpty()
-        .withMessage("the site_id cannot be empty IF provided")
+        .withMessage("the device_id cannot be empty IF provided")
         .trim()
         .isMongoId()
-        .withMessage("site_id must be an object ID")
+        .withMessage("device_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);

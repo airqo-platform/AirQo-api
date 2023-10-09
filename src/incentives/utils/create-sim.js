@@ -17,6 +17,7 @@ const convertFromBytesToMegaBytes = (bytes) => {
 };
 
 const createSim = {
+  create: async (request) => {},
   createLocal: async (request) => {
     try {
       const { body } = request;
