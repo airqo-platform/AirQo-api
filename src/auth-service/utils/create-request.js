@@ -275,7 +275,7 @@ const createAccessRequest = {
               email,
               firstName,
               lastName,
-              group_name
+              { groups: 1 }
             );
 
             if (responseFromSendEmail.success === true) {
@@ -310,7 +310,7 @@ const createAccessRequest = {
               email,
               firstName,
               lastName,
-              network_name
+              { networks: 1 }
             );
 
             if (responseFromSendEmail.success === true) {
