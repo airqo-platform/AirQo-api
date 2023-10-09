@@ -166,16 +166,20 @@ router.post(
   oneOf([
     [
       body("pollutant")
-        .if(body("pollutant").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided pollutant should not be empty IF provided")
+        .bail()
         .trim()
         .isIn(["no2", "pm2_5", "pm10", "pm1"])
         .withMessage(
           "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
         ),
       body("frequency")
-        .if(body("frequency").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided frequently should not be empty IF provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["daily", "hourly", "monthly"])
@@ -183,8 +187,10 @@ router.post(
           "the frequency value is not among the expected ones which include: daily, hourly and monthly"
         ),
       body("chartType")
-        .if(body("chartType").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided chartType should not be empty IF provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["bar", "line", "pie"])
@@ -192,22 +198,28 @@ router.post(
           "the chartType value is not among the expected ones which include: bar, line and pie"
         ),
       body("startDate")
-        .if(body("startDate").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided startDate should not be empty IF provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startDate must be a valid datetime."),
       body("endDate")
-        .if(body("endDate").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided endDate should not be empty IF provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endDate must be a valid datetime."),
       body("user")
-        .if(body("user").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided user should not be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the user must be an object ID")
@@ -215,22 +227,33 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
-      body("period")
-        .if(body("period").exists())
+      body("chartTitle")
+        .optional()
         .notEmpty()
+        .withMessage("the provided chartTitle should not be empty IF provided")
+        .trim(),
+      body("period")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided period should not be empty IF provided")
+        .bail()
         .custom((value) => {
           return typeof value === "object";
         })
         .bail()
         .withMessage("the period should be an object"),
       body("chartSubTitle")
-        .if(body("chartSubTitle").exists())
+        .optional()
         .notEmpty()
+        .withMessage(
+          "the provided chartSubTitle should not be empty IF provided"
+        )
         .trim(),
       body("airqloud")
-        .if(body("airqloud").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided airqloud should not be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the airqloud must be an object ID")
@@ -239,18 +262,39 @@ router.post(
           return ObjectId(value);
         }),
       body("sites")
-        .if(body("sites").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided sites should not be empty IF provided")
+        .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
         .withMessage("the sites should be an array"),
       body("sites.*")
-        .if(body("sites.*").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the provided site should not be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("site must be an object ID"),
+      body("devices")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided devices should not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the devices should be an array"),
+      body("devices.*")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided device should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("device must be an object ID"),
     ],
   ]),
   setJWTAuth,
