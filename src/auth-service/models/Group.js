@@ -129,7 +129,7 @@ GroupSchema.statics = {
         .lookup({
           from: "users",
           localField: "_id",
-          foreignField: "groups.group",
+          foreignField: "group_roles.group",
           as: "grp_users",
         })
         .sort({ createdAt: -1 })
