@@ -576,50 +576,9 @@ const defaultConfig = {
     profilePicture: 1,
     phoneNumber: 1,
     lol: { $ifNull: [{ $arrayElemAt: ["$lol", 0] }, null] },
-    networks: {
-      $filter: {
-        input: "$networks",
-        as: "network",
-        cond: {
-          $and: [
-            { $ne: ["$$network.net_name", null] },
-            { $ne: ["$$network._id", null] },
-            {
-              $or: [
-                {
-                  $eq: [
-                    { $ifNull: ["$$network.role.role_permissions", []] },
-                    [],
-                  ],
-                },
-                { $ne: ["$$network.role.role_permissions", null] },
-              ],
-            },
-          ],
-        },
-      },
-    },
+    networks: "$networks",
     clients: "$clients",
-    groups: {
-      $filter: {
-        input: "$groups",
-        as: "group",
-        cond: {
-          $and: [
-            { $ne: ["$$group.grp_title", null] },
-            { $ne: ["$$group._id", null] },
-            {
-              $or: [
-                {
-                  $eq: [{ $ifNull: ["$$group.role.role_permissions", []] }, []],
-                },
-                { $ne: ["$$group.role.role_permissions", null] },
-              ],
-            },
-          ],
-        },
-      },
-    },
+    groups: "$groups",
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
