@@ -1,5 +1,5 @@
 const UserModel = require("@models/User");
-const NetworkModel = require("@models/Network");
+const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
@@ -11,6 +11,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
 );
+const controlAccessUtil = require("@utils/control-access");
 
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
@@ -38,13 +39,182 @@ const createGroup = {
       let modifiedBody = Object.assign({}, body);
 
       logText("We are now creating the function.....");
+
+      const user = request.user;
+      logObject("the user making the request", user);
+      if (!isEmpty(user)) {
+      } else if (isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "creator's details are not provided" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       const responseFromRegisterGroup = await GroupModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
 
       logObject("responseFromRegisterGroup", responseFromRegisterGroup);
 
-      return responseFromRegisterGroup;
+      if (responseFromRegisterGroup.success === true) {
+        const grp_id = responseFromRegisterGroup.data._doc._id;
+        if (isEmpty(grp_id)) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: {
+              message: "Unable to retrieve the group Id of created group",
+            },
+          };
+        }
+
+        /**
+         ************** STEPS:
+         * create the SUPER_ADMIN role for this group
+         * create the SUPER_ADMIN  permissions IF they do not yet exist
+         * assign the these SUPER_ADMIN permissions to the SUPER_ADMIN role
+         * assign the creating User to this new SUPER_ADMIN role of their Network
+         */
+
+        let requestForRole = {};
+        requestForRole.query = {};
+        requestForRole.query.tenant = tenant;
+        requestForRole.body = {
+          role_code: "SUPER_ADMIN",
+          role_name: "SUPER_ADMIN",
+          group_id: grp_id,
+        };
+
+        const responseFromCreateRole = await controlAccessUtil.createRole(
+          requestForRole
+        );
+
+        if (responseFromCreateRole.success === false) {
+          return responseFromCreateRole;
+        } else if (responseFromCreateRole.success === true) {
+          /**
+           *  * assign the main permissions to the role
+           */
+          logObject("responseFromCreateRole", responseFromCreateRole);
+          const role_id = responseFromCreateRole.data._id;
+          if (isEmpty(role_id)) {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message:
+                  "Unable to retrieve the role id of the newly create super admin of this group",
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+
+          logObject(
+            "constants.SUPER_ADMIN_PERMISSIONS",
+            constants.SUPER_ADMIN_PERMISSIONS
+          );
+
+          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
+            ? constants.SUPER_ADMIN_PERMISSIONS
+            : [];
+          const trimmedPermissions = superAdminPermissions.map((permission) =>
+            permission.trim()
+          );
+
+          const uniquePermissions = [...new Set(trimmedPermissions)];
+
+          const existingPermissionIds = await PermissionModel(tenant)
+            .find({
+              permission: { $in: uniquePermissions },
+            })
+            .distinct("_id");
+
+          const existingPermissionNames = await PermissionModel(tenant)
+            .find({
+              permission: { $in: uniquePermissions },
+            })
+            .distinct("permission");
+
+          logObject("existingPermissionIds", existingPermissionIds);
+
+          const newPermissionDocuments = uniquePermissions
+            .filter(
+              (permission) => !existingPermissionNames.includes(permission)
+            )
+            .map((permission) => ({
+              permission: permission
+                .replace(/[^A-Za-z]/g, " ")
+                .toUpperCase()
+                .replace(/ /g, "_"),
+              description: permission
+                .replace(/[^A-Za-z]/g, " ")
+                .toUpperCase()
+                .replace(/ /g, "_"),
+            }));
+
+          logObject("newPermissionDocuments", newPermissionDocuments);
+
+          // Step 3: Insert the filtered permissions
+          const insertedPermissions = await PermissionModel(tenant).insertMany(
+            newPermissionDocuments
+          );
+          logObject("insertedPermissions", insertedPermissions);
+          const allPermissionIds = [
+            ...existingPermissionIds,
+            ...insertedPermissions.map((permission) => permission._id),
+          ];
+
+          logObject("allPermissionIds", allPermissionIds);
+
+          let requestToAssignPermissions = {};
+          requestToAssignPermissions.body = {};
+          requestToAssignPermissions.query = {};
+          requestToAssignPermissions.params = {};
+          requestToAssignPermissions.body.permissions = allPermissionIds;
+          requestToAssignPermissions.query.tenant = tenant;
+          requestToAssignPermissions.params = { role_id };
+
+          const responseFromAssignPermissionsToRole =
+            await controlAccessUtil.assignPermissionsToRole(
+              requestToAssignPermissions
+            );
+          if (responseFromAssignPermissionsToRole.success === false) {
+            return responseFromAssignPermissionsToRole;
+          } else if (responseFromAssignPermissionsToRole.success === true) {
+            /**
+             * assign this user to this new super ADMIN role and this new group
+             */
+            const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+              user._id,
+              {
+                $addToSet: {
+                  group_roles: {
+                    group: grp_id,
+                    role: role_id,
+                  },
+                },
+              },
+              { new: true }
+            );
+
+            if (isEmpty(updatedUser)) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: {
+                  message: `Unable to assign the group to the User ${user._id}`,
+                },
+              };
+            }
+
+            return responseFromRegisterGroup;
+          }
+        }
+      } else if (responseFromRegisterGroup.success === false) {
+        return responseFromRegisterGroup;
+      }
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
@@ -190,8 +360,6 @@ const createGroup = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
-      const grp_network_id = group.grp_network_id;
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
@@ -354,9 +522,9 @@ const createGroup = {
         };
       }
 
-      const networkAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
+      const groupAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
 
-      if (networkAssignmentIndex === -1) {
+      if (groupAssignmentIndex === -1) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -368,7 +536,7 @@ const createGroup = {
       }
 
       // Remove the group assignment from the user's groups array
-      user.group_roles.splice(networkAssignmentIndex, 1);
+      user.group_roles.splice(groupAssignmentIndex, 1);
 
       // Update the user with the modified groups array
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
