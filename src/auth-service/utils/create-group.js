@@ -73,13 +73,11 @@ const createGroup = {
         };
       }
 
-      let filter = {};
       const responseFromGeneratefilter = generateFilter.groups(request);
       if (responseFromGeneratefilter.success === false) {
         return responseFromGeneratefilter;
-      } else {
-        filter = responseFromGeneratefilter.data;
       }
+      const filter = responseFromGeneratefilter;
 
       const responseFromModifyGroup = await GroupModel(
         tenant.toLowerCase()
