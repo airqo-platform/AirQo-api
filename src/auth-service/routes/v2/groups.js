@@ -100,9 +100,12 @@ router.put(
         .notEmpty()
         .withMessage("the grp_status should not be empty if provided")
         .bail()
-        .isBoolean()
-        .withMessage("the grp_status should be a boolean")
-        .trim(),
+        .trim()
+        .toUpperCase()
+        .isIn(["INACTIVE", "ACTIVE"])
+        .withMessage(
+          "the tenant value is not among the expected ones, use ACTIVE or INACTIVE"
+        ),
     ],
   ]),
   setJWTAuth,
@@ -144,7 +147,13 @@ router.get(
       .trim()
       .notEmpty()
       .withMessage("grp_status should not be empty IF provided")
-      .bail(),
+      .bail()
+      .trim()
+      .toUpperCase()
+      .isIn(["INACTIVE", "ACTIVE"])
+      .withMessage(
+        "the tenant value is not among the expected ones, use ACTIVE or INACTIVE"
+      ),
   ]),
   createGroupController.list
 );
