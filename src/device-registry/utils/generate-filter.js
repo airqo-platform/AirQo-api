@@ -286,10 +286,6 @@ const generateFilter = {
     return filter;
   },
 
-  generateRegexExpressionFromStringElement: (element) => {
-    let regex = `${element}`;
-    return regex;
-  },
   devices: (req) => {
     const {
       name,
@@ -312,6 +308,7 @@ const generateFilter = {
       device_number,
       category,
       network,
+      group,
       visibility,
       deviceName,
     } = { ...req.query, ...req.params };
@@ -346,6 +343,10 @@ const generateFilter = {
 
     if (network) {
       filter.network = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     if (device_number) {
@@ -417,6 +418,7 @@ const generateFilter = {
       site_codes,
       _id,
       network,
+      group,
       google_place_id,
     } = { ...req.query, ...req.params };
     const filter = {};
@@ -431,6 +433,10 @@ const generateFilter = {
 
     if (network) {
       filter["network"] = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     if (lat_long) {
@@ -506,6 +512,8 @@ const generateFilter = {
       dashboard,
       airqloud_codes,
       category,
+      network,
+      group,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -517,7 +525,13 @@ const generateFilter = {
     if (airqloud_id) {
       filter["_id"] = ObjectId(airqloud_id);
     }
+    if (network) {
+      filter["network"] = network;
+    }
 
+    if (group) {
+      filter["group"] = group;
+    }
     if (admin_level) {
       filter["admin_level"] = admin_level;
     }
@@ -547,7 +561,7 @@ const generateFilter = {
   },
 
   grids: (req) => {
-    const { id, admin_level, grid_codes, grid_id, category } = {
+    const { id, admin_level, grid_codes, grid_id, category, network, group } = {
       ...req.query,
       ...req.params,
     };
@@ -560,6 +574,14 @@ const generateFilter = {
 
     if (grid_id) {
       filter["_id"] = ObjectId(grid_id);
+    }
+
+    if (network) {
+      filter["network"] = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     if (admin_level) {
@@ -583,7 +605,7 @@ const generateFilter = {
   },
 
   cohorts: (req) => {
-    const { id, cohort_codes, network_id, name, cohort_id, category } = {
+    const { id, cohort_codes, name, cohort_id, category, network, group } = {
       ...req.query,
       ...req.params,
     };
@@ -597,12 +619,16 @@ const generateFilter = {
       filter["_id"] = ObjectId(cohort_id);
     }
 
-    if (network_id) {
-      filter["network_id"] = ObjectId(network_id);
-    }
-
     if (name) {
       filter["name"] = name;
+    }
+
+    if (network) {
+      filter["network"] = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     if (cohort_codes) {
@@ -725,6 +751,7 @@ const generateFilter = {
       recall_type,
       site_id,
       network,
+      group,
       activity_codes,
       _id,
     } = req.query;
@@ -747,6 +774,10 @@ const generateFilter = {
     }
     if (network) {
       filter["network"] = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     if (activity_codes) {
@@ -784,6 +815,7 @@ const generateFilter = {
       device_number,
       device_name,
       network,
+      group,
       tags,
     } = request.query;
     let filter = {};
@@ -819,6 +851,10 @@ const generateFilter = {
 
     if (network) {
       filter["network"] = network;
+    }
+
+    if (group) {
+      filter["group"] = group;
     }
 
     return filter;
