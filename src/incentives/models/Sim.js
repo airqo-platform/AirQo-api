@@ -36,6 +36,7 @@ const SimSchema = new Schema(
     totalTraffic: { type: Number, trim: true },
     simBarcode: { type: String, trim: true },
     active: { type: Boolean },
+    deviceId: { type: ObjectId, trim: true, unique: true },
   },
   { timestamps: true }
 );
@@ -61,8 +62,6 @@ const handleServerError = (error, message) => {
 };
 
 SimSchema.pre("save", function (next) {
-  if (this.isModified("password")) {
-  }
   return next();
 });
 
@@ -193,6 +192,7 @@ SimSchema.methods.toJSON = function () {
     status,
     plan,
     totalTraffic,
+    deviceId,
   } = this;
   return {
     _id,
@@ -203,6 +203,7 @@ SimSchema.methods.toJSON = function () {
     status,
     plan,
     totalTraffic,
+    deviceId,
   };
 };
 
