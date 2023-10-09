@@ -412,7 +412,7 @@ UserSchema.statics = {
           clients: { $first: "$clients" },
           groups: {
             $push: {
-              net_name: { $arrayElemAt: ["$group.grp_title", 0] },
+              grp_title: { $arrayElemAt: ["$group.grp_title", 0] },
               _id: { $arrayElemAt: ["$group._id", 0] },
               role: {
                 $cond: {
