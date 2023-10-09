@@ -10,72 +10,94 @@ const generateFilter = require("@utils/generate-filter");
 
 describe("createGroup Module", () => {
   describe("create()", () => {
-    it("should return a success response when group is successfully created", async () => {
-      // Mock GroupModel.register to return a successful response
-      const groupModelStub = sinon.stub(GroupModel, "register");
-      groupModelStub.resolves({
-        success: true,
-        status: httpStatus.CREATED,
-        message: "Group Created",
-        data: {
-          /* Mocked group data */
+    let request;
+
+    beforeEach(() => {
+      request = {
+        body: {
+          // Set your request body properties here
         },
+        query: {
+          tenant: "your-tenant",
+        },
+        user: {
+          _id: "user-id",
+          // Set other user properties here
+        },
+      };
+    });
+
+    it("should create a new group successfully", async () => {
+      const GroupModelMock = {
+        register: sinon.stub().resolves({
+          success: true,
+          data: {
+            _doc: {
+              _id: "group-id",
+              // Set other group properties here
+            },
+          },
+        }),
+      };
+
+      const controlAccessUtilMock = {
+        createRole: sinon.stub().resolves({
+          success: true,
+          data: {
+            _id: "role-id",
+            // Set other role properties here
+          },
+        }),
+        assignPermissionsToRole: sinon.stub().resolves({ success: true }),
+      };
+
+      const UserModelMock = {
+        findByIdAndUpdate: sinon.stub().resolves({
+          _id: "user-id",
+          // Set other user properties here
+          group_roles: [
+            {
+              group: "group-id",
+              role: "role-id",
+            },
+          ],
+        }),
+      };
+
+      // Replace the real module imports with the mocks
+      const result = await createGroup.create(request, {
+        GroupModel: GroupModelMock,
+        controlAccessUtil: controlAccessUtilMock,
+        UserModel: UserModelMock,
       });
 
-      // Mock the request object
-      const request = {
-        body: {
-          /* Mocked request body */
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      expect(result.success).to.equal(true);
+      expect(result.status).to.equal(httpStatus.OK);
 
-      // Call the create()
-      const response = await createGroup.create(request);
-
-      // Assertions
-      expect(response.success).to.equal(true);
-      expect(response.status).to.equal(httpStatus.CREATED);
-      expect(response.message).to.equal("Group Created");
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      groupModelStub.restore();
+      // Verify that the mocks were called correctly
+      sinon.assert.calledOnce(GroupModelMock.register);
+      sinon.assert.calledOnce(controlAccessUtilMock.createRole);
+      sinon.assert.calledOnce(controlAccessUtilMock.assignPermissionsToRole);
+      sinon.assert.calledOnce(UserModelMock.findByIdAndUpdate);
     });
 
-    it("should return an internal server error response when an error occurs", async () => {
-      // Mock GroupModel.register to throw an error
-      const groupModelStub = sinon.stub(GroupModel, "register");
-      groupModelStub.rejects(new Error("Internal Server Error"));
+    it("should handle the case where user details are missing", async () => {
+      request.user = {};
 
-      // Mock the request object
-      const request = {
-        body: {
-          /* Mocked request body */
-        },
-        query: {
-          tenant: "tenant",
-        },
-      };
+      const result = await createGroup.create(request);
 
-      // Call the create()
-      const response = await createGroup.create(request);
-
-      // Assertions
-      expect(response.success).to.equal(false);
-      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(response.errors.message).to.equal("Internal Server Error");
-      // Add more assertions as needed
-      // ...
-
-      // Restore stubs
-      groupModelStub.restore();
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.equal(
+        "creator's details are not provided"
+      );
     });
 
-    // Add more test cases for different scenarios
+    // Add more test cases for error handling, validation, etc.
+
+    afterEach(() => {
+      sinon.restore();
+    });
   });
   describe("update()", () => {
     it("should return a success response when group is successfully updated", async () => {
