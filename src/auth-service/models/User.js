@@ -411,7 +411,7 @@ UserSchema.statics = {
           lol: { $first: "$lol" },
           clients: { $first: "$clients" },
           groups: {
-            $push: {
+            $addToSet: {
               grp_title: { $arrayElemAt: ["$group.grp_title", 0] },
               _id: { $arrayElemAt: ["$group._id", 0] },
               role: {
@@ -432,7 +432,7 @@ UserSchema.statics = {
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$createdAt" },
           networks: {
-            $push: {
+            $addToSet: {
               net_name: { $arrayElemAt: ["$network.net_name", 0] },
               _id: { $arrayElemAt: ["$network._id", 0] },
               role: {
