@@ -414,6 +414,8 @@ UserSchema.statics = {
             $addToSet: {
               grp_title: { $arrayElemAt: ["$group.grp_title", 0] },
               _id: { $arrayElemAt: ["$group._id", 0] },
+              createdAt: { $arrayElemAt: ["$group.createdAt", 0] },
+              status: { $arrayElemAt: ["$group.grp_status", 0] },
               role: {
                 $cond: {
                   if: { $ifNull: ["$group_role", false] },
