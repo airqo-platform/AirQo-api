@@ -104,7 +104,7 @@ router.put(
         .toUpperCase()
         .isIn(["INACTIVE", "ACTIVE"])
         .withMessage(
-          "the tenant value is not among the expected ones, use ACTIVE or INACTIVE"
+          "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
         ),
     ],
   ]),
@@ -152,7 +152,7 @@ router.get(
       .toUpperCase()
       .isIn(["INACTIVE", "ACTIVE"])
       .withMessage(
-        "the tenant value is not among the expected ones, use ACTIVE or INACTIVE"
+        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
       ),
   ]),
   createGroupController.list
