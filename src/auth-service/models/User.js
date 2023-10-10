@@ -338,6 +338,12 @@ UserSchema.statics = {
           foreignField: "net_manager",
           as: "my_networks",
         })
+        .lookup({
+          from: "groups",
+          localField: "_id",
+          foreignField: "grp_manager",
+          as: "my_groups",
+        })
         .addFields({
           createdAt: {
             $dateToString: {
@@ -431,6 +437,7 @@ UserSchema.statics = {
           },
           permissions: { $first: "$permissions" },
           my_networks: { $first: "$my_networks" },
+          my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$createdAt" },
           networks: {

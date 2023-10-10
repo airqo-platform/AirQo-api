@@ -588,6 +588,7 @@ const defaultConfig = {
     },
     updatedAt: 1,
     my_networks: "$my_networks",
+    my_groups: "$my_groups",
   },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -647,6 +648,18 @@ const defaultConfig = {
       "my_networks.net_phoneNumber": 0,
       "my_networks.net_email": 0,
       "my_networks.__v": 0,
+
+      "my_groups.grp_status": 0,
+      "my_groups.grp_description": 0,
+      "my_groups.grp_tasks": 0,
+      "my_groups.grp_manager": 0,
+      "my_groups.grp_manager_username": 0,
+      "my_groups.grp_manager_firstname": 0,
+      "my_groups.grp_manager_lastname": 0,
+      "my_groups.createdAt": 0,
+      "my_groups.updatedAt": 0,
+      "my_groups.__v": 0,
+
       "lol.role_status": 0,
       "lol.role_permissions": 0,
       "lol.role_code": 0,
@@ -675,6 +688,7 @@ const defaultConfig = {
           clients: 0,
           permissions: 0,
           my_networks: 0,
+          my_groups: 0,
         },
         {}
       );
@@ -847,6 +861,7 @@ const defaultConfig = {
       },
     },
     grp_users: "$grp_users",
+    grp_manager: { $arrayElemAt: ["$grp_manager", 0] },
   },
 
   GROUPS_EXCLUSION_PROJECTION: (category) => {
@@ -877,6 +892,29 @@ const defaultConfig = {
       "grp_users.profilePicture": 0,
       "grp_users.network_roles": 0,
       "grp_users.group_roles": 0,
+      "grp_manager.__v": 0,
+      "grp_manager.notifications": 0,
+      "grp_manager.emailConfirmed": 0,
+      "grp_manager.networks": 0,
+      "grp_manager.locationCount": 0,
+      "grp_manager.network": 0,
+      "grp_manager.long_network": 0,
+      "grp_manager.privilege": 0,
+      "grp_manager.userName": 0,
+      "grp_manager.password": 0,
+      "grp_manager.duration": 0,
+      "grp_manager.network_roles": 0,
+      "grp_manager.createdAt": 0,
+      "grp_manager.updatedAt": 0,
+      "grp_manager.groups": 0,
+      "grp_manager.role": 0,
+      "grp_manager.resetPasswordExpires": 0,
+      "grp_manager.resetPasswordToken": 0,
+      "grp_manager.phoneNumber": 0,
+      "grp_manager.organization": 0,
+      "grp_manager.profilePicture": 0,
+      "grp_manager.is_email_verified": 0,
+      "grp_manager.permissions": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -887,6 +925,7 @@ const defaultConfig = {
           grp_description: 0,
           createdAt: 0,
           grp_users: 0,
+          grp_manager: 0,
         }
       );
     }

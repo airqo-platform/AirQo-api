@@ -43,6 +43,10 @@ const createGroup = {
       const user = request.user;
       logObject("the user making the request", user);
       if (!isEmpty(user)) {
+        modifiedBody.grp_manager = ObjectId(user._id);
+        modifiedBody.grp_manager_username = user.email;
+        modifiedBody.grp_manager_firstname = user.firstName;
+        modifiedBody.grp_manager_lastname = user.lastName;
       } else if (isEmpty(user)) {
         return {
           success: false,
