@@ -88,7 +88,7 @@ module.exports = {
                                     <br /><br />
                                  As a first step, we would like to learn more about you so that we can jointly understand how to work together to build a healthier and better community.
                                     <br /><br />
-                                    Kindly complete this <a href = "https://forms.gle/hnf8TzfYWJkdDfX47">Form</a> to provide your information. 
+                                    Kindly complete this <a href = "${constants.CHAMPIONS_FORM}">Form</a> to provide your information. 
                                     <br />
                                 </td>
                             </tr>`;
