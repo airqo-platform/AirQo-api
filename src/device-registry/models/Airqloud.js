@@ -112,6 +112,10 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     airqloud_tags: {
       type: Array,
       default: [],
@@ -146,6 +150,8 @@ airqloudSchema.methods.toJSON = function() {
     _id: this._id,
     name: this.name,
     long_name: this.long_name,
+    network: this.network,
+    group: this.group,
     description: this.description,
     airqloud_tags: this.airqloud_tags,
     admin_level: this.admin_level,

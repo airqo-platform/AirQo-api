@@ -305,25 +305,33 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, role_name, role_code, network_id, role_status, category } =
-        query;
-      const { role_id } = params;
-      let filter = {};
+      const {
+        id,
+        role_id,
+        role_name,
+        role_code,
+        network_id,
+        net_id,
+        grp_id,
+        group_id,
+        role_status,
+        category,
+      } = { ...params, ...query };
 
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-      if (role_id) {
-        filter["_id"] = ObjectId(role_id);
-      }
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
-      }
+      const filter = {};
 
+      if (id || role_id) {
+        filter["_id"] = ObjectId(id || role_id);
+      }
+      if (network_id || net_id) {
+        filter["network_id"] = ObjectId(network_id || net_id);
+      }
+      if (grp_id || group_id) {
+        filter["group_id"] = ObjectId(grp_id || group_id);
+      }
       if (category) {
         filter["category"] = category;
       }
-
       if (role_name) {
         filter["role_name"] = role_name;
       }
@@ -531,7 +539,7 @@ const filter = {
 
   groups: (req) => {
     try {
-      const { grp_title, grp_status } = req.query;
+      const { grp_title, grp_status, category } = req.query;
 
       const { grp_id } = req.params;
 
@@ -546,6 +554,10 @@ const filter = {
         filter["grp_title"] = grp_title;
       }
 
+      if (category) {
+        filter["category"] = category;
+      }
+      logObject("the filter we are sending", filter);
       return filter;
     } catch (err) {
       logger.error(`internal server error, ${JSON.stringify(err)}`);

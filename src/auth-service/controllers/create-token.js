@@ -141,7 +141,7 @@ const createAccessToken = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = req;
       request.query.tenant = tenant;

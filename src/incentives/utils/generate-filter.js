@@ -66,12 +66,16 @@ const generateFilter = {
   },
   sims: (req) => {
     try {
-      const { id } = req.query;
+      const { id, device_id } = req.query;
       const { sim_id } = req.params;
       let filter = {};
 
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (device_id) {
+        filter["deviceId"] = ObjectId(device_id);
       }
 
       if (sim_id) {

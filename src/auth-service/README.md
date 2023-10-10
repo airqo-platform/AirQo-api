@@ -1,8 +1,6 @@
-
-#   Authentication Service
+# Authentication Service
 
 The authentication microservice is a crucial component of our application's security infrastructure. It handles user authentication and authorization, ensuring that only authenticated users can access protected resources.
-
 
 ## Features
 
@@ -13,5 +11,4 @@ The authentication microservice is a crucial component of our application's secu
 - Role-based Authorization: Implements role-based access control (RBAC) to define granular permissions and restrict certain actions to authorized roles.
 - Token Validation: Verifies the authenticity and validity of tokens during authentication and authorization processes.
 - User Profile Management: Allows users to update their profile information, including personal details and preferences.
-- Security Measures: Implements industry-standard security practices, such as password hashing and encryption, to protect user data and prevent unauthorized access.
-
+- Security Measures: Implements industry-standard security practices, such as password hashing and encryption, to protect user data and prevent unauthorized access to AirQo Analytics.

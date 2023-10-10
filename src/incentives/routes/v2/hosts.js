@@ -98,12 +98,52 @@ router.post(
           "phone_number must be a valid one and start with a country code like +256"
         )
         .trim(),
-      body("email")
-        .exists()
-        .withMessage("the email is missing in your request")
-        .bail()
+      body("phone_number_2")
+        .optional()
         .notEmpty()
-        .withMessage("the email should not be empty")
+        .withMessage("the phone_number_2 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_2 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
+      body("phone_number_3")
+        .optional()
+        .notEmpty()
+        .withMessage("the phone_number_3 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_3 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
+      body("phone_number_4")
+        .optional()
+        .notEmpty()
+        .withMessage("the phone_number_4 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_4 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("the email should not be empty IF provided")
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address")
@@ -221,6 +261,48 @@ router.put(
         })
         .withMessage("phone_number must be a valid one")
         .bail(),
+      body("phone_number_2")
+        .optional()
+        .notEmpty()
+        .withMessage("the phone_number_2 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_2 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
+      body("phone_number_3")
+        .optional()
+        .notEmpty()
+        .withMessage("the phone_number_3 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_3 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
+      body("phone_number_4")
+        .optional()
+        .notEmpty()
+        .withMessage("the phone_number_4 must not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage(
+          "phone_number_4 must be a valid one and start with a country code like +256"
+        )
+        .trim(),
       body("email")
         .optional()
         .notEmpty()

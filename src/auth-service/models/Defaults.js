@@ -70,6 +70,12 @@ const DefaultsSchema = new mongoose.Schema(
         ref: "site",
       },
     ],
+    devices: [
+      {
+        type: ObjectId,
+        ref: "device",
+      },
+    ],
     period: { type: periodSchema, required: [true, "period is required!"] },
   },
   {
@@ -95,6 +101,7 @@ DefaultsSchema.methods = {
       chartTitle: this.chartTitle,
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
+      devices: this.devices,
       network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,

@@ -14,6 +14,10 @@ const photoSchema = new Schema(
       type: String,
       trim: true,
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     device_id: {
       type: ObjectId,
     },
@@ -75,6 +79,7 @@ photoSchema.methods = {
       tags: this.tags,
       name: this.name,
       network: this.network,
+      group: this.group,
       image_url: this.image_url,
       device_id: this.device_id,
       site_id: this.site_id,
@@ -150,6 +155,7 @@ photoSchema.statics = {
           description: 1,
           metadata: 1,
           network: 1,
+          group: 1,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 1000)

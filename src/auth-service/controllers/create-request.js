@@ -44,7 +44,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromRequestAccessToGroup.message,
-          candidates: responseFromRequestAccessToGroup.data,
+          request: responseFromRequestAccessToGroup.data,
         });
       } else if (responseFromRequestAccessToGroup.success === false) {
         const status = responseFromRequestAccessToGroup.status
@@ -104,7 +104,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromRequestAccessToNetwork.message,
-          candidates: responseFromRequestAccessToNetwork.data,
+          request: responseFromRequestAccessToNetwork.data,
         });
       } else if (responseFromRequestAccessToNetwork.success === false) {
         const status = responseFromRequestAccessToNetwork.status
@@ -164,7 +164,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromApproveAccessRequest.message,
-          candidates: responseFromApproveAccessRequest.data,
+          requests: responseFromApproveAccessRequest.data,
         });
       } else if (responseFromApproveAccessRequest.success === false) {
         const status = responseFromApproveAccessRequest.status
@@ -225,7 +225,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromRejectAccessRequest.message,
-          candidates: responseFromRejectAccessRequest.data,
+          requests: responseFromRejectAccessRequest.data,
         });
       } else if (responseFromRejectAccessRequest.success === false) {
         const status = responseFromRejectAccessRequest.status
@@ -284,7 +284,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromListAccessRequest.message,
-          candidates: responseFromListAccessRequest.data,
+          requests: responseFromListAccessRequest.data,
         });
       } else if (responseFromListAccessRequest.success === false) {
         const status = responseFromListAccessRequest.status
@@ -344,7 +344,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromListAccessRequest.message,
-          candidates: responseFromListAccessRequest.data,
+          requests: responseFromListAccessRequest.data,
         });
       } else if (responseFromListAccessRequest.success === false) {
         const status = responseFromListAccessRequest.status
@@ -404,7 +404,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromListAccessRequest.message,
-          candidates: responseFromListAccessRequest.data,
+          requests: responseFromListAccessRequest.data,
         });
       } else if (responseFromListAccessRequest.success === false) {
         const status = responseFromListAccessRequest.status
@@ -462,7 +462,7 @@ const createAccessRequest = {
         return res.status(status).json({
           success: true,
           message: responseFromListAccessRequest.message,
-          candidates: responseFromListAccessRequest.data,
+          requests: responseFromListAccessRequest.data,
         });
       } else if (responseFromListAccessRequest.success === false) {
         const status = responseFromListAccessRequest.status
