@@ -153,6 +153,14 @@ const createSim = {
       const { sim_id } = request.params;
       const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
       logObject("the sim", sim);
+      if (isEmpty(sim)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `${sim_id} provided does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_STATUS_URL)
@@ -290,7 +298,16 @@ const createSim = {
       };
       const { tenant } = request.query;
       const { sim_id } = req.params;
-      const sim = await SimModel(tenant).findById(ObjectId(sim_id));
+      const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
+      logObject("the sim", sim);
+      if (isEmpty(sim)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `${sim_id} provided does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_ACTIVATE_URL)
@@ -376,7 +393,16 @@ const createSim = {
       s;
       const { tenant } = request.query;
       const { sim_id } = req.params;
-      const sim = await SimModel(tenant).findById(ObjectId(sim_id));
+      const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
+      logObject("the sim", sim);
+      if (isEmpty(sim)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `${sim_id} provided does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_DEACTIVATE_URL)
@@ -462,7 +488,16 @@ const createSim = {
       const { tenant } = request.query;
       const { name } = request.body;
       const { sim_id } = req.params;
-      const sim = await SimModel(tenant).findById(ObjectId(sim_id));
+      const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
+      logObject("the sim", sim);
+      if (isEmpty(sim)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `${sim_id} provided does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_UPDATE_SIM_NAME_URL)
@@ -549,7 +584,16 @@ const createSim = {
       const { tenant } = request.query;
       const { amount } = request.body;
       const { sim_id } = req.params;
-      const sim = await SimModel(tenant).findById(ObjectId(sim_id));
+      const sim = await SimModel(tenant).findById(ObjectId(sim_id)).lean();
+      logObject("the sim", sim);
+      if (isEmpty(sim)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `${sim_id} provided does not exist` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       if (
         isEmpty(constants.THINGS_MOBILE_BASE_URL) ||
         isEmpty(constants.THINGS_MOBILE_RECHARGE_URL)

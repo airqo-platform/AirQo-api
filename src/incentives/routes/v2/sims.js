@@ -53,6 +53,83 @@ router.post(
         .isInt()
         .withMessage("the msisdn should be a number")
         .trim(),
+      body("simBarcode")
+        .optional()
+        .notEmpty()
+        .withMessage("simBarcode should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("plan")
+        .optional()
+        .notEmpty()
+        .withMessage("plan should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("status")
+        .optional()
+        .notEmpty()
+        .withMessage("status should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("activationDate")
+        .optional()
+        .notEmpty()
+        .withMessage("activationDate should not be empty IF provided")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("activationDate must be a valid datetime."),
+      body("active")
+        .optional()
+        .notEmpty()
+        .withMessage("active should not be empty IF provided")
+        .bail()
+        .isBoolean()
+        .withMessage("active must be Boolean")
+        .trim(),
+      body("balance")
+        .optional()
+        .notEmpty()
+        .withMessage("the balance should not be empty IF provided")
+        .bail()
+        .isInt()
+        .withMessage("the balance should be a number")
+        .trim(),
+      body("dataBalanceThreshold")
+        .optional()
+        .notEmpty()
+        .withMessage("the dataBalanceThreshold should not be empty IF provided")
+        .bail()
+        .isInt()
+        .withMessage("the dataBalanceThreshold should be a number")
+        .trim(),
+      body("totalTraffic")
+        .optional()
+        .notEmpty()
+        .withMessage("the totalTraffic should not be empty IF provided")
+        .bail()
+        .isInt()
+        .withMessage("the totalTraffic should be a number")
+        .trim(),
+      body("deviceId")
+        .optional()
+        .notEmpty()
+        .withMessage("the deviceId cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("deviceId must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   createSimController.create
@@ -145,6 +222,75 @@ router.put(
         .withMessage(
           "the dataBalanceThreshold in some of the inputs should be an integer value"
         ),
+      body("simBarcode")
+        .optional()
+        .notEmpty()
+        .withMessage("simBarcode should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("plan")
+        .optional()
+        .notEmpty()
+        .withMessage("plan should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("status")
+        .optional()
+        .notEmpty()
+        .withMessage("status should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("activationDate")
+        .optional()
+        .notEmpty()
+        .withMessage("activationDate should not be empty IF provided")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("activationDate must be a valid datetime."),
+      body("active")
+        .optional()
+        .notEmpty()
+        .withMessage("active should not be empty IF provided")
+        .bail()
+        .isBoolean()
+        .withMessage("active must be Boolean")
+        .trim(),
+      body("balance")
+        .optional()
+        .notEmpty()
+        .withMessage("the balance should not be empty IF provided")
+        .bail()
+        .isInt()
+        .withMessage("the balance should be a number")
+        .trim(),
+      body("totalTraffic")
+        .optional()
+        .notEmpty()
+        .withMessage("the totalTraffic should not be empty IF provided")
+        .bail()
+        .isInt()
+        .withMessage("the totalTraffic should be a number")
+        .trim(),
+      body("deviceId")
+        .optional()
+        .notEmpty()
+        .withMessage("the deviceId cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("deviceId must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   createSimController.update
