@@ -76,7 +76,7 @@ jobs:
         run: |
           cd src/airflow
           pip install -r requirements.txt
-          pytest --cov airqo_etl_utils/tests/
+          pytest --cov airqo_etl_utils/tests/* --verbose
         
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
