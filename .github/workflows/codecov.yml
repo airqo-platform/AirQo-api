@@ -66,10 +66,7 @@ jobs:
   airflow:
     runs-on: ubuntu-latest
     continue-on-error: true
-    defaults:
-      run:
-        working-directory: src/airflow
-    name: Code Coverage for Airflow service
+    name: Code Coverage for Airflow
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -81,7 +78,8 @@ jobs:
       
       - name: Run tests and collect coverage
         # continue-on-error: true
-        run:
+        run: |
+          cd src/airflow
           pytest airqo_etl_utils/tests/* -v
         
       - name: Upload coverage reports to Codecov
