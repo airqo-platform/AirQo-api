@@ -420,7 +420,7 @@ const generateFilter = {
       network,
       group,
       google_place_id,
-    } = { ...req.query, ...req.params };
+    } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
 
     if (name) {
