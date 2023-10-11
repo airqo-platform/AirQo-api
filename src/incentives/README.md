@@ -2,7 +2,7 @@
 
 The Incentives API is a service that facilitates the management of hosts' data and the loading of data bundles onto devices' SIM cards. It allows organizations to efficiently manage data provisioning.
 
-## Use Cases
+## The Use Cases
 
 - Adding and updating hosts' data.
 - Loading data bundles onto devices' SIM cards.
@@ -94,4 +94,4 @@ The API handles sensitive data such as payment details and mobile money accounts
 The API has usage limits and fair usage policies in place to prevent abuse and maintain a high-quality service.
 
 **Update:**
-The scope of the service is now shifting towards IoT sim card management as the main focus. 
+The scope of the service is now shifting towards IoT sim card management as the main focus.
