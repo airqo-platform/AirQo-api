@@ -146,7 +146,7 @@ const createActivity = {
       } else if (responseFromDeviceSearchCheck.success === false) {
         const filter = { _id: ObjectId(site_id) };
         const responseFromListSite = await createSiteUtil.list({
-          tenant,
+          query,
           filter,
         });
         if (responseFromListSite.success === true) {
