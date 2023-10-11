@@ -21,6 +21,10 @@ const GroupSchema = new Schema(
       type: String,
       required: [true, "grp_description is required"],
     },
+    grp_manager: { type: ObjectId },
+    grp_manager_username: { type: String },
+    grp_manager_firstname: { type: String },
+    grp_manager_lastname: { type: String },
   },
   {
     timestamps: true,
@@ -42,6 +46,10 @@ GroupSchema.methods = {
       grp_tasks: this.grp_tasks,
       grp_description: this.grp_description,
       createdAt: this.createdAt,
+      grp_manager: this.grp_manager,
+      grp_manager_username: this.grp_manager_username,
+      grp_manager_firstname: this.grp_manager_firstname,
+      grp_manager_lastname: this.grp_manager_lastname,
     };
   },
 };
@@ -114,6 +122,7 @@ GroupSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      logObject("filter", filter);
       const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.GROUPS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
@@ -128,8 +137,14 @@ GroupSchema.statics = {
         .lookup({
           from: "users",
           localField: "_id",
-          foreignField: "groups.group",
+          foreignField: "group_roles.group",
           as: "grp_users",
+        })
+        .lookup({
+          from: "users",
+          localField: "grp_manager",
+          foreignField: "_id",
+          as: "grp_manager",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)

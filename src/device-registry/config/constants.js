@@ -754,6 +754,7 @@ const defaultConfig = {
     lat_long: 1,
     country: 1,
     network: 1,
+    group: 1,
     data_provider: 1,
     district: 1,
     sub_county: 1,
@@ -992,6 +993,7 @@ const defaultConfig = {
     mobility: 1,
     status: 1,
     network: 1,
+    group: 1,
     category: 1,
     cohorts: 1,
     previous_sites: 1,
@@ -1197,6 +1199,7 @@ const defaultConfig = {
     centers: 1,
     shape: 1,
     network: 1,
+    group: 1,
     sites: "$sites",
     numberOfSites: {
       $cond: {
@@ -1276,6 +1279,7 @@ const defaultConfig = {
     name: 1,
     description: 1,
     cohort_tags: 1,
+    group: 1,
     visibility: 1,
     cohort_codes: 1,
     devices: "$devices",
@@ -1416,6 +1420,8 @@ const defaultConfig = {
     description: 1,
     airqloud_tags: 1,
     isCustom: 1,
+    network: 1,
+    group: 1,
     metadata: 1,
     center_point: 1,
     sites: "$sites",
@@ -1459,19 +1465,31 @@ const defaultConfig = {
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      projection = Object.assign(
-        {},
-        {
-          location: 0,
-          isCustom: 0,
-          metadata: 0,
-          center_point: 0,
-          airqloud_codes: 0,
-          description: 0,
-          airqloud_tags: 0,
-          sites: 0,
-        }
-      );
+      projection = Object.assign(initialProjection, {
+        location: 0,
+        isCustom: 0,
+        metadata: 0,
+        center_point: 0,
+        airqloud_codes: 0,
+        description: 0,
+        airqloud_tags: 0,
+        "sites.approximate_latitude": 0,
+        "sites.approximate_longitude": 0,
+        "sites.bearing_in_radians": 0,
+        "sites.approximate_distance_in_km": 0,
+        "sites.generated_name": 0,
+        "sites.location_name": 0,
+        "sites.search_name": 0,
+        "sites.images": 0,
+        "sites.land_use": 0,
+        "sites.city": 0,
+        "sites.district": 0,
+        "sites.county": 0,
+        "sites.region": 0,
+        "sites.country": 0,
+        "sites.latitude": 0,
+        "sites.longitude": 0,
+      });
     }
     if (category === "dashboard") {
       projection = Object.assign(initialProjection, { location: 0 });
@@ -1655,6 +1673,7 @@ const defaultConfig = {
     date: 1,
     description: 1,
     network: 1,
+    group: 1,
     activityType: 1,
     maintenanceType: 1,
     recallType: 1,

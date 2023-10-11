@@ -32,7 +32,10 @@ const RoleSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network_id is required"],
+    },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
     },
     role_permissions: [
       {
@@ -140,6 +143,12 @@ RoleSchema.statics = {
           localField: "network_id",
           foreignField: "_id",
           as: "network",
+        })
+        .lookup({
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          as: "group",
         })
         .lookup({
           from: "permissions",

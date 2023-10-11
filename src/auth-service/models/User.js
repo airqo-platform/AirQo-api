@@ -113,19 +113,23 @@ const UserSchema = new Schema(
       default: [],
       _id: false,
     },
-
-    groups: {
+    group_roles: {
       type: [
         {
           group: {
             type: ObjectId,
             ref: "group",
           },
+          role: {
+            type: ObjectId,
+            ref: "role",
+          },
         },
       ],
       default: [],
       _id: false,
     },
+
     permissions: [
       {
         type: ObjectId,
@@ -334,6 +338,12 @@ UserSchema.statics = {
           foreignField: "net_manager",
           as: "my_networks",
         })
+        .lookup({
+          from: "groups",
+          localField: "_id",
+          foreignField: "grp_manager",
+          as: "my_groups",
+        })
         .addFields({
           createdAt: {
             $dateToString: {
@@ -347,7 +357,7 @@ UserSchema.statics = {
           preserveNullAndEmptyArrays: true,
         })
         .unwind({
-          path: "$groups",
+          path: "$group_roles",
           preserveNullAndEmptyArrays: true,
         })
         .lookup({
@@ -357,16 +367,34 @@ UserSchema.statics = {
           as: "network",
         })
         .lookup({
+          from: "groups",
+          localField: "group_roles.group",
+          foreignField: "_id",
+          as: "group",
+        })
+        .lookup({
           from: "roles",
           localField: "network_roles.role",
           foreignField: "_id",
-          as: "role",
+          as: "network_role",
+        })
+        .lookup({
+          from: "roles",
+          localField: "group_roles.role",
+          foreignField: "_id",
+          as: "group_role",
         })
         .lookup({
           from: "permissions",
-          localField: "role.role_permissions",
+          localField: "network_role.role_permissions",
           foreignField: "_id",
-          as: "role_permissions",
+          as: "network_role_permissions",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "group_role.role_permissions",
+          foreignField: "_id",
+          as: "group_role_permissions",
         })
         .group({
           _id: "$_id",
@@ -388,21 +416,41 @@ UserSchema.statics = {
           phoneNumber: { $first: "$phoneNumber" },
           lol: { $first: "$lol" },
           clients: { $first: "$clients" },
+          groups: {
+            $addToSet: {
+              grp_title: { $arrayElemAt: ["$group.grp_title", 0] },
+              _id: { $arrayElemAt: ["$group._id", 0] },
+              createdAt: { $arrayElemAt: ["$group.createdAt", 0] },
+              status: { $arrayElemAt: ["$group.grp_status", 0] },
+              role: {
+                $cond: {
+                  if: { $ifNull: ["$group_role", false] },
+                  then: {
+                    _id: { $arrayElemAt: ["$group_role._id", 0] },
+                    role_name: { $arrayElemAt: ["$group_role.role_name", 0] },
+                    role_permissions: "$group_role_permissions",
+                  },
+                  else: null,
+                },
+              },
+            },
+          },
           permissions: { $first: "$permissions" },
           my_networks: { $first: "$my_networks" },
+          my_groups: { $first: "$my_groups" },
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$createdAt" },
           networks: {
-            $push: {
+            $addToSet: {
               net_name: { $arrayElemAt: ["$network.net_name", 0] },
               _id: { $arrayElemAt: ["$network._id", 0] },
               role: {
                 $cond: {
-                  if: { $ifNull: ["$role", false] },
+                  if: { $ifNull: ["$network_role", false] },
                   then: {
-                    _id: { $arrayElemAt: ["$role._id", 0] },
-                    role_name: { $arrayElemAt: ["$role.role_name", 0] },
-                    role_permissions: "$role_permissions",
+                    _id: { $arrayElemAt: ["$network_role._id", 0] },
+                    role_name: { $arrayElemAt: ["$network_role.role_name", 0] },
+                    role_permissions: "$network_role_permissions",
                   },
                   else: null,
                 },
@@ -602,14 +650,17 @@ const UserModel = (tenant) => {
 UserSchema.methods.createToken = async function () {
   try {
     const filter = { _id: this._id };
-    const userWithNetworks = await UserModel("airqo").list({ filter });
-    if (userWithNetworks.success && userWithNetworks.success === false) {
+    const userWithDerivedAttributes = await UserModel("airqo").list({ filter });
+    if (
+      userWithDerivedAttributes.success &&
+      userWithDerivedAttributes.success === false
+    ) {
       logger.error(
-        `Internal Server Error -- ${JSON.stringify(userWithNetworks)}`
+        `Internal Server Error -- ${JSON.stringify(userWithDerivedAttributes)}`
       );
-      return userWithNetworks;
+      return userWithDerivedAttributes;
     } else {
-      const user = userWithNetworks.data[0];
+      const user = userWithDerivedAttributes.data[0];
       logObject("user", user);
       return jwt.sign(
         {
@@ -628,7 +679,6 @@ UserSchema.methods.createToken = async function () {
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
-          networks: user.networks,
         },
         constants.JWT_SECRET
       );

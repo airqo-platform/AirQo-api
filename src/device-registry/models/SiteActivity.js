@@ -37,6 +37,10 @@ const activitySchema = new Schema(
       type: String,
       trim: true,
     },
+    group: {
+      type: String,
+      trim: true,
+    },
     activityType: { type: String, trim: true },
     activity_codes: [
       {
@@ -63,6 +67,7 @@ activitySchema.methods = {
       _id: this._id,
       device: this.device,
       network: this.network,
+      group: this.group,
       date: this.date,
       description: this.description,
       activityType: this.activityType,

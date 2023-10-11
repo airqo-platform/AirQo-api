@@ -457,6 +457,7 @@ const defaultConfig = {
     role_permissions: 1,
     role_users: 1,
     network: { $arrayElemAt: ["$network", 0] },
+    group: { $arrayElemAt: ["$group", 0] },
     createdAt: 1,
     updatedAt: 1,
   },
@@ -575,31 +576,9 @@ const defaultConfig = {
     profilePicture: 1,
     phoneNumber: 1,
     lol: { $ifNull: [{ $arrayElemAt: ["$lol", 0] }, null] },
-    networks: {
-      $filter: {
-        input: "$networks",
-        as: "network",
-        cond: {
-          $and: [
-            { $ne: ["$$network.net_name", null] },
-            { $ne: ["$$network._id", null] },
-            {
-              $or: [
-                {
-                  $eq: [
-                    { $ifNull: ["$$network.role.role_permissions", []] },
-                    [],
-                  ],
-                },
-                { $ne: ["$$network.role.role_permissions", null] },
-              ],
-            },
-          ],
-        },
-      },
-    },
-
+    networks: "$networks",
     clients: "$clients",
+    groups: "$groups",
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
@@ -609,14 +588,13 @@ const defaultConfig = {
     },
     updatedAt: 1,
     my_networks: "$my_networks",
+    my_groups: "$my_groups",
   },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
       "networks.__v": 0,
       "networks.net_status": 0,
       "networks.net_acronym": 0,
-      "networks.createdAt": 0,
-      "networks.updatedAt": 0,
       "networks.net_users": 0,
       "networks.net_roles": 0,
       "networks.net_groups": 0,
@@ -650,8 +628,6 @@ const defaultConfig = {
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
       "groups.__v": 0,
-      "groups.createdAt": 0,
-      "groups.updatedAt": 0,
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -672,6 +648,18 @@ const defaultConfig = {
       "my_networks.net_phoneNumber": 0,
       "my_networks.net_email": 0,
       "my_networks.__v": 0,
+
+      "my_groups.grp_status": 0,
+      "my_groups.grp_description": 0,
+      "my_groups.grp_tasks": 0,
+      "my_groups.grp_manager": 0,
+      "my_groups.grp_manager_username": 0,
+      "my_groups.grp_manager_firstname": 0,
+      "my_groups.grp_manager_lastname": 0,
+      "my_groups.createdAt": 0,
+      "my_groups.updatedAt": 0,
+      "my_groups.__v": 0,
+
       "lol.role_status": 0,
       "lol.role_permissions": 0,
       "lol.role_code": 0,
@@ -700,6 +688,7 @@ const defaultConfig = {
           clients: 0,
           permissions: 0,
           my_networks: 0,
+          my_groups: 0,
         },
         {}
       );
@@ -864,7 +853,15 @@ const defaultConfig = {
     grp_tasks: 1,
     grp_description: 1,
     createdAt: 1,
+    numberOfGroupUsers: {
+      $cond: {
+        if: { $isArray: "$grp_users" },
+        then: { $size: "$grp_users" },
+        else: "NA",
+      },
+    },
     grp_users: "$grp_users",
+    grp_manager: { $arrayElemAt: ["$grp_manager", 0] },
   },
 
   GROUPS_EXCLUSION_PROJECTION: (category) => {
@@ -882,10 +879,55 @@ const defaultConfig = {
       "grp_users.duration": 0,
       "grp_users.createdAt": 0,
       "grp_users.updatedAt": 0,
+      "grp_users.updatedAt": 0,
+      "grp_users.organization": 0,
+      "grp_users.jobTitle": 0,
+      "grp_users.website": 0,
+      "grp_users.category": 0,
+      "grp_users.resetPasswordExpires": 0,
+      "grp_users.resetPasswordToken": 0,
+      "grp_users.phoneNumber": 0,
+      "grp_users.networks": 0,
+      "grp_users.role": 0,
+      "grp_users.profilePicture": 0,
+      "grp_users.network_roles": 0,
+      "grp_users.group_roles": 0,
+      "grp_manager.__v": 0,
+      "grp_manager.notifications": 0,
+      "grp_manager.emailConfirmed": 0,
+      "grp_manager.networks": 0,
+      "grp_manager.locationCount": 0,
+      "grp_manager.network": 0,
+      "grp_manager.long_network": 0,
+      "grp_manager.privilege": 0,
+      "grp_manager.userName": 0,
+      "grp_manager.password": 0,
+      "grp_manager.duration": 0,
+      "grp_manager.network_roles": 0,
+      "grp_manager.createdAt": 0,
+      "grp_manager.updatedAt": 0,
+      "grp_manager.groups": 0,
+      "grp_manager.role": 0,
+      "grp_manager.resetPasswordExpires": 0,
+      "grp_manager.resetPasswordToken": 0,
+      "grp_manager.phoneNumber": 0,
+      "grp_manager.organization": 0,
+      "grp_manager.profilePicture": 0,
+      "grp_manager.is_email_verified": 0,
+      "grp_manager.permissions": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      projection = Object.assign({}, {});
+      projection = Object.assign(
+        {},
+        {
+          grp_tasks: 0,
+          grp_description: 0,
+          createdAt: 0,
+          grp_users: 0,
+          grp_manager: 0,
+        }
+      );
     }
     return projection;
   },

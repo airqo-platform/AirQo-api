@@ -53,6 +53,18 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("group_id")
+        .optional()
+        .notEmpty()
+        .withMessage("group_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("groups_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -94,6 +106,34 @@ router.post(
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
+  ]),
+  oneOf([
+    body("network_id")
+      .exists()
+      .withMessage(
+        "the organisation identifier is missing in request, consider using the network_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("group_id")
+      .exists()
+      .withMessage(
+        "the organisation identifier is missing in request, consider using the group_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("group_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ]),
 
   oneOf([
@@ -141,17 +181,6 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("the role_permission must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("network_id")
-        .exists()
-        .withMessage("network_id must be provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("network_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -224,6 +253,18 @@ router.put(
         .trim()
         .isMongoId()
         .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("group_id")
+        .optional()
+        .notEmpty()
+        .withMessage("group_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("group_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
