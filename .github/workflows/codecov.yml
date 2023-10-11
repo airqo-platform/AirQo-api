@@ -80,9 +80,9 @@ jobs:
           pip install -r requirements.txt
       
       - name: Run tests and collect coverage
-        continue-on-error: true
+        # continue-on-error: true
         run:
-          pytest airqo_etl_utils/tests/*
+          pytest airqo_etl_utils/tests/* -v
         
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
