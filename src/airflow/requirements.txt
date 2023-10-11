@@ -19,3 +19,5 @@ pymongo~=4.4.1
 optuna
 pytest~=7.4.0
 scipy~=1.11.1
+coverage
+pytest-cov
