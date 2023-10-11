@@ -982,13 +982,8 @@ class AirQoDataUtils:
             ]
 
             try:
-                db.faulty_devices.bulk_write(bulk_ops)
+                db.faulty_devices_1.bulk_write(bulk_ops)
             except Exception as e:
                 print(f"Error saving faulty devices to MongoDB: {e}")
-
-            current_device_names = [record["device_name"] for record in records]
-            db.faulty_devices.delete_many(
-                {"device_name": {"$nin": current_device_names}}
-            )
 
             print("Faulty devices saved/updated to MongoDB")
