@@ -42,9 +42,9 @@ class TestsForecasts(ForecastFixtures):
                 feat_eng_sample_df_daily, "pm2_5", "annually"
             )
 
-    def test_hourly_freq(self, sample_hourly_dataframe):
+    def test_hourly_freq(self, feat_eng_sample_df_hourly):
         hourly_df = FUtils.get_lag_and_roll_features(
-            sample_hourly_dataframe, "pm2_5", "hourly"
+            feat_eng_sample_df_hourly, "pm2_5", "hourly"
         )
         for s in [1, 2, 6, 12]:
             assert f"pm2_5_last_{s}_hour" in hourly_df.columns

@@ -6,23 +6,6 @@ import pytest
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 
-
-@pytest.fixture
-def mock_bigquery_client1(mocker):
-    mock_client = mocker.Mock()
-    mock_client.query.return_value.result.return_value.to_dataframe.return_value = (
-        pd.DataFrame(
-            [
-                ["2021-01-01 00:00:00", 1, 10],
-                ["2021-01-01 01:00:00", 2, 20],
-                ["2021-01-01 02:00:00", 3, 30],
-            ],
-            columns=["created_at", "device_number", "pm2_5"],
-        )
-    )
-    return mock_client
-
-
 @pytest.fixture
 def mock_bigquery_client2():
     """A fixture that mocks the bigquery.Client object."""
@@ -129,9 +112,9 @@ def test_fetch_data_bigquery_error(mock_bigquery_client2, start_date_time):
         bq_api.fetch_data(start_date_time)
 
 
-def test_fetch_raw_readings_empty(mock_bigquery_client):
+def test_fetch_raw_readings_empty(mock_bigquery_client2):
     api = BigQueryApi()
-    api.client = mock_bigquery_client
+    api.client = mock_bigquery_client2
     api.client.query.return_value.result.return_value.to_dataframe.return_value = (
         pd.DataFrame()
     )
