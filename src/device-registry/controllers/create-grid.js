@@ -748,7 +748,7 @@ const createGrid = {
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      request.query.summary = "yes";
+      request.query.category = "summary";
       const responseFromListGrids = await createGridUtil.list(request);
       logElement(
         "has the response for listing grids been successful?",
