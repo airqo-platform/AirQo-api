@@ -41,9 +41,20 @@ const HostSchema = new Schema(
       required: [true, "phone_number is required"],
       trim: true,
     },
+    phone_number_2: {
+      type: Number,
+      trim: true,
+    },
+    phone_number_3: {
+      type: Number,
+      trim: true,
+    },
+    phone_number_4: {
+      type: Number,
+      trim: true,
+    },
     email: {
       type: String,
-      required: [true, "email is required"],
       trim: true,
     },
     site_id: {
@@ -202,13 +213,26 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}) {
 };
 
 HostSchema.methods.toJSON = function () {
-  const { _id, first_name, last_name, site_id, phone_number, network } = this;
+  const {
+    _id,
+    first_name,
+    last_name,
+    site_id,
+    phone_number,
+    phone_number_2,
+    phone_number_3,
+    phone_number_4,
+    network,
+  } = this;
   return {
     _id,
     first_name,
     last_name,
     site_id,
     phone_number,
+    phone_number_2,
+    phone_number_3,
+    phone_number_4,
     network,
   };
 };

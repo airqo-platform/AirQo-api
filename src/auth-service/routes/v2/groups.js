@@ -100,9 +100,12 @@ router.put(
         .notEmpty()
         .withMessage("the grp_status should not be empty if provided")
         .bail()
-        .isBoolean()
-        .withMessage("the grp_status should be a boolean")
-        .trim(),
+        .trim()
+        .toUpperCase()
+        .isIn(["INACTIVE", "ACTIVE"])
+        .withMessage(
+          "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
+        ),
     ],
   ]),
   setJWTAuth,
@@ -144,7 +147,13 @@ router.get(
       .trim()
       .notEmpty()
       .withMessage("grp_status should not be empty IF provided")
-      .bail(),
+      .bail()
+      .trim()
+      .toUpperCase()
+      .isIn(["INACTIVE", "ACTIVE"])
+      .withMessage(
+        "the grp_status value is not among the expected ones, use ACTIVE or INACTIVE"
+      ),
   ]),
   createGroupController.list
 );
@@ -447,6 +456,39 @@ router.delete(
   setJWTAuth,
   authJWT,
   createGroupController.unAssignManyUsers
+);
+router.get(
+  "/:grp_id/roles",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the group ID param is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("the group ID param cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the group ID provided must be an object ID"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.listRolesForGroup
 );
 router.get(
   "/:grp_id",

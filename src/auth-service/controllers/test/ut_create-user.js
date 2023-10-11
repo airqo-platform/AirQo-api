@@ -8,6 +8,7 @@ const controlAccessUtil = require("@utils/control-access");
 const createUser = require("@controllers/create-user");
 chai.use(require("sinon-chai"));
 const { validationResult } = require("express-validator");
+const UserModel = require("@models/User");
 
 describe("createUserController", () => {
   describe("listStatistics", () => {
@@ -1391,44 +1392,71 @@ describe("createUserController", () => {
       createUserUtil.create.restore();
     });
   });
-  describe("login", () => {
-    it("should return a successful response when user login is successful", async () => {
-      // Mock the request and response objects
+  describe("login()", () => {
+    it("should return a valid response when user login is successful", async () => {
+      const fakeUser = {
+        _id: "fakeUserId",
+        userName: "johndoe",
+        email: "john@example.com",
+        toAuthJSON: async () => ({
+          _id: "fakeUserId",
+          userName: "johndoe",
+          token: "fakeToken",
+          email: "john@example.com",
+        }),
+      };
+
+      // Mock Express request and response objects
       const req = {
-        query: {
-          // Add the required properties of the query object for tenant
-        },
-        auth: {
-          success: true,
-          // Add other properties of the auth object if needed for testing
-        },
-        user: {
-          // Add the properties of the user object returned from the auth middleware
-        },
+        query: { tenant: "airqo" },
+        auth: { success: true },
       };
       const res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
 
-      // Call the controller function
-      await loginController.login(req, res);
+      // Stub validationResult to return no errors
+      sinon.stub(validationResult, "isEmpty").returns(true);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledWith(req.user.toAuthJSON())).to.be.true;
+      // Stub UserModel to return the fake user
+      sinon.stub(UserModel("airqo"), "list").resolves({
+        success: true,
+        data: [fakeUser],
+      });
+
+      try {
+        await createUser.login(req, res);
+
+        // Verify that the response status is HTTP OK
+        expect(res.status.calledWith(httpStatus.OK)).to.be.true;
+
+        // Verify the response JSON
+        expect(res.json.calledOnce).to.be.true;
+        expect(res.json.firstCall.args[0]).to.deep.equal({
+          _id: "fakeUserId",
+          userName: "johndoe",
+          token: "fakeToken",
+          email: "john@example.com",
+        });
+      } catch (error) {
+        // Handle any unexpected errors
+        throw error;
+      } finally {
+        // Restore the stubs and mocks
+        validationResult.isEmpty.restore();
+        UserModel("airqo").list.restore();
+      }
     });
 
-    it("should return an error response when user login fails", async () => {
-      // Mock the request and response objects
+    it("should return a valid response when user login fails", async () => {
+      // Mock Express request and response objects
       const req = {
-        query: {
-          // Add the required properties of the query object for tenant
-        },
+        query: { tenant: "airqo" },
         auth: {
           success: false,
+          error: "Login failed",
           message: "Invalid credentials",
-          // Add other properties of the auth object if needed for testing
         },
       };
       const res = {
@@ -1436,50 +1464,80 @@ describe("createUserController", () => {
         json: sinon.stub(),
       };
 
-      // Call the controller function
-      await loginController.login(req, res);
+      // Stub validationResult to return no errors
+      sinon.stub(validationResult, "isEmpty").returns(true);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(
-        res.json.calledWith({
+      try {
+        await createUser.login(req, res);
+
+        // Verify that the response status is HTTP BAD REQUEST
+        expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
+
+        // Verify the response JSON
+        expect(res.json.calledOnce).to.be.true;
+        expect(res.json.firstCall.args[0]).to.deep.equal({
           success: false,
+          error: "Login failed",
           message: "Invalid credentials",
-        })
-      ).to.be.true;
+        });
+      } catch (error) {
+        // Handle any unexpected errors
+        throw error;
+      } finally {
+        // Restore the stubs and mocks
+        validationResult.isEmpty.restore();
+      }
     });
 
-    it("should return a redirection response when the account has been moved permanently", async () => {
-      // Mock the request and response objects
+    it("should return a valid response when input validation errors occur", async () => {
+      // Mock Express request and response objects
       const req = {
-        query: {
-          tenant: "example_tenant",
-          // Add the required properties of the query object for tenant
-        },
+        query: { tenant: "airqo" },
+        auth: { success: true },
       };
       const res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
 
-      // Call the controller function
-      await loginController.login(req, res);
+      // Stub validationResult to return validation errors
+      sinon.stub(validationResult, "isEmpty").returns(false);
+      sinon.stub(validationResult, "errors").value([
+        {
+          nestedErrors: [
+            { msg: "Invalid username", param: "userName" },
+            { msg: "Invalid email", param: "email" },
+          ],
+        },
+      ]);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.MOVED_PERMANENTLY)).to.be.true;
-      expect(
-        res.json.calledWith({
-          message:
-            "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
-          location: "https://platform.airqo.net/",
-          errors: {
-            message:
-              "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
-            location: "https://platform.airqo.net/",
+      try {
+        await createUser.login(req, res);
+
+        // Verify that the response status is HTTP BAD REQUEST
+        expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
+
+        // Verify the response JSON
+        expect(res.json.calledOnce).to.be.true;
+        expect(res.json.firstCall.args[0]).to.deep.equal({
+          success: false,
+          error: "bad request errors",
+          message: {
+            userName: "Invalid username",
+            email: "Invalid email",
           },
-        })
-      ).to.be.true;
+        });
+      } catch (error) {
+        // Handle any unexpected errors
+        throw error;
+      } finally {
+        // Restore the stubs and mocks
+        validationResult.isEmpty.restore();
+        validationResult.errors.restore();
+      }
     });
+
+    // Add more test cases as needed to cover various scenarios
   });
   describe("guest", () => {
     it("should return a successful response with the guestId when the guest session is created successfully", async () => {

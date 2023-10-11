@@ -34,16 +34,6 @@ const convertToUpperCaseWithUnderscore = (inputString) => {
   }
 };
 
-const convertToLowerCaseWithUnderscore = (inputString) => {
-  try {
-    const uppercaseString = inputString.toLowerCase();
-    const transformedString = uppercaseString.replace(/ /g, "_");
-    return transformedString;
-  } catch (error) {
-    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
-  }
-};
-
 const findNetworkIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -61,15 +51,34 @@ const findNetworkIdForRole = async ({
   return null;
 };
 
+const findGroupIdForRole = async ({
+  role_id,
+  tenant = "airqo",
+  groupRoles,
+} = {}) => {
+  for (const groupRole of groupRoles) {
+    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    if (
+      groupRole.group &&
+      groupRole.group.toString() === RoleDetails.group_id.toString()
+    ) {
+      return groupRole.group;
+    }
+  }
+  return null;
+};
+
 const isUserSuperAdmin = async ({
   networkId,
+  groupId,
   networkRoles,
+  groupRoles,
   tenant = "airqo",
 }) => {
-  for (const netRole of networkRoles) {
-    if (netRole.network.toString() === networkId.toString()) {
+  for (const role of networkRoles) {
+    if (role.network && role.network.toString() === networkId.toString()) {
       const RoleDetails = await RoleModel(tenant)
-        .findById(ObjectId(netRole.role))
+        .findById(ObjectId(role.role))
         .lean();
       if (
         RoleDetails &&
@@ -80,26 +89,31 @@ const isUserSuperAdmin = async ({
       }
     }
   }
+
+  for (const role of groupRoles) {
+    if (role.group && role.group.toString() === groupId.toString()) {
+      const RoleDetails = await RoleModel(tenant)
+        .findById(ObjectId(role.role))
+        .lean();
+      if (
+        RoleDetails &&
+        RoleDetails.role_name &&
+        RoleDetails.role_name.endsWith("SUPER_ADMIN")
+      ) {
+        return true;
+      }
+    }
+  }
+
   return false;
 };
 
-// const isRoleAlreadyAssigned = (networkRoles, role_id) => {
-//   return (
-//     networkRoles.find((netRole) => {
-//       if (isEmpty(netRole.role)) {
-//         return false;
-//       }
-//       return netRole.role.toString() === role_id.toString();
-//     }) !== undefined
-//   );
-// };
-
-const isRoleAlreadyAssigned = (networkRoles, role_id) => {
-  return networkRoles.some((netRole) => {
-    if (isEmpty(netRole.role)) {
+const isRoleAlreadyAssigned = (roles, role_id) => {
+  return roles.some((role) => {
+    if (isEmpty(role.role)) {
       return false;
     }
-    return netRole.role.toString() === role_id.toString();
+    return role.role.toString() === role_id.toString();
   });
 };
 
@@ -245,7 +259,6 @@ const controlAccess = {
       };
     }
   },
-
   /******* hashing ******************************************/
   hash: (string) => {
     try {
@@ -565,6 +578,15 @@ const controlAccess = {
         "request.headers[x-original-method]",
         request.headers["x-original-method"]
       );
+
+      // logObject(
+      //   "request.headers['x-domain-name']",
+      //   request.headers["x-domain-name"]
+      // );
+      // logObject(
+      //   "request.headers['x-ip-address']",
+      //   request.headers["x-ip-address"]
+      // );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
@@ -1090,7 +1112,6 @@ const controlAccess = {
       };
     }
   },
-
   deleteScope: async (request) => {
     try {
       const { query } = request;
@@ -1121,7 +1142,6 @@ const controlAccess = {
       };
     }
   },
-
   listScope: async (request) => {
     try {
       const { query } = request;
@@ -1153,7 +1173,6 @@ const controlAccess = {
       };
     }
   },
-
   createScope: async (request) => {
     try {
       const { query, body } = request;
@@ -1235,7 +1254,7 @@ const controlAccess = {
         {
           $project: {
             _id: 1,
-            name: 1,
+            role_name: 1,
             role_permissions: {
               $map: {
                 input: "$role_permissions",
@@ -1275,6 +1294,81 @@ const controlAccess = {
       };
     }
   },
+  listRolesForGroup: async (request) => {
+    try {
+      const { query, params } = request;
+      const { grp_id } = params;
+      const { tenant } = query;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Group ${grp_id.toString()} Not Found`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const roleResponse = await RoleModel(tenant).aggregate([
+        {
+          $match: {
+            group_id: ObjectId(grp_id),
+          },
+        },
+        {
+          $lookup: {
+            from: "permissions",
+            localField: "role_permissions",
+            foreignField: "_id",
+            as: "role_permissions",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            role_name: 1,
+            role_permissions: {
+              $map: {
+                input: "$role_permissions",
+                as: "role_permission",
+                in: {
+                  _id: "$$role_permission._id",
+                  permission: "$$role_permission.permission",
+                },
+              },
+            },
+          },
+        },
+      ]);
+
+      if (!isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "Successful Operation",
+          status: httpStatus.OK,
+          data: roleResponse,
+        };
+      } else if (isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "No roles for this Group",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   deleteRole: async (request) => {
     try {
       const { query } = request;
@@ -1297,8 +1391,13 @@ const controlAccess = {
       }
 
       const result = await UserModel(tenant).updateMany(
-        { "network_roles.role": filter._id },
-        { $set: { "network_roles.$.role": null } }
+        {
+          $or: [
+            { "network_roles.role": filter._id },
+            { "group_roles.role": filter._id },
+          ],
+        },
+        { $set: { "network_roles.$.role": null, "group_roles.$.role": null } }
       );
 
       if (result.nModified > 0) {
@@ -1309,7 +1408,7 @@ const controlAccess = {
 
       if (result.n === 0) {
         logger.info(
-          `Role ${filter._id} was not found in any users' network_roles.`
+          `Role ${filter._id} was not found in any users' network_roles or group_roles.`
         );
       }
       const responseFromDeleteRole = await RoleModel(
@@ -1356,19 +1455,45 @@ const controlAccess = {
       const { tenant } = query;
 
       let newBody = Object.assign({}, body);
-      const network = await NetworkModel(tenant).findById(body.network_id);
-      if (isEmpty(network)) {
+      let organizationName;
+
+      if (body.network_id) {
+        const network = await NetworkModel(tenant).findById(body.network_id);
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            status: httpStatus.BAD_REQUEST,
+            message: "Bad Request Error",
+            errors: {
+              message: `Provided organization ${body.network_id} is invalid, please crosscheck`,
+            },
+          };
+        }
+        organizationName = network.net_name.toUpperCase();
+      } else if (body.group_id) {
+        const group = await GroupModel(tenant).findById(body.group_id);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            status: httpStatus.BAD_REQUEST,
+            message: "Bad Request Error",
+            errors: {
+              message: `Provided group ${body.group_id} is invalid, please crosscheck`,
+            },
+          };
+        }
+        organizationName = group.grp_title.toUpperCase();
+      } else {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "Bad Request Error",
           errors: {
-            message: `Provided organisation ${body.network_id} is invalid, please crosscheck`,
+            message: "Either network_id or group_id must be provided",
           },
         };
       }
 
-      const organizationName = network.net_name.toUpperCase();
       const transformedRoleName = convertToUpperCaseWithUnderscore(
         body.role_name
       );
@@ -1377,6 +1502,7 @@ const controlAccess = {
         : body.role_name;
       const transformedRoleCode =
         convertToUpperCaseWithUnderscore(availableRoleCode);
+
       newBody.role_name = `${organizationName}_${transformedRoleName}`;
       newBody.role_code = `${organizationName}_${transformedRoleCode}`;
 
@@ -1386,7 +1512,7 @@ const controlAccess = {
 
       return responseFromCreateRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1415,11 +1541,14 @@ const controlAccess = {
         };
       }
 
+      const roleType = role.network_id ? "Network" : "Group";
+      const query = roleType === "Network" ? "network_roles" : "group_roles";
+
       const responseFromListAvailableUsers = await UserModel(tenant)
         .aggregate([
           {
             $match: {
-              network_roles: {
+              [query]: {
                 $not: {
                   $elemMatch: {
                     role: role_id,
@@ -1453,7 +1582,7 @@ const controlAccess = {
 
       return {
         success: true,
-        message: `retrieved all available users for the role ${role_id}`,
+        message: `Retrieved all available users for the ${roleType} role ${role_id}`,
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
@@ -1505,17 +1634,23 @@ const controlAccess = {
       const userObject = await UserModel(tenant)
         .findById(userId)
         .populate("network_roles")
+        .populate("group_roles")
         .lean();
 
       logObject("userObject", userObject);
 
       const networkRoles = userObject.network_roles || [];
+      const groupRoles = userObject.group_roles || [];
 
       logObject("networkRoles", networkRoles);
 
-      const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
+      const isNetworkRoleAssigned = isRoleAlreadyAssigned(
+        networkRoles,
+        role_id
+      );
+      const isGroupRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
 
-      if (isRoleAssigned) {
+      if (isNetworkRoleAssigned || isGroupRoleAssigned) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1532,12 +1667,18 @@ const controlAccess = {
         tenant,
       });
 
-      if (isEmpty(networkId)) {
+      const groupId = await findGroupIdForRole({
+        role_id,
+        groupRoles,
+        tenant,
+      });
+
+      if (isEmpty(networkId) && isEmpty(groupId)) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${userId}`,
+            message: `The ROLE ${role_id} is not associated with any networks or groups already assigned to USER ${userId}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
@@ -1545,7 +1686,9 @@ const controlAccess = {
 
       const isSuperAdmin = await isUserSuperAdmin({
         networkId,
+        groupId,
         networkRoles,
+        groupRoles,
         tenant,
       });
 
@@ -1560,15 +1703,29 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: userId, "network_roles.network": networkId },
-        {
-          $set: {
-            "network_roles.$.role": role_id,
+      let updatedUser;
+
+      if (networkId) {
+        updatedUser = await UserModel(tenant).findOneAndUpdate(
+          { _id: userId, "network_roles.network": networkId },
+          {
+            $set: {
+              "network_roles.$.role": role_id,
+            },
           },
-        },
-        { new: true }
-      );
+          { new: true }
+        );
+      } else {
+        updatedUser = await UserModel(tenant).findOneAndUpdate(
+          { _id: userId, "group_roles.group": groupId },
+          {
+            $set: {
+              "group_roles.$.role": role_id,
+            },
+          },
+          { new: true }
+        );
+      }
 
       logObject("updatedUser", updatedUser);
 
@@ -1608,102 +1765,162 @@ const controlAccess = {
         };
       }
 
-      const users = await Promise.all(
-        user_ids.map(async (id) => {
-          const user = await UserModel(tenant)
-            .findById(id)
-            .populate("network_roles")
-            .lean();
-          return user;
-        })
-      );
+      // Check if the role belongs to a network or a group
+      const isNetworkRole = roleObject.network_id !== null;
+      const isGroupRole = roleObject.group_id !== null;
 
-      for (const user of users) {
-        logObject("user", user);
-        if (isEmpty(user)) {
-          return {
-            success: false,
-            message: "Bad Reqest Error",
-            errors: { message: `One of the Users does not exist` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-        const networkRoles = user.network_roles || [];
-        logObject("networkRoles", networkRoles);
-
-        const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
-
-        if (isRoleAssigned) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user._id.toString()} is already assigned to the role ${role_id.toString()}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
-        const networkId = await findNetworkIdForRole({
-          role_id,
-          networkRoles,
-          tenant,
-        });
-
-        if (isEmpty(networkId)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user._id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-
-        const isSuperAdmin = await isUserSuperAdmin({
-          networkId,
-          networkRoles,
-          tenant,
-        });
-
-        if (isSuperAdmin) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-      }
-
-      const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids } },
-        {
-          $set: {
-            "network_roles.$[elem].role": role_id,
+      if (!isNetworkRole && !isGroupRole) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Role ${role_id.toString()} is not associated with any network or group`,
           },
-        },
-        {
-          arrayFilters: [{ "elem.network": { $exists: true } }],
-          multi: true,
-        }
-      );
-
-      let message = "";
-      let status = httpStatus.OK;
-      if (result.nModified === user_ids.length) {
-        message = "All provided users were successfully assigned.";
-      } else {
-        message = "Could not assign all provided users to the Role.";
-        status = httpStatus.INTERNAL_SERVER_ERROR;
+          status: httpStatus.BAD_REQUEST,
+        };
       }
+
+      // Define an array to store promises for user assignment
+      const assignUserPromises = [];
+
+      // Check and assign the role to users for networkRoles
+      if (isNetworkRole) {
+        const users = await UserModel(tenant)
+          .find({ _id: { $in: user_ids } })
+          .populate("network_roles")
+          .lean();
+
+        for (const user of users) {
+          if (isEmpty(user)) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: { message: `One of the Users does not exist` },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+          const networkRoles = user.network_roles || [];
+
+          const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
+
+          if (isRoleAssigned) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `User ${user._id.toString()} is already assigned to the role ${role_id.toString()}`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          const networkId = await findNetworkIdForRole({
+            role_id,
+            networkRoles,
+            tenant,
+          });
+
+          if (isEmpty(networkId)) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user._id}`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          const isSuperAdmin = await isUserSuperAdmin({
+            networkId,
+            networkRoles,
+            tenant,
+          });
+
+          if (isSuperAdmin) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          await UserModel(tenant).updateOne(
+            { _id: user._id },
+            {
+              $addToSet: {
+                network_roles: { network: networkId, role: role_id },
+              },
+            }
+          );
+
+          assignUserPromises.push(null); // No errors for this user
+        }
+      }
+
+      // Check and assign the role to users for groupRoles
+      if (isGroupRole) {
+        const groups = await GroupModel(tenant)
+          .find({ _id: { $in: group_ids } })
+          .populate("group_roles")
+          .lean();
+
+        for (const group of groups) {
+          if (isEmpty(group)) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: { message: `One of the Groups does not exist` },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+          const groupRoles = group.group_roles || [];
+
+          const isRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
+
+          if (isRoleAssigned) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `Role ${role_id.toString()} is already assigned to Group ${group._id.toString()}`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          // Update the group to add the role to group_roles using $addToSet
+          await GroupModel(tenant).updateOne(
+            { _id: group._id },
+            { $addToSet: { group_roles: { role: role_id } } }
+          );
+
+          assignUserPromises.push(null); // No errors for this group
+        }
+      }
+
+      // Await all user assignment promises
+      const assignUserResults = await Promise.all(assignUserPromises);
+
+      // Handle errors, if any
+      const errorResult = assignUserResults.find((result) => result !== null);
+      if (errorResult) {
+        return errorResult; // Return the first error encountered
+      }
+
       return {
         success: true,
-        message,
-        status,
+        message: "All provided users were successfully assigned.",
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`internal server error -- ${JSON.stringify}`);
@@ -1741,10 +1958,15 @@ const controlAccess = {
         };
       }
 
+      const networkRoleFilter = { "network_roles.role": ObjectId(role_id) };
+      const groupRoleFilter = { "group_roles.role": ObjectId(role_id) };
+
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
           {
-            $match: filter,
+            $match: {
+              $or: [networkRoleFilter, groupRoleFilter],
+            },
           },
           {
             $project: {
@@ -1791,11 +2013,14 @@ const controlAccess = {
       const userObject = await UserModel(tenant)
         .findById(user_id)
         .populate("network_roles")
+        .populate("group_roles")
         .lean();
       logObject("userObject", userObject);
 
       const networkRoles = userObject.network_roles || [];
+      const groupRoles = userObject.group_roles || [];
       logObject("networkRoles", networkRoles);
+      logObject("groupRoles", groupRoles);
 
       const userExists = await UserModel(tenant).exists({ _id: user_id });
       const roleExists = await RoleModel(tenant).exists({ _id: role_id });
@@ -1809,9 +2034,13 @@ const controlAccess = {
         };
       }
 
-      const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
+      const isNetworkRoleAssigned = isRoleAlreadyAssigned(
+        networkRoles,
+        role_id
+      );
+      const isGroupRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
 
-      if (!isRoleAssigned) {
+      if (!isNetworkRoleAssigned && !isGroupRoleAssigned) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1822,18 +2051,30 @@ const controlAccess = {
         };
       }
 
-      const networkId = await findNetworkIdForRole({
-        role_id,
-        networkRoles,
-        tenant,
-      });
+      let networkId = null;
+      let groupId = null;
+      if (isNetworkRoleAssigned) {
+        networkId = await findNetworkIdForRole({
+          role_id,
+          networkRoles,
+          tenant,
+        });
+      }
 
-      if (isEmpty(networkId)) {
+      if (isEmpty(networkId) && isGroupRoleAssigned) {
+        groupId = await findGroupIdForRole({
+          role_id,
+          groupRoles,
+          tenant,
+        });
+      }
+
+      if (isEmpty(networkId) || isEmpty(groupId)) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user_id}`,
+            message: `The ROLE ${role_id} is not associated with any network or group assigned to USER ${user_id}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
@@ -1842,6 +2083,8 @@ const controlAccess = {
       const isSuperAdmin = await isUserSuperAdmin({
         networkId,
         networkRoles,
+        groupId,
+        groupRoles,
         tenant,
       });
 
@@ -1856,13 +2099,38 @@ const controlAccess = {
         };
       }
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: user_id, "network_roles.network": networkId },
+      let updatedUser = null;
+      let updateQuery = {};
+
+      if (isNetworkRoleAssigned) {
+        updateQuery = { "network_roles.$.role": null };
+      } else if (isGroupRoleAssigned) {
+        updateQuery = { "group_roles.$.role": null };
+      }
+
+      updatedUser = await UserModel(tenant).findOneAndUpdate(
         {
-          $set: { "network_roles.$.role": null },
+          _id: user_id,
+          $or: [
+            { "network_roles.network": networkId },
+            { "group_roles.network": networkId },
+          ],
         },
+        { $set: updateQuery },
         { new: true }
       );
+
+      if (!updatedUser) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "User not found or not assigned to the specified role in the network or group",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       return {
         success: true,
@@ -1919,13 +2187,11 @@ const controlAccess = {
         };
       }
 
-      const users = await Promise.all(
-        user_ids.map((id) => UserModel(tenant).findById(id).lean())
-      );
+      const assignUserPromises = [];
 
-      for (const user of users) {
+      for (const user_id of user_ids) {
         const userObject = await UserModel(tenant)
-          .findById(user._id)
+          .findById(user_id)
           .populate("network_roles")
           .lean();
         logObject("userObject", userObject);
@@ -1933,31 +2199,49 @@ const controlAccess = {
         const networkRoles = userObject.network_roles || [];
         logObject("networkRoles", networkRoles);
 
-        const isRoleAssigned = isRoleAlreadyAssigned(networkRoles, role_id);
+        const groupRoles = userObject.group_roles || [];
+        logObject("groupRoles", groupRoles);
 
-        if (!isRoleAssigned) {
+        const isNetworkRoleAssigned = isRoleAlreadyAssigned(
+          networkRoles,
+          role_id
+        );
+        const isGroupRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
+
+        if (!isNetworkRoleAssigned && !isGroupRoleAssigned) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `User ${user._id.toString()} is not assigned to the role ${role_id.toString()}`,
+              message: `User ${user_id.toString()} is not assigned to the role ${role_id.toString()}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
         }
 
-        const networkId = await findNetworkIdForRole({
-          role_id,
-          networkRoles,
-          tenant,
-        });
+        let networkId = null;
+        let groupId = null;
+        if (isNetworkRoleAssigned) {
+          networkId = await findNetworkIdForRole({
+            role_id,
+            networkRoles,
+            tenant,
+          });
+        }
+        if (isGroupRoleAssigned) {
+          groupId = await findGroupIdForRole({
+            role_id,
+            groupRoles,
+            tenant,
+          });
+        }
 
-        if (isEmpty(networkId)) {
+        if (isEmpty(networkId) || isEmpty(groupId)) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `The ROLE ${role_id} is not associated with any of the networks already assigned to USER ${user._id}`,
+              message: `The ROLE ${role_id} is not associated with any of the Networks or Groups already assigned to USER ${user._id}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
@@ -1965,7 +2249,9 @@ const controlAccess = {
 
         const isSuperAdmin = await isUserSuperAdmin({
           networkId,
+          groupId,
           networkRoles,
+          groupRoles,
           tenant,
         });
 
@@ -1974,27 +2260,59 @@ const controlAccess = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `SUPER_ADMIN User ${user._id.toString()} may not be unassigned from their role`,
+              message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
             },
             status: httpStatus.BAD_REQUEST,
           };
         }
+
+        const updateQuery = {};
+
+        if (isNetworkRoleAssigned) {
+          updateQuery["network_roles.$.role"] = null;
+        }
+
+        if (isGroupRoleAssigned) {
+          // Implement a similar update query for group_roles
+          updateQuery["group_roles.$.role"] = null;
+        }
+
+        assignUserPromises.push(
+          UserModel(tenant).updateOne(
+            {
+              _id: user_id,
+              $or: [
+                { "network_roles.role": role_id },
+                { "group_roles.role": role_id },
+              ],
+            },
+            { $set: updateQuery }
+          )
+        );
       }
 
-      // Unassign the users from the role
-      const result = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids }, "network_roles.role": role_id },
-        { $set: { "network_roles.$.role": null } }
-      );
+      const results = await Promise.all(assignUserPromises);
 
       let message = "";
       let status = httpStatus.OK;
-      if (result.nModified === user_ids.length) {
-        message = "All provided users were successfully unassigned.";
-      } else {
-        message = "Could not unassign all users from role.";
-        status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      for (const result of results) {
+        if (result.nModified !== 1) {
+          message = "Could not unassign all users from the role.";
+          status = httpStatus.INTERNAL_SERVER_ERROR;
+          break; // Break if any user couldn't be unassigned
+        }
       }
+
+      if (status === httpStatus.INTERNAL_SERVER_ERROR) {
+        return {
+          success: false,
+          message,
+          status,
+        };
+      }
+
+      message = "All provided users were successfully unassigned.";
       return {
         success: true,
         message,
