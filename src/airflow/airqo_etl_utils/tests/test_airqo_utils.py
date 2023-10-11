@@ -1,4 +1,3 @@
-# test_fault_detector.py
 import unittest
 from datetime import datetime
 
