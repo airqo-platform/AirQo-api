@@ -165,7 +165,7 @@ const defaultConfig = {
   DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
   PARTNERS_EMAILS: process.env.PARTNERS_EMAILS,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
-  CHAMPIONS_FORM: process.env.CHAMPIONS_FORM,
+  CHAMPIONS_FORM: "https://forms.gle/hnf8TzfYWJkdDfX47",
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
   RANDOM_PASSWORD_CONFIGURATION: (length) => {
     return {
