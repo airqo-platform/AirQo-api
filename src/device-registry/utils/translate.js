@@ -11,6 +11,15 @@ const translate = new Translate();
 const translateUtil = {
     translateTips: async (healthTips, targetLanguage) => {
         try {
+            return {
+                success: false,
+                message: "Translate disabled",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: {
+                    message: error.message,
+                },
+            };
+
             const translatedHealthTips = [];
 
             for (const healthTip of healthTips) {
@@ -42,6 +51,14 @@ const translateUtil = {
 
     translateLessons: async (lessons, targetLanguage) => {
         try {
+            return {
+                success: false,
+                message: "Translate disabled",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: {
+                    message: error.message,
+                },
+            };
             const translatedLessons = [];
 
             for (const lesson of lessons) {
@@ -82,6 +99,14 @@ const translateUtil = {
 
     translateQuizzes: async (quizzes, targetLanguage) => {
         try {
+            return {
+                success: false,
+                message: "Translate disabled",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: {
+                    message: error.message,
+                },
+            };
             const translatedQuizzes = [];
 
             for (const quiz of quizzes) {
