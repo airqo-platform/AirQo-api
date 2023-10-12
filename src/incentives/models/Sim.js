@@ -209,9 +209,9 @@ SimSchema.methods.toJSON = function () {
 
 const SimModel = (tenant) => {
   try {
-    return mongoose.model("sims");
+    return mongoose.model("simcards");
   } catch (error) {
-    return getModelByTenant(tenant, "sim", SimSchema);
+    return getModelByTenant(tenant, "simcard", SimSchema);
   }
 };
 
