@@ -36,7 +36,7 @@ const SimSchema = new Schema(
     totalTraffic: { type: Number, trim: true },
     simBarcode: { type: String, trim: true },
     active: { type: Boolean },
-    deviceId: { type: ObjectId, trim: true, unique: true },
+    deviceId: { type: ObjectId, trim: true },
   },
   { timestamps: true }
 );
