@@ -76,6 +76,13 @@ python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=202
 ```bash
 sh run.sh  
 ```
+### Running airflow only
+
+```bash
+sh run-airflow-only.sh  
+```
+
+**Note for Windows users:** There is a command in the sh files that requires to be modified / uncommented for windows 
 
 Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui
 at <http://localhost:8080/home>. Use `airflow` for username and password
