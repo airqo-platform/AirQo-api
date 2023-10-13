@@ -266,6 +266,53 @@ router.get(
   ]),
   createGridController.list
 );
+
+router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .custom(validateAdminLevels)
+        .withMessage(
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
+        ),
+    ],
+  ]),
+  createGridController.listSummary
+);
 router.delete(
   "/:grid_id",
   oneOf([

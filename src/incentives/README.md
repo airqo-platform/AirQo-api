@@ -94,4 +94,4 @@ The API handles sensitive data such as payment details and mobile money accounts
 The API has usage limits and fair usage policies in place to prevent abuse and maintain a high-quality service.
 
 **Update:**
-The scope of the service is now shifting towards IoT sim card management as the main focus. 
+The scope of the service is now shifting towards IoT sim card management as the main focus.
