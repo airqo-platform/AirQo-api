@@ -36,7 +36,7 @@ const SimSchema = new Schema(
     totalTraffic: { type: Number, trim: true },
     simBarcode: { type: String, trim: true },
     active: { type: Boolean },
-    deviceId: { type: ObjectId, trim: true, unique: true },
+    deviceId: { type: ObjectId, trim: true },
   },
   { timestamps: true }
 );
@@ -209,9 +209,9 @@ SimSchema.methods.toJSON = function () {
 
 const SimModel = (tenant) => {
   try {
-    return mongoose.model("sims");
+    return mongoose.model("simcards");
   } catch (error) {
-    return getModelByTenant(tenant, "sim", SimSchema);
+    return getModelByTenant(tenant, "simcard", SimSchema);
   }
 };
 

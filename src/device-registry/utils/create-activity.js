@@ -144,11 +144,7 @@ const createActivity = {
           status: HTTPStatus.CONFLICT,
         };
       } else if (responseFromDeviceSearchCheck.success === false) {
-        const filter = { _id: ObjectId(site_id) };
-        const responseFromListSite = await createSiteUtil.list({
-          tenant,
-          filter,
-        });
+        const responseFromListSite = await createSiteUtil.list(request);
         if (responseFromListSite.success === true) {
           if (responseFromListSite.data.length === 1) {
             const { latitude, longitude } = responseFromListSite.data[0];
