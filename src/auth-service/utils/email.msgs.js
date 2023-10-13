@@ -82,12 +82,13 @@ module.exports = {
         content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for getting in touch with us and for your interest in being an air quality champion in your community.
-                                    <br />
-                                As an air quality champion, you are key in advocating for clean air practices in your community and urging community
-                                members to take action against air pollution.
-                                    <br />
-                                    Please get in touch with our Marketing and Communications Lead at maclina@airqo.net for further support.
+                                Thank you for choosing to become an AirQo air quality champion. 
+                                We appreciate your interest and effort in improving your community's health and quality of life. 
+                               
+                                    <br /><br />
+                                 As a first step, we would like to learn more about you so that we can jointly understand how to work together to build a healthier and better community.
+                                    <br /><br />
+                                    Kindly complete this <a href = "${constants.CHAMPIONS_FORM}">Form</a> to provide your information. 
                                     <br />
                                 </td>
                             </tr>`;
