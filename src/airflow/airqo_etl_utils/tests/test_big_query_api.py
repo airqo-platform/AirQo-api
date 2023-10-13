@@ -1,4 +1,3 @@
-# Import pytest and other modules as needed
 from unittest import mock
 
 import pandas as pd
@@ -8,23 +7,7 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 
 
 @pytest.fixture
-def mock_bigquery_client1(mocker):
-    mock_client = mocker.Mock()
-    mock_client.query.return_value.result.return_value.to_dataframe.return_value = (
-        pd.DataFrame(
-            [
-                ["2021-01-01 00:00:00", 1, 10],
-                ["2021-01-01 01:00:00", 2, 20],
-                ["2021-01-01 02:00:00", 3, 30],
-            ],
-            columns=["created_at", "device_number", "pm2_5"],
-        )
-    )
-    return mock_client
-
-
-@pytest.fixture
-def mock_bigquery_client2():
+def mock_bigquery_client():
     """A fixture that mocks the bigquery.Client object."""
 
     fake_client = mock.Mock()
@@ -96,34 +79,34 @@ def mock_bigquery_client2():
         ("2023-01-02", pd.DataFrame()),
     ],
 )
-def test_fetch_data_correct_se(mock_bigquery_client2, start_date_time, expected_df):
+def test_fetch_data_correct_se(mock_bigquery_client, start_date_time, expected_df):
     """Tests the fetch_data method for scenarios when correct data is retrieved."""
 
     bq_api = BigQueryApi()
-    bq_api.client = mock_bigquery_client2
+    bq_api.client = mock_bigquery_client
 
     actual_df = bq_api.fetch_data(start_date_time)
     pd.testing.assert_frame_equal(actual_df, expected_df)
 
 
 @pytest.mark.parametrize("start_date_time", ["2023-13-01", "2023-01-32", "invalid"])
-def test_fetch_data_invalid_date(mock_bigquery_client2, start_date_time):
+def test_fetch_data_invalid_date(mock_bigquery_client, start_date_time):
     """Tests the fetch_data method for the scenario where an invalid date string is passed."""
 
     bq_api = BigQueryApi()
-    bq_api.client = mock_bigquery_client2
+    bq_api.client = mock_bigquery_client
 
     with pytest.raises(ValueError):
         bq_api.fetch_data(start_date_time)
 
 
 @pytest.mark.parametrize("start_date_time", ["2023-01-03"])
-def test_fetch_data_bigquery_error(mock_bigquery_client2, start_date_time):
+def test_fetch_data_bigquery_error(mock_bigquery_client, start_date_time):
     """Tests the fetch_data method for the scenario where a bigquery.GoogleAPIError is raised."""
 
     # Create an instance of BigQueryApi with the mocked client
     bq_api = BigQueryApi()
-    bq_api.client = mock_bigquery_client2
+    bq_api.client = mock_bigquery_client
 
     with pytest.raises(Exception):
         bq_api.fetch_data(start_date_time)

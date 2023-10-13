@@ -63,14 +63,24 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with: 
         directory: src/device-registry/coverage
-    
-
+  airflow:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Code Coverage for Airflow
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+            python-version: '3.10'
+      - name: Install dependencies
+        continue-on-error: true
+        run: |
+          cd src/airflow
+          pip install -r requirements.txt
+          pytest --cov airqo_etl_utils/tests/ --cov-report=xml
         
-        
-        
-        
-        
-        
-        
-        
-        
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/airflow/coverage.xml
