@@ -11,7 +11,6 @@ const translate = new Translate();
 const translateUtil = {
     translateTips: async (healthTips, targetLanguage) => {
         try {
-
             const translatedHealthTips = [];
 
             for (const healthTip of healthTips) {
@@ -83,8 +82,8 @@ const translateUtil = {
 
     translateQuizzes: async (quizzes, targetLanguage) => {
         try {
-
             const translatedQuizzes = [];
+
             for (const quiz of quizzes) {
                 const translatedQuiz = { ...quiz };
                 translatedQuiz.title = await translateText(quiz.title, targetLanguage);
