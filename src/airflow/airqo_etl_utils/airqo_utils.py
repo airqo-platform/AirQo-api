@@ -944,10 +944,13 @@ class AirQoDataUtils:
             device_df = df[df["device_name"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
             correlation_fault = 1 if corr < 0.9 else 0
-            nan_count = (
-                device_df[["s1_pm2_5", "s2_pm2_5"]].isna().sum(axis=1).rolling(4).max()
-            )
-            missing_data_fault = 1 if nan_count.max() > 1 else 0
+            missing_data_fault = 0
+            for col in ["s1_pm2_5", "s2_pm2_5"]:
+                null_series = device_df[col].isna()
+                if (null_series.rolling(window=6).sum() >= 6).any():
+                    missing_data_fault = 1
+                    break
+
             temp = pd.DataFrame(
                 {
                     "device_name": [device],
@@ -964,9 +967,23 @@ class AirQoDataUtils:
 
     @staticmethod
     def save_faulty_devices(data: pd.DataFrame):
-        """Save faulty devices to MongoDB"""
-        client = pm.MongoClient(configuration.MONGO_URI)
-        db = client[configuration.MONGO_DATABASE_NAME]
-        records = data.to_dict("records")
-        db.faulty_devices.insert_many(records)
-        print("Faulty devices saved to MongoDB")
+        """Save or update faulty devices to MongoDB"""
+        with pm.MongoClient(configuration.MONGO_URI) as client:
+            db = client[configuration.MONGO_DATABASE_NAME]
+            records = data.to_dict("records")
+
+            bulk_ops = [
+                pm.UpdateOne(
+                    {"device_name": record["device_name"]},
+                    {"$set": record},
+                    upsert=True,
+                )
+                for record in records
+            ]
+
+            try:
+                db.faulty_devices_1.bulk_write(bulk_ops)
+            except Exception as e:
+                print(f"Error saving faulty devices to MongoDB: {e}")
+
+            print("Faulty devices saved/updated to MongoDB")

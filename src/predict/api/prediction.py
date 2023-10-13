@@ -38,9 +38,9 @@ def fetch_faulty_devices():
     try:
         query = {}
         params = {
-            "airqloud_name": request.args.get("airqloud_name", default=None, type=str),
+            "airqloud_name": request.args.get("airqloud_name", default=None),
             "correlation_fault": request.args.get(
-                "correlation_fault", default=None, type=int
+                "correlation_fault", default=1, type=int
             ),
             "missing_data_fault": request.args.get(
                 "missing_data_fault", default=None, type=int
@@ -48,7 +48,7 @@ def fetch_faulty_devices():
         }
         if any(params.values()):
             valid, error = validate_param_values(params)
-            if not valid:
+            if valid is False:
                 return (
                     jsonify(
                         {"error": "Please provide a valid value for the parameter"}
@@ -56,14 +56,15 @@ def fetch_faulty_devices():
                     400,
                 )
             for param, value in params.items():
-                if param == "airqloud_names":
+                if param == "airqloud_name":
                     query[param] = {"$in": [value]}
                 else:
-                    query[param] = {
-                        "$eq": int(value)
-                        if param in ["correlation_fault", "missing_data_fault"]
-                        else value
-                    }
+                    if value is not None:
+                        query[param] = {
+                            "$eq": int(value)
+                            if param in ["correlation_fault", "missing_data_fault"]
+                            else value
+                        }
 
         result = read_faulty_devices(query)
         return jsonify(result), 200

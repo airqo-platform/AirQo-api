@@ -26,12 +26,12 @@ class DataValidationUtils:
         # formatting integers
         if integers:
             for col in integers:
-                if data[col].dtype != 'str':
-                 data[col] = data[col].astype(str)
-                data[col] = data[col].str.replace('[^\d]', '', regex=True)  
-                data[col] = data[col].str.strip()  
-                data[col] = data[col].replace('', -1)  
-                data[col] = data[col].astype(np.int64) 
+                if data[col].dtype != "str":
+                    data[col] = data[col].astype(str)
+                data[col] = data[col].str.replace("[^\d]", "", regex=True)
+                data[col] = data[col].str.strip()
+                data[col] = data[col].replace("", -1)
+                data[col] = data[col].astype(np.int64)
 
         return data
 
