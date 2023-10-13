@@ -103,7 +103,7 @@ module.exports = {
                             You can visit our website at airqo.net and navigate to <a href="https://airqo.net/explore-data">Explore Data</a> or
                             click <a href="https://airqo.net/explore-data">here</a> to access data.
                                     <br />
-                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at Richard@airqo.net or Wabinyai
+                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at richard.sserunjogi@airqo.net or Wabinyai
                                     Fidel Raja at raja@airqo.net for further support.
                                     <br />
                                 </td>
@@ -132,7 +132,7 @@ module.exports = {
                                     <br />
                                     <br />
                                     Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at
-                                    deo@airqo.net for further support.
+                                    dokure@airqo.net for further support.
                                     <br />
                                 </td>
                             </tr>`;

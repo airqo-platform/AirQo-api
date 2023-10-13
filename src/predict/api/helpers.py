@@ -314,13 +314,13 @@ def validate_param_values(params):
     for param in params:
         if param in ["correlation_fault", "missing_data_fault"]:
             value = params[param]
-            if value not in ["0", "1"]:
+            if value not in [0, 1, None]:
                 return False, f"Invalid value for {param}: {value}"
     return True, None
 
 
 def read_faulty_devices(query):
-    collection = db["faulty_devices"]
+    collection = db["faulty_devices_1"]
     docs = collection.find(query).sort("created_at", -1)
     result = []
     for doc in docs:
