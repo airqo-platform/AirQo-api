@@ -43,7 +43,6 @@ const generateFilter = {
       index,
       running,
       brief,
-      ...otherVariables
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -420,7 +419,7 @@ const generateFilter = {
       network,
       group,
       google_place_id,
-    } = { ...req.query, ...req.params };
+    } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
 
     if (name) {
@@ -649,8 +648,11 @@ const generateFilter = {
 
   networks: (req) => {
     try {
-      const { id, name, network_codes } = req.query;
-      const { net_id } = req.params;
+      const { id, name, network_codes, net_id } = {
+        ...req.query,
+        ...req.params,
+        ...req.body,
+      };
       let filter = {};
       if (name) {
         filter["name"] = name;
@@ -683,8 +685,12 @@ const generateFilter = {
 
   admin_levels: (req) => {
     try {
-      const { id, name, admin_level_codes } = req.query;
-      const { level_id } = req.params;
+      const { id, name, admin_level_codes, level_id } = {
+        ...req.query,
+        ...req.params,
+        ...req.body,
+      };
+
       let filter = {};
       if (name) {
         filter["name"] = name;
@@ -716,7 +722,11 @@ const generateFilter = {
   },
 
   locations: (req) => {
-    let { id, name, admin_level, summary, network } = req.query;
+    let { id, name, admin_level, summary, network } = {
+      ...req.query,
+      ...req.params,
+      ...req.body,
+    };
     let filter = {};
 
     if (id) {
@@ -754,7 +764,11 @@ const generateFilter = {
       group,
       activity_codes,
       _id,
-    } = req.query;
+    } = {
+      ...req.query,
+      ...req.params,
+      ...req.body,
+    };
 
     let filter = {};
 
@@ -806,7 +820,7 @@ const generateFilter = {
     return filter;
   },
 
-  photos: (request) => {
+  photos: (req) => {
     let {
       id,
       device_id,
@@ -817,7 +831,11 @@ const generateFilter = {
       network,
       group,
       tags,
-    } = request.query;
+    } = {
+      ...req.query,
+      ...req.params,
+      ...req.body,
+    };
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -861,7 +879,11 @@ const generateFilter = {
   },
 
   tips: (request) => {
-    let { id, pm25, pm10 } = request.query;
+    let { id, pm25, pm10 } = {
+      ...request.query,
+      ...request.params,
+      ...request.body,
+    };
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -877,9 +899,11 @@ const generateFilter = {
 
   kyalessons: (request) => {
     try {
-      const { query, body, params } = request;
-      const { id } = query;
-      const { task_id, lesson_id } = params;
+      const { id, task_id, lesson_id } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
@@ -902,9 +926,11 @@ const generateFilter = {
 
   kyatasks: (request) => {
     try {
-      const { query, params } = request;
-      const { id } = query;
-      const { task_id, lesson_id } = params;
+      const { id, task_id, lesson_id } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
@@ -930,9 +956,11 @@ const generateFilter = {
 
   kyaprogress: (request) => {
     try {
-      const { query, params } = request;
-      const { id } = query;
-      const { user_id, lesson_id, progress_id, quiz_id } = params;
+      const { id, user_id, lesson_id, progress_id, quiz_id } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
       logObject("user_id", user_id && user_id.toString());
       logObject("lesson_id ", lesson_id && lesson_id.toString());
       logObject("quiz_id ", quiz_id && quiz_id.toString());
@@ -967,9 +995,11 @@ const generateFilter = {
 
   kyaquizzes: (request) => {
     try {
-      const { query, body, params } = request;
-      const { id } = query;
-      const { quiz_id } = params;
+      const { id, quiz_id } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
@@ -992,9 +1022,11 @@ const generateFilter = {
 
   kyaquestions: (request) => {
     try {
-      const { query, params } = request;
-      const { id } = query;
-      const { quiz_id, question_id, answer_id } = params;
+      const { id, quiz_id, question_id, answer_id } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
