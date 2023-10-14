@@ -52,7 +52,7 @@ app_config = {
 environment = os.getenv("FLASK_ENV", "development")
 print("ENVIRONMENT", environment or "staging")
 
-configuration = app_config.get(environment, TestingConfig)
+configuration = app_config.get(environment, "development")
 
 
 def connect_mongo():

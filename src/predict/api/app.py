@@ -44,7 +44,7 @@ def create_app(environment):
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV"))
+application = create_app(os.getenv("FLASK_ENV", "development"))
 postgres_db = SQLAlchemy(application)
 
 
