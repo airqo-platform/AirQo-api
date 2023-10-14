@@ -11,7 +11,7 @@ from geoalchemy2 import Geometry
 
 import config
 
-app_configuration = config.app_config.get(os.getenv("FLASK_ENV"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "development"))
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
