@@ -19,7 +19,7 @@ class Config:
     BIGQUERY_PLACES_PREDICTIONS = os.getenv("BIGQUERY_PLACES_PREDICTIONS")
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
     AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN")
-    DB_NAME = os.getenv("DB_NAME")
+    DB_NAME = os.getenv("DB_NAME", "test_airqo_db")
     MONGO_URI = os.getenv("MONGO_GCE_URI")
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
     POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
