@@ -49,7 +49,7 @@ app_config = {
     "staging": TestingConfig,
 }
 
-environment = os.getenv("FLASK_ENV")
+environment = os.getenv("FLASK_ENV", "development")
 print("ENVIRONMENT", environment or "staging")
 
 configuration = app_config.get(environment, TestingConfig)
