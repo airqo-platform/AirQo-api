@@ -83,7 +83,7 @@ jobs:
           if [ "${{ matrix.microservice }}" == "airflow" ]; then
             pytest --cov airqo_etl_utils/tests/ --cov-report=xml
           else
-            pytest --cov tests/ --cov-report=xml
+            pytest --cov api/tests/ --cov-report=xml
           fi
 
       - name: Upload coverage reports to Codecov
