@@ -36,9 +36,18 @@ const NetworkSchema = new Schema(
       unique: true,
     },
     net_status: { type: String, default: "inactive" },
-    net_connection_string: { type: String },
-    net_connection_endpoint: { type: String },
-    net_username: { type: String },
+    net_connection_string: {
+      type: String,
+      required: [true, "net_connection_string is required"],
+    },
+    net_connection_endpoint: {
+      type: String,
+      required: [true, "net_connection_endpoint is required"],
+    },
+    net_username: {
+      type: String,
+      required: [true, "net_username is required"],
+    },
     net_password: { type: String },
     net_specific_fields: {},
     net_manager: { type: ObjectId },

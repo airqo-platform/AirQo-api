@@ -247,19 +247,25 @@ router.post(
         .withMessage("the net_password should not be empty IF provided")
         .trim(),
       body("net_username")
-        .optional()
+        .exists()
+        .withMessage("the net_username is required")
+        .bail()
         .notEmpty()
         .withMessage("the net_username should not be empty IF provided")
         .trim(),
       body("net_connection_endpoint")
-        .optional()
+        .exists()
+        .withMessage("the net_connection_endpoint is required")
+        .bail()
         .notEmpty()
         .withMessage(
           "the net_connection_endpoint should not be empty IF provided"
         )
         .trim(),
       body("net_connection_string")
-        .optional()
+        .exists()
+        .withMessage("the net_connection_string is required")
+        .bail()
         .notEmpty()
         .withMessage(
           "the net_connection_string should not be empty IF provided"
