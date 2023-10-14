@@ -3,13 +3,17 @@ name: code-coverage-workflow
 on: [push, pull_request]
 
 jobs:
-  auth-service:
+  # setup for auth-service and device-registry microservice
+  auth-service-device-registry:
+    strategy:
+      matrix:
+        service: [auth-service, device-registry]
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
-        working-directory: src/auth-service
-    name: Code Coverage for authservice
+        working-directory: src/${{ matrix.service }}
+    name: Code Coverage for ${{ matrix.service }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -28,37 +32,11 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          directory: src/auth-service/coverage
-  device-registry:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    defaults:
-      run:
-        working-directory: src/device-registry
-    name: Code Coverage for device-registry
+          directory: src/${{ matrix.service }}/coverage
     env:
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       REDIS_SERVER: ${{ secrets.REDIS_SERVER }}
       REDIS_PORT: ${{ secrets.REDIS_PORT }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests and collect coverage
-        continue-on-error: true
-        run: npm run test
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          directory: src/device-registry/coverage
 
   # setup for airflow and predict microservices
   airflow-predict:
@@ -67,7 +45,7 @@ jobs:
         microservice: [airflow, predict]
     runs-on: ubuntu-latest
     continue-on-error: true
-    name: Run tests and collect coverage
+    name: Code coverage
     steps:
       - uses: actions/checkout@v3
 
@@ -75,7 +53,7 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: Install dependencies and run tests
         continue-on-error: true
         run: |
           cd src/${{ matrix.microservice }}
