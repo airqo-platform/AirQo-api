@@ -11,7 +11,7 @@ from geoalchemy2 import Geometry
 
 import config
 
-app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "development"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "staging"))
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def create_app(environment):
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV", "development"))
+application = create_app(os.getenv("FLASK_ENV", "staging"))
 postgres_db = SQLAlchemy(application)
 
 
