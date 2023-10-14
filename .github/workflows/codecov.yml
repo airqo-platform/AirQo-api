@@ -45,7 +45,7 @@ jobs:
         microservice: [airflow, predict]
     runs-on: ubuntu-latest
     continue-on-error: true
-    name: Code coverage
+    name: Code coverage for ${{ matrix.microservice }}
     steps:
       - uses: actions/checkout@v3
 
