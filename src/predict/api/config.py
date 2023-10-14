@@ -22,7 +22,7 @@ class Config:
     DB_NAME = os.getenv("DB_NAME", "test_airqo_db")
     MONGO_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017/test_airqo_db")
     REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
-    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
+    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL", "postgresql://localhost:5432/test_airqo_db")
     CACHE_TIMEOUT = os.getenv("CACHE_TIMEOUT", 3600)
     PARISH_PREDICTIONS_QUERY_LIMIT = os.getenv("PARISH_PREDICTIONS_QUERY_LIMIT", 100)
 
