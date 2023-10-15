@@ -577,6 +577,132 @@ const createEvent = {
       };
     }
   },
+  view: async (request) => {
+    try {
+      let missingDataMessage = "";
+      const { query } = request;
+      let { limit, skip } = query;
+      const { tenant } = query;
+      let page = parseInt(query.page);
+      const language = request.query.language;
+      const filter = generateFilter.events(request);
+
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        logObject("Cache result", cacheResult);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+      }
+
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      const responseFromListEvents = await EventModel(tenant).view({
+        skip,
+        limit,
+        filter,
+        page,
+      });
+
+      if (language !== undefined && responseFromListEvents.success === true) {
+        const data = responseFromListEvents.data[0].data;
+        for (const event of data) {
+          const translatedHealthTips = await translateUtil.translateTips(
+            event.health_tips,
+            language
+          );
+          if (translatedHealthTips.success === true) {
+            event.health_tips = translatedHealthTips.data;
+          }
+        }
+      }
+
+      if (responseFromListEvents.success === true) {
+        const data = responseFromListEvents.data;
+        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+
+        logText("Setting cache...");
+
+        try {
+          const resultOfCacheOperation = await Promise.race([
+            createEvent.setCache(data, request),
+            new Promise((resolve) =>
+              setTimeout(resolve, 60000, {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: { message: "Cache timeout" },
+              })
+            ),
+          ]);
+          if (resultOfCacheOperation.success === false) {
+            const errors = resultOfCacheOperation.errors
+              ? resultOfCacheOperation.errors
+              : { message: "Internal Server Error" };
+            logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
+            // return resultOfCacheOperation;
+          }
+        } catch (error) {
+          logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+        }
+
+        logText("Cache set.");
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data[0].data)
+            ? "no measurements for this search"
+            : responseFromListEvents.message,
+          data,
+          status: responseFromListEvents.status || "",
+          isCache: false,
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve events --- ${JSON.stringify(
+            responseFromListEvents.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: responseFromListEvents.message,
+          errors: responseFromListEvents.errors || { message: "" },
+          status: responseFromListEvents.status || "",
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal server error -- ${error.message}`);
+
+      return {
+        success: false,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+      };
+    }
+  },
   create: async (request) => {
     try {
       const responseFromTransformEvent = await createEvent.transformManyEvents(

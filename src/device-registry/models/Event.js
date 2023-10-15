@@ -497,7 +497,7 @@ const getConfiguredProjection = (metadata, brief) => {
 };
 
 const createMatchQuery = (filter) => {
-  const { metadata, external, tenant, recent, brief, index } = filter;
+  const { metadata, external, tenant, recent, brief, index, running } = filter;
 
   const matchQuery = {};
 
@@ -553,7 +553,12 @@ const createMatchQuery = (filter) => {
 };
 
 const createSortQuery = (filter) => {
-  const { index, metadata } = filter;
+  const { index, metadata } = filter || {
+    index: "descending",
+    metadata: "site_id",
+  };
+  // Now, even if filter is undefined, you have default values for index and metadata
+
   const sortQuery = {};
 
   if (index === "ascending") {

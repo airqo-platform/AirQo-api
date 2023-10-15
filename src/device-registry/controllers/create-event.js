@@ -451,6 +451,79 @@ const createEvent = {
       });
     }
   },
+  view: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      logText("we are listing events...");
+      const { query } = req;
+      const { site_id, device_id } = req.params;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+
+      if (!isEmpty(site_id)) {
+        request.query.site_id = site_id;
+        request.query.recent = "no";
+      }
+
+      if (!isEmpty(device_id)) {
+        request.query.device_id = device_id;
+        request.query.recent = "no";
+      }
+
+      request.query.tenant = tenant;
+
+      const result = await createEventUtil.view(request);
+      logObject("the result for listing events", result);
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error!",
+        errors: { message: error.message },
+      });
+    }
+  },
   listEventsForAllDevices: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
