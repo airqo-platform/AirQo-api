@@ -1011,10 +1011,6 @@ const createUserModule = {
             constants.RANDOM_PASSWORD_CONFIGURATION(10)
           );
 
-      /***
-       * First create all the required fields
-       */
-
       const newRequest = Object.assign({ userName: email, password }, request);
 
       const responseFromCreateUser = await UserModel(tenant).register(

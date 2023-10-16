@@ -278,11 +278,27 @@ const controlAccess = {
       const timeZone = moment.tz.guess();
       let filter = {
         token,
-        user_id,
         expires: {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
+
+      const userDetails = await UserModel(tenant)
+        .find({
+          _id: ObjectId(user_id),
+        })
+        .lean();
+
+      logObject("userDetails", userDetails);
+
+      if (isEmpty(userDetails)) {
+        return {
+          success: false,
+          message: "Bad Reqest Error",
+          errors: { message: "User does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -307,7 +323,6 @@ const controlAccess = {
           let update = {
             verified: true,
             password,
-            $pull: { tokens: { $in: [token] } },
           };
           filter = { _id: user_id };
 
@@ -326,7 +341,7 @@ const controlAccess = {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
-            let user = responseFromUpdateUser.data;
+
             filter = { token };
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await AccessTokenModel(
@@ -338,10 +353,10 @@ const controlAccess = {
             if (responseFromDeleteToken.success === true) {
               const responseFromSendEmail = await mailer.afterEmailVerification(
                 {
-                  firstName: user.firstName,
-                  username: user.userName,
+                  firstName: userDetails[0].firstName,
+                  username: userDetails[0].userName,
                   password,
-                  email: user.email,
+                  email: userDetails[0].email,
                 }
               );
 
@@ -797,9 +812,9 @@ const controlAccess = {
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const timeZone = moment.tz.guess();
+
       let filter = {
         token,
-        user_id,
         expires: {
           $gt: moment().tz(timeZone).toDate(),
         },
