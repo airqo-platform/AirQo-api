@@ -273,11 +273,8 @@ const controlAccess = {
   /******** access tokens ******************************************/
   verifyEmail: async (request) => {
     try {
-      const { query, params } = request;
-      const { tenant } = query;
-      const { user_id, token } = params;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = request.query;
+      const { user_id, token } = request.params;
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -286,8 +283,6 @@ const controlAccess = {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
-
-      // expires: { $gt: new Date().toISOString() },
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -649,6 +644,7 @@ const controlAccess = {
       const { client_id } = request.body;
 
       const client = await ClientModel(tenant).findById(ObjectId(client_id));
+
       if (!client) {
         return {
           success: false,

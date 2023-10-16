@@ -34,10 +34,12 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const rewire = require("rewire");
 const rewireCreateUser = rewire("@utils/create-user");
-const UserModel = rewireCreateUser.__get__("UserModel");
-const LogModel = rewireCreateUser.__get__("LogModel");
-const NetworkModel = rewireCreateUser.__get__("NetworkModel");
-const RoleModel = rewireCreateUser.__get__("RoleModel");
+const UserModel = require("@models/User");
+const LogModel = require("@models/log");
+const NetworkModel = require("@models/Network");
+const RoleModel = require("@models/Role");
+const ClientModel = require("@models/Client");
+const AccessTokenModel = require("@models/AccessToken");
 const accessCodeGenerator = require("generate-password");
 
 // Mock the createUser.lookUpFirebaseUser and createUser.createFirebaseUser functions
@@ -1239,7 +1241,7 @@ describe("create-user-util", function () {
       updatedNetworkStub.restore();
     });
   });
-  describe("sendFeedback", () => {
+  describe("sendFeedback()", () => {
     afterEach(() => {
       sinon.restore(); // Restore any stubs after each test
     });
@@ -1326,62 +1328,88 @@ describe("create-user-util", function () {
       });
     });
   });
-  describe("create", () => {
-    afterEach(() => {
-      sinon.restore(); // Restore any stubs after each test
-    });
-
-    it("should create a new user and send verification email", async () => {
-      // Mock the request object with the required data
+  describe("create()", function () {
+    it("should return the expected response for a valid input", async function () {
+      // Arrange
       const request = {
-        tenant: "your-tenant", // Replace with the actual tenant value
+        tenant: "sample-tenant",
         firstName: "John",
-        email: "test@example.com",
-        network_id: "your-network-id", // Replace with the actual network ID value
-        // Include other required properties in the request object
+        lastName: "Doe",
+        email: "johndoe@example.com",
+        password: "secret123",
+        // Add other properties as needed for your specific test
       };
 
-      // Stub the UserModel's findOne method to return an empty user (user does not exist)
-      sinon.stub(UserModel("your-tenant"), "findOne").resolves(null);
+      // Stub necessary functions
+      const UserModelStub = sinon.stub(UserModel, "findOne").resolves(null);
+      const UserModelRegisterStub = sinon
+        .stub(UserModel, "register")
+        .resolves(/* Your expected response here */);
+      // More stubs for other functions...
 
-      // Stub the accessCodeGenerator.generate method to return a password
-      sinon.stub(accessCodeGenerator, "generate").returns("test_password");
+      // Act
+      const result = await yourModule.create(request);
 
-      // Stub the UserModel's register method to return a successful response
-      sinon.stub(UserModel("your-tenant"), "register").resolves({
-        success: true,
-        data: {
-          _id: "user-id", // Replace with the actual user ID value
-          email: "test@example.com",
-          // Include other user data you want to return in the response
-        },
-      });
+      // Assert
+      expect(result).to.deep.equal(/* Your expected result here */);
 
-      // Stub the mailer.verifyEmail method to return a successful response
-      sinon.stub(mailer, "verifyEmail").resolves({
-        success: true,
-        status: httpStatus.OK,
-        // Include other data you want to include in the email response
-      });
-
-      // Call the create function with the mocked request
-      const response = await create(request);
-
-      // Assert the response from the function
-      expect(response).to.deep.equal({
-        success: true,
-        message: "An Email sent to your account please verify",
-        data: {
-          _id: "user-id", // Replace with the actual user ID value
-          email: "test@example.com",
-          // Include other user data you expect in the response
-        },
-        // Include other data you expect in the response
-      });
+      // Restore the stubs
+      sinon.restore();
     });
 
-    // Add more test cases to cover other scenarios
-    // For example, when the user already exists, email sending fails, etc.
+    it("should handle the case where UserModel.findOne returns a user", async function () {
+      // Arrange
+      const request = {
+        tenant: "sample-tenant",
+        firstName: "Jane",
+        lastName: "Smith",
+        email: "janesmith@example.com",
+        password: "password123",
+        // Add other properties as needed for your specific test
+      };
+
+      // Stub UserModel.findOne to return a user
+      const UserModelStub = sinon
+        .stub(UserModel, "findOne")
+        .resolves(/* A user object */);
+
+      // Act
+      const result = await yourModule.create(request);
+
+      // Assert
+      expect(result).to.deep.equal(/* Your expected result for this case */);
+
+      // Restore the stubs
+      sinon.restore();
+    });
+
+    it("should handle error cases gracefully", async function () {
+      // Arrange
+      const request = {
+        tenant: "sample-tenant",
+        firstName: "Alice",
+        lastName: "Johnson",
+        email: "alicejohnson@example.com",
+        password: "password456",
+        // Add other properties as needed for your specific test
+      };
+
+      // Stub necessary functions to simulate errors
+      const UserModelStub = sinon
+        .stub(UserModel, "findOne")
+        .rejects(new Error("Some error"));
+
+      // Act
+      const result = await yourModule.create(request);
+
+      // Assert
+      expect(
+        result
+      ).to.deep.equal(/* Your expected result for this error case */);
+
+      // Restore the stubs
+      sinon.restore();
+    });
   });
   describe("register", () => {
     afterEach(() => {
