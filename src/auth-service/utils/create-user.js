@@ -992,8 +992,7 @@ const createUserModule = {
   },
   create: async (request) => {
     try {
-      const { tenant, firstName, email } = request;
-      let { password } = request;
+      const { tenant, firstName, email, password } = request;
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
@@ -1004,12 +1003,6 @@ const createUserModule = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
-      password = password
-        ? password
-        : accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
-          );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
