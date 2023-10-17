@@ -165,10 +165,16 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
 
     dataframe = dataframe[
         [
-            "site_id",
             "datetime",
-            "parameter",
+            "lat",
+            "lon",
+            "site_id",
+            "site_name",
             "duration",
+            "qc",
+            "parameter",
+            "unit",
+            "poc",
             "value_pm2_5",
             "value_pm10",
         ]

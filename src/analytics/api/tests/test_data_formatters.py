@@ -8,7 +8,7 @@ from api.utils.data_formatters import format_to_aqcsv
 from conftest import mock_dataframe, mock_aqcsv_globals
 
 
-#TODO: Review this test
+# TODO: Review this test
 # @pytest.mark.parametrize("pollutant", ["pm2_5", "pm10"])
 @pytest.mark.parametrize("frequency", ["hourly", "daily", "raw"])
 @pytest.mark.xfail
