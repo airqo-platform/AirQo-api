@@ -1,3 +1,6 @@
+/* eslint-disable object-curly-spacing */
+/* eslint-disable guard-for-in */
+/* eslint-disable indent */
 /* eslint-disable max-len */
 /* eslint-disable no-unused-vars */
 "use strict";
@@ -12,6 +15,7 @@ const nodemailer = require("nodemailer");
 
 const emailTemplate = require("./config/emailTemplates");
 const crypto = require("crypto");
+const axios = require("axios");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -372,3 +376,98 @@ exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
     }
   }
 });
+
+
+/**
+ * @param {any} groupedFavorites List of Users and their favorites
+ */
+async function sendEmailNotifications(groupedFavorites) {
+  for (const userID in groupedFavorites) {
+    const userFavorites = groupedFavorites[userID];
+
+    const mailOptions = {
+      from: {
+        name: "AirQo Data Team",
+        address: process.env.MAIL_USER,
+      },
+      to: userFavorites[0].userEmail,
+      subject: "Exciting Updates from Your Favorite Locations!",
+      html: emailTemplate.email_notification(userFavorites),
+      attachments: [
+        {
+          filename: "airqoLogo.png",
+          path: "./config/images/airqoLogo.png",
+          cid: "AirQoEmailLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "faceBookLogo.png",
+          path: "./config/images/facebookLogo.png",
+          cid: "FacebookLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "youtubeLogo.png",
+          path: "./config/images/youtubeLogo.png",
+          cid: "YoutubeLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "twitterLogo.png",
+          path: "./config/images/Twitter.png",
+          cid: "Twitter",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "linkedInLogo.png",
+          path: "./config/images/linkedInLogo.png",
+          cid: "LinkedInLogo",
+          contentDisposition: "inline",
+        }],
+    };
+    try {
+      // await transporter.sendMail(mailOptions);
+      functions.logger.log("New Email notification sent");
+      return null;
+    } catch (error) {
+      functions.logger.log("Transporter failed to send email", error);
+    }
+  }
+}
+
+exports.sendDailyNotifications = functions.pubsub
+  .schedule("every 24 hours")
+  .timeZone("Africa/Kampala")
+  .onRun(async (context) => {
+    try {
+      const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`);
+      if (responseFromGetFavorites.data.success === true) {
+        const favorites = responseFromGetFavorites.data.favorites;
+        const groupedFavorites = {};
+
+        favorites.forEach(async (favorite) => {
+          const userID = favorite.firebase_user_id;
+          const user = await getAuth().getUser(userID);
+          const userEmail = user.email;
+          if (userEmail) {
+            const { name, location } = favorite;
+            if (!groupedFavorites[userID]) {
+              groupedFavorites[userID] = [];
+            }
+            groupedFavorites[userID].push({ name, location, userEmail });
+          }
+        });
+
+        await sendEmailNotifications(groupedFavorites);
+      } else {
+        functions.logger.log("Error getting Favorites", responseFromGetFavorites);
+      }
+
+
+      console.log("Daily email notifications sent successfully.");
+      return null;
+    } catch (error) {
+      console.error("Error:", error);
+      functions.logger.log("Error sending notifications", error);
+    }
+  });

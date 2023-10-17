@@ -1,3 +1,5 @@
+/* eslint-disable object-curly-spacing */
+/* eslint-disable require-jsdoc */
 /* eslint-disable indent */
 /* eslint-disable max-len */
 
@@ -186,7 +188,7 @@ module.exports = {
                                 </td>
                             </tr>`;
         return module.exports.email_body(email, content);
-  },
+    },
 
     mobileAppGoodbye: (email, name) => {
         const content = `<tr>
@@ -206,5 +208,123 @@ module.exports = {
                                 </td>
                             </tr>`;
         return module.exports.email_body(email, content, name);
-  },
+    },
+
+    email_notification: (userFavorites) => {
+        const { userEmail } = userFavorites[0];
+        const footerTemplate = module.exports.email_footer_template(userEmail);
+        function generateFavoriteHTML(name, location) {
+            return `
+            <tr style="border: 1px #EBF1FF solid;">
+                <td style="text-align: center; padding: 10px;">
+                    <img src="heart.png" style="height: 24px; width: 24px;">
+                </td>
+                <td>
+                    <div style="color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">
+                        ${name}
+                    </div>
+                    <div style="font-size: 14px; font-family: Inter; font-weight: 500; line-height: 20px; color: #8D8D8D;">
+                        ${location}
+                    </div>
+                </td>
+                <td style="text-align: center; padding: 10px;">
+                    <div style="width: 80px; height: 28px; background: #145DFF; border-radius: 6.09px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 14px; padding-left: 18.26px; padding-right: 18.26px; padding-top: 9.13px; padding-bottom: 9.13px;">
+                        View now
+                    </div>
+                </td>
+            </tr>
+        `;
+        }
+
+        // Generate the HTML for favorites
+        let favoritesContent = "<table style=\"width: 539px; border-collapse: collapse; border: 1px #EBF1FF solid; margin: 20px auto;\">";
+        userFavorites.forEach((favorite) => {
+            const { name, location } = favorite;
+            favoritesContent += generateFavoriteHTML(name, location);
+        });
+        favoritesContent += "</table>";
+
+
+        return `<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table
+                style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;border-top-left-radius: 30px;border-top-right-radius: 30px;">
+                <tr>
+                    <td>
+                        <table
+                            style="width: 100%; background-color: #145DFF; border-top-left-radius: 30.46px;
+                                                                                                                                                                                                                                                                                            border-top-right-radius: 30.46px;">
+                            <tr>
+                                <td
+                                    style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
+                                    <!-- Logo goes here -->
+                                    <img src="logo.png" alt="Logo" style="height: 60px; width: 60px; margin: 20px;">
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                            <tr>
+                                <td>
+                                    <table style="width: 100%; text-align: center; background-color: #fff;">
+                                        <tr>
+                                            <td>
+                                                <br />
+                                                <div
+                                                    style="text-align: center; color: #121723; font-size: 36.75px; font-family: Inter; font-weight: 500; line-height: 50px; word-wrap: break-word">
+                                                    You have some updates <br />from your favorite locations</div>
+                                                <br />
+                                                <br />
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div
+                                                    style="width: 199px; height: 46px; padding-left: 24px; padding-right: 24px; background: #145DFF; border-radius: 8px; flex-direction: column; justify-content: center; align-items: center; gap: 8px; display: inline-flex">
+                                                    <div
+                                                        style="text-align: center; color: white; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 22px; word-wrap: break-word">
+                                                        View now
+                                                    </div>
+                                                </div>
+                                                <br />
+                                                <br />
+                                                <br />
+                                                <br />
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    ${favoritesContent}
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Social media section -->
+            ${footerTemplate}
+            </td>
+            </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>`;
+    },
 };
