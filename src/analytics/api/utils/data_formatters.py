@@ -7,6 +7,7 @@ from api.utils.pollutants.pm_25 import (
     AQCSV_UNIT_MAPPER,
     AQCSV_QC_CODE_MAPPER,
     BIGQUERY_FREQUENCY_MAPPER,
+    AQCSV_DATA_STATUS_MAPPER,
 )
 
 
@@ -148,37 +149,32 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
         if pollutant not in pollutant_mappers.keys():
             continue
 
-        dataframe["parameter"] = AQCSV_PARAMETER_MAPPER[pollutant]
-        dataframe["unit"] = AQCSV_UNIT_MAPPER[pollutant]
-
-        calibrated_value_columns = [
-            column
-            for column in dataframe.columns
-            if column.endswith(f"{pollutant}_calibrated_value")
-        ]
+        dataframe[f"parameter_{pollutant}"] = AQCSV_PARAMETER_MAPPER[pollutant]
+        dataframe[f"unit_{pollutant}"] = AQCSV_UNIT_MAPPER[pollutant]
         dataframe.rename(
             columns={
-                column: f"value_{pollutant}" for column in calibrated_value_columns
+                column: f"value_{pollutant}"
+                for column in dataframe.columns
+                if column.endswith(f"{pollutant}_calibrated_value")
             },
             inplace=True,
         )
-
-    dataframe = dataframe[
-        [
-            "datetime",
-            "lat",
-            "lon",
-            "site_id",
-            "site_name",
-            "duration",
-            "qc",
-            "parameter",
-            "unit",
-            "poc",
-            "value_pm2_5",
-            "value_pm10",
+        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[
+            f"{pollutant}_calibrated_value"
         ]
-    ]
+
+    dataframe.drop(
+        columns=[
+            "pm2_5_raw_value",
+            "pm10_raw_value",
+            "device_name",
+            "tenant",
+            "device_latitude",
+            "device_longitude",
+            "frequency",
+        ],
+        inplace=True,
+    )
     return dataframe.to_dict("records")
 
 
