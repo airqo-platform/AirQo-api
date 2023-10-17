@@ -147,6 +147,7 @@ const mailer = {
     targetId,
     tenant = "airqo",
     entity_title = "",
+    inviterEmail = "",
   } = {}) => {
     try {
       let bcc = "";
@@ -161,7 +162,12 @@ const mailer = {
         },
         to: `${email}`,
         subject: `AirQo Analytics Request to Access ${entity_title} Team`,
-        html: msgTemplates.acceptInvitation({ email, entity_title, targetId }),
+        html: msgTemplates.acceptInvitation({
+          email,
+          entity_title,
+          targetId,
+          inviterEmail,
+        }),
         bcc,
         attachments: attachments,
       };

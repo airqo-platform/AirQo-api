@@ -95,21 +95,28 @@ module.exports = {
     return constants.EMAIL_BODY(email, content);
   },
 
-  acceptInvitation: ({ email, entity_title = "", targetId } = {}) => {
+  acceptInvitation: ({
+    email,
+    entity_title = "",
+    targetId,
+    inviterEmail,
+  } = {}) => {
     const url = `${constants.ANALYTICS_BASE_URL}/account/creation/invite/${email}/${targetId}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics 🎉
-                                    <br />
-                                    Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:
+                                    Join your team on ${entity_title} 🎉
+                                    <br /><br />
+                                    ${entity_title}, ${inviterEmail} has invited you to collaborate in ${entity_title} on AirQo Analytics
+                                    <br /><br />
+                                    Use AirQo Analytics to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
                                     <br /><br />
                                     <a href=${url} target="_blank">
                                         <div
                                             style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                                Join ${entity_title} Team</div>
+                                                Join ${entity_title}</div>
                                         </div>
                                     </a>
                                     <br /><br />

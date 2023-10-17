@@ -115,11 +115,28 @@ const createAccessRequest = {
   },
   requestAccessToGroupByEmail: async (request) => {
     try {
-      const { body, query, params } = request;
-      const { email } = body;
-      const { tenant } = query;
-      const { grp_id } = params;
+      const { tenant, email, user, grp_id } = {
+        ...request,
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
       logObject("grp_id", grp_id);
+
+      const inviter = user._doc;
+      const inviterEmail = inviter.email;
+      const inviterId = inviter._id;
+      const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
+      if (isEmpty(inviterDetails) || isEmpty(inviter)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Inviter does not exit" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
       const group = await GroupModel(tenant).findById(grp_id);
       logObject("group", group);
       if (isEmpty(group)) {
@@ -178,6 +195,7 @@ const createAccessRequest = {
           tenant,
           entity_title: group.grp_title,
           targetId: grp_id,
+          inviterEmail,
         });
 
         if (responseFromSendEmail.success === true) {
@@ -238,7 +256,7 @@ const createAccessRequest = {
         };
       }
 
-      const user = await UserModel(tenant).register({
+      const newUser = await UserModel(tenant).register({
         email,
         password,
         userName: email,
@@ -246,8 +264,8 @@ const createAccessRequest = {
         lastName,
       });
 
-      logObject("user", user);
-      if (isEmpty(user)) {
+      logObject("newUser", newUser);
+      if (isEmpty(newUser)) {
         return {
           success: false,
           message: "Internal Server Error",
@@ -267,11 +285,11 @@ const createAccessRequest = {
       });
 
       if (responseFromUpdateAccessRequest.success === true) {
-        const { firstName, lastName, email } = user;
+        const { firstName, lastName, email } = newUser;
         const request = {
           params: {
             grp_id: grp_id,
-            user_id: user._id,
+            user_id: newUser._id,
           },
           query: { tenant: tenant },
         };
