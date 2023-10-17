@@ -24,8 +24,7 @@ function oneMonthFromNow() {
   }
   return d;
 }
-const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-
+const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
 const UserSchema = new Schema(
   {
     due_date: { type: Date },
