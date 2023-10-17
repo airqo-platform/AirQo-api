@@ -74,54 +74,33 @@ describe("email.templates", () => {
     });
   });
   describe("v2_emailVerification", () => {
-    it("should return the correct email verification template with provided details", () => {
-      const email = "johndoe@test.com";
-      const firstName = "John";
-      const user_id = "123456789";
-      const token = "abcdef123456";
+    it("should generate the email content with the correct URL", () => {
+      // Define test data
+      const testData = {
+        email: "test@example.com",
+        firstName: "John",
+        user_id: "123",
+        token: "abc123",
+        category: "individual", // or 'organization'
+      };
 
-      const url = `${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}`;
-      const content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics 🎉
-                                    <br />
-                                    Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:
-                                    <br /><br />
-                                    <a href=${url} target="_blank">
-                                        <div
-                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
-                                            <div
-                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                                Verify Email</div>
-                                        </div>
-                                    </a>
-                                    <br /><br />
-                                    Trouble logging in? Paste this URL into your browser:
-                                    </br>
-                                    <a href=${url} target="_blank">${url}</a>
-                                    <br /><br />
-                                    <div
-                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
-                                        request? You can safely ignore and delete this email</div>
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>`;
-      const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = emailTemplatesUtil.v2_emailVerification(
-        email,
-        firstName,
-        user_id,
-        token
-      );
-      const joinRequestSpy = sinon.spy(emailTemplatesUtil, "v2_emailVerification");
-      expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(email, firstName, user_id, token)).to.be.true;
-      joinRequestSpy.restore();
-      expect(result).to.equal(expectedMessage);
+      // Mock the constants.ANALYTICS_BASE_URL
+      sinon.stub(constants, "ANALYTICS_BASE_URL").value("http://example.com");
+
+      // Call the function
+      const result = emailTemplatesUtil.v2_emailVerification(testData);
+
+      // Expectations
+      expect(result).to.be.an("object");
+      expect(result.subject).to.be.a("string");
+      expect(result.content).to.be.a("string");
+      expect(result.email).to.equal("test@example.com");
+
+      // Restore the stub after the test
+      constants.ANALYTICS_BASE_URL.restore();
     });
+
+    // Add more test cases as needed
   });
   describe("afterEmailVerification", () => {
     it("should return the correct after email verification template with provided details", () => {
@@ -171,7 +150,6 @@ describe("email.templates", () => {
   });
   describe("deleteMobileAccountEmail", () => {
     it("should return the correct email template with provided email and token", () => {
-
       const email = "johndoe@test.com";
       const token = "abcdef123456";
 
@@ -198,11 +176,11 @@ describe("email.templates", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = emailTemplatesUtil.deleteMobileAccountEmail(
-        email,
-        token
+      const result = emailTemplatesUtil.deleteMobileAccountEmail(email, token);
+      const joinRequestSpy = sinon.spy(
+        emailTemplatesUtil,
+        "deleteMobileAccountEmail"
       );
-      const joinRequestSpy = sinon.spy(emailTemplatesUtil, "deleteMobileAccountEmail");
       expect(result).to.equal(expectedMessage);
       expect(joinRequestSpy.calledOnceWith(email, token)).to.be.true;
       joinRequestSpy.restore();

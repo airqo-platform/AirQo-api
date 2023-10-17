@@ -60,6 +60,55 @@ router.post(
   authJWT,
   createRequestController.requestAccessToGroup
 );
+
+router.post(
+  "/emails/groups/:grp_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the grp_ids should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the grp_id cannot be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the grp_id is not a valid Object")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the email cannot be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the email is not a valid Object")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.requestAccessToGroupByEmail
+);
+
 router.post(
   "/networks/:net_id",
   oneOf([

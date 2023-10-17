@@ -341,7 +341,7 @@ router.post(
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
-  "/verify/:user_id/:token",
+  "/verify/:user_id/:token/:category",
   oneOf([
     [
       query("tenant")
@@ -369,6 +369,15 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      param("category")
+        .exists()
+        .withMessage("category is missing in your request")
+        .bail()
+        .isIn(["individual", "organisation"])
+        .withMessage(
+          "the category value is not among the expected ones: individual, organisation"
+        )
+        .trim(),
       param("token")
         .exists()
         .withMessage("the token param is missing in the request")
@@ -494,6 +503,15 @@ router.post(
         .exists()
         .withMessage("lastName is missing in your request")
         .bail()
+        .trim(),
+      body("category")
+        .exists()
+        .withMessage("category is missing in your request")
+        .bail()
+        .isIn(["individual", "organisation"])
+        .withMessage(
+          "the category value is not among the expected ones: individual, organisation"
+        )
         .trim(),
       body("email")
         .exists()

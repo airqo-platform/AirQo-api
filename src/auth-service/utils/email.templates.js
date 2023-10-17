@@ -52,8 +52,18 @@ module.exports = {
 `;
   },
 
-  v2_emailVerification: (email, firstName, user_id, token) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/step4/${user_id}/${token}`;
+  v2_emailVerification: ({
+    email,
+    firstName,
+    user_id,
+    token,
+    category,
+  } = {}) => {
+    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/step4/${user_id}/${token}/${category}`;
+    if (category && category === "organisation") {
+      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/step3/${user_id}/${token}/${category}`;
+    }
+
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -85,7 +95,68 @@ module.exports = {
     return constants.EMAIL_BODY(email, content);
   },
 
+  acceptInvitation: ({ email, entity_title = "", targetId } = {}) => {
+    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/invite/${email}/${targetId}`;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Welcome to AirQo Analytics 🎉
+                                    <br />
+                                    Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:
+                                    <br /><br />
+                                    <a href=${url} target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Join ${entity_title} Team</div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    Trouble logging in? Paste this URL into your browser:
+                                    </br>
+                                    <a href=${url} target="_blank">${url}</a>
+                                    <br /><br />
+                                    <div
+                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
+                                        request? You can safely ignore and delete this email</div>
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content);
+  },
+
   afterEmailVerification: (firstName, username, password, email) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Congratulations! Your account has been successfully verified.
+                                <br />
+                                We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.
+                                <br />
+                                <ul>
+                                    <li>YOUR USERAME: ${username}</li>
+                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                </ul>
+                                    <br />
+                                If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                                team. We are here to help.
+                                <br />
+                                Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals
+                                <br />
+                                <br />
+                                Sincerely,
+                                <br />
+                                The AirQo Data Team
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+
+  afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
     const name = firstName;
     const content = ` <tr>
                                 <td
