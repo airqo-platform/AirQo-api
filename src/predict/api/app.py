@@ -11,7 +11,7 @@ from geoalchemy2 import Geometry
 
 import config
 
-app_configuration = config.app_config.get(os.getenv("FLASK_ENV"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "staging"))
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
@@ -22,8 +22,8 @@ cache = Cache(
     config={
         "CACHE_TYPE": "RedisCache",
         "CACHE_REDIS_HOST": app_configuration.REDIS_SERVER,
-        "CACHE_REDIS_PORT": os.getenv("REDIS_PORT"),
-        "CACHE_REDIS_URL": f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
+        "CACHE_REDIS_PORT": os.getenv("REDIS_PORT", 6379),
+        "CACHE_REDIS_URL": f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT', 6379)}",
         "CACHE_DEFAULT_TIMEOUT": app_configuration.CACHE_TIMEOUT,
     }
 )
@@ -44,7 +44,7 @@ def create_app(environment):
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV"))
+application = create_app(os.getenv("FLASK_ENV", "staging"))
 postgres_db = SQLAlchemy(application)
 
 
