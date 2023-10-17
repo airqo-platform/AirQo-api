@@ -317,12 +317,8 @@ const controlAccess = {
             errors: { message: "incorrect user or token details provided" },
           };
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const password = accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
-          );
           let update = {
             verified: true,
-            password,
           };
           filter = { _id: user_id };
 

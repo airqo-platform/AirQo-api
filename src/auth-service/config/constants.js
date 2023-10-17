@@ -856,6 +856,10 @@ const defaultConfig = {
     grp_status: 1,
     grp_tasks: 1,
     grp_description: 1,
+    grp_website: 1,
+    grp_industry: 1,
+    grp_country: 1,
+    grp_timezone: 1,
     createdAt: 1,
     numberOfGroupUsers: {
       $cond: {

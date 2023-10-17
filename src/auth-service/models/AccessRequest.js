@@ -18,7 +18,16 @@ const AccessRequestSchema = new Schema(
     user_id: {
       type: ObjectId,
       ref: "user",
-      required: [true, "User ID is required"],
+    },
+    email: {
+      type: String,
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
+      },
     },
     requestType: {
       type: String,
@@ -34,7 +43,6 @@ const AccessRequestSchema = new Schema(
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
-    // Additional fields for comments, timestamps, etc.
   },
   {
     timestamps: true,
@@ -169,6 +177,7 @@ AccessRequestSchema.statics = {
         projection: {
           _id: 1,
           user_id: 1,
+          email: 1,
           requestType: 1,
           targetId: 1,
           status: 1,
@@ -212,6 +221,7 @@ AccessRequestSchema.methods = {
     return {
       _id: this._id,
       user_id: this.user_id,
+      email: this.email,
       requestType: this.requestType,
       targetId: this.targetId,
       status: this.status,

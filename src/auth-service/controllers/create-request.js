@@ -72,6 +72,66 @@ const createAccessRequest = {
       });
     }
   },
+  requestAccessToGroupByEmail: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromRequestAccessToGroup =
+        await createAccessRequestUtil.requestAccessToGroupByEmail(request);
+      logObject(
+        "responseFromRequestAccessToGroup",
+        responseFromRequestAccessToGroup
+      );
+      if (responseFromRequestAccessToGroup.success === true) {
+        const status = responseFromRequestAccessToGroup.status
+          ? responseFromRequestAccessToGroup.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRequestAccessToGroup.message,
+          request: responseFromRequestAccessToGroup.data,
+        });
+      } else if (responseFromRequestAccessToGroup.success === false) {
+        const status = responseFromRequestAccessToGroup.status
+          ? responseFromRequestAccessToGroup.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromRequestAccessToGroup.message,
+          error: responseFromRequestAccessToGroup.error
+            ? responseFromRequestAccessToGroup.error
+            : "",
+          errors: responseFromRequestAccessToGroup.errors
+            ? responseFromRequestAccessToGroup.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error ${e.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        error: e.message,
+        errors: { message: e.message },
+      });
+    }
+  },
   requestAccessToNetwork: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
