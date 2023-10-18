@@ -123,6 +123,7 @@ const UserSchema = new Schema(
           role: {
             type: ObjectId,
             ref: "role",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
           },
         },
       ],
