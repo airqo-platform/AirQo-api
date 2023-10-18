@@ -55,7 +55,7 @@ Scan through the [existing issues](https://github.com/airqo-platform/AirQo-api/i
 
 2. [Fork the repository](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo#fork-an-example-repository).
 
-3. Create a working branch and start with your changes!
+3. [Create a working branch](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-a-branch-for-an-issue) and start with your changes!
 
 ## Style Guides
 Basing on the framework and language you are using to develop any microservice, please ensure that you follow the [Style Guide](http://google.github.io/styleguide/) for that language accordingly. 
