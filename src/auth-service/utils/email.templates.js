@@ -101,7 +101,7 @@ module.exports = {
     targetId,
     inviterEmail,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/step2/${email}/${targetId}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/step2?userEmail=${email}&target_id=${targetId}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
