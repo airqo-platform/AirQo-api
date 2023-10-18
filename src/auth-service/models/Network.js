@@ -36,6 +36,20 @@ const NetworkSchema = new Schema(
       unique: true,
     },
     net_status: { type: String, default: "inactive" },
+    net_connection_string: {
+      type: String,
+      required: [true, "net_connection_string is required"],
+    },
+    net_connection_endpoint: {
+      type: String,
+      required: [true, "net_connection_endpoint is required"],
+    },
+    net_username: {
+      type: String,
+      required: [true, "net_username is required"],
+    },
+    net_password: { type: String },
+    net_specific_fields: {},
     net_manager: { type: ObjectId },
     net_last: { type: Number },
     net_manager_username: { type: String },
@@ -114,6 +128,11 @@ NetworkSchema.methods = {
       net_createdAt: this.createdAt,
       net_data_source: this.net_data_source,
       net_api_key: this.net_api_key,
+      net_connection_string: this.net_connection_string,
+      net_connection_endpoint: this.net_connection_endpoint,
+      net_username: this.net_username,
+      net_password: this.net_password,
+      net_specific_fields: this.net_specific_fields,
     };
   },
 };
@@ -193,7 +212,7 @@ NetworkSchema.statics = {
     try {
       const inclusionProjection = constants.NETWORKS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.NETWORKS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : ""
+        filter.category ? filter.category : "none"
       );
       logObject("inclusionProjection", inclusionProjection);
       logObject("exclusionProjection", exclusionProjection);

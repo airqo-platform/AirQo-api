@@ -60,6 +60,104 @@ router.post(
   authJWT,
   createRequestController.requestAccessToGroup
 );
+
+router.post(
+  "/emails/groups/:grp_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the grp_ids should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the grp_id cannot be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the grp_id is not a valid Object")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("emails")
+        .exists()
+        .withMessage("the emails should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the emails should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the emails should not be empty"),
+      body("emails.*")
+        .notEmpty()
+        .withMessage("the email cannot be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the email is not valid"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.requestAccessToGroupByEmail
+);
+router.post(
+  "/emails/accept",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the emails should not be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the email is not valid"),
+      body("target_id")
+        .exists()
+        .withMessage("the target_id is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("target_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.acceptInvitation
+);
 router.post(
   "/networks/:net_id",
   oneOf([

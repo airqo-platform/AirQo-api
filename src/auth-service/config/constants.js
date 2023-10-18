@@ -7,6 +7,7 @@ const devConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_DEV_BASE_URL,
+  ANALYTICS_BASE_URL: process.env.ANALYTICS_DEV_BASE_URL,
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
@@ -32,6 +33,7 @@ const prodConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_PRODUCTION_BASE_URL,
+  ANALYTICS_BASE_URL: process.env.ANALYTICS_PRODUCTION_BASE_URL,
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
@@ -57,6 +59,7 @@ const stageConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_STAGING_BASE_URL,
+  ANALYTICS_BASE_URL: process.env.ANALYTICS_STAGING_BASE_URL,
   ENVIRONMENT: "STAGING ENVIRONMENT",
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
     ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
@@ -405,7 +408,6 @@ const defaultConfig = {
           createdAt: 0,
           net_users: 0,
           net_permissions: 0,
-
           net_groups: 0,
           net_departments: 0,
           net_data_source: 0,
@@ -701,6 +703,7 @@ const defaultConfig = {
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
     user: { $arrayElemAt: ["$user", 0] },
+    email: 1,
     requestType: 1,
     targetId: 1,
     status: 1,
@@ -853,6 +856,10 @@ const defaultConfig = {
     grp_status: 1,
     grp_tasks: 1,
     grp_description: 1,
+    grp_website: 1,
+    grp_industry: 1,
+    grp_country: 1,
+    grp_timezone: 1,
     createdAt: 1,
     numberOfGroupUsers: {
       $cond: {

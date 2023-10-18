@@ -341,7 +341,7 @@ router.post(
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
-  "/verify/:user_id/:token",
+  "/verify/:user_id/:token/:category",
   oneOf([
     [
       query("tenant")
@@ -369,6 +369,15 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      param("category")
+        .exists()
+        .withMessage("category is missing in your request")
+        .bail()
+        .isIn(["individual", "organisation"])
+        .withMessage(
+          "the category value is not among the expected ones: individual, organisation"
+        )
+        .trim(),
       param("token")
         .exists()
         .withMessage("the token param is missing in the request")
@@ -495,6 +504,15 @@ router.post(
         .withMessage("lastName is missing in your request")
         .bail()
         .trim(),
+      body("category")
+        .exists()
+        .withMessage("category is missing in your request")
+        .bail()
+        .isIn(["individual", "organisation"])
+        .withMessage(
+          "the category value is not among the expected ones: individual, organisation"
+        )
+        .trim(),
       body("email")
         .exists()
         .withMessage("email is missing in your request")
@@ -530,7 +548,7 @@ router.post(
         .isLength({ min: 6, max: 30 })
         .withMessage("Password must be between 6 and 30 characters long")
         .bail()
-        .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/)
+        .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
         .withMessage(
           "Password must contain at least one letter and one number"
         ),

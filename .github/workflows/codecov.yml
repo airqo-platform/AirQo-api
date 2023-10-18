@@ -3,74 +3,69 @@ name: code-coverage-workflow
 on: [push, pull_request]
 
 jobs:
-  auth-service:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    defaults:
-        run:
-          working-directory: src/auth-service
-    name: Code Coverage for authservice
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
-      with:
-          node-version: 18
-
-    - name: Install dependencies
-      run: 
-        npm install
-
-    - name: Run tests and collect coverage
-      continue-on-error: true
-      run: 
-        npm run test
-        
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      with: 
-        directory: src/auth-service/coverage
-  device-registry:  
+  # setup for auth-service and device-registry microservice
+  auth-service-device-registry:
+    strategy:
+      matrix:
+        service: [auth-service, device-registry]
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
-        working-directory: src/device-registry
-    name: Code Coverage for device-registry
+        working-directory: src/${{ matrix.service }}
+    name: Code Coverage for ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests and collect coverage
+        continue-on-error: true
+        run: npm run test
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          directory: src/${{ matrix.service }}/coverage
     env:
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       REDIS_SERVER: ${{ secrets.REDIS_SERVER }}
-      REDIS_PORT: ${{ secrets.REDIS_PORT }}   
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
-      with:
-          node-version: 18
-    
-    - name: Install dependencies
-      run: 
-        npm install
-    
-    - name: Run tests and collect coverage
-      continue-on-error: true
-      run: 
-        npm run test
-            
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
-      env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      with: 
-        directory: src/device-registry/coverage
-    
+      REDIS_PORT: ${{ secrets.REDIS_PORT }}
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
+  # setup for airflow and predict microservices
+  airflow-predict:
+    strategy:
+      matrix:
+        microservice: [airflow, predict]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Code coverage for ${{ matrix.microservice }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies and run tests
+        continue-on-error: true
+        run: |
+          cd src/${{ matrix.microservice }}
+          pip install -r requirements.txt
+          if [ "${{ matrix.microservice }}" == "airflow" ]; then
+            pytest --cov airqo_etl_utils/tests/ --cov-report=xml
+          else
+            pytest --cov api/tests/ --cov-report=xml
+          fi
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/${{ matrix.microservice }}/coverage.xml

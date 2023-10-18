@@ -770,11 +770,22 @@ const createGroup = {
             },
           },
           {
+            $lookup: {
+              from: "roles",
+              localField: "group_roles.role",
+              foreignField: "_id",
+              as: "role",
+            },
+          },
+          {
             $project: {
               _id: 1,
               firstName: 1,
               lastName: 1,
               userName: 1,
+              profilePicture: 1,
+              status: 1,
+              jobTitle: 1,
               createdAt: {
                 $dateToString: {
                   format: "%Y-%m-%d %H:%M:%S",
@@ -782,6 +793,8 @@ const createGroup = {
                 },
               },
               email: 1,
+              role_name: { $arrayElemAt: ["$role.role_name", 0] },
+              role_id: { $arrayElemAt: ["$role._id", 0] },
             },
           },
         ])

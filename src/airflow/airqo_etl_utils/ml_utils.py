@@ -624,8 +624,10 @@ class ForecastUtils:
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         # forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
 
-        forecasts = DecodingUtils.decode_categorical_features_before_save(forecasts, frequency)
-        return  forecasts[
+        forecasts = DecodingUtils.decode_categorical_features_before_save(
+            forecasts, frequency
+        )
+        return forecasts[
             [
                 "device_id",
                 "site_id",
@@ -645,7 +647,7 @@ class ForecastUtils:
         for i in device_ids:
             doc = {
                 "device_id": i,
-                "site_id":data[data["device_id"] == i]["site_id"].unique()[0],
+                "site_id": data[data["device_id"] == i]["site_id"].unique()[0],
                 "created_at": created_at,
                 "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
                 "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
@@ -665,7 +667,7 @@ class ForecastUtils:
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
-                        "site_id":doc["site_id"],
+                        "site_id": doc["site_id"],
                         "timestamp": doc["timestamp"],
                         "created_at": doc["created_at"],
                     }

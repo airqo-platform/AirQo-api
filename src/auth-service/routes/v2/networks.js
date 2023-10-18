@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const createNetworkController = require("@controllers/create-network");
 const { check, oneOf, query, body, param } = require("express-validator");
+const isEmpty = require("is-empty");
 
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
@@ -229,6 +230,47 @@ router.post(
   ]),
   oneOf([
     [
+      body("net_specific_fields")
+        .optional()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the net_specific_fields should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the net_specific_fields should not be empty IF provided"),
+      body("net_password")
+        .optional()
+        .notEmpty()
+        .withMessage("the net_password should not be empty IF provided")
+        .trim(),
+      body("net_username")
+        .exists()
+        .withMessage("the net_username is required")
+        .bail()
+        .notEmpty()
+        .withMessage("the net_username should not be empty IF provided")
+        .trim(),
+      body("net_connection_endpoint")
+        .exists()
+        .withMessage("the net_connection_endpoint is required")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_endpoint should not be empty IF provided"
+        )
+        .trim(),
+      body("net_connection_string")
+        .exists()
+        .withMessage("the net_connection_string is required")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_string should not be empty IF provided"
+        )
+        .trim(),
       body("net_email")
         .exists()
         .withMessage("the network's email address is required")
@@ -605,6 +647,41 @@ router.put(
   ]),
   oneOf([
     [
+      body("net_specific_fields")
+        .optional()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the net_specific_fields should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the net_specific_fields should not be empty IF provided"),
+      body("net_password")
+        .optional()
+        .notEmpty()
+        .withMessage("the net_password should not be empty IF provided")
+        .trim(),
+      body("net_username")
+        .optional()
+        .notEmpty()
+        .withMessage("the net_username should not be empty IF provided")
+        .trim(),
+      body("net_connection_endpoint")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_endpoint should not be empty IF provided"
+        )
+        .trim(),
+      body("net_connection_string")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_string should not be empty IF provided"
+        )
+        .trim(),
       body("net_email")
         .optional()
         .notEmpty()
@@ -660,9 +737,9 @@ router.put(
         )
         .trim(),
       body("net_name")
-        .if(body("net_name").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the net_name should not be empty")
+        .withMessage("the net_name should not be empty IF provided")
         .trim(),
       body("net_users")
         .optional()
@@ -681,7 +758,7 @@ router.put(
       body("net_api_key")
         .optional()
         .notEmpty()
-        .withMessage("the api key should not be empty if provided")
+        .withMessage("the net_api_key should not be empty IF provided")
         .bail(),
       body("net_users.*")
         .optional()
@@ -724,6 +801,41 @@ router.patch(
   ]),
   oneOf([
     [
+      body("net_specific_fields")
+        .optional()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the net_specific_fields should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the net_specific_fields should not be empty IF provided"),
+      body("net_password")
+        .optional()
+        .notEmpty()
+        .withMessage("the net_password should not be empty IF provided")
+        .trim(),
+      body("net_username")
+        .optional()
+        .notEmpty()
+        .withMessage("the net_username should not be empty IF provided")
+        .trim(),
+      body("net_connection_endpoint")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_endpoint should not be empty IF provided"
+        )
+        .trim(),
+      body("net_connection_string")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "the net_connection_string should not be empty IF provided"
+        )
+        .trim(),
       body("net_email")
         .optional()
         .notEmpty()
