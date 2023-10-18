@@ -225,7 +225,8 @@ const createAccessRequest = {
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            message: "Access requests already exist for the following emails",
+            message:
+              "Access requests were already sent for the following emails",
             existingRequests,
           },
         };
