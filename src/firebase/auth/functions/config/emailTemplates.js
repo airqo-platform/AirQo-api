@@ -217,9 +217,9 @@ module.exports = {
             return `
             <tr style="border: 1px #EBF1FF solid;">
                 <td style="text-align: center; padding: 10px;">
-                    <img src="heart.png" style="height: 24px; width: 24px;">
+                    <img src="cid:FavoriteIcon"  style="height: 20px; width: 20px;">
                 </td>
-                <td>
+                <td style ="padding-right: 60px;">
                     <div style="color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">
                         ${name}
                     </div>
@@ -227,9 +227,9 @@ module.exports = {
                         ${location}
                     </div>
                 </td>
-                <td style="text-align: center; padding: 10px;">
-                    <div style="width: 80px; height: 28px; background: #145DFF; border-radius: 6.09px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 14px; padding-left: 18.26px; padding-right: 18.26px; padding-top: 9.13px; padding-bottom: 9.13px;">
-                        View now
+                <td style="text-align: center; padding: 10px; display: grid; place-items: center;">
+                    <div style="width: 80px; background: #145DFF; border-radius: 6.09px; display: grid; align-content: center; justify-content: center; color: white; font-size: 14px; padding-left: 18.26px; padding-right: 18.26px; padding-top: 9.13px; padding-bottom: 9.13px;">
+                        <a href ="https://airqo.page.link/NOTIF" style="text-decoration: none; color: white;"> View now</a>
                     </div>
                 </td>
             </tr>
@@ -268,7 +268,7 @@ module.exports = {
                                 <td
                                     style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
                                     <!-- Logo goes here -->
-                                    <img src="logo.png" alt="Logo" style="height: 60px; width: 60px; margin: 20px;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 100px; margin-right: 10px;">
                                 </td>
                             </tr>
                         </table>
@@ -291,13 +291,13 @@ module.exports = {
                                                 <br />
                                             </td>
                                         </tr>
-                                        <tr>
-                                            <td>
+                                         <tr>
+                                            <td style="display: grid; padding-left: 190px;">
                                                 <div
-                                                    style="width: 199px; height: 46px; padding-left: 24px; padding-right: 24px; background: #145DFF; border-radius: 8px; flex-direction: column; justify-content: center; align-items: center; gap: 8px; display: inline-flex">
+                                                    style="width: 199px; height: 33px;padding-top: 12px; padding-left: 24px; padding-right: 24px; background: #145DFF; border-radius: 8px; flex-direction: column; justify-content: center; gap: 8px; display: grid;">
                                                     <div
                                                         style="text-align: center; color: white; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 22px; word-wrap: break-word">
-                                                        View now
+                                                        <a href ="https://airqo.page.link/NOTIF" style="text-decoration: none; color: white;"> View now</a>
                                                     </div>
                                                 </div>
                                                 <br />

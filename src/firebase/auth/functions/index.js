@@ -395,6 +395,12 @@ async function sendEmailNotifications(groupedFavorites) {
       html: emailTemplate.email_notification(userFavorites),
       attachments: [
         {
+          filename: "favoriteIcon.png",
+          path: "./config/images/favoriteIcon.png",
+          cid: "FavoriteIcon",
+          contentDisposition: "inline",
+        },
+        {
           filename: "airqoLogo.png",
           path: "./config/images/airqoLogo.png",
           cid: "AirQoEmailLogo",
@@ -426,7 +432,7 @@ async function sendEmailNotifications(groupedFavorites) {
         }],
     };
     try {
-      // await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
       functions.logger.log("New Email notification sent");
       return null;
     } catch (error) {
@@ -440,31 +446,40 @@ exports.sendDailyNotifications = functions.pubsub
   .timeZone("Africa/Kampala")
   .onRun(async (context) => {
     try {
-      const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`);
+      const headers = {
+        "Authorization": process.env.JWT_TOKEN,
+      };
+      const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`,
+        { headers: headers });
+
       if (responseFromGetFavorites.data.success === true) {
         const favorites = responseFromGetFavorites.data.favorites;
         const groupedFavorites = {};
 
-        favorites.forEach(async (favorite) => {
-          const userID = favorite.firebase_user_id;
-          const user = await getAuth().getUser(userID);
-          const userEmail = user.email;
-          if (userEmail) {
-            const { name, location } = favorite;
-            if (!groupedFavorites[userID]) {
-              groupedFavorites[userID] = [];
+        for (const favorite of favorites) {
+          try {
+            const userID = favorite.firebase_user_id;
+            const user = await getAuth().getUser(userID);
+            const userEmail = user.email;
+
+            if (userEmail) {
+              const { name, location } = favorite;
+
+              if (!groupedFavorites[userID]) {
+                groupedFavorites[userID] = [];
+              }
+
+              groupedFavorites[userID].push({ name, location, userEmail });
             }
-            groupedFavorites[userID].push({ name, location, userEmail });
+          } catch (error) {
+            functions.logger.log("Error getting Favorites", error);
           }
-        });
+        }
 
         await sendEmailNotifications(groupedFavorites);
       } else {
-        functions.logger.log("Error getting Favorites", responseFromGetFavorites);
+        functions.logger.log("Error fetching Favorites", responseFromGetFavorites);
       }
-
-
-      console.log("Daily email notifications sent successfully.");
       return null;
     } catch (error) {
       console.error("Error:", error);
