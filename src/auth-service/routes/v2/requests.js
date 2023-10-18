@@ -115,7 +115,49 @@ router.post(
   authJWT,
   createRequestController.requestAccessToGroupByEmail
 );
-
+router.post(
+  "/emails/accept",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the emails should not be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the email is not valid"),
+      body("target_id")
+        .exists()
+        .withMessage("the target_id is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("target_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRequestController.acceptInvitation
+);
 router.post(
   "/networks/:net_id",
   oneOf([

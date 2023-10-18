@@ -168,9 +168,9 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Congratulations! Your account has been successfully verified.
+                                Congratulations! You have successfully joined ${entity_title} organisation on AirQo Analytics.
                                 <br />
-                                We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.
+                                We are pleased to inform you that you can now access ${entity_title} data, insights and visualisations on AirQo Analytics.
                                 <br />
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>

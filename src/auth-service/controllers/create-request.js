@@ -129,6 +129,62 @@ const createAccessRequest = {
       });
     }
   },
+  acceptInvitation: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromAcceptGroupInvitation =
+        await createAccessRequestUtil.acceptInvitation(request);
+      logObject(
+        "responseFromAcceptGroupInvitation",
+        responseFromAcceptGroupInvitation
+      );
+      if (responseFromAcceptGroupInvitation.success === true) {
+        const status = responseFromAcceptGroupInvitation.status
+          ? responseFromAcceptGroupInvitation.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromAcceptGroupInvitation.message,
+          invite: responseFromAcceptGroupInvitation.data,
+        });
+      } else if (responseFromAcceptGroupInvitation.success === false) {
+        const status = responseFromAcceptGroupInvitation.status
+          ? responseFromAcceptGroupInvitation.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromAcceptGroupInvitation.message,
+          errors: responseFromAcceptGroupInvitation.errors
+            ? responseFromAcceptGroupInvitation.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error ${e.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
+    }
+  },
   requestAccessToNetwork: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

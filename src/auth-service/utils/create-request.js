@@ -252,26 +252,29 @@ const createAccessRequest = {
       };
     }
   },
-
-  acceptGroupInvitation: async (request) => {
+  acceptInvitation: async (request) => {
     try {
-      /**
-       * after they accept this invite, the group is part of their organisation
-       */
-      const { tenant, email, firstName, lastName, password, grids, grp_id } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const { tenant, email, firstName, lastName, password, grids, target_id } =
+        {
+          ...request.body,
+          ...request.query,
+          ...request.params,
+        };
 
-      const group = await GroupModel(tenant).findById(grp_id).lean()[0];
-      logObject("group", group);
+      const user = await UserModel(tenant).find({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "The User already exists in AirQo Analytics" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const accessRequest = await AccessRequestModel(tenant).find({
-        targetId: grp_id,
+        targetId: target_id,
         email,
         status: "pending",
-        requestType: "group",
       });
 
       logObject("accessRequest", accessRequest);
@@ -287,72 +290,102 @@ const createAccessRequest = {
         };
       }
 
-      const newUser = await UserModel(tenant).register({
+      let newUser = {};
+      const bodyForCreatingNewUser = {
         email,
         password,
         userName: email,
         firstName,
         lastName,
-      });
+      };
 
-      logObject("newUser", newUser);
-      if (isEmpty(newUser)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "Unable to create the new User" },
-        };
-      }
+      const responseFromCreateNewUser = await UserModel(tenant).register(
+        bodyForCreatingNewUser
+      );
 
-      const update = { status: "approved" };
-      const filter = { email, requestType: "group", targetId: grp_id };
+      if (
+        responseFromCreateNewUser.success === true &&
+        responseFromCreateNewUser.status === httpStatus.OK
+      ) {
+        newUser = responseFromCreateNewUser.data;
+        logObject("newUser", newUser);
 
-      const responseFromUpdateAccessRequest = await AccessRequestModel(
-        tenant
-      ).modify({
-        filter,
-        update,
-      });
+        const update = { status: "approved" };
+        const filter = { email, targetId: target_id };
 
-      if (responseFromUpdateAccessRequest.success === true) {
-        const { firstName, lastName, email } = newUser;
-        const request = {
-          params: {
-            grp_id: grp_id,
-            user_id: newUser._id,
-          },
-          query: { tenant: tenant },
-        };
-        const responseFromAssignUserToGroup =
-          await createGroupUtil.assignOneUser(request);
+        const responseFromUpdateAccessRequest = await AccessRequestModel(
+          tenant
+        ).modify({
+          filter,
+          update,
+        });
 
-        logObject(
-          "responseFromAssignUserToGroup",
-          responseFromAssignUserToGroup
-        );
+        const requestType = accessRequest[0].requestType;
 
-        if (responseFromAssignUserToGroup.success === true) {
-          const responseFromSendEmail = await mailer.afterAcceptingInvitation({
-            firstName,
-            username,
-            email,
-            entity_title: group.grp_title,
-          });
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "Group JOIN request accepted successfully",
-              status: httpStatus.OK,
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+        if (responseFromUpdateAccessRequest.success === true && requestType) {
+          let entityKeyId;
+          let organisationUtil;
+          let entity_title;
+          if (requestType === "group") {
+            entityKeyId = "grp_id";
+            organisationUtil = createGroupUtil;
+            const group = await GroupModel(tenant).findById(target_id).lean();
+            entity_title = group.grp_title;
+          } else if (requestType === "network") {
+            entityKeyId = "net_id";
+            organisationUtil = createNetworkUtil;
+            const network = await NetworkModel(tenant)
+              .findById(target_id)
+              .lean();
+            entity_title = network.net_name;
           }
-        } else if (responseFromAssignUserToGroup.success === false) {
-          return responseFromAssignUserToGroup;
+
+          const { firstName, lastName, email } = newUser;
+          const request = {
+            params: {
+              [entityKeyId]: target_id,
+              user_id: newUser._id,
+            },
+            query: { tenant: tenant },
+          };
+          const responseFromAssignUserToOrganisation =
+            await organisationUtil.assignOneUser(request);
+
+          logObject(
+            "responseFromAssignUserToOrganisation",
+            responseFromAssignUserToOrganisation
+          );
+
+          if (responseFromAssignUserToOrganisation.success === true) {
+            const responseFromSendEmail = await mailer.afterAcceptingInvitation(
+              {
+                firstName,
+                username: email,
+                email,
+                entity_title,
+              }
+            );
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Organisation JOIN request accepted successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToOrganisation.success === false) {
+            return responseFromAssignUserToOrganisation;
+          }
+        } else if (responseFromUpdateAccessRequest.success === false) {
+          if (isEmpty(requestType)) {
+            responseFromUpdateAccessRequest.errors.more =
+              "requestType is missing";
+          }
+          return responseFromUpdateAccessRequest;
         }
-      } else if (responseFromUpdateAccessRequest.success === false) {
-        return responseFromUpdateAccessRequest;
+      } else {
+        return responseFromCreateNewUser;
       }
     } catch (error) {
       logObject("error", error);
