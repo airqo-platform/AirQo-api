@@ -114,9 +114,6 @@ const createAccessRequest = {
         return res.status(status).json({
           success: false,
           message: responseFromRequestAccessToGroup.message,
-          error: responseFromRequestAccessToGroup.error
-            ? responseFromRequestAccessToGroup.error
-            : "",
           errors: responseFromRequestAccessToGroup.errors
             ? responseFromRequestAccessToGroup.errors
             : { message: "Internal Server Error" },

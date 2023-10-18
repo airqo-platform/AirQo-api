@@ -92,16 +92,23 @@ router.post(
   ]),
   oneOf([
     [
-      body("email")
+      body("emails")
         .exists()
-        .withMessage("the email should be provided")
+        .withMessage("the emails should be provided")
         .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the emails should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the emails should not be empty"),
+      body("emails.*")
         .notEmpty()
         .withMessage("the email cannot be empty")
         .bail()
         .isEmail()
-        .withMessage("the email is not a valid Object")
-        .trim(),
+        .withMessage("the email is not valid"),
     ],
   ]),
   setJWTAuth,
