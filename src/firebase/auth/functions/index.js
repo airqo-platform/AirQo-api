@@ -216,64 +216,6 @@ exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
   }
 });
 
-
-/**
- * @param {{emailAddress: string, phoneNumber: string}} data details
- */
-async function checkIfUserExists(data) {
-  try {
-    if (data.phoneNumber !== "") {
-      const phoneNumber = data.phoneNumber;
-      await getAuth().getUserByPhoneNumber(phoneNumber);
-      return true;
-    }
-
-    if (data.emailAddress !== "") {
-      const emailAddress = data.emailAddress;
-      await getAuth().getUserByEmail(emailAddress);
-      return true;
-    }
-  } catch (e) {
-    return false;
-  }
-}
-exports.appCheckIfUserExists = functions.https.onCall(async (data, _) => {
-  if (data.phoneNumber) {
-    const phoneNumber = data.phoneNumber;
-    return await checkIfUserExists(
-        {"phoneNumber": phoneNumber, "emailAddress": ""});
-  } else if (!data.emailAddress) {
-    throw Error("Missing Email Address or Phone Number");
-  } else {
-    const emailAddress = data.emailAddress;
-    return await checkIfUserExists(
-        {"phoneNumber": "", "emailAddress": emailAddress});
-  }
-});
-
-exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
-  try {
-    let exists;
-    if (req.body.phoneNumber) {
-      const phoneNumber = req.body.phoneNumber;
-      exists = await checkIfUserExists(
-          {"phoneNumber": phoneNumber, "emailAddress": ""});
-      res.json({status: exists});
-    } else if (req.body.emailAddress) {
-      const emailAddress = req.body.emailAddress;
-      exists = await checkIfUserExists(
-          {"phoneNumber": "", "emailAddress": emailAddress});
-      res.json({status: exists});
-    } else {
-      res.status(404);
-      res.json({message: "Please provide emailAddress or phoneNumber"});
-    }
-  } catch (e) {
-    res.status(500);
-    res.json({message: "Internal Server Error"});
-  }
-});
-
 /**
  * @param {any} user The new user
  */
@@ -392,7 +334,7 @@ async function sendEmailNotifications(groupedFavorites) {
       },
       to: userFavorites[0].userEmail,
       subject: "Exciting Updates from Your Favorite Locations!",
-      html: emailTemplate.email_notification(userFavorites),
+      html: emailTemplate.email_notification(userFavorites, userID),
       attachments: [
         {
           filename: "favoriteIcon.png",
@@ -461,8 +403,11 @@ exports.sendDailyNotifications = functions.pubsub
             const userID = favorite.firebase_user_id;
             const user = await getAuth().getUser(userID);
             const userEmail = user.email;
+            const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
+            const userDoc = await userRef.get();
+            const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs;
 
-            if (userEmail) {
+            if (userEmail && isSubscribedToEmailNotifs !== false) {
               const { name, location } = favorite;
 
               if (!groupedFavorites[userID]) {
@@ -486,3 +431,108 @@ exports.sendDailyNotifications = functions.pubsub
       functions.logger.log("Error sending notifications", error);
     }
   });
+
+
+/**
+ * @param {auth.UserRecord} email The user's email
+ * @param {auth.UserRecord} firstName The user's name
+ * @param {auth.UserRecord} userId The user's userId
+ */
+async function sendUnsubscriptionEmail(email, firstName, userId) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "We're Sad to See You Go - Unsubscription Confirmation!",
+    html: emailTemplate.emailNotificationUnsubscibe(email, firstName, userId),
+    attachments: [
+      {
+        filename: "airqoLogo.png",
+        path: "./config/images/airqoLogo.png",
+        cid: "AirQoEmailLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "faceBookLogo.png",
+        path: "./config/images/facebookLogo.png",
+        cid: "FacebookLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "youtubeLogo.png",
+        path: "./config/images/youtubeLogo.png",
+        cid: "YoutubeLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "twitterLogo.png",
+        path: "./config/images/Twitter.png",
+        cid: "Twitter",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "linkedInLogo.png",
+        path: "./config/images/linkedInLogo.png",
+        cid: "LinkedInLogo",
+        contentDisposition: "inline",
+      }],
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("New Unscription email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
+}
+
+exports.emailNotifsUnsubscribe = functions.https.onRequest(async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
+    const userDoc = await userRef.get();
+    let name = userDoc.data().firstName;
+    if (name == null) {
+      name = "";
+    }
+
+    if (!userDoc.exists) {
+      await userRef.set({
+        isSubscribedToEmailNotifs: false,
+      });
+    } else {
+      await userRef.update({
+        isSubscribedToEmailNotifs: false,
+      });
+    }
+    await sendUnsubscriptionEmail(req.query.email, name, userId);
+    res.redirect("https://airqo.page.link/NOTIF");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("An error occurred while processing your request.");
+  }
+});
+
+exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      await userRef.set({
+        isSubscribedToEmailNotifs: true,
+      });
+    } else {
+      await userRef.update({
+        isSubscribedToEmailNotifs: true,
+      });
+    }
+    res.redirect("https://airqo.page.link/NOTIF");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("An error occurred while processing your request.");
+  }
+});
