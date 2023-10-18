@@ -408,7 +408,6 @@ const defaultConfig = {
           createdAt: 0,
           net_users: 0,
           net_permissions: 0,
-
           net_groups: 0,
           net_departments: 0,
           net_data_source: 0,

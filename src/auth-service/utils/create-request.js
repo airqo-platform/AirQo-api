@@ -115,7 +115,7 @@ const createAccessRequest = {
   },
   requestAccessToGroupByEmail: async (request) => {
     try {
-      const { tenant, email, user, grp_id } = {
+      const { tenant, emails, user, grp_id } = {
         ...request,
         ...request.body,
         ...request.query,
@@ -148,72 +148,98 @@ const createAccessRequest = {
         };
       }
 
-      const existingRequest = await AccessRequestModel(tenant).findOne({
-        email: email,
-        targetId: grp_id,
-        requestType: "group",
-      });
+      const existingRequests = [];
+      const successResponses = [];
+      const failureResponses = [];
 
-      if (!isEmpty(existingRequest)) {
+      for (const email of emails) {
+        const existingRequest = await AccessRequestModel(tenant).findOne({
+          email: email,
+          targetId: grp_id,
+          requestType: "group",
+        });
+
+        if (!isEmpty(existingRequest)) {
+          existingRequests.push(email);
+        } else {
+          const responseFromCreateAccessRequest = await AccessRequestModel(
+            tenant
+          ).register({
+            email: email,
+            targetId: grp_id,
+            status: "pending",
+            requestType: "group",
+          });
+
+          logObject(
+            "responseFromCreateAccessRequest",
+            responseFromCreateAccessRequest
+          );
+
+          if (responseFromCreateAccessRequest.success === true) {
+            const createdAccessRequest =
+              await responseFromCreateAccessRequest.data;
+            if (isEmpty(email)) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: {
+                  message: "Unable to retrieve the requester's email address",
+                },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+
+            const responseFromSendEmail =
+              await mailer.requestToJoinGroupByEmail({
+                email,
+                tenant,
+                entity_title: group.grp_title,
+                targetId: grp_id,
+                inviterEmail,
+              });
+
+            if (responseFromSendEmail.success === true) {
+              successResponses.push({
+                success: true,
+                message: "Access Request completed successfully",
+                data: createdAccessRequest,
+                status: responseFromSendEmail.status
+                  ? responseFromSendEmail.status
+                  : httpStatus.OK,
+              });
+            } else if (responseFromSendEmail.success === false) {
+              logger.error(`${responseFromSendEmail.message}`);
+              failureResponses.push(responseFromSendEmail);
+            }
+          } else {
+            logger.error(`${responseFromCreateAccessRequest.message}`);
+            failureResponses.push(responseFromCreateAccessRequest);
+          }
+        }
+      }
+
+      if (existingRequests.length > 0 && successResponses.length === 0) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "Access request already exists for this group" },
+          errors: {
+            message: "Access requests already exist for the following emails",
+            existingRequests,
+          },
         };
       }
 
-      const responseFromCreateAccessRequest = await AccessRequestModel(
-        tenant
-      ).register({
-        email: email,
-        targetId: grp_id,
-        status: "pending",
-        requestType: "group",
-      });
+      if (failureResponses.length > 0) {
+        logger.error(
+          `Internal Server Errors -- ${JSON.stringify(failureResponses)}`
+        );
+        return failureResponses[0];
+      }
 
-      logObject(
-        "responseFromCreateAccessRequest",
-        responseFromCreateAccessRequest
-      );
-
-      if (responseFromCreateAccessRequest.success === true) {
-        const createdAccessRequest = await responseFromCreateAccessRequest.data;
-        if (isEmpty(email)) {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message: "Unable to retrieve the requester's email address",
-            },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
-        }
-
-        const responseFromSendEmail = await mailer.requestToJoinGroupByEmail({
-          email,
-          tenant,
-          entity_title: group.grp_title,
-          targetId: grp_id,
-          inviterEmail,
-        });
-
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Access Request completed successfully",
-            data: createdAccessRequest,
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : httpStatus.OK,
-          };
-        } else if (responseFromSendEmail.success === false) {
-          logger.error(`${responseFromSendEmail.message}`);
-          return responseFromSendEmail;
-        }
-      } else {
-        logger.error(`${responseFromCreateAccessRequest.message}`);
-        return responseFromCreateAccessRequest;
+      if (successResponses.length > 0) {
+        return successResponses[0];
       }
     } catch (e) {
       logger.error(`Internal Server Error ${JSON.stringify(e)}`);
@@ -225,8 +251,12 @@ const createAccessRequest = {
       };
     }
   },
+
   acceptGroupInvitation: async (request) => {
     try {
+      /**
+       * after they accept this invite, the group is part of their organisation
+       */
       const { tenant, email, firstName, lastName, password, grids, grp_id } = {
         ...request.body,
         ...request.query,

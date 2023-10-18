@@ -118,6 +118,7 @@ const UserSchema = new Schema(
           group: {
             type: ObjectId,
             ref: "group",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
           role: {
             type: ObjectId,
