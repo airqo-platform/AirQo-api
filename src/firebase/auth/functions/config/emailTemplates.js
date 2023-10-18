@@ -345,6 +345,7 @@ module.exports = {
                                     <br />
                                     You will no longer receive updates and notifications from your favorite locations. If you ever change your mind and want to rejoin us, feel free to subscribe again at any time.
                                     <br />
+                                    <br />
                                     <a href=${subsciptionUrl} target="_blank">
                                         <div
                                             style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
