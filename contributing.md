@@ -57,6 +57,9 @@ Scan through the [existing issues](https://github.com/airqo-platform/AirQo-api/i
 
 3. Create a working branch and start with your changes!
 
+## Style Guides
+Basing on the framework and language you are using to develop any microservice, please ensure that you follow the [Style Guide](http://google.github.io/styleguide/) for that language accordingly. 
+
 ### Commit your update
 
 Commit the changes, with a [good commit message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html) once you are happy with them.
