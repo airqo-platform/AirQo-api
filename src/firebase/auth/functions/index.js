@@ -1,3 +1,6 @@
+/* eslint-disable object-curly-spacing */
+/* eslint-disable guard-for-in */
+/* eslint-disable indent */
 /* eslint-disable max-len */
 /* eslint-disable no-unused-vars */
 "use strict";
@@ -9,9 +12,11 @@ const {getFirestore} = require("firebase-admin/firestore");
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
 const nodemailer = require("nodemailer");
+const DOMPurify = require("dompurify");
 
 const emailTemplate = require("./config/emailTemplates");
 const crypto = require("crypto");
+const axios = require("axios");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -212,64 +217,6 @@ exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
   }
 });
 
-
-/**
- * @param {{emailAddress: string, phoneNumber: string}} data details
- */
-async function checkIfUserExists(data) {
-  try {
-    if (data.phoneNumber !== "") {
-      const phoneNumber = data.phoneNumber;
-      await getAuth().getUserByPhoneNumber(phoneNumber);
-      return true;
-    }
-
-    if (data.emailAddress !== "") {
-      const emailAddress = data.emailAddress;
-      await getAuth().getUserByEmail(emailAddress);
-      return true;
-    }
-  } catch (e) {
-    return false;
-  }
-}
-exports.appCheckIfUserExists = functions.https.onCall(async (data, _) => {
-  if (data.phoneNumber) {
-    const phoneNumber = data.phoneNumber;
-    return await checkIfUserExists(
-        {"phoneNumber": phoneNumber, "emailAddress": ""});
-  } else if (!data.emailAddress) {
-    throw Error("Missing Email Address or Phone Number");
-  } else {
-    const emailAddress = data.emailAddress;
-    return await checkIfUserExists(
-        {"phoneNumber": "", "emailAddress": emailAddress});
-  }
-});
-
-exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
-  try {
-    let exists;
-    if (req.body.phoneNumber) {
-      const phoneNumber = req.body.phoneNumber;
-      exists = await checkIfUserExists(
-          {"phoneNumber": phoneNumber, "emailAddress": ""});
-      res.json({status: exists});
-    } else if (req.body.emailAddress) {
-      const emailAddress = req.body.emailAddress;
-      exists = await checkIfUserExists(
-          {"phoneNumber": "", "emailAddress": emailAddress});
-      res.json({status: exists});
-    } else {
-      res.status(404);
-      res.json({message: "Please provide emailAddress or phoneNumber"});
-    }
-  } catch (e) {
-    res.status(500);
-    res.json({message: "Internal Server Error"});
-  }
-});
-
 /**
  * @param {any} user The new user
  */
@@ -370,5 +317,224 @@ exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
     } catch (error) {
       functions.logger.log("Error fetching user data:", error);
     }
+  }
+});
+
+
+/**
+ * @param {any} groupedFavorites List of Users and their favorites
+ */
+async function sendEmailNotifications(groupedFavorites) {
+  for (const userID in groupedFavorites) {
+    const userFavorites = groupedFavorites[userID];
+
+    const mailOptions = {
+      from: {
+        name: "AirQo Data Team",
+        address: process.env.MAIL_USER,
+      },
+      to: userFavorites[0].userEmail,
+      subject: "Exciting Updates from Your Favorite Locations!",
+      html: emailTemplate.email_notification(userFavorites, userID),
+      attachments: [
+        {
+          filename: "favoriteIcon.png",
+          path: "./config/images/favoriteIcon.png",
+          cid: "FavoriteIcon",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "airqoLogo.png",
+          path: "./config/images/airqoLogo.png",
+          cid: "AirQoEmailLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "faceBookLogo.png",
+          path: "./config/images/facebookLogo.png",
+          cid: "FacebookLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "youtubeLogo.png",
+          path: "./config/images/youtubeLogo.png",
+          cid: "YoutubeLogo",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "twitterLogo.png",
+          path: "./config/images/Twitter.png",
+          cid: "Twitter",
+          contentDisposition: "inline",
+        },
+        {
+          filename: "linkedInLogo.png",
+          path: "./config/images/linkedInLogo.png",
+          cid: "LinkedInLogo",
+          contentDisposition: "inline",
+        }],
+    };
+    try {
+      await transporter.sendMail(mailOptions);
+      functions.logger.log("New Email notification sent");
+      return null;
+    } catch (error) {
+      functions.logger.log("Transporter failed to send email", error);
+    }
+  }
+}
+
+exports.sendDailyNotifications = functions.pubsub
+  .schedule("every 1 weeks")
+  .timeZone("Africa/Kampala")
+  .onRun(async (context) => {
+    try {
+      const headers = {
+        "Authorization": process.env.JWT_TOKEN,
+      };
+      const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`,
+        { headers: headers });
+
+      if (responseFromGetFavorites.data.success === true) {
+        const favorites = responseFromGetFavorites.data.favorites;
+        const groupedFavorites = {};
+
+        for (const favorite of favorites) {
+          try {
+            const userID = favorite.firebase_user_id;
+            const user = await getAuth().getUser(userID);
+            const userEmail = user.email;
+            const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
+            const userDoc = await userRef.get();
+            const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs;
+
+            if (userEmail && isSubscribedToEmailNotifs !== false) {
+              const { name, location } = favorite;
+
+              if (!groupedFavorites[userID]) {
+                groupedFavorites[userID] = [];
+              }
+
+              groupedFavorites[userID].push({ name, location, userEmail });
+            }
+          } catch (error) {
+            functions.logger.log("Error getting Favorites", error);
+          }
+        }
+
+        await sendEmailNotifications(groupedFavorites);
+      } else {
+        functions.logger.log("Error fetching Favorites", responseFromGetFavorites);
+      }
+      return null;
+    } catch (error) {
+      console.error("Error:", error);
+      functions.logger.log("Error sending notifications", error);
+    }
+  });
+
+
+/**
+ * @param {auth.UserRecord} email The user's email
+ * @param {auth.UserRecord} firstName The user's name
+ * @param {auth.UserRecord} userId The user's userId
+ */
+async function sendUnsubscriptionEmail(email, firstName, userId) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "We're Sad to See You Go - Unsubscription Confirmation!",
+    html: emailTemplate.emailNotificationUnsubscibe(email, firstName, userId),
+    attachments: [
+      {
+        filename: "airqoLogo.png",
+        path: "./config/images/airqoLogo.png",
+        cid: "AirQoEmailLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "faceBookLogo.png",
+        path: "./config/images/facebookLogo.png",
+        cid: "FacebookLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "youtubeLogo.png",
+        path: "./config/images/youtubeLogo.png",
+        cid: "YoutubeLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "twitterLogo.png",
+        path: "./config/images/Twitter.png",
+        cid: "Twitter",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "linkedInLogo.png",
+        path: "./config/images/linkedInLogo.png",
+        cid: "LinkedInLogo",
+        contentDisposition: "inline",
+      }],
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("New Unscription email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
+}
+
+exports.emailNotifsUnsubscribe = functions.https.onRequest(async (req, res) => {
+  try {
+    const userId = DOMPurify.sanitize(req.query.userId);
+    const email = DOMPurify.sanitize(req.query.email);
+    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
+    const userDoc = await userRef.get();
+    let name = userDoc.data().firstName;
+    if (name == null) {
+      name = "";
+    }
+
+    if (!userDoc.exists) {
+      await userRef.set({
+        isSubscribedToEmailNotifs: false,
+      });
+    } else {
+      await userRef.update({
+        isSubscribedToEmailNotifs: false,
+      });
+    }
+    await sendUnsubscriptionEmail(email, name, userId);
+    res.redirect("https://airqo.page.link/NOTIF");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("An error occurred while processing your request.");
+  }
+});
+
+exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
+  try {
+    const userId = DOMPurify.sanitize(req.query.userId);
+    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      await userRef.set({
+        isSubscribedToEmailNotifs: true,
+      });
+    } else {
+      await userRef.update({
+        isSubscribedToEmailNotifs: true,
+      });
+    }
+    res.redirect("https://airqo.page.link/NOTIF");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("An error occurred while processing your request.");
   }
 });
