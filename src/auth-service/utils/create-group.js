@@ -544,7 +544,7 @@ const createGroup = {
 
       const group = await GroupModel(tenant).findById(grp_id);
       let user = await UserModel(tenant).findById(user_id);
-      if (!group || !user) {
+      if (isEmpty(group) || isEmpty(user)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -554,6 +554,8 @@ const createGroup = {
       }
 
       const groupAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
+
+      logObject("groupAssignmentIndex", groupAssignmentIndex);
 
       if (groupAssignmentIndex === -1) {
         return {
