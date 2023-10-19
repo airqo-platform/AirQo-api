@@ -12,6 +12,13 @@ data:
     error_page 404 = @page_not_found;
     error_page 403 = @access_denied;
     error_page 401 = @unauthorized;"
+
+  http-snippets: "
+    map $request_uri $sanitized_uri {
+        ~* 'token=(?<token>[^&]+)' tokens/token_removed/verify;
+        default $request_uri;
+      }"
+
   server-snippets: "
     location @internal_server_error { return 500 '{\"success\":false, \"message\":\"Something went wrong!\", \"error\":\"Internal Server Error\"}'; }
     location @page_not_found { return 404 '{\"success\":false, \"message\":\"Resource not found :(\", \"error\":\"Not Found\"}'; }
@@ -40,7 +47,12 @@ data:
       set $method POST;
       set $verification_path verify?tenant=airqo;
 
-      if ($request_uri ~* 'token=(?<token>[^&]+)') {
+      if ($arg_token){
+          set $method GET;
+          set $verification_path tokens/$arg_token/verify;
+      }
+
+      if ($sanitized_uri ~* 'token=(?<token>[^&]+)') {
         set $method GET;
         set $verification_path tokens/$token/verify;
       }      
@@ -51,7 +63,7 @@ data:
       proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v2/users/$verification_path;
       proxy_pass_request_body on;
       proxy_set_header        Content-Length '';
-      proxy_set_header        X-Original-URI $request_uri;
+      proxy_set_header        X-Original-URI $sanitized_uri;
       proxy_set_header        X-Original-Method $request_method;
       proxy_set_header        Host $host;
       proxy_set_header        X-Forwarded-For $proxy_add_x_forwaded_for;
