@@ -35,3 +35,20 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: mlflow
+  namespace: development
+spec:
+  host: dev-platform.airqo.net
+  upstreams:
+    - name: mlflow
+      service: noble-mlflow
+      port: 5000
+  subroutes:
+    - path: /mlflow
+      action:
+        pass: mlflow

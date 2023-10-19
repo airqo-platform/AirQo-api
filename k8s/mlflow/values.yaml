@@ -1,0 +1,40 @@
+replicaCount: 2
+image:
+  repository: burakince/mlflow
+  pullPolicy: IfNotPresent
+  tag: ""
+nameOverride: ""
+fullnameOverride: ""
+service:
+  type: NodePort
+  port: 5000
+  name: http
+
+backendStore:
+  databaseConnectionCheck: true
+  postgres:
+    enabled: true
+    driver: "psycopg2"
+
+artifactRoot:
+  gcs:
+    enabled: true
+    bucket: "mlflow_bucket_airqo"
+    path: ""
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1000Mi
+  requests:
+    cpu: 350m
+    memory: 700Mi
+
+extraVolumes:
+  - name: mlflow-pv
+    persistentVolumeClaim:
+      claimName: mlflow-pv
+
+extraVolumeMounts:
+  - name: mlflow-pv
+    mountPath: /etc/mlflow

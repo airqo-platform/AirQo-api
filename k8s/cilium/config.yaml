@@ -54,7 +54,7 @@ data:
   identity-gc-interval: 15m0s
   identity-heartbeat-timeout: 30m0s
   install-no-conntrack-iptables-rules: "false"
-  ipam: cluster-pool
+  ipam: kubernetes
   kube-proxy-replacement: strict
   monitor-aggregation: medium
   monitor-aggregation-flags: all
