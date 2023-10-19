@@ -24,12 +24,29 @@ spec:
   host: staging-platform.airqo.net
   upstreams:
     - name: grafana
-      service: grafana
+      service: 
       port: 3000
   subroutes:
     - path: /grafana
       action:
         pass: grafana
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: inventory
+  namespace: staging
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: inventory
+      service: airqo-stage-inventory-svc
+      port: 8000
+  subroutes:
+    - path: /inventory
+      action:
+        pass: inventory        
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -93,6 +110,8 @@ spec:
       route: pipeline/airflow
     - path: /grafana
       route: monitoring/grafana
+    - path: /inventory
+      route: staging/inventory     
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
