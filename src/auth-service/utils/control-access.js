@@ -34,6 +34,19 @@ const convertToUpperCaseWithUnderscore = (inputString) => {
   }
 };
 
+const isGroupRoleOrNetworkRole = (role) => {
+  if (role && (role.group_id || role.network_id)) {
+    if (role.group_id && !role.network_id) {
+      return "group";
+    } else if (!role.group_id && role.network_id) {
+      return "network";
+    } else {
+      return "none";
+    }
+  }
+  return "none";
+};
+
 const findNetworkIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -41,6 +54,7 @@ const findNetworkIdForRole = async ({
 } = {}) => {
   for (const networkRole of networkRoles) {
     const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    logObject("RoleDetails", RoleDetails);
     if (
       networkRole.network &&
       networkRole.network.toString() === RoleDetails.network_id.toString()
@@ -58,6 +72,7 @@ const findGroupIdForRole = async ({
 } = {}) => {
   for (const groupRole of groupRoles) {
     const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    logObject("RoleDetails", RoleDetails);
     if (
       groupRole.group &&
       groupRole.group.toString() === RoleDetails.group_id.toString()
@@ -71,8 +86,8 @@ const findGroupIdForRole = async ({
 const isUserSuperAdmin = async ({
   networkId,
   groupId,
-  networkRoles,
-  groupRoles,
+  networkRoles = [],
+  groupRoles = [],
   tenant = "airqo",
 }) => {
   for (const role of networkRoles) {
@@ -273,21 +288,32 @@ const controlAccess = {
   /******** access tokens ******************************************/
   verifyEmail: async (request) => {
     try {
-      const { query, params } = request;
-      const { tenant } = query;
-      const { user_id, token } = params;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = request.query;
+      const { user_id, token } = request.params;
       const timeZone = moment.tz.guess();
       let filter = {
         token,
-        user_id,
         expires: {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
 
-      // expires: { $gt: new Date().toISOString() },
+      const userDetails = await UserModel(tenant)
+        .find({
+          _id: ObjectId(user_id),
+        })
+        .lean();
+
+      logObject("userDetails", userDetails);
+
+      if (isEmpty(userDetails)) {
+        return {
+          success: false,
+          message: "Bad Reqest Error",
+          errors: { message: "User does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -306,13 +332,8 @@ const controlAccess = {
             errors: { message: "incorrect user or token details provided" },
           };
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const password = accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
-          );
           let update = {
             verified: true,
-            password,
-            $pull: { tokens: { $in: [token] } },
           };
           filter = { _id: user_id };
 
@@ -331,7 +352,7 @@ const controlAccess = {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
-            let user = responseFromUpdateUser.data;
+
             filter = { token };
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await AccessTokenModel(
@@ -343,10 +364,10 @@ const controlAccess = {
             if (responseFromDeleteToken.success === true) {
               const responseFromSendEmail = await mailer.afterEmailVerification(
                 {
-                  firstName: user.firstName,
-                  username: user.userName,
+                  firstName: userDetails[0].firstName,
+                  username: userDetails[0].userName,
                   password,
-                  email: user.email,
+                  email: userDetails[0].email,
                 }
               );
 
@@ -649,6 +670,7 @@ const controlAccess = {
       const { client_id } = request.body;
 
       const client = await ClientModel(tenant).findById(ObjectId(client_id));
+
       if (!client) {
         return {
           success: false,
@@ -801,9 +823,9 @@ const controlAccess = {
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const timeZone = moment.tz.guess();
+
       let filter = {
         token,
-        user_id,
         expires: {
           $gt: moment().tz(timeZone).toDate(),
         },
@@ -1619,6 +1641,8 @@ const controlAccess = {
       const userId = userIdFromQuery || userIdFromBody;
       logObject("userId", userId);
 
+      const role = await RoleModel(tenant).findById(role_id).lean();
+
       const userExists = await UserModel(tenant).exists({ _id: userId });
       const roleExists = await RoleModel(tenant).exists({ _id: role_id });
 
@@ -1648,7 +1672,10 @@ const controlAccess = {
         networkRoles,
         role_id
       );
+      logObject("isNetworkRoleAssigned", isNetworkRoleAssigned);
       const isGroupRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
+
+      logObject("isGroupRoleAssigned", isGroupRoleAssigned);
 
       if (isNetworkRoleAssigned || isGroupRoleAssigned) {
         return {
@@ -1661,17 +1688,29 @@ const controlAccess = {
         };
       }
 
-      const networkId = await findNetworkIdForRole({
-        role_id,
-        networkRoles,
-        tenant,
-      });
+      const roleType = isGroupRoleOrNetworkRole(role);
 
-      const groupId = await findGroupIdForRole({
-        role_id,
-        groupRoles,
-        tenant,
-      });
+      let networkId = "";
+      let groupId = "";
+
+      if (roleType === "network") {
+        networkId = await findNetworkIdForRole({
+          role_id,
+          networkRoles,
+          tenant,
+        });
+      }
+
+      if (roleType === "group") {
+        groupId = await findGroupIdForRole({
+          role_id,
+          groupRoles,
+          tenant,
+        });
+      }
+
+      logObject("networkId", networkId);
+      logObject("groupId", groupId);
 
       if (isEmpty(networkId) && isEmpty(groupId)) {
         return {
@@ -1765,11 +1804,11 @@ const controlAccess = {
         };
       }
 
-      // Check if the role belongs to a network or a group
-      const isNetworkRole = roleObject.network_id !== null;
-      const isGroupRole = roleObject.group_id !== null;
+      logObject("roleObject", roleObject);
+      const roleType = isGroupRoleOrNetworkRole(roleObject);
+      logObject("roleType", roleType);
 
-      if (!isNetworkRole && !isGroupRole) {
+      if (roleType === "none") {
         return {
           success: false,
           message: "Bad Request Error",
@@ -1780,11 +1819,8 @@ const controlAccess = {
         };
       }
 
-      // Define an array to store promises for user assignment
       const assignUserPromises = [];
-
-      // Check and assign the role to users for networkRoles
-      if (isNetworkRole) {
+      if (roleType === "network") {
         const users = await UserModel(tenant)
           .find({ _id: { $in: user_ids } })
           .populate("network_roles")
@@ -1861,28 +1897,25 @@ const controlAccess = {
             }
           );
 
-          assignUserPromises.push(null); // No errors for this user
+          assignUserPromises.push(null);
         }
-      }
-
-      // Check and assign the role to users for groupRoles
-      if (isGroupRole) {
-        const groups = await GroupModel(tenant)
-          .find({ _id: { $in: group_ids } })
-          .populate("group_roles")
+      } else if (roleType === "group") {
+        const users = await UserModel(tenant)
+          .find({ _id: { $in: user_ids } })
+          .populate("network_roles")
           .lean();
 
-        for (const group of groups) {
-          if (isEmpty(group)) {
+        for (const user of users) {
+          if (isEmpty(user)) {
             assignUserPromises.push({
               success: false,
               message: "Bad Request Error",
-              errors: { message: `One of the Groups does not exist` },
+              errors: { message: `One of the Users does not exist` },
               status: httpStatus.BAD_REQUEST,
             });
             continue;
           }
-          const groupRoles = group.group_roles || [];
+          const groupRoles = user.group_roles || [];
 
           const isRoleAssigned = isRoleAlreadyAssigned(groupRoles, role_id);
 
@@ -1891,37 +1924,103 @@ const controlAccess = {
               success: false,
               message: "Bad Request Error",
               errors: {
-                message: `Role ${role_id.toString()} is already assigned to Group ${group._id.toString()}`,
+                message: `Role ${role_id.toString()} is already assigned to User ${user._id.toString()}`,
               },
               status: httpStatus.BAD_REQUEST,
             });
             continue;
           }
 
-          // Update the group to add the role to group_roles using $addToSet
-          await GroupModel(tenant).updateOne(
-            { _id: group._id },
-            { $addToSet: { group_roles: { role: role_id } } }
+          const groupId = await findGroupIdForRole({
+            role_id,
+            groupRoles,
+            tenant,
+          });
+
+          if (isEmpty(groupId)) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `The ROLE ${role_id} is not associated with any of the Groups already assigned to USER ${user._id}`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          const isSuperAdmin = await isUserSuperAdmin({
+            groupId,
+            groupRoles,
+            tenant,
+          });
+
+          if (isSuperAdmin) {
+            assignUserPromises.push({
+              success: false,
+              message: "Bad Request Error",
+              errors: {
+                message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
+              },
+              status: httpStatus.BAD_REQUEST,
+            });
+            continue;
+          }
+
+          await UserModel(tenant).updateOne(
+            { _id: user._id },
+            {
+              $addToSet: {
+                group_roles: { group: groupId, role: role_id },
+              },
+            }
           );
 
-          assignUserPromises.push(null); // No errors for this group
+          assignUserPromises.push(null);
         }
       }
 
-      // Await all user assignment promises
       const assignUserResults = await Promise.all(assignUserPromises);
+      const successfulAssignments = assignUserResults.filter(
+        (result) => result === null
+      );
+      const unsuccessfulAssignments = assignUserResults.filter(
+        (result) => result !== null
+      );
 
-      // Handle errors, if any
-      const errorResult = assignUserResults.find((result) => result !== null);
-      if (errorResult) {
-        return errorResult; // Return the first error encountered
+      if (
+        successfulAssignments.length > 0 &&
+        unsuccessfulAssignments.length > 0
+      ) {
+        return {
+          success: true,
+          message: "Some users were successfully assigned roles.",
+          data: {
+            unsuccessfulAssignments,
+          },
+          status: httpStatus.OK,
+        };
+      } else if (
+        unsuccessfulAssignments.length > 0 &&
+        successfulAssignments.length === 0
+      ) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: "None of the provided users could be assigned roles.",
+            unsuccessfulAssignments,
+          },
+
+          status: httpStatus.BAD_REQUEST,
+        };
+      } else {
+        return {
+          success: true,
+          message: "All provided users were successfully assigned.",
+          status: httpStatus.OK,
+        };
       }
-
-      return {
-        success: true,
-        message: "All provided users were successfully assigned.",
-        status: httpStatus.OK,
-      };
     } catch (error) {
       logger.error(`internal server error -- ${JSON.stringify}`);
       logObject("error", error);

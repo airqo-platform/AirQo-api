@@ -6,8 +6,8 @@ from api.utils.pollutants.pm_25 import (
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
     AQCSV_QC_CODE_MAPPER,
-    AQCSV_DATA_STATUS_MAPPER,
     BIGQUERY_FREQUENCY_MAPPER,
+    AQCSV_DATA_STATUS_MAPPER,
 )
 
 
@@ -145,47 +145,37 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
     )
     dataframe["datetime"] = dataframe["datetime"].apply(str_to_aqcsv_date_format)
 
-    aqcsv_dataframe = pd.DataFrame([])
-
     for pollutant in pollutants:
         if pollutant not in pollutant_mappers.keys():
             continue
 
-        dataframe["parameter"] = AQCSV_PARAMETER_MAPPER[pollutant]
-        dataframe["unit"] = AQCSV_UNIT_MAPPER[pollutant]
+        dataframe[f"parameter_{pollutant}"] = AQCSV_PARAMETER_MAPPER[pollutant]
+        dataframe[f"unit_{pollutant}"] = AQCSV_UNIT_MAPPER[pollutant]
+        dataframe.rename(
+            columns={
+                column: f"value_{pollutant}"
+                for column in dataframe.columns
+                if column.endswith(f"{pollutant}_calibrated_value")
+            },
+            inplace=True,
+        )
+        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[
+            f"{pollutant}_calibrated_value"
+        ]
 
-        pollutant_mapping = pollutant_mappers.get(pollutant, [])
-        for mapping in pollutant_mapping:
-            pollutant_dataframe = dataframe[
-                [
-                    "datetime",
-                    "lat",
-                    "lon",
-                    "site_id",
-                    "site_name",
-                    "duration",
-                    "qc",
-                    "parameter",
-                    "unit",
-                    "poc",
-                    mapping,
-                ]
-            ]
-            pollutant_dataframe.dropna(subset=[mapping], inplace=True)
-
-            if (
-                pollutant_dataframe.empty
-                or mapping not in AQCSV_DATA_STATUS_MAPPER.keys()
-            ):
-                continue
-
-            pollutant_dataframe["data_status"] = AQCSV_DATA_STATUS_MAPPER[mapping]
-            pollutant_dataframe.rename(columns={mapping: "value"}, inplace=True)
-            aqcsv_dataframe = pd.concat(
-                [aqcsv_dataframe, pollutant_dataframe], ignore_index=True
-            )
-
-    return aqcsv_dataframe.to_dict("records")
+    dataframe.drop(
+        columns=[
+            "pm2_5_raw_value",
+            "pm10_raw_value",
+            "device_name",
+            "tenant",
+            "device_latitude",
+            "device_longitude",
+            "frequency",
+        ],
+        inplace=True,
+    )
+    return dataframe.to_dict("records")
 
 
 def tenant_to_str(tenant: str) -> str:

@@ -1,17 +1,17 @@
 const constants = require("../config/constants");
 module.exports = {
-    confirm: (id) => ({
-        subject: "AirQo Analytics JOIN request",
-        html: `
+  confirm: (id) => ({
+    subject: "AirQo Analytics JOIN request",
+    html: `
       <a href='${constants.CLIENT_ORIGIN}/confirm/${id}'>
         Click to know more about AirQo
       </a>
     `,
-        text: `Copy and paste this link: ${constants.CLIENT_ORIGIN}/confirm/${id}`,
-    }),
+    text: `Copy and paste this link: ${constants.CLIENT_ORIGIN}/confirm/${id}`,
+  }),
 
-    inquiryTemplate: (fullName) => {
-        return `
+  inquiryTemplate: (fullName) => {
+    return `
     <h3>Hi ${fullName}</h3>
     <p>We are excited to welcome you to AirQo and we are even more excited about what we have got planned. You are already on your way to creating beautiful visual products.</p>
     <br> 
@@ -31,10 +31,10 @@ module.exports = {
     <br> 
     <p>--The AirQo team.</p>
     </div>`;
-    },
+  },
 
-    emailVerification: (firstName, user_id, token) => {
-        return `
+  emailVerification: (firstName, user_id, token) => {
+    return `
 <h3>Dear ${firstName}</h3>
 <p> Thank you for signing up for AirQo Analytics! We are excited to have you on board.</p>
 <p> Before you can fully access all of the features and services offered by AirQo Analytics, we need to verify your account. </p>
@@ -50,11 +50,21 @@ module.exports = {
 <p> Sincerely,</p>
 <p> The AirQo Data Team</p>
 `;
-    },
+  },
 
-    v2_emailVerification: (email, firstName, user_id, token) => {
-        const url = `${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}`;
-        const content = `<tr>
+  v2_emailVerification: ({
+    email,
+    firstName,
+    user_id,
+    token,
+    category,
+  } = {}) => {
+    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/interest/${user_id}/${token}/${category}`;
+    if (category && category === "organisation") {
+      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/verify/${user_id}/${token}/${category}`;
+    }
+
+    const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Welcome to AirQo Analytics 🎉
@@ -82,12 +92,52 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-        return constants.EMAIL_BODY(email, content);
-    },
+    return constants.EMAIL_BODY(email, content);
+  },
 
-    afterEmailVerification: (firstName, username, password, email) => {
-        const name = firstName;
-        const content = ` <tr>
+  acceptInvitation: ({
+    email,
+    entity_title = "",
+    targetId,
+    inviterEmail,
+  } = {}) => {
+    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/step2?userEmail=${email}&target_id=${targetId}`;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Join your team on ${entity_title} 🎉
+                                    <br /><br />
+                                    ${entity_title}, ${inviterEmail} has invited you to collaborate in ${entity_title} on AirQo Analytics
+                                    <br /><br />
+                                    Use AirQo Analytics to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
+                                    <br /><br />
+                                    <a href=${url} target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Join ${entity_title}</div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    Trouble logging in? Paste this URL into your browser:
+                                    </br>
+                                    <a href=${url} target="_blank">${url}</a>
+                                    <br /><br />
+                                    <div
+                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
+                                        request? You can safely ignore and delete this email</div>
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content);
+  },
+
+  afterEmailVerification: (firstName, username, password, email) => {
+    const name = firstName;
+    const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Congratulations! Your account has been successfully verified.
@@ -96,7 +146,6 @@ module.exports = {
                                 <br />
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>YOUR PASSWORD: ${password}</li>
                                     <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
                                 </ul>
                                     <br />
@@ -111,11 +160,39 @@ module.exports = {
                                 The AirQo Data Team
                                 </td>
                             </tr>`;
-        return constants.EMAIL_BODY(email, content, name);
-    },
+    return constants.EMAIL_BODY(email, content, name);
+  },
 
-    deleteMobileAccountEmail: (email, token) => {
-        const content = ` <tr>
+  afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
+    const name = firstName;
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Congratulations! You have successfully joined ${entity_title} organisation on AirQo Analytics.
+                                <br />
+                                We are pleased to inform you that you can now access ${entity_title} data, insights and visualisations on AirQo Analytics.
+                                <br />
+                                <ul>
+                                    <li>YOUR USERAME: ${username}</li>
+                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                </ul>
+                                    <br />
+                                If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                                team. We are here to help.
+                                <br />
+                                Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals
+                                <br />
+                                <br />
+                                Sincerely,
+                                <br />
+                                The AirQo Data Team
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+
+  deleteMobileAccountEmail: (email, token) => {
+    const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     We received your request to delete your AirQo account. Before we proceed, we need to verify your identity. Please follow
@@ -136,6 +213,6 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-        return constants.EMAIL_BODY(email, content);
-    },
+    return constants.EMAIL_BODY(email, content);
+  },
 };

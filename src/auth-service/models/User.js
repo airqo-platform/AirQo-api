@@ -24,8 +24,7 @@ function oneMonthFromNow() {
   }
   return d;
 }
-const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-
+const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
 const UserSchema = new Schema(
   {
     due_date: { type: Date },
@@ -119,10 +118,12 @@ const UserSchema = new Schema(
           group: {
             type: ObjectId,
             ref: "group",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
           role: {
             type: ObjectId,
             ref: "role",
+            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
           },
         },
       ],

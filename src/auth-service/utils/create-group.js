@@ -36,25 +36,52 @@ const createGroup = {
     try {
       const { body, query } = request;
       const { tenant } = query;
+      const { user_id } = body;
       let modifiedBody = Object.assign({}, body);
 
       logText("We are now creating the function.....");
 
-      const user = request.user;
-      logObject("the user making the request", user);
-      if (!isEmpty(user)) {
-        modifiedBody.grp_manager = ObjectId(user._id);
-        modifiedBody.grp_manager_username = user.email;
-        modifiedBody.grp_manager_firstname = user.firstName;
-        modifiedBody.grp_manager_lastname = user.lastName;
-      } else if (isEmpty(user)) {
+      let user;
+      if (!isEmpty(request.user) && isEmpty(user_id)) {
+        user = request.user;
+      } else if (isEmpty(request.user) && !isEmpty(user_id)) {
+        const providedUser = await UserModel(tenant).findById(user_id);
+        if (isEmpty(providedUser)) {
+          return {
+            success: false,
+            message: "Your account is not registered",
+            errors: { message: `Your account ${user_id} is not registered` },
+            status: httpStatus.BAD_REQUEST,
+          };
+        } else {
+          user = providedUser;
+        }
+      } else if (!isEmpty(request.user) && !isEmpty(user_id)) {
+        const providedUser = await UserModel(tenant).findById(user_id);
+        if (isEmpty(providedUser)) {
+          return {
+            success: false,
+            message: "Your account is not registered",
+            errors: { message: `Your account ${user_id} is not registered` },
+            status: httpStatus.BAD_REQUEST,
+          };
+        } else {
+          user = providedUser;
+        }
+      } else if (isEmpty(request.user) && isEmpty(user_id)) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "creator's details are not provided" },
+          errors: { message: "creator's account is not provided" },
           status: httpStatus.BAD_REQUEST,
         };
       }
+      logObject("the user making the request", user);
+      modifiedBody.grp_manager = ObjectId(user._id);
+      modifiedBody.grp_manager_username = user.email;
+      modifiedBody.grp_manager_firstname = user.firstName;
+      modifiedBody.grp_manager_lastname = user.lastName;
+
       const responseFromRegisterGroup = await GroupModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
@@ -770,11 +797,22 @@ const createGroup = {
             },
           },
           {
+            $lookup: {
+              from: "roles",
+              localField: "group_roles.role",
+              foreignField: "_id",
+              as: "role",
+            },
+          },
+          {
             $project: {
               _id: 1,
               firstName: 1,
               lastName: 1,
               userName: 1,
+              profilePicture: 1,
+              status: 1,
+              jobTitle: 1,
               createdAt: {
                 $dateToString: {
                   format: "%Y-%m-%d %H:%M:%S",
@@ -782,6 +820,8 @@ const createGroup = {
                 },
               },
               email: 1,
+              role_name: { $arrayElemAt: ["$role.role_name", 0] },
+              role_id: { $arrayElemAt: ["$role._id", 0] },
             },
           },
         ])
