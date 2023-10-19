@@ -12,6 +12,7 @@ const {getFirestore} = require("firebase-admin/firestore");
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
 const nodemailer = require("nodemailer");
+const DOMPurify = require("dompurify");
 
 const emailTemplate = require("./config/emailTemplates");
 const crypto = require("crypto");
@@ -490,7 +491,8 @@ async function sendUnsubscriptionEmail(email, firstName, userId) {
 
 exports.emailNotifsUnsubscribe = functions.https.onRequest(async (req, res) => {
   try {
-    const userId = req.query.userId;
+    const userId = DOMPurify.sanitize(req.query.userId);
+    const email = DOMPurify.sanitize(req.query.email);
     const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
     const userDoc = await userRef.get();
     let name = userDoc.data().firstName;
@@ -507,7 +509,7 @@ exports.emailNotifsUnsubscribe = functions.https.onRequest(async (req, res) => {
         isSubscribedToEmailNotifs: false,
       });
     }
-    await sendUnsubscriptionEmail(req.query.email, name, userId);
+    await sendUnsubscriptionEmail(email, name, userId);
     res.redirect("https://airqo.page.link/NOTIF");
   } catch (error) {
     console.error(error);
@@ -517,7 +519,7 @@ exports.emailNotifsUnsubscribe = functions.https.onRequest(async (req, res) => {
 
 exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
   try {
-    const userId = req.query.userId;
+    const userId = DOMPurify.sanitize(req.query.userId);
     const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userId);
     const userDoc = await userRef.get();
 
