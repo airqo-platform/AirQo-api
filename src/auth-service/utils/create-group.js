@@ -37,38 +37,12 @@ const createGroup = {
       const { body, query } = request;
       const { tenant } = query;
       const { user_id } = body;
-      let modifiedBody = Object.assign({}, body);
 
-      logText("We are now creating the function.....");
+      const user = user_id
+        ? await UserModel(tenant).findById(user_id)
+        : request.user;
 
-      let user;
-      if (!isEmpty(request.user) && isEmpty(user_id)) {
-        user = request.user;
-      } else if (isEmpty(request.user) && !isEmpty(user_id)) {
-        const providedUser = await UserModel(tenant).findById(user_id);
-        if (isEmpty(providedUser)) {
-          return {
-            success: false,
-            message: "Your account is not registered",
-            errors: { message: `Your account ${user_id} is not registered` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        } else {
-          user = providedUser;
-        }
-      } else if (!isEmpty(request.user) && !isEmpty(user_id)) {
-        const providedUser = await UserModel(tenant).findById(user_id);
-        if (isEmpty(providedUser)) {
-          return {
-            success: false,
-            message: "Your account is not registered",
-            errors: { message: `Your account ${user_id} is not registered` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        } else {
-          user = providedUser;
-        }
-      } else if (isEmpty(request.user) && isEmpty(user_id)) {
+      if (!user && !request.user && !user_id) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -76,12 +50,24 @@ const createGroup = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-      logObject("the user making the request", user);
-      modifiedBody.grp_manager = ObjectId(user._id);
-      modifiedBody.grp_manager_username = user.email;
-      modifiedBody.grp_manager_firstname = user.firstName;
-      modifiedBody.grp_manager_lastname = user.lastName;
 
+      if (!user) {
+        return {
+          success: false,
+          message: "Your account is not registered",
+          errors: { message: `Your account ${user_id} is not registered` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const modifiedBody = {
+        ...body,
+        grp_manager: ObjectId(user._id),
+        grp_manager_username: user.email,
+        grp_manager_firstname: user.firstName,
+        grp_manager_lastname: user.lastName,
+      };
+
+      logObject("the user making the request", user);
       const responseFromRegisterGroup = await GroupModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
@@ -100,21 +86,15 @@ const createGroup = {
           };
         }
 
-        /**
-         ************** STEPS:
-         * create the SUPER_ADMIN role for this group
-         * create the SUPER_ADMIN  permissions IF they do not yet exist
-         * assign the these SUPER_ADMIN permissions to the SUPER_ADMIN role
-         * assign the creating User to this new SUPER_ADMIN role of their Network
-         */
-
-        let requestForRole = {};
-        requestForRole.query = {};
-        requestForRole.query.tenant = tenant;
-        requestForRole.body = {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
-          group_id: grp_id,
+        const requestForRole = {
+          query: {
+            tenant: tenant,
+          },
+          body: {
+            role_code: "SUPER_ADMIN",
+            role_name: "SUPER_ADMIN",
+            group_id: grp_id,
+          },
         };
 
         const responseFromCreateRole = await controlAccessUtil.createRole(
@@ -124,9 +104,6 @@ const createGroup = {
         if (responseFromCreateRole.success === false) {
           return responseFromCreateRole;
         } else if (responseFromCreateRole.success === true) {
-          /**
-           *  * assign the main permissions to the role
-           */
           logObject("responseFromCreateRole", responseFromCreateRole);
           const role_id = responseFromCreateRole.data._id;
           if (isEmpty(role_id)) {
@@ -198,13 +175,17 @@ const createGroup = {
 
           logObject("allPermissionIds", allPermissionIds);
 
-          let requestToAssignPermissions = {};
-          requestToAssignPermissions.body = {};
-          requestToAssignPermissions.query = {};
-          requestToAssignPermissions.params = {};
-          requestToAssignPermissions.body.permissions = allPermissionIds;
-          requestToAssignPermissions.query.tenant = tenant;
-          requestToAssignPermissions.params = { role_id };
+          const requestToAssignPermissions = {
+            body: {
+              permissions: allPermissionIds,
+            },
+            query: {
+              tenant: tenant,
+            },
+            params: {
+              role_id,
+            },
+          };
 
           const responseFromAssignPermissionsToRole =
             await controlAccessUtil.assignPermissionsToRole(
@@ -213,9 +194,6 @@ const createGroup = {
           if (responseFromAssignPermissionsToRole.success === false) {
             return responseFromAssignPermissionsToRole;
           } else if (responseFromAssignPermissionsToRole.success === true) {
-            /**
-             * assign this user to this new super ADMIN role and this new group
-             */
             const updatedUser = await UserModel(tenant).findByIdAndUpdate(
               user._id,
               {
@@ -519,6 +497,8 @@ const createGroup = {
         },
         { new: true }
       );
+
+      logObject("updatedUser", updatedUser);
 
       return {
         success: true,
