@@ -20,7 +20,9 @@
     "firebase-functions": "^3.14.1",
     "kafkajs": "^1.16.0",
     "nodemailer": "^6.9.3",
-    "nodemailer-plugin-inline-base64": "^2.1.1"
+    "nodemailer-plugin-inline-base64": "^2.1.1",
+    "axios": "^0.21.4",
+    "dompurify": "^2.2.6"
   },
   "devDependencies": {
     "eslint": "^7.6.0",

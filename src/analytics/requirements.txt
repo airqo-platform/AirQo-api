@@ -5,19 +5,23 @@ flask-cors <= 3.0.10
 Flask-Caching <= 2.0.0
 flasgger <= 0.9.5
 Werkzeug <= 2.0.3
-pandas
-pymongo
-pytz
+pandas~=2.1.1
+pymongo~=4.5.0
+pytz~=2023.3.post1
 flask_pymongo <= 2.3.0
 python-decouple
-python-dotenv
-marshmallow
+python-dotenv~=1.0.0
+marshmallow~=3.20.1
 google-cloud-bigquery[pandas]
 redis
 python-decouple
-celery
+celery~=5.3.4
 google-cloud-storage
 gunicorn
 
 # Ports for stable python 3 functionality
-dataclasses # for py < 3.7
+dataclasses~=0.6
+
+pytest~=7.4.2
+numpy~=1.26.1
+python-dateutil~=2.8.2

@@ -77,7 +77,7 @@ docker push <host-name>/<GCP project>/<microservice-name>
 
 ## Contributing
 
-We invite you to help us build this platform. Please look up the [contributing guide](https://github.com/airqo-platform/AirQo-api/wiki) for details.
+We invite you to help us build this platform. Please look up the [contributing guide](/contributing.md) for details.
 
 ## Issues
 
