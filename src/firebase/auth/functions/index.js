@@ -384,9 +384,8 @@ async function sendEmailNotifications(groupedFavorites) {
   }
 }
 
-exports.sendDailyNotifications = functions.pubsub
-  .schedule("every 1 weeks")
-  .timeZone("Africa/Kampala")
+exports.sendWeeklyNotifications = functions.pubsub
+  .schedule("0 0 * * 1")
   .onRun(async (context) => {
     try {
       const headers = {
