@@ -214,6 +214,18 @@ router.post(
         .notEmpty()
         .withMessage("the grp_description should not be empty")
         .trim(),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("grp_country")
         .optional()
         .notEmpty()
