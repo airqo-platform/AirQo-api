@@ -14,7 +14,7 @@ USER airflow
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install airqo_etl_utils-1.0.0-py3-none-any.whl
-COPY airflow-requirements.txt workflows-requirements.txt
+COPY workflows-requirements.txt workflows-requirements.txt
 RUN pip install -r workflows-requirements.txt
 COPY --chown=workflows:root dags/* /opt/airflow/dags/
 
