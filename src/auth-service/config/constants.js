@@ -621,6 +621,9 @@ const defaultConfig = {
       "networks.role.role_permissions.createdAt": 0,
       "networks.role.role_permissions.network_id": 0,
       "networks.role.role_permissions.description": 0,
+
+      "groups.__v": 0,
+
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
@@ -630,7 +633,7 @@ const defaultConfig = {
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-      "groups.__v": 0,
+
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -898,6 +901,7 @@ const defaultConfig = {
       "grp_users.networks": 0,
       "grp_users.role": 0,
       "grp_users.profilePicture": 0,
+      "grp_users.long_organization": 0,
       "grp_users.network_roles": 0,
       "grp_users.group_roles": 0,
       "grp_manager.__v": 0,
@@ -911,7 +915,9 @@ const defaultConfig = {
       "grp_manager.userName": 0,
       "grp_manager.password": 0,
       "grp_manager.duration": 0,
+      "grp_manager.group_roles": 0,
       "grp_manager.network_roles": 0,
+      "grp_manager.long_organization": 0,
       "grp_manager.createdAt": 0,
       "grp_manager.updatedAt": 0,
       "grp_manager.groups": 0,
