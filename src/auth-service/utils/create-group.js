@@ -32,28 +32,28 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 };
 
 const createGroup = {
-  removeUniqueConstraint: async () => {
+  removeUniqueConstraint: async (request) => {
     try {
-      const groups = await GroupModel("airqo").find({}).lean();
-      logObject("groups", groups);
+      const { tenant } = request.query;
 
-      for (const group of groups) {
-        const filter = { _id: group._id };
-        const update = {
-          grp_website: group.grp_website,
+      const responseFromRemoveUniqueConstraint = await GroupModel(
+        tenant
+      ).collection.dropIndex("grp_website");
+
+      if (responseFromRemoveUniqueConstraint.ok === 1) {
+        return {
+          success: true,
+          message: "Index dropped successfully",
+          status: httpStatus.OK,
         };
-        const responseFromModifyGroup = await GroupModel("airqo").modify({
-          update,
-          filter,
-        });
-        logObject("responseFromModifyGroup", responseFromModifyGroup);
-        return responseFromModifyGroup;
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Index removal failed" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
-      return {
-        success: true,
-        message: "migration complete",
-        httpStatus: OK,
-      };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
