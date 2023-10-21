@@ -34,7 +34,7 @@ data:
       if ($request_uri ~ '/api/v2/users/updatePasswordViaEmail') { return 200; }
       if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
 
-      if ($request_method = 'POST' && $request_uri ~ '${BASE_AUTH_URL}/users') { return 200; }
+      if ($request_method = 'POST' && $request_uri ~ '/api/v2/users') { return 200; }
       set $method POST;
       set $verification_path verify?tenant=airqo;
 
