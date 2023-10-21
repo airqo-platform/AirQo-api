@@ -257,6 +257,26 @@ router.post(
   authJWT,
   createGroupController.create
 );
+
+router.post(
+  "/removeUniqueConstraints",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.removeUniqueConstraint
+);
 router.put(
   "/:grp_id/assign-user/:user_id",
   oneOf([

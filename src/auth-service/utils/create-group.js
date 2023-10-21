@@ -32,6 +32,37 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 };
 
 const createGroup = {
+  removeUniqueConstraint: async () => {
+    try {
+      const groups = await GroupModel("airqo").find({}).lean();
+      logObject("groups", groups);
+
+      for (const group of groups) {
+        const filter = { _id: group._id };
+        const update = {
+          grp_website: group.grp_website,
+        };
+        const responseFromModifyGroup = await GroupModel("airqo").modify({
+          update,
+          filter,
+        });
+        logObject("responseFromModifyGroup", responseFromModifyGroup);
+        return responseFromModifyGroup;
+      }
+      return {
+        success: true,
+        message: "migration complete",
+        httpStatus: OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error -- Migration failed",
+        errors: { message: error.message },
+      };
+    }
+  },
   create: async (request) => {
     try {
       const { body, query } = request;
@@ -384,11 +415,13 @@ const createGroup = {
           continue; // Continue to the next user
         }
 
-        const existingAssignment = user.group_roles.find((assignment) => {
-          return assignment.group.toString() === grp_id.toString();
-        });
+        const existingAssignment = user.group_roles
+          ? user.group_roles.find(
+              (assignment) => assignment.group.toString() === grp_id.toString()
+            )
+          : undefined;
 
-        if (existingAssignment) {
+        if (!isEmpty(existingAssignment)) {
           notAssignedUsers.push({
             user_id,
             reason: `User ${user_id} is already assigned to the Group ${grp_id}`,
