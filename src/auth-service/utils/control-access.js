@@ -1788,7 +1788,7 @@ const controlAccess = {
       }
 
       const updateQuery = {
-        $addToSet: {
+        $set: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
             [isNetworkRole ? "network" : "group"]: associatedId,
             role: role_id,
@@ -1938,7 +1938,7 @@ const controlAccess = {
         }
 
         const updateQuery = {
-          $addToSet: {
+          $set: {
             [isNetworkRole ? "network_roles" : "group_roles"]: {
               [isNetworkRole ? "network" : "group"]: associatedId,
               role: role_id,
@@ -2341,7 +2341,6 @@ const controlAccess = {
           continue;
         }
 
-        // Use a single update query to unassign the role
         const updateQuery = {
           $set: { [`${roleType}_roles.$[elem].role`]: null },
         };
