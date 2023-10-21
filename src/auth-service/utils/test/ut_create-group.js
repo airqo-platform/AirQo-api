@@ -9,6 +9,64 @@ const UserModel = require("@models/User");
 const generateFilter = require("@utils/generate-filter");
 
 describe("createGroup Module", () => {
+  describe("removeUniqueConstraint", () => {
+    it("should remove unique constraint for each group", async () => {
+      // Create a sample array of groups for testing
+      const groups = [
+        { _id: "group1", grp_website: "website1" },
+        { _id: "group2", grp_website: "website2" },
+      ];
+
+      // Mock the GroupModel.find function to return the sample groups
+      const findStub = sinon.stub(GroupModel, "find").resolves(groups);
+
+      // Mock the GroupModel.modify function to return a success response
+      const modifyStub = sinon
+        .stub(GroupModel, "modify")
+        .resolves({ success: true, message: "Updated" });
+
+      // Call the function
+      const result = await createGroup.removeUniqueConstraint();
+
+      // Assertions
+      expect(result).to.deep.equal({
+        success: true,
+        message: "migration complete",
+        httpStatus: "OK", // You may want to define 'OK' as a variable in your test file
+      });
+
+      // Check if the find and modify functions were called as expected
+      expect(findStub).to.have.been.calledOnce;
+      expect(modifyStub).to.have.been.calledTwice; // Called once for each group
+
+      // Restore the stubbed functions to their original implementations
+      findStub.restore();
+      modifyStub.restore();
+    });
+
+    it("should handle errors and return a failure response", async () => {
+      // Mock the GroupModel.find function to throw an error
+      const findStub = sinon
+        .stub(GroupModel, "find")
+        .rejects(new Error("Test error"));
+
+      // Call the function
+      const result = await createGroup.removeUniqueConstraint();
+
+      // Assertions
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error -- Migration failed",
+        errors: { message: "Test error" },
+      });
+
+      // Check if the find function was called as expected
+      expect(findStub).to.have.been.calledOnce;
+
+      // Restore the stubbed function to its original implementation
+      findStub.restore();
+    });
+  });
   describe("create()", () => {
     it("should create a new group and assign a user as SUPER_ADMIN", async () => {
       // Mock your UserModel and GroupModel functions as needed
