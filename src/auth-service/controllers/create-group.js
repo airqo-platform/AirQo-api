@@ -28,9 +28,9 @@ const createGroup = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       const responseFromRemoveUniqueConstraint =
@@ -42,8 +42,7 @@ const createGroup = {
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message:
-            "successfully removed all the unique constraints in this migration",
+          message: "successfully removed all the respective unique constraints",
         });
       } else if (responseFromRemoveUniqueConstraint.success === false) {
         const status = responseFromRemoveUniqueConstraint.status
@@ -146,7 +145,7 @@ const createGroup = {
       }
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -430,7 +429,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -487,7 +486,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -545,7 +544,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
