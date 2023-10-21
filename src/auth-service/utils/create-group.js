@@ -384,13 +384,13 @@ const createGroup = {
           continue; // Continue to the next user
         }
 
-        const group_roles = user.group_roles || [];
+        const existingAssignment = user.group_roles
+          ? user.group_roles.find(
+              (assignment) => assignment.group.toString() === grp_id.toString()
+            )
+          : undefined;
 
-        const existingAssignment = group_roles.find((assignment) => {
-          return assignment.group.toString() === grp_id.toString();
-        });
-
-        if (existingAssignment) {
+        if (!isEmpty(existingAssignment)) {
           notAssignedUsers.push({
             user_id,
             reason: `User ${user_id} is already assigned to the Group ${grp_id}`,
