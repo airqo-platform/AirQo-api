@@ -105,7 +105,7 @@ const UserSchema = new Schema(
           role: {
             type: ObjectId,
             ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
           },
         },
       ],
@@ -123,7 +123,7 @@ const UserSchema = new Schema(
           role: {
             type: ObjectId,
             ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
           },
         },
       ],

@@ -333,9 +333,9 @@ const createGroup = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: responseFromAssignUsers.message,
-          updated_group: responseFromAssignUsers.data,
           success: true,
+          message: responseFromAssignUsers.message,
+          updated_records: responseFromAssignUsers.data,
         });
       } else if (responseFromAssignUsers.success === false) {
         const status = responseFromAssignUsers.status
@@ -506,9 +506,9 @@ const createGroup = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "users successully unassigned",
-          updated_records: responseFromUnassignManyUsers.data,
           success: true,
+          message: responseFromUnassignManyUsers.message,
+          updated_records: responseFromUnassignManyUsers.data,
         });
       } else if (responseFromUnassignManyUsers.success === false) {
         const status = responseFromUnassignManyUsers.status

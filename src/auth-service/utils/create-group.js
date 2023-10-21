@@ -37,38 +37,12 @@ const createGroup = {
       const { body, query } = request;
       const { tenant } = query;
       const { user_id } = body;
-      let modifiedBody = Object.assign({}, body);
 
-      logText("We are now creating the function.....");
+      const user = user_id
+        ? await UserModel(tenant).findById(user_id)
+        : request.user;
 
-      let user;
-      if (!isEmpty(request.user) && isEmpty(user_id)) {
-        user = request.user;
-      } else if (isEmpty(request.user) && !isEmpty(user_id)) {
-        const providedUser = await UserModel(tenant).findById(user_id);
-        if (isEmpty(providedUser)) {
-          return {
-            success: false,
-            message: "Your account is not registered",
-            errors: { message: `Your account ${user_id} is not registered` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        } else {
-          user = providedUser;
-        }
-      } else if (!isEmpty(request.user) && !isEmpty(user_id)) {
-        const providedUser = await UserModel(tenant).findById(user_id);
-        if (isEmpty(providedUser)) {
-          return {
-            success: false,
-            message: "Your account is not registered",
-            errors: { message: `Your account ${user_id} is not registered` },
-            status: httpStatus.BAD_REQUEST,
-          };
-        } else {
-          user = providedUser;
-        }
-      } else if (isEmpty(request.user) && isEmpty(user_id)) {
+      if (!user && !request.user && !user_id) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -76,12 +50,24 @@ const createGroup = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-      logObject("the user making the request", user);
-      modifiedBody.grp_manager = ObjectId(user._id);
-      modifiedBody.grp_manager_username = user.email;
-      modifiedBody.grp_manager_firstname = user.firstName;
-      modifiedBody.grp_manager_lastname = user.lastName;
 
+      if (!user) {
+        return {
+          success: false,
+          message: "Your account is not registered",
+          errors: { message: `Your account ${user_id} is not registered` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const modifiedBody = {
+        ...body,
+        grp_manager: ObjectId(user._id),
+        grp_manager_username: user.email,
+        grp_manager_firstname: user.firstName,
+        grp_manager_lastname: user.lastName,
+      };
+
+      logObject("the user making the request", user);
       const responseFromRegisterGroup = await GroupModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
@@ -100,21 +86,15 @@ const createGroup = {
           };
         }
 
-        /**
-         ************** STEPS:
-         * create the SUPER_ADMIN role for this group
-         * create the SUPER_ADMIN  permissions IF they do not yet exist
-         * assign the these SUPER_ADMIN permissions to the SUPER_ADMIN role
-         * assign the creating User to this new SUPER_ADMIN role of their Network
-         */
-
-        let requestForRole = {};
-        requestForRole.query = {};
-        requestForRole.query.tenant = tenant;
-        requestForRole.body = {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
-          group_id: grp_id,
+        const requestForRole = {
+          query: {
+            tenant: tenant,
+          },
+          body: {
+            role_code: "SUPER_ADMIN",
+            role_name: "SUPER_ADMIN",
+            group_id: grp_id,
+          },
         };
 
         const responseFromCreateRole = await controlAccessUtil.createRole(
@@ -124,9 +104,6 @@ const createGroup = {
         if (responseFromCreateRole.success === false) {
           return responseFromCreateRole;
         } else if (responseFromCreateRole.success === true) {
-          /**
-           *  * assign the main permissions to the role
-           */
           logObject("responseFromCreateRole", responseFromCreateRole);
           const role_id = responseFromCreateRole.data._id;
           if (isEmpty(role_id)) {
@@ -198,13 +175,17 @@ const createGroup = {
 
           logObject("allPermissionIds", allPermissionIds);
 
-          let requestToAssignPermissions = {};
-          requestToAssignPermissions.body = {};
-          requestToAssignPermissions.query = {};
-          requestToAssignPermissions.params = {};
-          requestToAssignPermissions.body.permissions = allPermissionIds;
-          requestToAssignPermissions.query.tenant = tenant;
-          requestToAssignPermissions.params = { role_id };
+          const requestToAssignPermissions = {
+            body: {
+              permissions: allPermissionIds,
+            },
+            query: {
+              tenant: tenant,
+            },
+            params: {
+              role_id,
+            },
+          };
 
           const responseFromAssignPermissionsToRole =
             await controlAccessUtil.assignPermissionsToRole(
@@ -213,9 +194,6 @@ const createGroup = {
           if (responseFromAssignPermissionsToRole.success === false) {
             return responseFromAssignPermissionsToRole;
           } else if (responseFromAssignPermissionsToRole.success === true) {
-            /**
-             * assign this user to this new super ADMIN role and this new group
-             */
             const updatedUser = await UserModel(tenant).findByIdAndUpdate(
               user._id,
               {
@@ -392,18 +370,18 @@ const createGroup = {
         };
       }
 
+      const notAssignedUsers = [];
+      const assignedUsers = [];
+
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
 
         if (!user) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Invalid User ID ${user_id}, please crosscheck`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} not found`,
+          });
+          continue; // Continue to the next user
         }
 
         const existingAssignment = user.group_roles.find((assignment) => {
@@ -411,61 +389,59 @@ const createGroup = {
         });
 
         if (existingAssignment) {
-          return {
-            userId: user_id,
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user_id} is already assigned to the Group ${grp_id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-      }
-
-      const totalUsers = user_ids.length;
-      const assignments = user_ids.map((user_id) => {
-        return {
-          updateOne: {
-            filter: {
-              _id: user_id,
-            },
-            update: {
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} is already assigned to the Group ${grp_id}`,
+          });
+        } else {
+          const result = await UserModel(tenant).updateOne(
+            { _id: user_id },
+            {
               $addToSet: {
                 group_roles: {
                   group: grp_id,
                 },
               },
-            },
-          },
-        };
-      });
+            }
+          );
 
-      const { nModified, n } = await UserModel(tenant).bulkWrite(assignments);
-
-      const notFoundCount = totalUsers - nModified;
-      if (nModified === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        };
+          if (result.nModified > 0) {
+            assignedUsers.push(user_id);
+          } else {
+            notAssignedUsers.push({
+              user_id,
+              reason: `Failed to assign User ${user_id}`,
+            });
+          }
+        }
       }
 
-      if (notFoundCount > 0) {
+      let message;
+      if (assignedUsers.length === 0) {
+        message = "No users assigned to the group.";
+      } else if (assignedUsers.length === user_ids.length) {
+        message = "All users have been assigned to the group.";
+      } else {
+        message = `Operation partially successful; ${assignedUsers.length} of ${user_ids.length} users have been assigned to the group.`;
+      }
+
+      if (notAssignedUsers.length > 0) {
         return {
-          success: true,
-          message: `Operation partially successful; some ${notFoundCount} of the provided users were not found in the system`,
-          status: httpStatus.OK,
+          success: false,
+          message,
+          status: httpStatus.BAD_REQUEST,
+          errors: notAssignedUsers.reduce((errors, user) => {
+            errors[user.user_id] = user.reason;
+            return errors;
+          }, {}),
         };
       }
 
       return {
         success: true,
-        message: "Successfully assigned all the provided users to the Group",
+        message,
         status: httpStatus.OK,
-        data: [],
+        data: assignedUsers,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -477,6 +453,7 @@ const createGroup = {
       };
     }
   },
+
   assignOneUser: async (request) => {
     try {
       const { grp_id, user_id } = request.params;
@@ -520,6 +497,8 @@ const createGroup = {
         { new: true }
       );
 
+      logObject("updatedUser", updatedUser);
+
       return {
         success: true,
         message: "User assigned to the Group",
@@ -544,7 +523,7 @@ const createGroup = {
 
       const group = await GroupModel(tenant).findById(grp_id);
       let user = await UserModel(tenant).findById(user_id);
-      if (!group || !user) {
+      if (isEmpty(group) || isEmpty(user)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -554,6 +533,8 @@ const createGroup = {
       }
 
       const groupAssignmentIndex = findGroupAssignmentIndex(user, grp_id);
+
+      logObject("groupAssignmentIndex", groupAssignmentIndex);
 
       if (groupAssignmentIndex === -1) {
         return {
@@ -566,22 +547,29 @@ const createGroup = {
         };
       }
 
-      // Remove the group assignment from the user's groups array
       user.group_roles.splice(groupAssignmentIndex, 1);
 
-      // Update the user with the modified groups array
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
         { group_roles: user.group_roles },
         { new: true }
       );
 
-      return {
-        success: true,
-        message: "Successfully unassigned User from the Group",
-        data: updatedUser,
-        status: httpStatus.OK,
-      };
+      if (!isEmpty(updatedUser)) {
+        return {
+          success: true,
+          message: "Successfully unassigned User from the Group",
+          data: updatedUser,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Unable to unassign the User",
+          errors: { message: "Unable to unassign the User" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
     } catch (error) {
       logObject("error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -600,6 +588,7 @@ const createGroup = {
       const { tenant } = request.query;
 
       const group = await GroupModel(tenant).findById(grp_id);
+
       if (!group) {
         return {
           success: false,
@@ -609,7 +598,7 @@ const createGroup = {
         };
       }
 
-      //check of all these provided users actually do exist?
+      // Check if all the provided users actually exist
       const existingUsers = await UserModel(tenant).find(
         { _id: { $in: user_ids } },
         "_id"
@@ -620,30 +609,42 @@ const createGroup = {
           (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
         );
 
+        const errorMessages = {};
+        nonExistentUsers.forEach((user_id) => {
+          errorMessages[user_id] = `User ${user_id} does not exist`;
+        });
+
         return {
           success: false,
-          message: `Bad Request Error`,
-          errors: {
-            message: `The following users do not exist: ${nonExistentUsers}`,
-          },
+          message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
+          errors: errorMessages,
         };
       }
 
-      // Check if all the provided user_ids are assigned to the group in groups
+      // Check if all the provided user_ids are assigned to the group
       const users = await UserModel(tenant).find({
         _id: { $in: user_ids },
         "group_roles.group": grp_id,
       });
 
       if (users.length !== user_ids.length) {
+        const unassignedUsers = user_ids.filter(
+          (user_id) => !users.find((user) => user._id.equals(user_id))
+        );
+
+        const errorMessages = {};
+        unassignedUsers.forEach((user_id) => {
+          errorMessages[
+            user_id
+          ] = `User ${user_id} is not assigned to this group ${grp_id}`;
+        });
+
         return {
           success: false,
           message: "Bad Request Error",
-          errors: {
-            message: `Some of the provided User IDs are not assigned to this group ${grp_id}`,
-          },
           status: httpStatus.BAD_REQUEST,
+          errors: errorMessages,
         };
       }
 
@@ -689,11 +690,13 @@ const createGroup = {
         };
       }
 
+      const unassignedUserIds = user_ids.map((user_id) => user_id);
+
       return {
         success: true,
         message: `Successfully unassigned all the provided users from the group ${grp_id}`,
         status: httpStatus.OK,
-        data: [],
+        data: unassignedUserIds,
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -705,6 +708,7 @@ const createGroup = {
       };
     }
   },
+
   listAvailableUsers: async (request) => {
     try {
       const { tenant } = request.query;
