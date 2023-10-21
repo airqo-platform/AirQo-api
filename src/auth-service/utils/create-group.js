@@ -384,7 +384,9 @@ const createGroup = {
           continue; // Continue to the next user
         }
 
-        const existingAssignment = user.group_roles.find((assignment) => {
+        const group_roles = user.group_roles || [];
+
+        const existingAssignment = group_roles.find((assignment) => {
           return assignment.group.toString() === grp_id.toString();
         });
 
