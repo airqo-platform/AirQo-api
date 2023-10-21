@@ -38,7 +38,7 @@ const createGroup = {
 
       const responseFromRemoveUniqueConstraint = await GroupModel(
         tenant
-      ).collection.dropIndex("grp_website");
+      ).collection.dropIndex("grp_website_1");
 
       if (responseFromRemoveUniqueConstraint.ok === 1) {
         return {
