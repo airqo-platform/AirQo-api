@@ -8,7 +8,7 @@ In this guide you will get an overview of the contribution workflow from opening
 
 To get an overview of each microservice, read the respective microservice READMEs:
 
-- [Airflow](/src/airflow/README.md)
+- [Airflow](/src/workflows/README.md)
 - [Analytics](/src/analytics/README.md)
 - [Auth-service](/src/auth-service/README.md)
 - [Calibrate](/src/calibrate/readme.md)

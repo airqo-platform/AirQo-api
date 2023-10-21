@@ -1,6 +1,6 @@
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.ml_utils import ForecastUtils, DecodingUtils

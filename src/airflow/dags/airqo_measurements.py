@@ -1,6 +1,6 @@
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
 from dag_docs import airqo_realtime_low_cost_measurements_doc
 from task_docs import (

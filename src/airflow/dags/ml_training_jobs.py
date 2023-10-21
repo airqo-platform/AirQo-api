@@ -3,7 +3,7 @@ from datetime import datetime
 from airflow.decorators import dag, task
 from dateutil.relativedelta import relativedelta
 
-from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str

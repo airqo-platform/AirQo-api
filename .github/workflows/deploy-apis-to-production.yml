@@ -51,7 +51,7 @@ jobs:
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
-      run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
+      run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx
@@ -90,7 +90,7 @@ jobs:
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
-          echo "run_airflow=false" >>$GITHUB_OUTPUT
+          echo "run_workflows=false" >>$GITHUB_OUTPUT
           echo "run_incentives=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
@@ -227,12 +227,12 @@ jobs:
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/airflow/* ]]; then
-              echo "run_airflow=true" >>$GITHUB_OUTPUT
+            if [[ $file == src/workflows/* ]]; then
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == k8s/airflow/* ]]; then
-              echo "run_airflow=true" >>$GITHUB_OUTPUT
+            if [[ $file == k8s/workflows/* ]]; then
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/incentives/* ]]; then
@@ -260,7 +260,7 @@ jobs:
               echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
-              echo "run_airflow=true" >>$GITHUB_OUTPUT
+              echo "run_workflows=true" >>$GITHUB_OUTPUT
               echo "run_incentives=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
@@ -397,11 +397,11 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
           kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json prod-auth-api-config-files | kubectl replace -f - -n production
 
-  ### airflow ###
-  airflow:
-    name: build-push-deploy-airflow
+  ### workflows ###
+  workflows:
+    name: build-push-deploy-workflows
     needs: [check, image-tag]
-    if: needs.check.outputs.run_airflow == 'true'
+    if: needs.check.outputs.run_workflows == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -424,29 +424,29 @@ jobs:
         uses: docker/build-push-action@v4.1.1
         with:
           push: true
-          context: src/airflow
+          context: src/workflows
           target: deployment
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows:latest
 
       - name: Build and push XCom
         uses: docker/build-push-action@v4.1.1
         with:
           push: true
-          context: src/airflow
+          context: src/workflows
           target: xcom-setup
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows-xcom:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/airflow/values-prod.yaml"
+            valueFile: "k8s/workflows/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update airflow prod image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update workflows prod image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
@@ -464,7 +464,7 @@ jobs:
 
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/airflow/
+          cd src/workflows/
           gcloud secrets versions access latest --secret="prod-env-airflow" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 

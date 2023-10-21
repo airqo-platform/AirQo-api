@@ -76,10 +76,10 @@ python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=202
 ```bash
 sh run.sh  
 ```
-### Running airflow only
+### Running workflows only
 
 ```bash
-sh run-airflow-only.sh  
+sh run-workflows-only.sh  
 ```
 
 **Note for Windows users:** There is a command in the sh files that requires to be modified / uncommented for windows 
