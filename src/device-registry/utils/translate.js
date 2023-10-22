@@ -207,9 +207,10 @@ async function tipsTranslations(index, target) {
 }
 
 async function lessonTranslations(index, target) {
+    let translatedLessons = [];
     switch (target) {
         case "fr":
-            const frenchLessons = [
+            translatedLessons = [
                 {
                     "title": "Mesures que vous pouvez prendre pour réduire la pollution de l’air",
                     "completion_message": "Vous venez de terminer votre première leçon Know Your Air.",
@@ -245,11 +246,48 @@ async function lessonTranslations(index, target) {
                     ],
                 },
             ];
-
-            return frenchLessons[index];
+            break;
+        case "pt":
+            translatedLessons = [
+                {
+                    "title": "Medidas que você pode tomar para reduzir a poluição do ar",
+                    "completion_message": "Você acabou de concluir sua primeira lição Know Your Air.",
+                    "tasks": [
+                        {
+                            "title": "Use o transporte público",
+                            "content": "Os gases de escape dos veículos são uma grande fonte de poluição do ar. Menos carros na estrada significam menos emissões.",
+                        },
+                        {
+                            "title": "Faça manutenção regular do seu carro/boda boda",
+                            "content": "Inspeções regulares podem maximizar a eficiência energética, reduzindo as emissões dos veículos.",
+                        },
+                        {
+                            "title": "Evite deixar o motor do seu carro ligado em marcha lenta no trânsito",
+                            "content": "Os veículos produzem gases de escape particularmente prejudiciais. Desligue o motor no trânsito.",
+                        },
+                        {
+                            "title": "Caminhe ou ande de bicicleta",
+                            "content": "Caminhar ou andar de bicicleta ajuda a reduzir sua pegada de carbono individual e melhora sua saúde!",
+                        },
+                        {
+                            "title": "Evite queimar lixo",
+                            "content": "Queimar lixo doméstico é prejudicial para a sua saúde e para o nosso meio ambiente.",
+                        },
+                        {
+                            "title": "Reduza produtos de plástico descartáveis",
+                            "content": "Evite usar sacolas plásticas, pois demoram mais para se decompor. Use sacolas de papel ou cestas para suas compras.",
+                        },
+                        {
+                            "title": "Se torne um defensor do ar puro",
+                            "content": "Junte-se à nossa campanha pela qualidade do ar e defenda um ar puro em sua comunidade.",
+                        },
+                    ],
+                },
+            ];
             break;
 
     }
+    return translatedLessons[index];
 
 }
 
