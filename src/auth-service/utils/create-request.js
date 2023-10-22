@@ -113,6 +113,291 @@ const createAccessRequest = {
       };
     }
   },
+  requestAccessToGroupByEmail: async (request) => {
+    try {
+      const { tenant, emails, user, grp_id } = {
+        ...request,
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      logObject("grp_id", grp_id);
+
+      const inviter = user._doc;
+      const inviterEmail = inviter.email;
+      const inviterId = inviter._id;
+      const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
+      if (isEmpty(inviterDetails) || isEmpty(inviter)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Inviter does not exit" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      logObject("group", group);
+      if (isEmpty(group)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Group not found" },
+        };
+      }
+
+      const existingRequests = [];
+      const successResponses = [];
+      const failureResponses = [];
+
+      for (const email of emails) {
+        const existingRequest = await AccessRequestModel(tenant).findOne({
+          email: email,
+          targetId: grp_id,
+          requestType: "group",
+        });
+
+        if (!isEmpty(existingRequest)) {
+          existingRequests.push(email);
+        } else {
+          const responseFromCreateAccessRequest = await AccessRequestModel(
+            tenant
+          ).register({
+            email: email,
+            targetId: grp_id,
+            status: "pending",
+            requestType: "group",
+          });
+
+          logObject(
+            "responseFromCreateAccessRequest",
+            responseFromCreateAccessRequest
+          );
+
+          if (responseFromCreateAccessRequest.success === true) {
+            const createdAccessRequest =
+              await responseFromCreateAccessRequest.data;
+            if (isEmpty(email)) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: {
+                  message: "Unable to retrieve the requester's email address",
+                },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+
+            const responseFromSendEmail =
+              await mailer.requestToJoinGroupByEmail({
+                email,
+                tenant,
+                entity_title: group.grp_title,
+                targetId: grp_id,
+                inviterEmail,
+              });
+
+            if (responseFromSendEmail.success === true) {
+              successResponses.push({
+                success: true,
+                message: "Access Request completed successfully",
+                data: createdAccessRequest,
+                status: responseFromSendEmail.status
+                  ? responseFromSendEmail.status
+                  : httpStatus.OK,
+              });
+            } else if (responseFromSendEmail.success === false) {
+              logger.error(`${responseFromSendEmail.message}`);
+              failureResponses.push(responseFromSendEmail);
+            }
+          } else {
+            logger.error(`${responseFromCreateAccessRequest.message}`);
+            failureResponses.push(responseFromCreateAccessRequest);
+          }
+        }
+      }
+
+      if (existingRequests.length > 0 && successResponses.length === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Access requests were already sent for the following emails",
+            existingRequests,
+          },
+        };
+      }
+
+      if (failureResponses.length > 0) {
+        logger.error(
+          `Internal Server Errors -- ${JSON.stringify(failureResponses)}`
+        );
+        return failureResponses[0];
+      }
+
+      if (successResponses.length > 0) {
+        return successResponses[0];
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: e.message },
+      };
+    }
+  },
+  acceptInvitation: async (request) => {
+    try {
+      const { tenant, email, firstName, lastName, password, grids, target_id } =
+        {
+          ...request.body,
+          ...request.query,
+          ...request.params,
+        };
+
+      const user = await UserModel(tenant).find({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "The User already exists in AirQo Analytics" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const accessRequest = await AccessRequestModel(tenant).find({
+        targetId: target_id,
+        email,
+        status: "pending",
+      });
+
+      logObject("accessRequest", accessRequest);
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Access Request not found, please crosscheck provided details",
+          },
+        };
+      }
+
+      let newUser = {};
+      const bodyForCreatingNewUser = {
+        email,
+        password,
+        userName: email,
+        firstName,
+        lastName,
+      };
+
+      const responseFromCreateNewUser = await UserModel(tenant).register(
+        bodyForCreatingNewUser
+      );
+
+      if (
+        responseFromCreateNewUser.success === true &&
+        responseFromCreateNewUser.status === httpStatus.OK
+      ) {
+        newUser = responseFromCreateNewUser.data;
+        logObject("newUser", newUser);
+
+        const update = { status: "approved" };
+        const filter = { email, targetId: target_id };
+
+        const responseFromUpdateAccessRequest = await AccessRequestModel(
+          tenant
+        ).modify({
+          filter,
+          update,
+        });
+
+        const requestType = accessRequest[0].requestType;
+
+        if (responseFromUpdateAccessRequest.success === true && requestType) {
+          let entityKeyId;
+          let organisationUtil;
+          let entity_title;
+          if (requestType === "group") {
+            entityKeyId = "grp_id";
+            organisationUtil = createGroupUtil;
+            const group = await GroupModel(tenant).findById(target_id).lean();
+            entity_title = group.grp_title;
+          } else if (requestType === "network") {
+            entityKeyId = "net_id";
+            organisationUtil = createNetworkUtil;
+            const network = await NetworkModel(tenant)
+              .findById(target_id)
+              .lean();
+            entity_title = network.net_name;
+          }
+
+          const { firstName, lastName, email } = newUser;
+          const request = {
+            params: {
+              [entityKeyId]: target_id,
+              user_id: newUser._id,
+            },
+            query: { tenant: tenant },
+          };
+          const responseFromAssignUserToOrganisation =
+            await organisationUtil.assignOneUser(request);
+
+          logObject(
+            "responseFromAssignUserToOrganisation",
+            responseFromAssignUserToOrganisation
+          );
+
+          if (responseFromAssignUserToOrganisation.success === true) {
+            const responseFromSendEmail = await mailer.afterAcceptingInvitation(
+              {
+                firstName,
+                username: email,
+                email,
+                entity_title,
+              }
+            );
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "Organisation JOIN request accepted successfully",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else if (responseFromAssignUserToOrganisation.success === false) {
+            return responseFromAssignUserToOrganisation;
+          }
+        } else if (responseFromUpdateAccessRequest.success === false) {
+          if (isEmpty(requestType)) {
+            responseFromUpdateAccessRequest.errors.more =
+              "requestType is missing";
+          }
+          return responseFromUpdateAccessRequest;
+        }
+      } else {
+        return responseFromCreateNewUser;
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   requestAccessToNetwork: async (request) => {
     try {
       const {
@@ -225,11 +510,9 @@ const createAccessRequest = {
         };
       }
 
-      const userDetails = await UserModel(tenant).findById(
-        accessRequest.user_id
-      );
+      const user = await UserModel(tenant).findById(accessRequest.user_id);
 
-      if (isEmpty(userDetails)) {
+      if (isEmpty(user)) {
         return {
           success: false,
           message: "Not Found",
@@ -249,7 +532,7 @@ const createAccessRequest = {
       });
 
       if (responseFromUpdateAccessRequest.success === true) {
-        const { firstName, lastName, email } = userDetails;
+        const { firstName, lastName, email } = user;
         if (accessRequest.requestType === "group") {
           const group = await GroupModel(tenant)
             .findById(accessRequest.targetId)

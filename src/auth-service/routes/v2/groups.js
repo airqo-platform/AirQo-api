@@ -95,6 +95,32 @@ router.put(
         .notEmpty()
         .withMessage("the grp_description should not be empty if provided")
         .trim(),
+      body("grp_country")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_country should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_timezone")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_timezone should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_industry")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_industry should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_website")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_website should not be empty if provided")
+        .bail()
+        .isURL()
+        .withMessage("the grp_website must be a valid URL")
+        .trim(),
       body("grp_status")
         .optional()
         .notEmpty()
@@ -188,11 +214,68 @@ router.post(
         .notEmpty()
         .withMessage("the grp_description should not be empty")
         .trim(),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("grp_country")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_country should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_timezone")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_timezone should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_industry")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_industry should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_website")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_website should not be empty if provided")
+        .bail()
+        .isURL()
+        .withMessage("the grp_website must be a valid URL"),
     ],
   ]),
   setJWTAuth,
   authJWT,
   createGroupController.create
+);
+
+router.post(
+  "/removeUniqueConstraints",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.removeUniqueConstraint
 );
 router.put(
   "/:grp_id/assign-user/:user_id",

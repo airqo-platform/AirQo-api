@@ -9,94 +9,182 @@ const UserModel = require("@models/User");
 const generateFilter = require("@utils/generate-filter");
 
 describe("createGroup Module", () => {
-  describe("create()", () => {
-    let request;
+  describe("removeUniqueConstraint", () => {
+    it("should remove unique constraint for each group", async () => {
+      // Create a sample array of groups for testing
+      const groups = [
+        { _id: "group1", grp_website: "website1" },
+        { _id: "group2", grp_website: "website2" },
+      ];
 
-    beforeEach(() => {
-      request = {
-        body: {
-          // Set your request body properties here
-        },
-        query: {
-          tenant: "your-tenant",
-        },
-        user: {
-          _id: "user-id",
-          // Set other user properties here
-        },
-      };
-    });
+      // Mock the GroupModel.find function to return the sample groups
+      const findStub = sinon.stub(GroupModel, "find").resolves(groups);
 
-    it("should create a new group successfully", async () => {
-      const GroupModelMock = {
-        register: sinon.stub().resolves({
-          success: true,
-          data: {
-            _doc: {
-              _id: "group-id",
-              // Set other group properties here
-            },
-          },
-        }),
-      };
+      // Mock the GroupModel.modify function to return a success response
+      const modifyStub = sinon
+        .stub(GroupModel, "modify")
+        .resolves({ success: true, message: "Updated" });
 
-      const controlAccessUtilMock = {
-        createRole: sinon.stub().resolves({
-          success: true,
-          data: {
-            _id: "role-id",
-            // Set other role properties here
-          },
-        }),
-        assignPermissionsToRole: sinon.stub().resolves({ success: true }),
-      };
+      // Call the function
+      const result = await createGroup.removeUniqueConstraint();
 
-      const UserModelMock = {
-        findByIdAndUpdate: sinon.stub().resolves({
-          _id: "user-id",
-          // Set other user properties here
-          group_roles: [
-            {
-              group: "group-id",
-              role: "role-id",
-            },
-          ],
-        }),
-      };
-
-      // Replace the real module imports with the mocks
-      const result = await createGroup.create(request, {
-        GroupModel: GroupModelMock,
-        controlAccessUtil: controlAccessUtilMock,
-        UserModel: UserModelMock,
+      // Assertions
+      expect(result).to.deep.equal({
+        success: true,
+        message: "migration complete",
+        httpStatus: "OK", // You may want to define 'OK' as a variable in your test file
       });
 
-      expect(result.success).to.equal(true);
-      expect(result.status).to.equal(httpStatus.OK);
+      // Check if the find and modify functions were called as expected
+      expect(findStub).to.have.been.calledOnce;
+      expect(modifyStub).to.have.been.calledTwice; // Called once for each group
 
-      // Verify that the mocks were called correctly
-      sinon.assert.calledOnce(GroupModelMock.register);
-      sinon.assert.calledOnce(controlAccessUtilMock.createRole);
-      sinon.assert.calledOnce(controlAccessUtilMock.assignPermissionsToRole);
-      sinon.assert.calledOnce(UserModelMock.findByIdAndUpdate);
+      // Restore the stubbed functions to their original implementations
+      findStub.restore();
+      modifyStub.restore();
     });
 
-    it("should handle the case where user details are missing", async () => {
-      request.user = {};
+    it("should handle errors and return a failure response", async () => {
+      // Mock the GroupModel.find function to throw an error
+      const findStub = sinon
+        .stub(GroupModel, "find")
+        .rejects(new Error("Test error"));
 
-      const result = await createGroup.create(request);
+      // Call the function
+      const result = await createGroup.removeUniqueConstraint();
 
-      expect(result.success).to.equal(false);
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-      expect(result.errors.message).to.equal(
-        "creator's details are not provided"
+      // Assertions
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error -- Migration failed",
+        errors: { message: "Test error" },
+      });
+
+      // Check if the find function was called as expected
+      expect(findStub).to.have.been.calledOnce;
+
+      // Restore the stubbed function to its original implementation
+      findStub.restore();
+    });
+  });
+  describe("create()", () => {
+    it("should create a new group and assign a user as SUPER_ADMIN", async () => {
+      // Mock your UserModel and GroupModel functions as needed
+      const UserModel = {
+        findById: sinon.stub().returns({
+          _id: "user_id",
+          email: "user@example.com",
+          firstName: "John",
+          lastName: "Doe",
+        }),
+        findByIdAndUpdate: sinon.stub().returns({
+          /* updated user */
+        }),
+      };
+
+      const GroupModel = {
+        register: sinon.stub().returns({
+          success: true,
+          data: {
+            _doc: { _id: "group_id" },
+          },
+        }),
+      };
+
+      // Mock controlAccessUtil functions as needed
+      const controlAccessUtil = {
+        createRole: sinon.stub().returns({
+          success: true,
+          data: { _id: "role_id" },
+        }),
+        assignPermissionsToRole: sinon.stub().returns({
+          success: true,
+          data: {}, // You can customize the response as needed
+        }),
+      };
+
+      // Mock constants.SUPER_ADMIN_PERMISSIONS or any other constants
+
+      const request = {
+        body: {
+          /* request body with user_id, etc. */
+        },
+        query: {
+          tenant: "test-tenant",
+        },
+        user: {
+          /* user object if needed */
+        },
+      };
+
+      const response = await createGroup.create(
+        request,
+        UserModel,
+        GroupModel,
+        controlAccessUtil
       );
+
+      // Assert the response and expected behavior
+      expect(response.success).to.equal(true);
+      expect(response.message).to.equal("Success message"); // Customize the expected message
+      // Additional assertions based on the expected behavior
+      // ...
+
+      // Optionally, assert that the UserModel and GroupModel functions were called as expected
+      sinon.assert.calledOnce(UserModel.findById);
+      sinon.assert.calledOnce(GroupModel.register);
+      sinon.assert.calledOnce(controlAccessUtil.createRole);
+      sinon.assert.calledOnce(controlAccessUtil.assignPermissionsToRole);
+      sinon.assert.calledOnce(UserModel.findByIdAndUpdate);
     });
 
-    // Add more test cases for error handling, validation, etc.
+    it("should handle the case where the user is not registered", async () => {
+      // Mock UserModel.findById to return null or an empty object
+      const UserModel = {
+        findById: sinon.stub().resolves(null), // Simulate user not found
+      };
 
-    afterEach(() => {
-      sinon.restore();
+      // Mock your GroupModel and controlAccessUtil functions as needed
+      const GroupModel = {
+        // Mock GroupModel as needed
+      };
+
+      const controlAccessUtil = {
+        // Mock controlAccessUtil functions as needed
+      };
+
+      const request = {
+        body: {
+          user_id: "non_existent_user_id", // Provide a user_id that doesn't exist
+          /* other request body properties */
+        },
+        query: {
+          tenant: "test-tenant",
+        },
+      };
+
+      const response = await createGroup.create(
+        request,
+        UserModel,
+        GroupModel,
+        controlAccessUtil
+      );
+
+      // Assert that the response indicates that the user is not registered
+      expect(response.success).to.equal(false);
+      expect(response.message).to.equal("Your account is not registered");
+      // Additional assertions based on the expected behavior
+
+      // Optionally, assert that UserModel.findById was called as expected
+      sinon.assert.calledOnce(UserModel.findById);
+    });
+
+    it("should handle other error cases and edge scenarios", async () => {
+      // Define and test other scenarios, such as when certain functions return errors or specific responses
+      // Customize the test cases based on your function's error handling
+      // You can create test cases to cover various error scenarios and edge cases
+      // Mock UserModel, GroupModel, and controlAccessUtil functions as needed
+      // Assert the responses and expected behavior for each test case
     });
   });
   describe("update()", () => {

@@ -96,7 +96,7 @@ class ForecastFixtures:
     @pytest.fixture
     def mock_db():
         mock_client = MagicMock()
-        mock_db = mock_client["airqo_db"]
+        mock_db = mock_client[configuration.MONGO_DATABASE_NAME]
         mock_db.hourly_forecasts = MagicMock()
         mock_db.daily_forecasts = MagicMock()
         return mock_db

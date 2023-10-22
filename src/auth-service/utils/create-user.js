@@ -25,6 +25,7 @@ const { db } = require("@config/firebase-admin");
 const { client1 } = require("@config/redis");
 const redis = client1;
 const log4js = require("log4js");
+const GroupModel = require("../models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 
 function generateNumericToken(length) {
@@ -992,8 +993,7 @@ const createUserModule = {
   },
   create: async (request) => {
     try {
-      const { tenant, firstName, email } = request;
-      let { password } = request;
+      const { tenant, firstName, email, password, category } = request;
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
@@ -1004,12 +1004,6 @@ const createUserModule = {
           status: httpStatus.BAD_REQUEST,
         };
       }
-
-      password = password
-        ? password
-        : accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
-          );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
@@ -1065,8 +1059,8 @@ const createUserModule = {
               token,
               email,
               firstName,
+              category,
             });
-
             logObject("responseFromSendEmail", responseFromSendEmail);
             if (responseFromSendEmail.success === true) {
               const userDetails = {

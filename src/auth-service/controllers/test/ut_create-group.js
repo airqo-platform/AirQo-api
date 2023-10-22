@@ -18,6 +18,101 @@ describe("createGroup module", () => {
     sinon.restore();
   });
 
+  describe("removeUniqueConstraint", () => {
+    let req, res;
+
+    beforeEach(() => {
+      // Initialize req and res for each test
+      req = {
+        query: {},
+      };
+      res = {
+        status: sinon.stub(),
+        json: sinon.stub(),
+      };
+    });
+
+    it("should remove unique constraints and return a success response", async () => {
+      // Mock your validation library function to return an empty validation result
+      sinon.stub(validationResult(req), "isEmpty").returns(true);
+
+      // Mock the createGroupUtil.removeUniqueConstraint function to return a success response
+      sinon.stub(createGroupUtil, "removeUniqueConstraint").resolves({
+        success: true,
+        status: 200,
+      });
+
+      // Call the function
+      await createGroupUtil.removeUniqueConstraint(req, res);
+
+      // Assertions
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message:
+          "successfully removed all the unique constraints in this migration",
+      });
+
+      // Restore the stubbed functions to their original implementations
+      validationResult(req).isEmpty.restore();
+      createGroupUtil.removeUniqueConstraint.restore();
+    });
+
+    it("should handle validation errors and return a bad request response", async () => {
+      // Mock your validation library function to return a non-empty validation result
+      sinon.stub(validationResult(req), "isEmpty").returns(false);
+      sinon.stub(validationResult(req), "errors").value([
+        {
+          nestedErrors: [{ msg: "First error" }, { msg: "Second error" }],
+        },
+      ]);
+
+      // Call the function
+      await createGroupUtil.removeUniqueConstraint(req, res);
+
+      // Assertions
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "bad request errors",
+        errors: {
+          0: "First error",
+          1: "Second error",
+        },
+      });
+
+      // Restore the stubbed functions to their original implementations
+      validationResult(req).isEmpty.restore();
+    });
+
+    it("should handle errors from removeUniqueConstraint and return an error response", async () => {
+      // Mock your validation library function to return an empty validation result
+      sinon.stub(validationResult(req), "isEmpty").returns(true);
+
+      // Mock the createGroupUtil.removeUniqueConstraint function to return an error response
+      sinon
+        .stub(createGroupUtil, "removeUniqueConstraint")
+        .rejects(new Error("Test error"));
+
+      // Call the function
+      await createGroupUtil.removeUniqueConstraint(req, res);
+
+      // Assertions
+      expect(res.status).to.have.been.calledWith(500);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: "Test error",
+        },
+      });
+
+      // Restore the stubbed functions to their original implementations
+      validationResult(req).isEmpty.restore();
+      createGroupUtil.removeUniqueConstraint.restore();
+    });
+  });
+
   describe("list Function", () => {
     it("should return a bad request response when validation errors occur", async () => {
       // Mock validationResult to return validation errors

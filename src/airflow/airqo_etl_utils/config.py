@@ -170,7 +170,7 @@ class Config:
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
     MONGO_URI = os.getenv("MONGO_URI")
-    MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME")
+    MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
 
 

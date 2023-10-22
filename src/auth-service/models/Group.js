@@ -25,6 +25,10 @@ const GroupSchema = new Schema(
     grp_manager_username: { type: String },
     grp_manager_firstname: { type: String },
     grp_manager_lastname: { type: String },
+    grp_website: { type: String },
+    grp_industry: { type: String },
+    grp_country: { type: String },
+    grp_timezone: { type: String },
   },
   {
     timestamps: true,
@@ -50,6 +54,10 @@ GroupSchema.methods = {
       grp_manager_username: this.grp_manager_username,
       grp_manager_firstname: this.grp_manager_firstname,
       grp_manager_lastname: this.grp_manager_lastname,
+      grp_website: this.grp_website,
+      grp_industry: this.grp_industry,
+      grp_country: this.grp_country,
+      grp_timezone: this.grp_timezone,
     };
   },
 };

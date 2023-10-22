@@ -93,11 +93,10 @@ const mailer = {
     }
   },
   request: async ({
-    firstName = "Unknown",
-    lastName = "Unknown",
     email,
+    targetId,
     tenant = "airqo",
-    entity_title = "Unknown",
+    entity_title = "",
   } = {}) => {
     try {
       let bcc = "";
@@ -111,8 +110,64 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${entity_title}`,
-        html: msgs.joinEntityRequest(firstName, lastName, email, entity_title),
+        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        html: msgs.joinEntityRequest(email, entity_title),
+        bcc,
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  requestToJoinGroupByEmail: async ({
+    email,
+    targetId,
+    tenant = "airqo",
+    entity_title = "",
+    inviterEmail = "",
+  } = {}) => {
+    try {
+      let bcc = "";
+      if (tenant.toLowerCase() === "airqo") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        html: msgTemplates.acceptInvitation({
+          email,
+          entity_title,
+          targetId,
+          inviterEmail,
+        }),
         bcc,
         attachments: attachments,
       };
@@ -277,6 +332,7 @@ const mailer = {
     token = "",
     email = "",
     firstName = "",
+    category = "",
   } = {}) => {
     try {
       const imagePath = path.join(__dirname, "../config/images");
@@ -289,12 +345,13 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Verify your AirQo Analytics account",
-        html: msgTemplates.v2_emailVerification(
+        html: msgTemplates.v2_emailVerification({
           email,
           firstName,
           user_id,
-          token
-        ),
+          token,
+          category,
+        }),
         bcc,
         attachments: [
           {
@@ -356,6 +413,7 @@ const mailer = {
       };
     }
   },
+
   verifyMobileEmail: async ({
     firebase_uid = "",
     token = "",
@@ -490,6 +548,59 @@ const mailer = {
       };
     }
   },
+  afterAcceptingInvitation: async ({
+    firstName,
+    username,
+    email,
+    entity_title,
+  } = {}) => {
+    try {
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let mailOptions = {};
+      mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: `Welcome to ${entity_title}!`,
+        html: msgTemplates.afterAcceptingInvitation({
+          firstName,
+          username,
+          email,
+          entity_title,
+        }),
+        bcc,
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   forgot: async (email, token, tenant) => {
     try {
       const mailOptions = {

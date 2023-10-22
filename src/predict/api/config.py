@@ -18,11 +18,11 @@ class Config:
     BIGQUERY_MEASUREMENTS_PREDICTIONS = os.getenv("BIGQUERY_MEASUREMENTS_PREDICTIONS")
     BIGQUERY_PLACES_PREDICTIONS = os.getenv("BIGQUERY_PLACES_PREDICTIONS")
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
-    AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN")
-    DB_NAME = os.getenv("DB_NAME")
-    MONGO_URI = os.getenv("MONGO_GCE_URI")
-    REDIS_SERVER = os.getenv("REDIS_SERVER")
-    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
+    AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN", "test_token")
+    DB_NAME = os.getenv("DB_NAME", "test_airqo_db")
+    MONGO_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017/test_airqo_db")
+    REDIS_SERVER = os.getenv("REDIS_SERVER", "localhost")
+    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL", "postgresql://localhost:5432/test_airqo_db")
     CACHE_TIMEOUT = os.getenv("CACHE_TIMEOUT", 3600)
     PARISH_PREDICTIONS_QUERY_LIMIT = os.getenv("PARISH_PREDICTIONS_QUERY_LIMIT", 100)
 
@@ -49,10 +49,10 @@ app_config = {
     "staging": TestingConfig,
 }
 
-environment = os.getenv("FLASK_ENV")
+environment = os.getenv("FLASK_ENV", "staging")
 print("ENVIRONMENT", environment or "staging")
 
-configuration = app_config.get(environment, TestingConfig)
+configuration = app_config.get(environment, "staging")
 
 
 def connect_mongo():

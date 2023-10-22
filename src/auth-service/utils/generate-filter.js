@@ -539,11 +539,13 @@ const filter = {
 
   groups: (req) => {
     try {
-      const { grp_title, grp_status, category } = req.query;
-
-      const { grp_id } = req.params;
-
+      const { grp_title, grp_status, category, grp_id } = {
+        ...req.query,
+        ...req.params,
+        ...req.body,
+      };
       let filter = {};
+
       if (grp_id) {
         filter["_id"] = ObjectId(grp_id);
       }

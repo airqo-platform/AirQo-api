@@ -13,6 +13,60 @@ const logger = log4js.getLogger(
 const controlAccessUtil = require("@utils/control-access");
 
 const createGroup = {
+  removeUniqueConstraint: async (req, res) => {
+    try {
+      const { query, params } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromRemoveUniqueConstraint =
+        await createGroupUtil.removeUniqueConstraint(request);
+
+      if (responseFromRemoveUniqueConstraint.success === true) {
+        const status = responseFromRemoveUniqueConstraint.status
+          ? responseFromRemoveUniqueConstraint.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "successfully removed all the respective unique constraints",
+        });
+      } else if (responseFromRemoveUniqueConstraint.success === false) {
+        const status = responseFromRemoveUniqueConstraint.status
+          ? responseFromRemoveUniqueConstraint.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveUniqueConstraint.message
+            ? responseFromRemoveUniqueConstraint.message
+            : "",
+          errors: responseFromRemoveUniqueConstraint.errors
+            ? responseFromRemoveUniqueConstraint.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   list: async (req, res) => {
     try {
       const { query, params } = req;
@@ -91,7 +145,7 @@ const createGroup = {
       }
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -333,9 +387,9 @@ const createGroup = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: responseFromAssignUsers.message,
-          updated_group: responseFromAssignUsers.data,
           success: true,
+          message: responseFromAssignUsers.message,
+          updated_records: responseFromAssignUsers.data,
         });
       } else if (responseFromAssignUsers.success === false) {
         const status = responseFromAssignUsers.status
@@ -375,7 +429,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       let request = Object.assign({}, req);
@@ -432,7 +486,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -490,7 +544,7 @@ const createGroup = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
@@ -506,9 +560,9 @@ const createGroup = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "users successully unassigned",
-          updated_records: responseFromUnassignManyUsers.data,
           success: true,
+          message: responseFromUnassignManyUsers.message,
+          updated_records: responseFromUnassignManyUsers.data,
         });
       } else if (responseFromUnassignManyUsers.success === false) {
         const status = responseFromUnassignManyUsers.status

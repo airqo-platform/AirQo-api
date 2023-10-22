@@ -453,6 +453,15 @@ describe("mailer", () => {
       const token = "abcdef";
       const email = "johndoe@example.com";
       const firstName = "John Doe";
+
+      const testData = {
+        email: "test@example.com",
+        firstName: "John",
+        user_id: "123",
+        token: "abc123",
+        category: "individual", // or 'organization'
+      };
+
       const expectedMailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -460,12 +469,7 @@ describe("mailer", () => {
         },
         to: email,
         subject: "Verify your AirQo Analytics account",
-        html: msgTemplates.v2_emailVerification(
-          email,
-          firstName,
-          user_id,
-          token
-        ),
+        html: msgTemplates.v2_emailVerification(testData),
         bcc: constants.REQUEST_ACCESS_EMAILS,
         attachments: [
           // Your attachment objects...
