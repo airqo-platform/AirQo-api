@@ -151,9 +151,10 @@ const translateUtil = {
 };
 
 async function tipsTranslations(index, target) {
+    let translatedTips = [];
     switch (target) {
         case "fr":
-            const frenchTips = [
+            translatedTips = [
                 {
                     "title": "Pour tout le monde",
                     "description": "Si vous devez passer beaucoup de temps dehors, les masques jetables comme le N95 sont utiles.",
@@ -199,10 +200,106 @@ async function tipsTranslations(index, target) {
                     "description": "C'est une excellente journée pour sortir et faire de l'exercice. Pensez à réduire le nombre de déplacements en voiture que vous effectuez.",
                 },
             ];
-            return frenchTips[index];
+            break;
+        case "pt":
+            translatedTips = [
+                {
+                    "title": "Para todos",
+                    "description": "Se você precisa passar muito tempo ao ar livre, máscaras descartáveis como a N95 são úteis."
+                },
+                {
+                    "title": "Para todos",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre. Tente ficar dentro de casa até que a qualidade do ar melhore."
+                },
+                {
+                    "title": "Para todos",
+                    "description": "Evite atividades que o façam respirar mais rapidamente. Hoje é o dia ideal para passar o tempo lendo em ambientes fechados."
+                },
+                {
+                    "title": "Para crianças",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre."
+                },
+                {
+                    "title": "Para idosos",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre."
+                },
+                {
+                    "title": "Para mulheres grávidas",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre para manter a saúde, sua e a do seu bebê."
+                },
+                {
+                    "title": "Para pessoas com problemas respiratórios",
+                    "description": "Reduza os exercícios intensos. Vá devagar se você sentir sinais como tosse."
+                },
+                {
+                    "title": "Para idosos",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre."
+                },
+                {
+                    "title": "Para mulheres grávidas",
+                    "description": "Reduza a intensidade de suas atividades ao ar livre para manter a saúde, sua e a do seu bebê."
+                },
+                {
+                    "title": "Para todos",
+                    "description": "Hoje é um dia ideal para atividades ao ar livre."
+                },
+                {
+                    "title": "Para todos",
+                    "description": "É um ótimo dia para sair e se exercitar. Considere reduzir a quantidade de viagens de carro que você faz."
+                }
+            ];
+            break;
+        case "sw":
+            translatedTips = [
+                {
+                    "title": "Kwa Kila Mtu",
+                    "description": "Ikiwa unapaswa kutumia muda mwingi nje, barakoa za kutupa kama N95 ni muhimu."
+                },
+                {
+                    "title": "Kwa Kila Mtu",
+                    "description": "Punguza ukali wa shughuli zako za nje. Jaribu kukaa ndani hadi ubora wa hewa unapoboresha."
+                },
+                {
+                    "title": "Kwa Kila Mtu",
+                    "description": "Epuka shughuli zinazokufanya upumue haraka zaidi. Leo ni siku nzuri kwa kusoma ndani ya nyumba."
+                },
+                {
+                    "title": "Kwa Watoto",
+                    "description": "Punguza ukali wa shughuli zako za nje."
+                },
+                {
+                    "title": "Kwa Wazee",
+                    "description": "Punguza ukali wa shughuli zako za nje."
+                },
+                {
+                    "title": "Kwa Wanawake Wajawazito",
+                    "description": "Punguza ukali wa shughuli zako za nje ili kudumisha afya yako na ya mtoto wako."
+                },
+                {
+                    "title": "Kwa Watu Wenye Matatizo ya Upumuaji",
+                    "description": "Punguza mazoezi makali. Endelea polepole ikiwa unaona dalili kama vile kikohozi."
+                },
+                {
+                    "title": "Kwa Wazee",
+                    "description": "Punguza ukali wa shughuli zako za nje."
+                },
+                {
+                    "title": "Kwa Wanawake Wajawazito",
+                    "description": "Punguza ukali wa shughuli zako za nje ili kudumisha afya yako na ya mtoto wako."
+                },
+                {
+                    "title": "Kwa Kila Mtu",
+                    "description": "Leo ni siku nzuri kwa shughuli za nje."
+                },
+                {
+                    "title": "Kwa Kila Mtu",
+                    "description": "Ni siku nzuri kwa kutoka nje na kufanya mazoezi. Fikiria kupunguza idadi ya safari za gari unazofanya."
+                }
+            ];
             break;
 
     }
+    return translatedTips[index];
 
 }
 
@@ -285,6 +382,44 @@ async function lessonTranslations(index, target) {
                 },
             ];
             break;
+        case "sw":
+            translatedLessons = [
+                {
+                    "title": "Hatua Unazoweza Kuchukua Kupunguza Uchafuzi wa Hewa",
+                    "completion_message": "Umeanza somo lako la kwanza la Kujua Hewa Yako.",
+                    "tasks": [
+                        {
+                            "title": "Tumia Usafiri wa Umma",
+                            "content": "Moshi wa magari ni chanzo kikubwa cha uchafuzi wa hewa. Idadi ndogo ya magari barabarani inamaanisha uzalishaji mdogo wa gesi chafu.",
+                        },
+                        {
+                            "title": "Hudumia Mara Kwa Mara Gari/Boda Boda Yako",
+                            "content": "Uchunguzi wa mara kwa mara unaweza kuboresha utendaji wa nishati, na hivyo kupunguza uzalishaji wa magari.",
+                        },
+                        {
+                            "title": "Epuka Kuzima Gari Lako kwenye Trafiki",
+                            "content": "Magari hutoa moshi hatari sana. Zima injini yako unapokuwa kwenye msongamano wa trafiki.",
+                        },
+                        {
+                            "title": "Tembea au Peda Baiskeli",
+                            "content": "Tembea au piga baiskeli ili kupunguza alama yako ya kaboni binafsi na kuboresha afya yako!",
+                        },
+                        {
+                            "title": "Epuka Kuchoma Taka",
+                            "content": "Kuchoma taka za nyumbani ni hatari kwa afya yako na mazingira yetu.",
+                        },
+                        {
+                            "title": "Punguza Matumizi ya Bidhaa za Plastiki za Kutupa",
+                            "content": "Epuka kutumia mifuko ya plastiki, kwani huchukua muda mrefu kuvunja. Tumia mifuko au bakuli za karatasi kwa ununuzi wako.",
+                        },
+                        {
+                            "title": "Jiunge na Mshirika wa Hewa Safi",
+                            "content": "Shiriki kampeni yetu kuhusu ubora wa hewa na simama kwa ajili ya hewa safi katika jamii yako.",
+                        },
+                    ],
+                },
+            ];
+            break;
 
     }
     return translatedLessons[index];
@@ -292,9 +427,10 @@ async function lessonTranslations(index, target) {
 }
 
 async function quizTranslations(index, target) {
+    let translatedQuizzes = []; 
     switch (target) {
         case "fr":
-            const frenchQuizzes = [
+            translatedQuizzes = [
                 {
                     "title": "Découvrez ici vos conseils personnalisés sur la qualité de l’air !",
                     "description": "Répondez à ce quiz sur votre environnement et votre routine quotidienne pour débloquer des conseils personnalisés rien que pour vous !",
@@ -501,11 +637,396 @@ async function quizTranslations(index, target) {
                     ]
                 }
             ];
-
-            return frenchQuizzes[index];
+            break;
+        case "pt":
+            translatedQuizzes = [
+                {
+                    "title": "Descubra aqui suas dicas personalizadas sobre a qualidade do ar!",
+                    "description": "Responda a este questionário sobre o seu ambiente e rotina diária para desbloquear dicas personalizadas exclusivas para você!",
+                    "completion_message": "Proceda. Você desbloqueou recomendações personalizadas sobre a qualidade do ar para ajudá-lo em sua jornada rumo ao ar puro.",
+                    "questions": [
+                        {
+                            "title": "Que método de cozimento você utiliza em casa?",
+                            "context": "Ambiente doméstico",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Cozinhar com lenha pode emitir quantidades significativas de poluentes atmosféricos.",
+                                        "Cozinhe em uma cozinha bem ventilada com boa circulação de ar ou instale uma cozinha ao ar livre, se possível.",
+                                        "Use um fogão eficiente projetado para queimar lenha de forma mais limpa e com menos fumaça.",
+                                        "Considere a transição para fogões melhorados que reduzem as emissões e aumentam a eficiência energética."
+                                    ],
+                                    "title": "Lenha",
+                                },
+                                {
+                                    "content": [
+                                        "Usar um fogão a carvão para cozinhar pode liberar poluentes prejudiciais, como partículas e monóxido de carbono.",
+                                        "Use um fogão a carvão em uma cozinha bem ventilada ou perto de uma janela aberta.",
+                                        "Mantenha as portas e janelas abertas durante o cozimento para reduzir a fumaça.",
+                                        "Se possível, considere opções de cozimento mais limpas para reduzir a poluição do ar interno."
+                                    ],
+                                    "title": "Fogão a carvão",
+                                },
+                                {
+                                    "content": [
+                                        "O uso de um fogão a gás é geralmente uma opção mais limpa do que os combustíveis sólidos.",
+                                        "Garanta uma ventilação adequada para evitar o acúmulo de emissões de gás no interior.",
+                                        "Mantenha os fogões a gás e as conexões para evitar vazamentos que possam prejudicar a qualidade do ar interno."
+                                    ],
+                                    "title": "Fogão a gás",
+                                },
+                                {
+                                    "content": [
+                                        "O biogás é considerado uma opção de cozimento mais limpa.",
+                                        "Mantenha regularmente o sistema de biogás para garantir a produção e a queima eficaz do gás.",
+                                        "Embora o biogás seja mais limpo, assegure uma ventilação adequada para evitar qualquer emissão contínua.",
+                                        "Siga as diretrizes do fabricante para uso seguro e eficaz do biogás."
+                                    ],
+                                    "title": "Biogás",
+                                },
+                                {
+                                    "content": [
+                                        "Os fogões elétricos não emitem poluentes diretos no ar interno.",
+                                        "Mesmo sem emissões, assegure uma ventilação adequada para evitar outros poluentes do ar interno.",
+                                        "O uso de fogões elétricos eficientes em energia pode reduzir o impacto ambiental global."
+                                    ],
+                                    "title": "Fogão elétrico",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Como você descarta resíduos em casa?",
+                            "context": "Ambiente doméstico",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Queimar resíduos pode liberar vários poluentes, como partículas e substâncias tóxicas.",
+                                        "Certifique-se de usar métodos apropriados de eliminação de resíduos, como reciclagem, descarte em um centro de coleta ou uso de empresas de serviços de coleta de resíduos."
+                                    ],
+                                    "title": "Queimar",
+                                },
+                                {
+                                    "content": [
+                                        "Praticar uma boa coleta de resíduos reduz sua exposição à poluição do ar.",
+                                        "Os locais de descarte central podem servir como centros para instalações de reciclagem e triagem."
+                                    ],
+                                    "title": "Coletar em um centro de coleta",
+                                },
+                                {
+                                    "content": [
+                                        "Compostagem - Materiais orgânicos, como restos de comida e resíduos de jardim, são separados e enterrados no solo para decomposição e formação de adubo orgânico.",
+                                        "Recuperação - Materiais como metal, papel, vidro, panos e alguns tipos de plástico podem ser recuperados, reciclados e reutilizados."
+                                    ],
+                                    "title": "Gostaria de saber sobre outras formas de gerenciamento de resíduos",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Onde está localizado o seu ambiente doméstico?",
+                            "context": "Ambiente doméstico",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Morar perto de uma estrada movimentada aumenta a exposição à poluição do ar.",
+                                        "Abra as janelas voltadas para a estrada apenas quando o tráfego estiver fraco.",
+                                        "Plante árvores/cercas ao redor da casa como barreira contra as emissões."
+                                    ],
+                                    "title": "Perto de uma estrada movimentada",
+                                },
+                                {
+                                    "content": [
+                                        "Sua exposição à poluição do ar é limitada, uma vez que há menos emissões de veículos."
+                                    ],
+                                    "title": "Rua com pouco ou nenhum tráfego",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Com que frequência você participa de atividades ao ar livre?",
+                            "context": "Atividades ao ar livre",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Acompanhe a qualidade do ar atual e as previsões em sua localização por meio do aplicativo AirQo para evitar atividades ao ar livre nos dias de má qualidade do ar.",
+                                        "Horários com baixa poluição, como de manhã cedo ou à noite.",
+                                        "Planeje suas atividades em torno de estradas menos movimentadas e áreas verdes."
+                                    ],
+                                    "title": "Regularmente",
+                                },
+                                {
+                                    "content": [
+                                        "Verifique a qualidade do ar e as previsões em sua localização por meio do aplicativo AirQo para evitar atividades ao ar livre nos dias de má qualidade do ar.",
+                                        "Limite a duração das atividades ao ar livre nos dias em que a qualidade do ar estiver ruim."
+                                    ],
+                                    "title": "Ocasionalmente",
+                                },
+                                {
+                                    "content": [
+                                        "Para pessoas que não participam de atividades ao ar livre, considere opções de exercícios internos, como esteira, bicicleta ergométrica ou aulas de fitness.",
+                                        "Use o aplicativo AirQo para verificar a qualidade do ar e as previsões em sua localização para planejar com antecedência qualquer atividade ao ar livre.",
+                                        "Considere minimizar sua exposição à poluição do ar em casa, evitando queimar resíduos ao ar livre e aumentando a ventilação da casa durante atividades que geram poluentes."
+                                    ],
+                                    "title": "Raramente/Nunca",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Que tipo de estrada você usa com frequência?",
+                            "context": "Transporte",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Feche janelas e portas em dias empoeirados, especialmente em dias ventosos.",
+                                        "Use uma máscara ou cubra o nariz/boca com um pano, como um lenço/cachecol, quando houver poeira.",
+                                        "Lembre-se de verificar a qualidade do ar e as previsões em sua região por meio do aplicativo AirQo para planejar com antecedência em dias de má qualidade do ar."
+                                    ],
+                                    "title": "Uma estrada empoeirada/não pavimentada",
+                                },
+                                {
+                                    "content": [
+                                        "Morar perto de estradas asfaltadas expõe você a menos poeira, mas as emissões dos veículos ainda podem afetar a qualidade do ar.",
+                                        "Plante árvores/arbustos ao redor de sua casa como barreiras naturais para absorver poluentes."
+                                    ],
+                                    "title": "Estrada asfaltada/estrada com menos poeira",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Qual é o seu meio de transporte mais utilizado?",
+                            "context": "Transporte",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Faça a manutenção regular do seu carro para garantir um motor saudável que reduz as emissões.",
+                                        "Evite deixar o motor do carro ligado por muito tempo.",
+                                        "Quando possível, faça caronas com outras pessoas para reduzir a quantidade de carros na estrada."
+                                    ],
+                                    "title": "Um carro",
+                                },
+                                {
+                                    "content": [
+                                        "O uso de transporte público tende a reduzir o número total de veículos na estrada. Isso reduz as emissões dos veículos e a exposição à poluição do ar."
+                                    ],
+                                    "title": "Táxi ou ônibus",
+                                },
+                                {
+                                    "content": [
+                                        "Ao usar uma motocicleta (boda boda), use uma máscara para se proteger da inalação de poeira e poluentes.",
+                                        "Os condutores de boda boda são incentivados a realizar a manutenção adequada do motor."
+                                    ],
+                                    "title": "Motocicleta/moto",
+                                },
+                                {
+                                    "content": [
+                                        "Andar em calçadas mais afastadas das estradas ajudará a reduzir a exposição às emissões dos veículos.",
+                                        "Antes de sair, verifique a qualidade do ar em sua região por meio do aplicativo AirQo. Considere usar meios de transporte alternativos ou rotas alternativas se a qualidade do ar estiver ruim.",
+                                        "Use uma máscara se estiver andando durante os horários de alta poluição, como de manhã cedo (das 7h às 10h) e à noite, quando o tráfego está mais intenso.",
+                                        "Se possível, escolha rotas que evitem áreas conhecidas por poluição, como locais de construção ou zonas industriais."
+                                    ],
+                                    "title": "A pé",
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ];
+            break;
+        case "sw":
+            translatedQuizzes = [
+                {
+                    "title": "Pata ushauri wako wa kibinafsi kuhusu ubora wa hewa hapa!",
+                    "description": "Jibu mtihani huu kuhusu mazingira yako na ratiba yako ya kila siku ili kufungua ushauri wa kibinafsi uliotengenezwa mahsusi kwako!",
+                    "completion_message": "Endelea. Umefungua mapendekezo ya kibinafsi kuhusu ubora wa hewa ili kusaidia safari yako kuelekea hewa safi.",
+                    "questions": [
+                        {
+                            "title": "Unatumia njia gani ya kupika nyumbani?",
+                            "context": "Mazingira ya nyumbani",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Kupika kwa kutumia kuni kunaweza kutoa kiwango kikubwa cha uchafuzi wa hewa.",
+                                        "Pika katika jiko lenye uingizaji hewa mzuri au weka jiko nje ikiwa inawezekana.",
+                                        "Tumia jiko lenye ufanisi lililobuniwa kuchoma kuni kwa usafi zaidi na bila moshi mwingi.",
+                                        "Fikiria kubadilisha kwenye vifaa bora vya kupikia ambavyo hupunguza uzalishaji na kuongeza ufanisi wa nishati."
+                                    ],
+                                    "title": "Kuni",
+                                },
+                                {
+                                    "content": [
+                                        "Matumizi ya jiko la makaa ya mawe kwa kupikia kunaweza kutoa vichafuzi hatari kama vile chembe na kaboni monoksidi.",
+                                        "Tumia jiko la makaa ya mawe katika jiko lenye uingizaji hewa mzuri au karibu na dirisha lililofunguliwa.",
+                                        "Wakati wa kupikia, weka milango na madirisha wazi kupunguza moshi.",
+                                        "Ikiwezekana, fikiria kuchagua njia safi za kupikia kupunguza uchafuzi wa hewa ndani."
+                                    ],
+                                    "title": "Jiko la makaa ya mawe",
+                                },
+                                {
+                                    "content": [
+                                        "Matumizi ya jiko la gesi kwa ujumla ni chaguo safi kuliko nishati za kuni.",
+                                        "Hakikisha kuna uingizaji hewa wa kutosha ili kuepuka mkusanyiko wa gesi ndani ya nyumba.",
+                                        "Tunza majiko ya gesi na viunganishi kuepuka uvujaji unaoweza kuharibu ubora wa hewa ndani."
+                                    ],
+                                    "title": "Jiko la gesi",
+                                },
+                                {
+                                    "content": [
+                                        "Biogesi inachukuliwa kuwa chaguo safi la kupikia.",
+                                        "Tunza mara kwa mara mfumo wa biogesi ili kuhakikisha uzalishaji na uchomaji wa gesi unaofanyika kwa ufanisi.",
+                                        "Ingawa biogesi ni safi, hakikisha kuna uingizaji hewa wa kutosha kuepuka uzalishaji wa mara kwa mara.",
+                                        "Fuata mwongozo wa mtengenezaji kwa matumizi salama na ufanisi wa biogesi."
+                                    ],
+                                    "title": "Biogesi",
+                                },
+                                {
+                                    "content": [
+                                        "Majiko ya umeme hayatokezi uchafuzi moja kwa moja kwenye hewa ya ndani.",
+                                        "Hata bila uzalishaji, hakikisha kuna uingizaji hewa wa kutosha ili kuepuka vichafuzi vingine katika hewa ya ndani.",
+                                        "Matumizi ya majiko ya umeme yenye ufanisi wa nishati yanaweza kupunguza athari za mazingira kwa ujumla."
+                                    ],
+                                    "title": "Jiko la umeme",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Unawezaje kushughulikia taka nyumbani?",
+                            "context": "Mazingira ya nyumbani",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Kuchoma taka kunaweza kutoa vichafuzi mbalimbali kama vile chembe na vitu vyenye sumu.",
+                                        "Hakikisha kutumia njia sahihi za kushughulikia taka kama vile kuchakata, kuchukua kwenye vituo vya taka au kutumia huduma za kukusanya taka."
+                                    ],
+                                    "title": "Kuchoma",
+                                },
+                                {
+                                    "content": [
+                                        "Kuwa na mfumo mzuri wa ukusanyaji wa taka kunapunguza mfiduo wako kwa uchafuzi wa hewa.",
+                                        "Vituo vya kuuza taka vinaweza kutumika kama vituo vya kupokea na kusafirisha kwa ajili ya kuchakata na kusafisha vitu."
+                                    ],
+                                    "title": "Kukusanya kwenye kituo cha taka",
+                                },
+                                {
+                                    "content": [
+                                        "Kuoza - Vitu kama vile vyakula vya kikaboni na taka za bustani hukusanywa na kuzikwa chini ya ardhi ili kuoza na kutoa mbolea.",
+                                        "Kurekebisha - Vitu kama vile metali, karatasi, kioo, nguo, na baadhi ya aina za plastiki zinaweza kurejeshwa, kuchakatwa na kutumika tena."
+                                    ],
+                                    "title": "Ningependa kujua njia nyingine za kushughulikia taka",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Mazingira yako ya nyumbani iko wapi?",
+                            "context": "Mazingira ya nyumbani",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Kuishi karibu na barabara yenye shughuli nyingi huongeza mfiduo kwa uchafuzi wa hewa.",
+                                        "Fungua madirisha yanayoelekea barabarani tu wakati kuna trafiki kidogo.",
+                                        "Planta miti/vibanzi karibu na nyumba kama kizuizi cha uzalishaji."
+                                    ],
+                                    "title": "Karibu na barabara yenye shughuli nyingi",
+                                },
+                                {
+                                    "content": [
+                                        "Mfiduo wako kwa uchafuzi wa hewa ni mdogo kwani hakuna uzalishaji wa magari.",
+                                    ],
+                                    "title": "Barabara yenye shughuli kidogo au hakuna",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Marangapi unashiriki katika shughuli za nje?",
+                            "context": "Shughuli za nje",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Fuatilia ubora wa hewa na utabiri wa hali ya hewa katika eneo lako kupitia programu ya AirQo ili kuepuka shughuli za nje siku za hewa mbaya.",
+                                        "Chagua wakati wa chini wa uchafuzi kama asubuhi mapema au usiku wa manane.",
+                                        "Panga shughuli zako karibu na barabara zisizo na shughuli nyingi au maeneo ya kijani."
+                                    ],
+                                    "title": "Kila mara",
+                                },
+                                {
+                                    "content": [
+                                        "Angalia ubora wa hewa na utabiri wa hali ya hewa katika eneo lako kupitia programu ya AirQo ili kuepuka shughuli za nje siku za hewa mbaya.",
+                                        "Punguza muda wa shughuli za nje siku ambazo ubora wa hewa ni mbaya."
+                                    ],
+                                    "title": "Mara kwa mara",
+                                },
+                                {
+                                    "content": [
+                                        "Kwa watu ambao hawashiriki katika shughuli za nje, fikiria chaguo za mazoezi ndani, kama kutumia treadmill, baiskeli ya mazoezi au kuhudhuria madarasa ya mazoezi.",
+                                        "Tumia programu ya AirQo kuangalia ubora wa hewa na utabiri katika eneo lako ili kupanga mapema shughuli za nje.",
+                                        "Fikiria kupunguza mfiduo wako kwa uchafuzi wa hewa nyumbani kwa kuepuka kuchoma taka nje na kuongeza uingizaji hewa ndani ya nyumba wakati unafanya shughuli za kutoa uchafuzi."
+                                    ],
+                                    "title": "Mara chache/Asilani",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Unatumia aina gani ya barabara mara kwa mara?",
+                            "context": "Usafiri",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Funga madirisha na milango wakati wa siku zenye vumbi, haswa wakati wa upepo.",
+                                        "Vaa barakoa au funika pua/mdomo wako na kitambaa kama leso/kitambaa unapokuwa na vumbi.",
+                                        "Usisahau kuangalia ubora wa hewa na utabiri katika eneo lako kupitia programu ya AirQo ili kupanga mapema siku za ubora mbaya wa hewa."
+                                    ],
+                                    "title": "Barabara chafu/isiyolainishwa",
+                                },
+                                {
+                                    "content": [
+                                        "Kuishi karibu na barabara za lami kunakufanya upate vumbi kidogo, lakini uzalishaji wa magari unaweza bado kuathiri ubora wa hewa.",
+                                        "Panda miti/mimea karibu na nyumba yako kama kinga ya asili ya kunyonya vichafuzi."
+                                    ],
+                                    "title": "Barabara ya lami/barabara yenye vumbi kidogo",
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Ni njia gani ya usafiri unayotumia zaidi?",
+                            "context": "Usafiri",
+                            "answers": [
+                                {
+                                    "content": [
+                                        "Tunza gari lako mara kwa mara ili kuwa na injini yenye afya inayopunguza uzalishaji.",
+                                        "Epuka kuacha gari ikiwa na injini ikiwa inawezekana.",
+                                        "Unapoweza, fanya safari za pamoja na watu wengine kupunguza idadi ya magari barabarani."
+                                    ],
+                                    "title": "Gari",
+                                },
+                                {
+                                    "content": [
+                                        "Matumizi ya usafiri wa umma yanaweza kupunguza idadi ya magari barabarani. Hii inapunguza uzalishaji wa magari na mfiduo kwa uchafuzi wa hewa."
+                                    ],
+                                    "title": "Taxi au basi",
+                                },
+                                {
+                                    "content": [
+                                        "Unapotumia boda boda, vaa barakoa kulinda dhidi ya kunasa vumbi na vichafuzi.",
+                                        "Madereva wa boda boda wanahimizwa kufanya matengenezo sahihi ya injini."
+                                    ],
+                                    "title": "Boda boda",
+                                },
+                                {
+                                    "content": [
+                                        "Tembea kwenye njia za pekee kutoka barabarani, kwani hii itasaidia kupunguza mfiduo kwa uzalishaji wa magari.",
+                                        "Kabla ya kuanza safari, angalia ubora wa hewa katika eneo lako kupitia programu ya AirQo. Fikiria kutumia njia za usafiri mbadala au njia nyingine ikiwa ubora wa hewa ni mbaya.",
+                                        "Vaa barakoa ikiwa unatembea wakati wa masaa ya juu ya uchafuzi, kama asubuhi mapema (kuanzia saa 7 asubuhi hadi saa 10 alasiri) na jioni wakati wa msongamano wa trafiki.",
+                                        "Ikiwezekana, chagua njia zinazopita mbali na maeneo yenye vyanzo vya uchafuzi vinavyojulikana, kama vile maeneo ya ujenzi au viwanda."
+                                    ],
+                                    "title": "Tembea",
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ];
             break;
 
     }
+    return translatedQuizzes[index];
 
 }
 
