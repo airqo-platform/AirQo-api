@@ -376,8 +376,7 @@ async function sendEmailNotifications(groupedFavorites) {
     };
     try {
       await transporter.sendMail(mailOptions);
-      functions.logger.log("New Email notification sent");
-      return null;
+      functions.logger.log("New Email notification sent to ", userFavorites[0].userEmail);
     } catch (error) {
       functions.logger.log("Transporter failed to send email", error);
     }
@@ -405,16 +404,18 @@ exports.sendWeeklyNotifications = functions.pubsub
             const userEmail = user.email;
             const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
             const userDoc = await userRef.get();
-            const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs;
+            if (userDoc.exists) {
+              const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs;
 
-            if (userEmail && isSubscribedToEmailNotifs !== false) {
-              const { name, location } = favorite;
+              if (userEmail && isSubscribedToEmailNotifs !== false) {
+                const { name, location } = favorite;
 
-              if (!groupedFavorites[userID]) {
-                groupedFavorites[userID] = [];
+                if (!groupedFavorites[userID]) {
+                  groupedFavorites[userID] = [];
+                }
+
+                groupedFavorites[userID].push({ name, location, userEmail });
               }
-
-              groupedFavorites[userID].push({ name, location, userEmail });
             }
           } catch (error) {
             functions.logger.log("Error getting Favorites", error);
