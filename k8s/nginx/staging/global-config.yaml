@@ -24,15 +24,6 @@ data:
     
     location = /auth {      
       if ($request_method = 'OPTIONS') { return 204; } 
-      if ($request_uri ~ '(/api/v1/users/emailAuth)|(/api/v2/users/emailAuth)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/emailLogin)|(/api/v2/users/emailLogin)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/verify)|(/api/v2/users/verify)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/auth/google)|(/api/v2/users/auth/google)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/auth/google/callback)|(/api/v2/users/auth/google/callback)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/updatePasswordViaEmail)|(/api/v2/users/updatePasswordViaEmail)') { return 200; }
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
