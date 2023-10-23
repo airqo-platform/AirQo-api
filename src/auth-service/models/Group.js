@@ -25,7 +25,7 @@ const GroupSchema = new Schema(
     grp_manager_username: { type: String },
     grp_manager_firstname: { type: String },
     grp_manager_lastname: { type: String },
-    grp_website: { type: String, unique: true },
+    grp_website: { type: String },
     grp_industry: { type: String },
     grp_country: { type: String },
     grp_timezone: { type: String },

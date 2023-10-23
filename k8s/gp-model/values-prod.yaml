@@ -6,7 +6,7 @@ app:
   namespace: production
   configMap: env-gp-model-production
 images:
-  tag: prod-4e88cf74-1697793823
+  tag: prod-4213522b-1697895456
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-gp-model-job
     brokerConsumer: eu.gcr.io/airqo-250220/airqo-gp-model-broker-consumer

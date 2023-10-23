@@ -1,6 +1,8 @@
 const devConfig = {
   DEFAULT_GROUP: process.env.DEV_DEFAULT_GROUP,
-  DEFAULT_NETWORK: process.env.DEVELOPMENT_DEFAULT_NETWORK,
+  DEFAULT_GROUP_ROLE: process.env.DEV_DEFAULT_GROUP_ROLE,
+  DEFAULT_NETWORK: process.env.DEV_DEFAULT_NETWORK,
+  DEFAULT_NETWORK_ROLE: process.env.DEV_DEFAULT_NETWORK_ROLE,
   MONGO_URI: process.env.MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
   PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
@@ -19,14 +21,15 @@ const devConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
-  DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
   REDIS_SERVER: process.env.DEV_REDIS_SERVER,
   REDIS_PORT: process.env.DEV_REDIS_PORT,
 };
 
 const prodConfig = {
   DEFAULT_GROUP: process.env.PROD_DEFAULT_GROUP,
-  DEFAULT_NETWORK: process.env.PRODUCTION_DEFAULT_NETWORK,
+  DEFAULT_GROUP_ROLE: process.env.PROD_DEFAULT_GROUP_ROLE,
+  DEFAULT_NETWORK: process.env.PROD_DEFAULT_NETWORK,
+  DEFAULT_NETWORK_ROLE: process.env.PROD_DEFAULT_NETWORK_ROLE,
   MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
   PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
@@ -45,14 +48,15 @@ const prodConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
-  DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
   REDIS_SERVER: process.env.PROD_REDIS_SERVER,
   REDIS_PORT: process.env.PROD_REDIS_PORT,
 };
 
 const stageConfig = {
   DEFAULT_GROUP: process.env.STAGE_DEFAULT_GROUP,
-  DEFAULT_NETWORK: process.env.STAGING_DEFAULT_NETWORK,
+  DEFAULT_GROUP_ROLE: process.env.STAGE_DEFAULT_GROUP_ROLE,
+  DEFAULT_NETWORK: process.env.STAGE_DEFAULT_NETWORK,
+  DEFAULT_NETWORK_ROLE: process.env.STAGE_DEFAULT_NETWORK_ROLE,
   MONGO_URI: process.env.MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   PWD_RESET: `${process.env.PLATFORM_STAGING_BASE_URL}/reset`,
@@ -72,7 +76,6 @@ const stageConfig = {
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
-  DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
   REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
   REDIS_PORT: process.env.STAGE_REDIS_PORT,
 };
@@ -621,6 +624,9 @@ const defaultConfig = {
       "networks.role.role_permissions.createdAt": 0,
       "networks.role.role_permissions.network_id": 0,
       "networks.role.role_permissions.description": 0,
+
+      "groups.__v": 0,
+
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
       "access_tokens.createdAt": 0,
@@ -630,7 +636,7 @@ const defaultConfig = {
       "permissions.description": 0,
       "permissions.createdAt": 0,
       "permissions.updatedAt": 0,
-      "groups.__v": 0,
+
       "my_networks.net_status": 0,
       "my_networks.net_children": 0,
       "my_networks.net_users": 0,
@@ -898,6 +904,7 @@ const defaultConfig = {
       "grp_users.networks": 0,
       "grp_users.role": 0,
       "grp_users.profilePicture": 0,
+      "grp_users.long_organization": 0,
       "grp_users.network_roles": 0,
       "grp_users.group_roles": 0,
       "grp_manager.__v": 0,
@@ -911,7 +918,9 @@ const defaultConfig = {
       "grp_manager.userName": 0,
       "grp_manager.password": 0,
       "grp_manager.duration": 0,
+      "grp_manager.group_roles": 0,
       "grp_manager.network_roles": 0,
+      "grp_manager.long_organization": 0,
       "grp_manager.createdAt": 0,
       "grp_manager.updatedAt": 0,
       "grp_manager.groups": 0,
