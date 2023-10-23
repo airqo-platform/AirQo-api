@@ -32,10 +32,25 @@ data:
       if ($request_uri ~ '(/api/v1/users/verify)|(/api/v2/users/verify)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/auth/google)|(/api/v2/users/auth/google)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/auth/google/callback)|(/api/v2/users/auth/google/callback)') { return 200; }
+      
+      if ($request_uri ~ '(/api/v1/users/updatePasswordViaEmail)|(/api/v2/users/updatePasswordViaEmail)') {
+        if ($request_method = 'PUT') {
+          return 200;
+        }
+      }
+      
+      if ($request_uri ~ '(/api/v1/users)|(/api/v2/users)') {
+        if ($request_method = 'POST') {
+          return 200;
+        }
+      }
+
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
       if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
+
+
 
       set $method POST;
       set $verification_path verify?tenant=airqo;
