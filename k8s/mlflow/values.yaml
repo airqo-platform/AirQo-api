@@ -19,7 +19,7 @@ backendStore:
 artifactRoot:
   gcs:
     enabled: true
-    bucket: "mlflow_bucket_airqo"
+    bucket: "airqo-mlflow-artifacts"
     path: ""
 
 resources:
