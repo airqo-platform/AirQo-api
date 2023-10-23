@@ -1,6 +1,6 @@
 replicaCount: 2
 image:
-  repository: burakince/mlflow
+  repository: ghcr.io/mlflow/mlflow
   pullPolicy: IfNotPresent
   tag: ""
 nameOverride: ""
@@ -37,4 +37,4 @@ extraVolumes:
 
 extraVolumeMounts:
   - name: mlflow-pv
-    mountPath: /etc/mlflow
+    mountPath: /mlflow-volumes/
