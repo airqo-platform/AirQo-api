@@ -47,7 +47,6 @@ def test_format_to_aqcsv(
                 == mock_aqcsv_globals["AQCSV_QC_CODE_MAPPER"]["averaged"]
             )
 
-        # if pollutant is pm2.5, and frequency is hourly, then output df should have columns "value_pm2_5", "unit_pm2_5","data_status_pm2_5"
 
         if pollutant == "pm2_5":
             assert "value_pm2_5" in result[0].keys()
