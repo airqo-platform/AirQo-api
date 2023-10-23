@@ -193,7 +193,16 @@ UserSchema.pre("save", function (next) {
     this.network_roles = [
       {
         network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-        role: mongoose.Types.ObjectId(constants.DEFAULT_ROLE),
+        role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
+      },
+    ];
+  }
+
+  if (!this.group_roles || this.group_roles.length === 0) {
+    this.group_roles = [
+      {
+        group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+        role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];
   }
