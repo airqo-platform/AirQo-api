@@ -37,6 +37,18 @@ data:
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
       if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
 
+      if ($request_uri ~ '/api/v2/users/updatePasswordViaEmail') {
+        if ($request_method = 'PUT') {
+          return 200;
+        }
+      }
+
+      if ($request_uri ~ '(/api/v2/users)') {
+        if ($request_method = 'POST') {
+          return 200;
+        }
+      }
+
       set $method POST;
       set $verification_path verify?tenant=airqo;
 
