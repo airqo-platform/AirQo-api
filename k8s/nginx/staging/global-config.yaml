@@ -33,6 +33,7 @@ data:
       if ($request_uri ~ '(/api/v1/users/auth/google)|(/api/v2/users/auth/google)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/auth/google/callback)|(/api/v2/users/auth/google/callback)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/updatePasswordViaEmail)|(/api/v2/users/updatePasswordViaEmail)') { return 200; }
+      if ($request_uri ~ '/api/(v1|v2)/users' && $request_method = 'POST') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
