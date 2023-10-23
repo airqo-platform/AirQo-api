@@ -2,14 +2,13 @@
 from unittest.mock import patch
 
 import pytest
-import pandas as pd
 
 from api.utils.data_formatters import format_to_aqcsv
 from conftest import mock_dataframe, mock_aqcsv_globals
 
 
 # TODO: Review this test
-# @pytest.mark.parametrize("pollutant", ["pm2_5", "pm10"])
+@pytest.mark.parametrize("pollutant", ["pm2_5", "pm10"])
 @pytest.mark.parametrize("frequency", ["hourly", "daily", "raw"])
 @pytest.mark.xfail
 def test_format_to_aqcsv(
@@ -48,4 +47,9 @@ def test_format_to_aqcsv(
                 == mock_aqcsv_globals["AQCSV_QC_CODE_MAPPER"]["averaged"]
             )
 
-        # Add more tests here
+        # if pollutant is pm2.5, and frequency is hourly, then output df should have columns "value_pm2_5", "unit_pm2_5","data_status_pm2_5"
+
+        if pollutant == "pm2_5":
+            assert "value_pm2_5" in result[0].keys()
+            assert "unit_pm2_5" in result[0].keys()
+            assert "data_status_pm2_5" in result[0].keys()
