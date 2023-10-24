@@ -59,9 +59,9 @@ module.exports = {
     token,
     category,
   } = {}) => {
-    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/interest/${user_id}/${token}/${category}`;
+    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/interest/${user_id}/${token}`;
     if (category && category === "organisation") {
-      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/verify/${user_id}/${token}/${category}`;
+      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/verify/${user_id}/${token}`;
     }
 
     const content = `<tr>
