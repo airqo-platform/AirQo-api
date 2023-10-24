@@ -1228,7 +1228,6 @@ const defaultConfig = {
       "sites.distance_to_capital_city_center": 0,
       "sites.updatedAt": 0,
       "sites.nearest_tahmo_station": 0,
-      "sites.formatted_name": 0,
       "sites.geometry": 0,
       "sites.google_place_id": 0,
       "sites.site_tags": 0,
