@@ -261,8 +261,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
         req.headers["x-original-method"]
       );
 
-      logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
-      logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
+      // logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
+      // logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
 
       // const clientIp = req.headers["x-client-ip"];
       // const hostName = req.headers["x-host-name"];
