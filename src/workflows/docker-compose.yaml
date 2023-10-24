@@ -23,13 +23,13 @@ x-common-data: &common-data
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
     PLUME_LABS_ORGANISATIONS_CRED: /etc/config/plume_labs_metadata.json
     AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
-    AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
-    PYTHONPATH: /etc/airflow_xcom
+    AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/workflows_xcom/
+    PYTHONPATH: /etc/workflows_xcom
 
   volumes:
     - ${PWD}/meta_data/google_application_credentials.json:/etc/config/google_application_credentials.json
     - ${PWD}/meta_data/plume_labs_metadata.json:/etc/config/plume_labs_metadata.json
-    - ${PWD}/airflow_xcom:/etc/airflow_xcom
+    - ${PWD}/workflows_xcom:/etc/airflow_xcom
 
 
 services:
@@ -52,7 +52,7 @@ services:
 
   xcom-setup:
     environment:
-      AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+      AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/workflows_xcom/
     container_name: xcom-setup
     build:
       context: .
