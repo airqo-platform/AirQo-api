@@ -426,7 +426,7 @@ jobs:
           push: true
           context: src/workflows
           target: deployment
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows:latest
 
       - name: Build and push XCom
         uses: docker/build-push-action@v4.1.1
@@ -434,7 +434,7 @@ jobs:
           push: true
           context: src/workflows
           target: xcom-setup
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-workflows-xcom:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows-xcom:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
@@ -465,8 +465,8 @@ jobs:
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/workflows/
-          gcloud secrets versions access latest --secret="prod-env-airflow" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
+          gcloud secrets versions access latest --secret="prod-env-workflows" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env workflows-config | kubectl replace -f - -n pipeline
 
   #### Device Registry ######
   device-registry:

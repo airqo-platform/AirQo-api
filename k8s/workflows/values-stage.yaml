@@ -1,14 +1,14 @@
 app:
-  name: airflow
-  label: airflow
-  namespace: pipeline
-  configmap: airflow-config
+  name: workflows
+  label: workflows
+  namespace: workflows
+  configmap: workflows-config
 replicaCount: 2
-serviceAccountName: stage-airflow-sa
+serviceAccountName: stage-workflows-sa
 images:
   repositories:
-    initContainer: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
-    containers: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow
+    initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
+    containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
   tag: stage-c12a70fb-1697558027
 nameOverride: ''
 fullnameOverride: ''
@@ -21,15 +21,15 @@ resources:
     cpu: 150m
     memory: 1400Mi
 volumeMounts:
-  - name: config-volume
+  - name: workflows-config-volume
     mountPath: /etc/config
-  - name: xcom-config-volume
-    mountPath: /etc/airflow_xcom
+  - name: workflows-xcom-config-volume
+    mountPath: /etc/workflows_xcom
 volumes:
-  - name: config-volume
+  - name: workflows-config-volume
     configMap:
-      name: airflow-config-files
-  - name: xcom-config-volume
+      name: workflows-config-files
+  - name: workflows-xcom-config-volume
     emptyDir: {}
 ingress:
   enabled: false

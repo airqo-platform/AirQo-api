@@ -1,12 +1,12 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: airflow
-  namespace: pipeline
+  name: workflows
+  namespace: workflows
 spec:
   selector:
     matchLabels:
-      app: airflow
+      app: workflows
   replicas: 2
   revisionHistoryLimit: 2
   strategy:
@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       labels:
-        app: airflow
+        app: workflows
     spec:
       affinity:
         nodeAffinity:
@@ -36,25 +36,25 @@ spec:
                     operator: In
                     values:
                       - high-memory
-      serviceAccountName: airflow-sa
+      serviceAccountName: workflows-sa
       initContainers:
-        - name: airflow-xcom
-          image: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom:latest
+        - name: workflows-xcom
+          image: eu.gcr.io/airqo-250220/airqo-workflows-xcom:latest
           imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
             - configMapRef:
-                name: airflow-config
+                name: workflows-config
           volumeMounts:
-            - name: xcom-config-volume
-              mountPath: /etc/airflow_xcom
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
       containers:
         - name: airflow-scheduler
-          image: eu.gcr.io/airqo-250220/airqo-apache-airflow:latest
+          image: eu.gcr.io/airqo-250220/airqo-workflows:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: airflow-config
+                name: workflows-config-config
           command: ["airflow"]
           args: ["scheduler"]
           resources:
@@ -66,18 +66,18 @@ spec:
               cpu: 1500m
               memory: 4500Mi
           volumeMounts:
-            - name: config-volume
+            - name: workflows-config-volume
               mountPath: /etc/config
-            - name: xcom-config-volume
-              mountPath: /etc/airflow_xcom
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
         - name: airflow-webserver
-          image: eu.gcr.io/airqo-250220/airqo-apache-airflow:latest
+          image: eu.gcr.io/airqo-250220/airqo-workflows:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           envFrom:
             - configMapRef:
-                name: airflow-config
+                name: workflows-config
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
@@ -88,15 +88,15 @@ spec:
               path: /airflow/health
               port: 8080
           volumeMounts:
-            - name: config-volume
+            - name: workflows-config-volume
               mountPath: /etc/config
-            - name: xcom-config-volume
-              mountPath: /etc/airflow_xcom
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
       volumes:
-        - name: config-volume
+        - name: workflows-config-volume
           configMap:
-            name: airflow-config-files
-        - name: xcom-config-volume
+            name: workflows-config-files-config-files
+        - name: workflows-xcom-config-volume
           emptyDir: {}
       restartPolicy: Always
 
@@ -104,12 +104,12 @@ spec:
 kind: HorizontalPodAutoscaler
 apiVersion: autoscaling/v2
 metadata:
-  name: airflow-hpa
+  name: workflows-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: airflow
+    name: workflows
   minReplicas: 1
   maxReplicas: 3
   metrics:
@@ -124,8 +124,8 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: airflow-svc
-  namespace: pipeline
+  name: workflows-svc
+  namespace: workflows
 spec:
   type: NodePort
   ports:
@@ -134,7 +134,7 @@ spec:
       targetPort: 8080
       nodePort: 30036
   selector:
-    app: airflow
+    app: workflows
 # ---
 # apiVersion: v1
 # kind: ServiceAccount
