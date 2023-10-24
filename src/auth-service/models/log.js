@@ -193,11 +193,8 @@ logSchema.methods = {
       _id: this._id,
       meta: this.meta,
       timestamp: this.timestamp,
-      username: this.username,
       level: this.level,
       message: this.message,
-      clientIp: this.clientIp,
-      hostName: this.hostName,
     };
   },
 };
