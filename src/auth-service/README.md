@@ -4,7 +4,7 @@ The authentication microservice is a crucial component of our application's secu
 
 ## Features
 
-- User Registration: This allows new users to create an account by providing their credentials and completing the registration process.
+- User Registration: Allows new users to create an account by providing their credentials and completing the registration process.
 - User Login: Provides a secure login mechanism for users to authenticate themselves and obtain an access token for subsequent requests.
 - Password Management: Offers password reset and change functionalities to maintain user account security.
 - Token-based Authentication: Utilizes JSON Web Tokens (JWT) for stateless authentication, allowing users to access protected endpoints with a valid token.
