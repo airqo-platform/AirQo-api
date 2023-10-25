@@ -23,14 +23,15 @@ def date_to_str(date: datetime):
 
 def heatmap_cache_key():
     args = request.args
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     airqloud = args.get("airqloud")
     page = args.get("page")
     limit = args.get("limit")
-    return f"{airqloud}_{page}_{limit}"
+    return f"{current_hour}_{airqloud}_{page}_{limit}"
 
 
 def daily_forecasts_cache_key():
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -45,7 +46,7 @@ def daily_forecasts_cache_key():
 
 
 def hourly_forecasts_cache_key():
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -61,6 +62,7 @@ def hourly_forecasts_cache_key():
 
 def get_faults_cache_key():
     args = request.args
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     airqloud = args.get("airqloud")
     device_name = args.get("device_name")
     correlation_fault = args.get("correlation_fault")
