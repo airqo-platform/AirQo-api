@@ -1,5 +1,5 @@
 #!/bin/sh
-
+#Bash script to check if the database is up and running
 if [[ -z "${PGHOST}" && -z "${MYSQL_HOST}" ]]; then
   HOST="localhost"
 elif [[ -z "${PGHOST}" ]]; then
