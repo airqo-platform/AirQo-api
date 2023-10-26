@@ -261,8 +261,11 @@ const useJWTStrategy = (tenant, req, res, next) =>
         req.headers["x-original-method"]
       );
 
-      // logObject("req.headers['x-domain-name']", req.headers["x-domain-name"]);
-      // logObject("req.headers['x-ip-address']", req.headers["x-ip-address"]);
+      // logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
+      // logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
+
+      // const clientIp = req.headers["x-client-ip"];
+      // const hostName = req.headers["x-host-name"];
 
       let service = req.headers["service"];
       let userAction = "Unknown Action";

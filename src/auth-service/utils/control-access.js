@@ -657,12 +657,12 @@ const controlAccess = {
       );
 
       // logObject(
-      //   "request.headers['x-domain-name']",
-      //   request.headers["x-domain-name"]
+      //   "request.headers['x-host-name']",
+      //   request.headers["x-host-name"]
       // );
       // logObject(
-      //   "request.headers['x-ip-address']",
-      //   request.headers["x-ip-address"]
+      //   "request.headers['x-client-ip']",
+      //   request.headers["x-client-ip"]
       // );
 
       if (responseFromListAccessToken.success === true) {
@@ -675,11 +675,13 @@ const controlAccess = {
           if (service && userAction) {
             const { user: { email = "", userName = "" } = {} } =
               responseFromListAccessToken.data[0];
+            // const clientIp = request.headers["x-client-ip"];
+            // const hostName = request.headers["x-host-name"];
             logObject("email", email);
             logObject("userName", userName);
             winstonLogger.info(userAction, {
               email,
-              userName,
+              username: userName,
               service: service,
             });
 

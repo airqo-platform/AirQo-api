@@ -64,6 +64,17 @@ CandidateSchema.statics = {
     try {
       let newArgs = Object.assign({}, args);
       if (isEmpty(newArgs.network_id)) {
+        if (isEmpty(constants.DEFAULT_NETWORK)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message:
+                "unable to determine the Network to which User will belong",
+            },
+          };
+        }
         newArgs.network_id = constants.DEFAULT_NETWORK;
         logObject("newArgs.network_id", newArgs.network_id);
       }

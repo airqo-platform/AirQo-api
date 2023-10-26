@@ -58,7 +58,7 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(validatePagination);
 
-/****************************** create sites usecase *************** */
+/****************************** create sites use-case *************** */
 router.get(
   "/",
   oneOf([

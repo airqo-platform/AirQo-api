@@ -1,3 +1,5 @@
+from typing import Any
+
 import pandas as pd
 
 from api.utils.dates import str_to_aqcsv_date_format
@@ -118,7 +120,9 @@ def compute_airqloud_summary(
     }
 
 
-def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
+def format_to_aqcsv(
+    data: list, pollutants: list, frequency: str
+) -> list[Any] | list[dict]:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
@@ -165,16 +169,21 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
 
     dataframe.drop(
         columns=[
-            "pm2_5_raw_value",
-            "pm10_raw_value",
-            "device_name",
-            "tenant",
-            "device_latitude",
-            "device_longitude",
-            "frequency",
+            col
+            for col in [
+                "pm2_5_raw_value",
+                "pm10_raw_value",
+                "device_name",
+                "tenant",
+                "device_latitude",
+                "device_longitude",
+                "frequency",
+            ]
+            if col in dataframe.columns
         ],
         inplace=True,
     )
+
     return dataframe.to_dict("records")
 
 

@@ -150,6 +150,7 @@ const getSitesFromLatitudeAndLongitude = async ({
   latitude,
   longitude,
   radius = constants.DEFAULT_NEAREST_SITE_RADIUS,
+  limit = 2, // Limit the result to the nearest 2 sites
 } = {}) => {
   try {
     const responseFromListSites = await SiteModel(tenant).list();
@@ -161,28 +162,34 @@ const getSitesFromLatitudeAndLongitude = async ({
       // Calculate the squared radius for faster distance comparison
       const squaredRadius = radius * radius;
 
-      // Create an array to hold site IDs that are within the radius
-      const siteIds = [];
-
-      for (const site of sites) {
-        const distanceSquared = distanceUtil.getDistanceSquared(
+      // Sort sites by distance from provided coordinates
+      sites.sort((a, b) => {
+        const distanceSquaredA = distanceUtil.getDistanceSquared(
           latitude,
           longitude,
-          site.latitude,
-          site.longitude
+          a.latitude,
+          a.longitude
         );
+        const distanceSquaredB = distanceUtil.getDistanceSquared(
+          latitude,
+          longitude,
+          b.latitude,
+          b.longitude
+        );
+        return distanceSquaredA - distanceSquaredB;
+      });
 
-        if (distanceSquared <= squaredRadius) {
-          siteIds.push(site._id.toString());
-        }
-      }
+      // Extract the nearest 2 sites or fewer if there are fewer sites
+      const nearestSites = sites.slice(0, limit);
 
-      if (siteIds.length === 0) {
+      if (nearestSites.length === 0) {
         message = `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`;
       }
 
       // Convert the array of site IDs to a comma-separated string
-      const commaSeparatedIds = siteIds.join(",");
+      const commaSeparatedIds = nearestSites
+        .map((site) => site._id.toString())
+        .join(",");
 
       return {
         success: true,
@@ -1771,6 +1778,7 @@ const createEvent = {
       request.query.tenant = tenant;
       request.query.metadata = "site_id";
       request.query.brief = "yes";
+      request.query.recent = "yes";
       request.query.latitude = "latitude";
       request.query.longitude = "longitude";
 
