@@ -21,6 +21,7 @@ def date_to_str(date: datetime):
     return date.isoformat()
 
 
+# Ensure these are updated when the API query parameters are changed
 def heatmap_cache_key():
     args = request.args
     current_hour = datetime.now().strftime("%Y-%m-%d-%H")
@@ -31,7 +32,7 @@ def heatmap_cache_key():
 
 
 def daily_forecasts_cache_key():
-    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
+    current_day = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -41,12 +42,13 @@ def daily_forecasts_cache_key():
     parish = args.get("parish")
     city = args.get("city")
     site_id = args.get("site_id")
+    device_id = args.get("device_id")
 
-    return f"daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
+    return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def hourly_forecasts_cache_key():
-    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
+    current_day = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -57,7 +59,7 @@ def hourly_forecasts_cache_key():
     city = args.get("city")
     site_id = args.get("site_id")
 
-    return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
+    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def get_faults_cache_key():
