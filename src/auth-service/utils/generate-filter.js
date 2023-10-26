@@ -554,7 +554,6 @@ const filter = {
       const { grp_title, grp_status, category, grp_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
       let filter = {};
 
