@@ -283,11 +283,10 @@ const createGroup = {
         };
       }
 
-      const responseFromGeneratefilter = generateFilter.groups(request);
-      if (responseFromGeneratefilter.success === false) {
-        return responseFromGeneratefilter;
+      const filter = generateFilter.groups(request);
+      if (filter.success && filter.success === false) {
+        return filter;
       }
-      const filter = responseFromGeneratefilter;
 
       const responseFromModifyGroup = await GroupModel(
         tenant.toLowerCase()
@@ -311,10 +310,6 @@ const createGroup = {
       const { tenant } = query;
       const { grp_id } = params;
 
-      /**
-       * Does that provided Group ID even exist?
-       */
-
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
       if (!groupExists) {
@@ -326,13 +321,10 @@ const createGroup = {
         };
       }
 
-      let filter = {};
-      const responseFromGenerateFilter = generateFilter.groups(request);
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter.data;
+      const filter = generateFilter.groups(request);
+      logObject("filter", filter);
+      if (filter.success && filter.success === false) {
+        return filter;
       }
 
       logObject("the filter", filter);

@@ -235,11 +235,12 @@ GroupSchema.statics = {
         };
       } else if (isEmpty(updatedGroup)) {
         return {
-          success: true,
-          message: "group does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "Not Found" },
-          data: [],
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "group does not exist, please crosscheck -- Not Found",
+          },
         };
       }
     } catch (err) {
@@ -292,11 +293,12 @@ GroupSchema.statics = {
         };
       } else if (isEmpty(removedGroup)) {
         return {
-          success: true,
-          message: "group does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "Not Found" },
-          data: [],
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "Bad Request, Group Not Found -- please crosscheck",
+          },
         };
       }
     } catch (err) {
