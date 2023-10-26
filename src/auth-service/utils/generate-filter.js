@@ -181,10 +181,22 @@ const filter = {
 
   requests: (req) => {
     try {
-      const { id, user_id, requestType, targetId, status, category } =
-        req.query;
+      const {
+        id,
+        user_id,
+        requestType,
+        targetId,
+        status,
+        category,
+        request_id,
+        grp_id,
+        net_id,
+      } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
 
-      const { request_id, grp_id, net_id } = req.params;
       let filter = {};
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
