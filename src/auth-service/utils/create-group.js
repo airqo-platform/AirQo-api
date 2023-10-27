@@ -306,6 +306,12 @@ const createGroup = {
   },
   delete: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Group deletion temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "Group deletion temporarily disabled" },
+      };
       const { query, params } = request;
       const { tenant } = query;
       const { grp_id } = params;
