@@ -523,6 +523,17 @@ UserSchema.statics = {
         }
       }
 
+      if (modifiedUpdate.group_roles) {
+        if (isEmpty(modifiedUpdate.group_roles.group)) {
+          delete modifiedUpdate.group_roles;
+        } else {
+          modifiedUpdate["$addToSet"] = {
+            group_roles: { $each: modifiedUpdate.group_roles },
+          };
+          delete modifiedUpdate.group_roles;
+        }
+      }
+
       if (modifiedUpdate.permissions) {
         modifiedUpdate["$addToSet"]["permissions"] = {};
         modifiedUpdate["$addToSet"]["permissions"]["$each"] =
