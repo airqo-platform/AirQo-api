@@ -221,9 +221,7 @@ const defaults = {
         );
       }
 
-      let request = {};
-      request["body"] = req.body;
-      request["query"] = req.query;
+      let request = Object.assign({}, req);
       if (isEmpty(req.query.tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
