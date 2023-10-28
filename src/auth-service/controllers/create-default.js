@@ -9,11 +9,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- defaults-controller`
 );
-const {
-  badRequest,
-  convertErrorArrayToObject,
-  tryCatchErrors,
-} = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 
 const defaults = {
   update: async (req, res) => {
@@ -30,7 +26,7 @@ const defaults = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       const responseFromFilter = generateFilter.defaults(req);
@@ -57,7 +53,7 @@ const defaults = {
         } else if (responseFromUpdateDefault.success === false) {
           let errors = responseFromUpdateDefault.errors
             ? responseFromUpdateDefault.errors
-            : "";
+            : { message: "" };
           let status = responseFromUpdateDefault.status
             ? responseFromUpdateDefault.status
             : httpStatus.INTERNAL_SERVER_ERROR;
@@ -69,7 +65,9 @@ const defaults = {
           });
         }
       } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        let errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
         let status = responseFromFilter.status
           ? responseFromFilter.status
           : httpStatus.INTERNAL_SERVER_ERROR;
@@ -79,8 +77,13 @@ const defaults = {
           errors,
         });
       }
-    } catch (errors) {
-      tryCatchErrors(res, errors, "defaults controller");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -99,6 +102,10 @@ const defaults = {
 
       let request = Object.assign({}, req);
 
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
       let responseFromCreateDefault = await createDefaultUtil.create(request);
       logObject("responseFromCreateDefault", responseFromCreateDefault);
       if (responseFromCreateDefault.success === true) {
@@ -113,7 +120,7 @@ const defaults = {
       } else if (responseFromCreateDefault.success === false) {
         let errors = responseFromCreateDefault.errors
           ? responseFromCreateDefault.errors
-          : "";
+          : { message: "" };
         let status = responseFromCreateDefault.status
           ? responseFromCreateDefault.status
           : httpStatus.INTERNAL_SERVER_ERROR;
@@ -124,9 +131,13 @@ const defaults = {
           errors,
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
-      tryCatchErrors(res, errors, "defaults controller");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -145,7 +156,7 @@ const defaults = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -198,9 +209,13 @@ const defaults = {
           errors,
         });
       }
-    } catch (errors) {
-      logObject("errors", errors);
-      tryCatchErrors(res, errors, "join controller");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -217,9 +232,10 @@ const defaults = {
         );
       }
 
-      let request = {};
-      request["body"] = req.body;
-      request["query"] = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
       let responseFromDeleteDefault = await createDefaultUtil.delete(request);
       logObject("responseFromDeleteDefault", responseFromDeleteDefault);
       if (responseFromDeleteDefault.success === true) {
@@ -234,7 +250,7 @@ const defaults = {
       } else if (responseFromDeleteDefault.success === false) {
         let errors = responseFromDeleteDefault.errors
           ? responseFromDeleteDefault.errors
-          : "";
+          : { message: "" };
 
         let status = responseFromDeleteDefault.status
           ? responseFromDeleteDefault.status
@@ -247,8 +263,13 @@ const defaults = {
           errors,
         });
       }
-    } catch (errors) {
-      tryCatchErrors(res, errors, "defaults controller");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 };
