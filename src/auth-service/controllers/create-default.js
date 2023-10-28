@@ -30,7 +30,7 @@ const defaults = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
       const responseFromFilter = generateFilter.defaults(req);
@@ -99,6 +99,10 @@ const defaults = {
 
       let request = Object.assign({}, req);
 
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
       let responseFromCreateDefault = await createDefaultUtil.create(request);
       logObject("responseFromCreateDefault", responseFromCreateDefault);
       if (responseFromCreateDefault.success === true) {
@@ -145,7 +149,7 @@ const defaults = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -220,6 +224,9 @@ const defaults = {
       let request = {};
       request["body"] = req.body;
       request["query"] = req.query;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
       let responseFromDeleteDefault = await createDefaultUtil.delete(request);
       logObject("responseFromDeleteDefault", responseFromDeleteDefault);
       if (responseFromDeleteDefault.success === true) {
