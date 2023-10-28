@@ -54,6 +54,83 @@ const createSim = {
       };
     }
   },
+  createBulkLocal: async (request) => {
+    try {
+      const { sims } = request.body;
+      const { tenant } = request.query;
+
+      const simCreationPromises = sims.map((simData) => {
+        return SimModel(tenant)
+          .create({ msisdn: simData })
+          .then((createdSim) => {
+            logObject("createdSim", createdSim);
+            return {
+              success: true,
+              message: "Successfully created SIM",
+              data: createdSim,
+            };
+          })
+          .catch((error) => {
+            logObject("error", error);
+            return {
+              success: false,
+              message: "Error creating SIM",
+              errors: { message: error.message },
+            };
+          });
+      });
+
+      const simCreationResults = await Promise.all(simCreationPromises);
+
+      const failedSimCreations = simCreationResults.filter(
+        (result) => !result.success
+      );
+
+      const successfulSimCreations = simCreationResults.map(
+        (result) => result.data
+      );
+
+      let message = "All SIM cards created successfully";
+
+      if (
+        !isEmpty(failedSimCreations) &&
+        failedSimCreations.length < sims.length
+      ) {
+        message = "Some SIM cards created successfully";
+      } else if (
+        !isEmpty(failedSimCreations) &&
+        failedSimCreations.length === sims.length
+      ) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: "All SIM cards failed to create",
+            failedSimCreations,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+        data: successfulSimCreations,
+        failedCreations: failedSimCreations,
+      };
+    } catch (error) {
+      logElement(" the util server error,", error.message);
+      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
   listLocal: async (request) => {
     try {
       const { query } = request;
