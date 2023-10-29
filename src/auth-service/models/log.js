@@ -21,6 +21,7 @@ const logSchema = new mongoose.Schema(
         clientIp: String,
         hostName: String,
         endpoint: String,
+        clientOriginalIp: String,
       },
       default: {},
     },

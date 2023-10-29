@@ -665,6 +665,11 @@ const controlAccess = {
         request.headers["x-client-ip"]
       );
 
+      logObject(
+        "request.headers['x-client-original-ip']",
+        request.headers["x-client-original-ip"]
+      );
+
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
@@ -678,6 +683,7 @@ const controlAccess = {
             const clientIp = request.headers["x-client-ip"];
             const hostName = request.headers["x-host-name"];
             const endpoint = request.headers["x-original-uri"];
+            const clientOriginalIp = request.headers["x-client-original-ip"];
             logObject("email", email);
             logObject("userName", userName);
             winstonLogger.info(userAction, {
@@ -687,6 +693,7 @@ const controlAccess = {
               clientIp: clientIp ? clientIp : "unknown",
               hostName: hostName ? hostName : "unknown",
               endpoint: endpoint ? endpoint : "unknown",
+              clientOriginalIp: clientOriginalIp ? clientOriginalIp : "unknown",
             });
 
             return createValidTokenResponse();
