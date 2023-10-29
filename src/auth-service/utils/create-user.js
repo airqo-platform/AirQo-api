@@ -176,35 +176,51 @@ const createUserModule = {
   listUsersAndAccessRequests: async (request) => {
     try {
       const { tenant } = request.query;
-
-      // Fetch users from the User collection
-      const users = await UserModel(tenant)
-        .find({})
-        .select("firstName lastName email")
-        .lean();
-
-      // Fetch all access requests
-      const accessRequests = await AccessRequestModel(tenant).find({}).lean();
-
-      // Combine the data into a format suitable for the frontend table
-      const combinedData = users.map((user) => {
-        const userAccessRequests = accessRequests.filter(
-          (request) =>
-            request.user_id &&
-            request.user_id.toString() === user._id.toString()
-        );
-
-        // Check if there are any approved access requests for this user
-        const hasApprovedRequest = userAccessRequests.some(
-          (request) => request.status === "approved"
-        );
-
-        return {
-          ...user,
-          status: hasApprovedRequest ? "approved" : "pending", // or 'rejected' as needed
-          accessRequests: userAccessRequests,
-        };
-      });
+      const combinedData = await UserModel(tenant)
+        .aggregate([
+          {
+            $lookup: {
+              from: "access_requests",
+              localField: "email",
+              foreignField: "email",
+              as: "accessRequests",
+            },
+          },
+          {
+            $addFields: {
+              status: {
+                $cond: [
+                  {
+                    $gt: [{ $size: "$accessRequests" }, 0],
+                  },
+                  "approved",
+                  "pending",
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              isActive: 1,
+              status: 1,
+              verified: 1,
+              accessRequests: {
+                $cond: [
+                  {
+                    $eq: [{ $size: "$accessRequests" }, 0],
+                  },
+                  [null],
+                  "$accessRequests",
+                ],
+              },
+            },
+          },
+        ])
+        .exec();
 
       return {
         success: true,
