@@ -66,6 +66,63 @@ const createSim = {
       });
     }
   },
+  createBulk: async (req, res) => {
+    logText("registering sim.............");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = Object.assign({}, req);
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromCreateSim = await createSimUtil.createBulkLocal(
+        request
+      );
+      logObject("responseFromCreateSim in controller", responseFromCreateSim);
+      if (responseFromCreateSim.success === true) {
+        let status = responseFromCreateSim.status
+          ? responseFromCreateSim.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateSim.message,
+          created_sims: responseFromCreateSim.data,
+          failures: responseFromCreateSim.failedCreations,
+        });
+      } else if (responseFromCreateSim.success === false) {
+        const status = responseFromCreateSim.status
+          ? responseFromCreateSim.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateSim.message,
+          errors: responseFromCreateSim.errors
+            ? responseFromCreateSim.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   delete: async (req, res) => {
     try {
       logText(".................................................");

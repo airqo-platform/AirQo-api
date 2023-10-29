@@ -692,8 +692,6 @@ router.put(
         .withMessage("each network should be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createUserController.update
 );
 
@@ -742,8 +740,6 @@ router.put(
         .withMessage("each network should be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createUserController.update
 );
 
