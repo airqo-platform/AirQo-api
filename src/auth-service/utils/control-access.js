@@ -677,6 +677,7 @@ const controlAccess = {
               responseFromListAccessToken.data[0];
             const clientIp = request.headers["x-client-ip"];
             const hostName = request.headers["x-host-name"];
+            const endpoint = request.headers["x-original-uri"];
             logObject("email", email);
             logObject("userName", userName);
             winstonLogger.info(userAction, {
@@ -685,6 +686,7 @@ const controlAccess = {
               service: service,
               clientIp: clientIp ? clientIp : "unknown",
               hostName: hostName ? hostName : "unknown",
+              endpoint: endpoint ? endpoint : "unknown",
             });
 
             return createValidTokenResponse();

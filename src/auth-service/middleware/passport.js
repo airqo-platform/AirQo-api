@@ -266,6 +266,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       const clientIp = req.headers["x-client-ip"];
       const hostName = req.headers["x-host-name"];
+      const endpoint = req.headers["x-original-uri"];
 
       let service = req.headers["service"];
       let userAction = "Unknown Action";
@@ -502,6 +503,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         service: service ? service : "unknown",
         clientIp: clientIp ? clientIp : "unknown",
         hostName: hostName ? hostName : "unknown",
+        endpoint: endpoint ? endpoint : "unknown",
       });
 
       return done(null, user);
