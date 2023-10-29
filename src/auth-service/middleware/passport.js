@@ -502,6 +502,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
         return done(null, false);
       }
 
+      const currentDate = new Date();
+      await UserModel(tenant.toLowerCase()).findByIdAndUpdate(user._id, {
+        lastLogin: currentDate,
+        isActive: true,
+      });
+
       winstonLogger.info(userAction, {
         username: user.userName,
         email: user.email,
