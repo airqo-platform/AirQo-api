@@ -81,6 +81,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  INACTIVE_THRESHOLD: 2592000000, //30 days ==> 30 (days) * 24 (hours per day) * 60 (minutes per hour) * 60 (seconds per minute) * 1000 (milliseconds per second)
   SESSION_SECRET: process.env.SESSION_SECRET,
   ACTION_CODE_SETTINGS: {
     url: process.env.AIRQO_WEBSITE,
