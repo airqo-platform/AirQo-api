@@ -81,6 +81,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  INACTIVE_THRESHOLD: 2592000000, //30 days ==> 30 (days) * 24 (hours per day) * 60 (minutes per hour) * 60 (seconds per minute) * 1000 (milliseconds per second)
   SESSION_SECRET: process.env.SESSION_SECRET,
   ACTION_CODE_SETTINGS: {
     url: process.env.AIRQO_WEBSITE,
@@ -421,6 +422,7 @@ const defaultConfig = {
           "net_manager.email": 0,
           "net_manager.firstName": 0,
           "net_manager.lastName": 0,
+          "net_manager.lastLogin": 0,
           "net_manager.userName": 0,
           "net_manager.password": 0,
           "net_manager.privilege": 0,
@@ -566,6 +568,7 @@ const defaultConfig = {
     _id: 1,
     firstName: 1,
     lastName: 1,
+    lastLogin: 1,
     userName: 1,
     email: 1,
     verified: 1,

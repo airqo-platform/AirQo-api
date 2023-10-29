@@ -678,7 +678,7 @@ const controlAccess = {
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const { user: { email = "", userName = "" } = {} } =
+            const { user: { email = "", userName = "", _id = "" } = {} } =
               responseFromListAccessToken.data[0];
             const clientIp = request.headers["x-client-ip"];
             const hostName = request.headers["x-host-name"];
@@ -686,6 +686,15 @@ const controlAccess = {
             const clientOriginalIp = request.headers["x-client-original-ip"];
             logObject("email", email);
             logObject("userName", userName);
+
+            if (!isEmpty(_id)) {
+              const currentDate = new Date();
+              await UserModel("airqo").findByIdAndUpdate(_id, {
+                lastLogin: currentDate,
+                isActive: true,
+              });
+            }
+
             winstonLogger.info(userAction, {
               email,
               username: userName,
