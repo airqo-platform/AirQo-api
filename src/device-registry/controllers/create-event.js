@@ -1774,13 +1774,10 @@ const createEvent = {
       logObject("lati", latitude);
       logObject("longi", longitude);
       let request = Object.assign({}, req);
-      request.query.external = "no";
       request.query.tenant = tenant;
       request.query.metadata = "site_id";
       request.query.brief = "yes";
       request.query.recent = "yes";
-      request.query.latitude = "latitude";
-      request.query.longitude = "longitude";
 
       const responseFromGetSitesFromLatitudeAndLongitude = await getSitesFromLatitudeAndLongitude(
         { latitude, longitude, tenant, radius }
