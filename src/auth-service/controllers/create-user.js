@@ -9,6 +9,7 @@ const isEmpty = require("is-empty");
 const controlAccessUtil = require("@utils/control-access");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const UserModel = require("@models/User");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
 );
@@ -911,6 +912,13 @@ const createUser = {
       if (req.auth.success === true) {
         // logObject("req.user", req.user);
         logObject("req.user.toAuthJSON()", await req.user.toAuthJSON());
+        const user = await req.user.toAuthJSON();
+        const currentDate = new Date();
+        await UserModel("airqo").findByIdAndUpdate(user._id, {
+          lastLogin: currentDate,
+          isActive: true,
+        });
+
         return res.status(httpStatus.OK).json(await req.user.toAuthJSON());
       } else {
         if (req.auth.error) {

@@ -20,10 +20,19 @@ const {
 const filter = {
   users: (req) => {
     try {
-      let { privilege, id, username, active, email_address, role_id } =
-        req.query;
-      let { email, resetPasswordToken, user } = req.body;
-      const { user_id } = req.params;
+      let {
+        privilege,
+        id,
+        username,
+        active,
+        email_address,
+        role_id,
+        email,
+        resetPasswordToken,
+        user,
+        user_id,
+      } = { ...req.body, ...req.query, ...req.params };
+
       let filter = {};
       if (email) {
         filter["email"] = email;
@@ -38,9 +47,6 @@ const filter = {
       }
       if (!isEmpty(resetPasswordToken)) {
         filter["resetPasswordToken"] = resetPasswordToken;
-        // filter["resetPasswordExpires"] = {
-        //   $gt: Date.now(),
-        // };
       }
       if (privilege) {
         filter["privilege"] = privilege;
