@@ -58,49 +58,49 @@ const createSim = {
     try {
       const { sims } = request.body;
       const { tenant } = request.query;
+      const batchSize = 10;
+      const simCreationResults = [];
+      for (let i = 0; i < sims.length; i += batchSize) {
+        const batch = sims.slice(i, i + batchSize);
 
-      const simCreationPromises = sims.map((simData) => {
-        return SimModel(tenant)
-          .create({ msisdn: simData })
-          .then((createdSim) => {
-            logObject("createdSim", createdSim);
-            return {
-              success: true,
-              message: "Successfully created SIM",
-              data: createdSim,
-            };
-          })
-          .catch((error) => {
-            logObject("error", error);
-            return {
-              success: false,
-              message: "Error creating SIM",
-              errors: { message: error.message },
-            };
-          });
-      });
+        const batchPromises = batch.map((simData) => {
+          return SimModel(tenant)
+            .create({ msisdn: simData })
+            .then((createdSim) => {
+              return {
+                success: true,
+                message: "Successfully created SIM",
+                data: createdSim,
+              };
+            })
+            .catch((error) => {
+              return {
+                success: false,
+                message: "Error creating SIM",
+                errors: { message: error.message },
+              };
+            });
+        });
+        const batchResults = await Promise.all(batchPromises);
+        simCreationResults.push(...batchResults);
+      }
 
-      const simCreationResults = await Promise.all(simCreationPromises);
+      const successfulSimCreations = simCreationResults.filter(
+        (result) => result.success
+      );
 
       const failedSimCreations = simCreationResults.filter(
         (result) => !result.success
       );
 
-      const successfulSimCreations = simCreationResults.map(
-        (result) => result.data
-      );
-
       let message = "All SIM cards created successfully";
 
       if (
-        !isEmpty(failedSimCreations) &&
+        failedSimCreations.length > 0 &&
         failedSimCreations.length < sims.length
       ) {
         message = "Some SIM cards created successfully";
-      } else if (
-        !isEmpty(failedSimCreations) &&
-        failedSimCreations.length === sims.length
-      ) {
+      } else if (failedSimCreations.length === sims.length) {
         return {
           success: false,
           message: "Internal Server Error",
@@ -120,7 +120,7 @@ const createSim = {
         failedCreations: failedSimCreations,
       };
     } catch (error) {
-      logElement(" the util server error,", error.message);
+      logObject("error", error);
       logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
       return {
         success: false,
@@ -130,7 +130,6 @@ const createSim = {
       };
     }
   },
-
   listLocal: async (request) => {
     try {
       const { query } = request;
