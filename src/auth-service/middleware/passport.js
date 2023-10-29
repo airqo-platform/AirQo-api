@@ -261,11 +261,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
         req.headers["x-original-method"]
       );
 
-      // logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
-      // logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
+      logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
+      logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
 
-      // const clientIp = req.headers["x-client-ip"];
-      // const hostName = req.headers["x-host-name"];
+      const clientIp = req.headers["x-client-ip"];
+      const hostName = req.headers["x-host-name"];
+      const endpoint = req.headers["x-original-uri"];
 
       let service = req.headers["service"];
       let userAction = "Unknown Action";
@@ -500,6 +501,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
         username: user.userName,
         email: user.email,
         service: service ? service : "unknown",
+        clientIp: clientIp ? clientIp : "unknown",
+        hostName: hostName ? hostName : "unknown",
+        endpoint: endpoint ? endpoint : "unknown",
       });
 
       return done(null, user);
