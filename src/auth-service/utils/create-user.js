@@ -1,6 +1,7 @@
 const UserModel = require("@models/User");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const AccessRequestModel = require("@models/AccessRequest");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
@@ -172,6 +173,56 @@ const createUserModule = {
       };
     }
   },
+  listUsersAndAccessRequests: async (request) => {
+    try {
+      const { tenant } = request.query;
+
+      // Fetch users from the User collection
+      const users = await UserModel(tenant)
+        .find({})
+        .select("firstName lastName email")
+        .lean();
+
+      // Fetch all access requests
+      const accessRequests = await AccessRequestModel(tenant).find({}).lean();
+
+      // Combine the data into a format suitable for the frontend table
+      const combinedData = users.map((user) => {
+        const userAccessRequests = accessRequests.filter(
+          (request) =>
+            request.user_id &&
+            request.user_id.toString() === user._id.toString()
+        );
+
+        // Check if there are any approved access requests for this user
+        const hasApprovedRequest = userAccessRequests.some(
+          (request) => request.status === "approved"
+        );
+
+        return {
+          ...user,
+          status: hasApprovedRequest ? "approved" : "pending", // or 'rejected' as needed
+          accessRequests: userAccessRequests,
+        };
+      });
+
+      return {
+        success: true,
+        message: "User and access request data retrieved successfully",
+        data: combinedData,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   list: async (request) => {
     try {
       const { query } = request;
