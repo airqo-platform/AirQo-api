@@ -164,6 +164,9 @@ const UserSchema = new Schema(
     },
     website: { type: String },
     description: { type: String },
+    lastLogin: {
+      type: Date,
+    },
     category: {
       type: String,
     },
@@ -410,6 +413,7 @@ UserSchema.statics = {
           _id: "$_id",
           firstName: { $first: "$firstName" },
           lastName: { $first: "$lastName" },
+          lastLogin: { $first: "$lastLogin" },
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
@@ -577,7 +581,13 @@ UserSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       const options = {
-        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+        projection: {
+          _id: 0,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          lastLogin: 1,
+        },
       };
       const removedUser = await this.findOneAndRemove(filter, options).exec();
 
@@ -654,6 +664,7 @@ UserSchema.methods = {
       role: this.role,
       verified: this.verified,
       rateLimit: this.rateLimit,
+      lastLogin: this.lastLogin,
     };
   },
 };
@@ -700,6 +711,7 @@ UserSchema.methods.createToken = async function () {
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
+          lastLogin: user.lastLogin,
         },
         constants.JWT_SECRET
       );
