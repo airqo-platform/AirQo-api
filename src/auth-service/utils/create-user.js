@@ -176,6 +176,11 @@ const createUserModule = {
   listUsersAndAccessRequests: async (request) => {
     try {
       const { tenant } = request.query;
+
+      const filter = generateFilter.users(request).success
+        ? generateFilter.users(request).data
+        : {};
+
       const combinedData = await UserModel(tenant)
         .aggregate([
           {
@@ -187,26 +192,12 @@ const createUserModule = {
             },
           },
           {
-            $addFields: {
-              status: {
-                $cond: [
-                  {
-                    $gt: [{ $size: "$accessRequests" }, 0],
-                  },
-                  "approved",
-                  "pending",
-                ],
-              },
-            },
-          },
-          {
             $project: {
               _id: 1,
               email: 1,
               firstName: 1,
               lastName: 1,
               isActive: 1,
-              status: 1,
               jobTitle: 1,
               createdAt: {
                 $dateToString: {
@@ -221,12 +212,25 @@ const createUserModule = {
                     $eq: [{ $size: "$accessRequests" }, 0],
                   },
                   [null],
-                  "$accessRequests",
+                  {
+                    $map: {
+                      input: "$accessRequests",
+                      as: "ar",
+                      in: {
+                        _id: "$$ar._id",
+                        status: "$$ar.status",
+                        targetId: "$$ar.targetId",
+                        requestType: "$$ar.requestType",
+                        createdAt: "$$ar.createdAt",
+                      },
+                    },
+                  },
                 ],
               },
             },
           },
         ])
+        .match(filter)
         .exec();
 
       return {
