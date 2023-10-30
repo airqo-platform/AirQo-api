@@ -207,6 +207,13 @@ const createUserModule = {
               lastName: 1,
               isActive: 1,
               status: 1,
+              jobTitle: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
               verified: 1,
               accessRequests: {
                 $cond: [
