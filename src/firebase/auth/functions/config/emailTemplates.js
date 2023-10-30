@@ -275,7 +275,7 @@ module.exports = {
                                         <td
                                             style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
                                             <!-- Logo goes here -->
-                                            <img src="cid:AirQoEmailLogo" alt="logo" style="height: 100px; margin-right: 10px;">
+                                            <img src="cid:AirQoEmailLogoAlternate" alt="logo" style="height: 100px; margin-right: 10px;">
                                         </td>
                                     </tr>
                                 </table>
