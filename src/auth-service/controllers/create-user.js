@@ -191,6 +191,74 @@ const createUser = {
       });
     }
   },
+
+  listUsersAndAccessRequests: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+
+      let request = Object.assign({}, req);
+
+      if (isEmpty(request.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT;
+      }
+
+      const responseFromListUsersAndAccessRequests =
+        await createUserUtil.listUsersAndAccessRequests(request);
+
+      logObject(
+        "responseFromListUsersAndAccessRequests",
+        responseFromListUsersAndAccessRequests
+      );
+
+      if (responseFromListUsersAndAccessRequests.success === true) {
+        const status = responseFromListUsersAndAccessRequests.status
+          ? responseFromListUsersAndAccessRequests.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListUsersAndAccessRequests.message,
+          users: responseFromListUsersAndAccessRequests.data,
+        });
+      } else if (responseFromListUsersAndAccessRequests.success === false) {
+        const status = responseFromListUsersAndAccessRequests.status
+          ? responseFromListUsersAndAccessRequests.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUsersAndAccessRequests.message,
+          errors: responseFromListUsersAndAccessRequests.errors
+            ? responseFromListUsersAndAccessRequests.errors
+            : { message: "Internal Server Errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   googleCallback: async (req, res) => {
     try {
       logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
