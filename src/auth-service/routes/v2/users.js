@@ -341,6 +341,24 @@ router.post(
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
+  "/combined",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listUsersAndAccessRequests
+);
+
+router.get(
   "/verify/:user_id/:token/:category",
   oneOf([
     [
@@ -418,24 +436,6 @@ router.get(
   setJWTAuth,
   authJWT,
   createUserController.list
-);
-
-router.get(
-  "/combined",
-  oneOf([
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty if provided")
-      .trim()
-      .toLowerCase()
-      .bail()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  setJWTAuth,
-  authJWT,
-  createUserController.listUsersAndAccessRequests
 );
 
 router.post(
