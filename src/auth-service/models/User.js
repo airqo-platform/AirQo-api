@@ -111,6 +111,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many networks. Maximum limit: 6.",
+        },
+      ],
     },
     group_roles: {
       type: [
@@ -129,6 +138,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many groups. Maximum limit: 6.",
+        },
+      ],
     },
 
     permissions: [
@@ -698,6 +716,8 @@ UserSchema.methods.createToken = async function () {
       return userWithDerivedAttributes;
     } else {
       const user = userWithDerivedAttributes.data[0];
+      // Calculate expiration time (24 hours from now) in seconds
+      const expirationTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
       logObject("user", user);
       return jwt.sign(
         {
@@ -717,6 +737,7 @@ UserSchema.methods.createToken = async function () {
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
           lastLogin: user.lastLogin,
+          exp: expirationTime,
         },
         constants.JWT_SECRET
       );
