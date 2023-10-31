@@ -772,6 +772,10 @@ const createGroup = {
               firstName: 1,
               lastName: 1,
               userName: 1,
+              isActive: 1,
+              lastLogin: 1,
+              status: 1,
+              jobTitle: 1,
               createdAt: {
                 $dateToString: {
                   format: "%Y-%m-%d %H:%M:%S",
@@ -846,6 +850,8 @@ const createGroup = {
               lastName: 1,
               userName: 1,
               profilePicture: 1,
+              isActive: 1,
+              lastLogin: 1,
               status: 1,
               jobTitle: 1,
               createdAt: {
