@@ -665,6 +665,7 @@ UserSchema.methods = {
       verified: this.verified,
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
+      isActive: this.isActive,
     };
   },
 };

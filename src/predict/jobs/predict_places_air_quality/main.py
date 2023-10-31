@@ -33,11 +33,12 @@ if __name__ == "__main__":
     air_quality_readings_gdf = gpd.GeoDataFrame(air_quality_readings, geometry=geometry)
 
     airqlouds_gdf = get_shapefiles_gdf_from_gcs()
+    #sjoin
     merged_gdf = gpd.sjoin(
         airqlouds_gdf,
         air_quality_readings_gdf,
         how="left",
-        op="contains",
+        predicate="contains",
         lsuffix="_polygon",
         rsuffix="_point",
     )

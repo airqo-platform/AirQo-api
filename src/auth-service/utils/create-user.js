@@ -1,6 +1,7 @@
 const UserModel = require("@models/User");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const AccessRequestModel = require("@models/AccessRequest");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
@@ -172,6 +173,83 @@ const createUserModule = {
       };
     }
   },
+  listUsersAndAccessRequests: async (request) => {
+    try {
+      const { tenant } = request.query;
+
+      const filter = generateFilter.users(request).success
+        ? generateFilter.users(request).data
+        : {};
+
+      const combinedData = await UserModel(tenant)
+        .aggregate([
+          {
+            $lookup: {
+              from: "access_requests",
+              localField: "email",
+              foreignField: "email",
+              as: "accessRequests",
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              isActive: 1,
+              jobTitle: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              verified: 1,
+              accessRequests: {
+                $cond: [
+                  {
+                    $eq: [{ $size: "$accessRequests" }, 0],
+                  },
+                  [null],
+                  {
+                    $map: {
+                      input: "$accessRequests",
+                      as: "ar",
+                      in: {
+                        _id: "$$ar._id",
+                        status: "$$ar.status",
+                        targetId: "$$ar.targetId",
+                        requestType: "$$ar.requestType",
+                        createdAt: "$$ar.createdAt",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ])
+        .match(filter)
+        .exec();
+
+      return {
+        success: true,
+        message: "User and access request data retrieved successfully",
+        data: combinedData,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   list: async (request) => {
     try {
       const { query } = request;
