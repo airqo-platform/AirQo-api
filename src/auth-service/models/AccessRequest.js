@@ -97,8 +97,8 @@ AccessRequestSchema.statics = {
         .match(filter)
         .lookup({
           from: "users",
-          localField: "user_id",
-          foreignField: "_id",
+          localField: "email",
+          foreignField: "email",
           as: "user",
         })
         .sort({ createdAt: -1 })

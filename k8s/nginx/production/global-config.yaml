@@ -24,6 +24,7 @@ data:
     
     location = /auth {
       if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
+      if ($request_uri ~ '/api/(v1|v2)/devices/grids/summary') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/argocd') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 

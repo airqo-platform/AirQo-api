@@ -713,7 +713,6 @@ const defaultConfig = {
 
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
-    user: { $arrayElemAt: ["$user", 0] },
     email: 1,
     requestType: 1,
     targetId: 1,
@@ -725,6 +724,7 @@ const defaultConfig = {
       },
     },
     updatedAt: 1,
+    user: { $arrayElemAt: ["$user", 0] },
   },
 
   ACCESS_REQUESTS_EXCLUSION_PROJECTION: (category) => {
@@ -761,16 +761,15 @@ const defaultConfig = {
       "user.website": 0,
       "user.description": 0,
       "user.networks": 0,
-      "user.jobTitle": 0,
       "user.category": 0,
       "user.long_organization": 0,
       "user.groups": 0,
       "user.permissions": 0,
       "user.network_roles": 0,
+      "user.group_roles": 0,
       "user.verified": 0,
       "user.email": 0,
       "user.country": 0,
-      "user.createdAt": 0,
       "user.is_email_verified": 0,
     };
     let projection = Object.assign({}, initialProjection);
