@@ -418,6 +418,119 @@ const createUserModule = {
       ];
     }
   },
+
+  syncAnalyticsAndMobile: async (request) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { email, phoneNumber, firebase_uid } =
+        body;
+      let { firstName, lastName, } = body;
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      );
+
+      const userExistsLocally = await UserModel(tenant).findOne({
+        $or: [{ email }],
+      });
+
+      if (!userExistsLocally) {
+        let newAnalyticsUserDetails = {};
+        newAnalyticsUserDetails.firebase_uid = firebase_uid;
+        newAnalyticsUserDetails.userName = firstName || email;
+        newAnalyticsUserDetails.email = email;
+        newAnalyticsUserDetails.phoneNumber = phoneNumber || null;
+        newAnalyticsUserDetails.firstName = firstName || "Unknown";
+        newAnalyticsUserDetails.lastName = lastName || "Unknown";
+        newAnalyticsUserDetails.password = password;
+
+        logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
+
+        const responseFromCreateUser = await UserModel(tenant).register(
+          newAnalyticsUserDetails
+        );
+        if (responseFromCreateUser.success === true) {
+          const createdUser = await responseFromCreateUser.data;
+          logObject("created user in util", createdUser._doc);
+          if (firstName === "Unknown" || firstName === undefined) {
+            firstName = "User";
+          }
+          if (lastName === "Unknown" || lastName === undefined) {
+            lastName = "";
+          }
+
+          const responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            "user"
+          );
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
+        }
+        return {
+          success: true,
+          message: "User created successfully.",
+          status: httpStatus.CREATED,
+          user: responseFromCreateUser.data,
+          syncOperation: "Created"
+        };
+      }
+
+      else if (userExistsLocally) {
+        let updatedAnalyticsUserDetails = {};
+        updatedAnalyticsUserDetails.firebase_uid = firebase_uid;
+        if (!userExistsLocally.phoneNumber) {
+          updatedAnalyticsUserDetails.phoneNumber = phoneNumber || null;
+        }
+        if (!userExistsLocally.firstName) {
+          updatedAnalyticsUserDetails.firstName = firstName || "Unknown";
+        }
+        if (!userExistsLocally.lastName) {
+          updatedAnalyticsUserDetails.lastName = lastName || "Unknown";
+        }
+
+        const responseFromUpdateUser = await UserModel(tenant).modify({
+          filter: { _id: userExistsLocally._id },
+          update: updatedAnalyticsUserDetails,
+        });
+        const updatedUser = await UserModel(tenant).list({
+          filter: { _id: userExistsLocally._id },
+        });
+
+        if (responseFromUpdateUser.success === true) {
+          logObject("updated user in util", updatedUser);
+          return {
+            success: true,
+            message: "User updated successfully.",
+            status: httpStatus.OK,
+            user: updatedUser.data,
+            syncOperation: "Updated"
+          };
+
+        }
+
+      }
+
+
+    } catch (error) {
+      console.error("Internal Server Error:", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   signUpWithFirebase: async (request) => {
     try {
       const { body, query } = request;

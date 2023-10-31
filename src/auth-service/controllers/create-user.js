@@ -390,6 +390,60 @@ const createUser = {
     }
   },
 
+  syncAnalyticsAndMobile: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "Unable to sync Analytics and Mobile Accounts",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const result = await createUserUtil.syncAnalyticsAndMobile(request);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json(result);
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: "Unable to sync Analytics and Mobile Accounts",
+          exists: false,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: error.message,
+      });
+    }
+
+  },
+
   signUpWithFirebase: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

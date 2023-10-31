@@ -598,6 +598,7 @@ const defaultConfig = {
     updatedAt: 1,
     my_networks: "$my_networks",
     my_groups: "$my_groups",
+    firebase_uid: 1,
   },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
