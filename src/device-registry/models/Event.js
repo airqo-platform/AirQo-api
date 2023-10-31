@@ -1425,6 +1425,10 @@ eventSchema.statics = {
         projection["device_number"] = 0;
         projection["pm2_5.uncertaintyValue"] = 0;
         projection["pm2_5.standardDeviationValue"] = 0;
+        projection["pm10.uncertaintyValue"] = 0;
+        projection["pm10.standardDeviationValue"] = 0;
+        projection["no2.uncertaintyValue"] = 0;
+        projection["no2.standardDeviationValue"] = 0;
         projection["site"] = 0;
         projection[as] = 0;
       }

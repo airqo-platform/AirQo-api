@@ -719,6 +719,7 @@ const defaultConfig = {
       projection[as]["latitude"] = 0;
       projection[as]["land_use"] = 0;
       projection[as]["site_codes"] = 0;
+      projection[as]["grids"] = 0;
       projection[as]["images"] = 0;
       projection[as]["_id"] = 0;
       projection[as]["airqlouds"] = 0;
