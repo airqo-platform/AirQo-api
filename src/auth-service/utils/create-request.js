@@ -630,10 +630,10 @@ const createAccessRequest = {
 
       const responseFromFilter = generateFilter.requests(request);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
+      const filter =
+        responseFromFilter.success === true
+          ? responseFromFilter.data
+          : undefined;
 
       logObject("listing filter", filter);
 
