@@ -716,6 +716,8 @@ UserSchema.methods.createToken = async function () {
       return userWithDerivedAttributes;
     } else {
       const user = userWithDerivedAttributes.data[0];
+      // Calculate expiration time (24 hours from now) in seconds
+      const expirationTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
       logObject("user", user);
       return jwt.sign(
         {
@@ -735,8 +737,12 @@ UserSchema.methods.createToken = async function () {
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
           lastLogin: user.lastLogin,
+          exp: expirationTime,
         },
-        constants.JWT_SECRET
+        constants.JWT_SECRET,
+        {
+          expiresIn: "24h",
+        }
       );
     }
   } catch (error) {
