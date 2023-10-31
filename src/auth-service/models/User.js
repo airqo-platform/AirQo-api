@@ -180,6 +180,7 @@ const UserSchema = new Schema(
       type: String,
     },
     google_id: { type: String, trim: true },
+    timezone: { type: String, trim: true },
   },
   { timestamps: true }
 );
@@ -414,6 +415,8 @@ UserSchema.statics = {
           firstName: { $first: "$firstName" },
           lastName: { $first: "$lastName" },
           lastLogin: { $first: "$lastLogin" },
+          timezone: { $first: "$timezone" },
+          isActive: { $first: "$isActive" },
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
@@ -666,6 +669,7 @@ UserSchema.methods = {
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
       isActive: this.isActive,
+      timezone: this.timezone,
     };
   },
 };
