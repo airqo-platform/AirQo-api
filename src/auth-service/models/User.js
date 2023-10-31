@@ -111,6 +111,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many networks. Maximum limit: 6.",
+        },
+      ],
     },
     group_roles: {
       type: [
@@ -129,6 +138,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many groups. Maximum limit: 6.",
+        },
+      ],
     },
 
     permissions: [
