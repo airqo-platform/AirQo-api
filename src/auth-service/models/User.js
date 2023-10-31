@@ -739,10 +739,7 @@ UserSchema.methods.createToken = async function () {
           lastLogin: user.lastLogin,
           exp: expirationTime,
         },
-        constants.JWT_SECRET,
-        {
-          expiresIn: "24h",
-        }
+        constants.JWT_SECRET
       );
     }
   } catch (error) {
