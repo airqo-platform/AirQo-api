@@ -486,9 +486,9 @@ const createEvent = {
           ...req.query,
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
           recent: "yes",
-          external: "no",
           metadata: "site_id",
           active: "yes",
+          brief: "yes",
         },
       };
 
