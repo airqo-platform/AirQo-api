@@ -73,7 +73,7 @@ const createGroup = {
         ? await UserModel(tenant).findById(user_id)
         : request.user;
 
-      if (!user && !request.user && !user_id) {
+      if (isEmpty(request.user) && isEmpty(user_id)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -82,7 +82,7 @@ const createGroup = {
         };
       }
 
-      if (!user) {
+      if (isEmpty(user)) {
         return {
           success: false,
           message: "Your account is not registered",
