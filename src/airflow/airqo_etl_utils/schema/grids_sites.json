@@ -1,0 +1,17 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "grid_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  }
+]
