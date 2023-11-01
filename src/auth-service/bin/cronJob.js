@@ -16,9 +16,16 @@ cron.schedule("0 0 * * *", async () => {
     while (true) {
       const users = await UserModel("airqo")
         .find({
-          lastLogin: {
-            $lt: new Date(Date.now() - inactiveThreshold),
-          },
+          $or: [
+            {
+              lastLogin: {
+                $lt: new Date(Date.now() - inactiveThreshold),
+              },
+            },
+            {
+              lastLogin: null,
+            },
+          ],
           isActive: { $ne: false }, // Exclude users where isActive is false
         })
         .limit(batchSize)

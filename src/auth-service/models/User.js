@@ -92,7 +92,7 @@ const UserSchema = new Schema(
       type: String,
       default: "user",
     },
-    isActive: { type: Boolean },
+    isActive: { type: Boolean, default: false },
     duration: { type: Date, default: oneMonthFromNow },
     network_roles: {
       type: [
