@@ -324,3 +324,47 @@ class ExceedancesResource(Resource):
             ),
             Status.HTTP_200_OK,
         )
+
+
+@rest_api_v2.route("/dashboard/exceedances-devices")
+class ExceedancesResource2(Resource):
+    @swag_from("/api/docs/dashboard/exceedances_post.yml")
+    @validate_request_json(
+        "pollutant|required:str",
+        "standard|required:str",
+        "startDate|required:datetime",
+        "endDate|required:datetime",
+        "devices|optional:list",
+    )
+    def post(self):
+        tenant = request.args.get("tenant", "airqo")
+
+        json_data = request.get_json()
+        pollutant = json_data["pollutant"]
+        standard = json_data["standard"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        devices = json_data.get("devices", None)
+
+        events_model = EventsModel(tenant)
+        data = events_model.get_device_readings_from_bigquery(
+            start_date, end_date, pollutant, devices=devices
+        )
+        exc_model = ExceedanceModel(tenant)
+        standards_mapping = exc_model.standards_mapping
+        device_exceedances = exc_model.count_standard_categories(
+            data, standards_mapping, standard, pollutant
+        )
+
+        return create_response(
+            message="exceedance data successfully fetched",
+            data=[
+                {
+                    "device_id": device_id,
+                    "total": sum(exceedances.values()),
+                    "exceedances": exceedances,
+                }
+                for device_id, exceedances in device_exceedances.items()
+            ],
+            success=Status.HTTP_200_OK,
+        )
