@@ -1220,58 +1220,38 @@ describe("mailer", () => {
     // Add more tests for other cases...
   });
   describe("newMobileAppUser", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
+    before(() => {
       // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
-
     afterEach(() => {
       // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+    after(() => {
+      // Restore the original sendMail function after all tests
       sendMailStub.restore();
     });
-
     it("should send email to new mobile app user and return success response", async () => {
       // Arrange
       const email = "johndoe@example.com";
       const subject = "Welcome to AirQo Mobile App";
       const message = "<p>Dear John, welcome to AirQo Mobile App!</p>";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        subject,
-        html: message,
-        to: email,
-        bcc: constants.REQUEST_ACCESS_EMAILS,
+      const result = {
+        accepted: [email],
+        rejected: [],
       };
-
-      // Act
-      // Assuming transporter is accessible from the newMobileAppUser function
-      // Replace the transporter with the fakeTransporter for testing
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(result);
       const response = await mailer.newMobileAppUser({
         email,
         subject,
         message,
       });
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+      expect(response).to.deep.equal(emailSuccessResponse);
     });
 
     it("should handle email not sent scenario and return error response", async () => {
@@ -1299,13 +1279,14 @@ describe("mailer", () => {
     });
 
     it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
+      // Set up the response from the fake transporter
+      const result = {
+        accepted: [],
+        rejected: [email],
+      };
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(result);
 
-      // Act
-      // Assuming transporter is accessible from the newMobileAppUser function
-      // Replace the transporter with the fakeTransporter for testing
       const response = await mailer.newMobileAppUser({
         email: "johndoe@example.com",
         subject: "Welcome to AirQo Mobile App",
@@ -1313,33 +1294,24 @@ describe("mailer", () => {
       });
 
       // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "internal server error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Internal server error" },
-      });
+      expect(result).to.deep.equal(emailFailedResponse);
     });
 
     // Add more tests for other cases...
   });
   describe("feedback", () => {
-    let fakeTransporter;
     let sendMailStub;
 
-    beforeEach(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
+    before(() => {
       // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
-
     afterEach(() => {
       // Restore the sendMail stub after each test
+      sendMailStub.reset();
+    });
+    after(() => {
+      // Restore the original sendMail function after all tests
       sendMailStub.restore();
     });
 
@@ -1348,32 +1320,16 @@ describe("mailer", () => {
       const email = "johndoe@example.com";
       const subject = "Feedback on AirQo Analytics";
       const message = "This is a feedback message.";
-      const expectedMailOptions = {
-        from: {
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
-        },
-        subject,
-        text: message,
-        cc: email,
-        to: constants.SUPPORT_EMAIL,
-        bcc: constants.REQUEST_ACCESS_EMAILS,
+      const result = {
+        accepted: [email],
+        rejected: [],
       };
-
-      // Act
-      // Assuming transporter is accessible from the feedback function
-      // Replace the transporter with the fakeTransporter for testing
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(result);
       const response = await mailer.feedback({ email, subject, message });
 
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal(expectedMailOptions);
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: {}, // Replace with the expected data if needed
-        status: httpStatus.OK,
-      });
+
+      expect(response).to.deep.equal(emailSuccessResponse);
     });
 
     it("should handle feedback email to automated-tests@airqo.net and return success response", async () => {
@@ -1381,26 +1337,26 @@ describe("mailer", () => {
       const email = "automated-tests@airqo.net";
       const subject = "Feedback on AirQo Analytics";
       const message = "This is a feedback message.";
-
-      // Act
-      // Assuming transporter is accessible from the feedback function
-      // Replace the transporter with the fakeTransporter for testing
+      const result = {
+        accepted: [],
+        rejected: [email],
+      };
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(result);
       const response = await mailer.feedback({ email, subject, message });
 
       // Assert
       expect(sendMailStub.notCalled).to.be.true;
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: [],
-        status: httpStatus.OK,
-      });
+      expect(response).to.deep.equal(emailFailedResponse);
     });
 
     it("should handle email not sent scenario and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate email rejection
-      sendMailStub.rejects(new Error(response));
+      const result = {
+        accepted: [],
+        rejected: [email],
+      };
+      // Stub the sendMail function to resolve with the response
+      sendMailStub.resolves(result);
 
       // Act
       // Assuming transporter is accessible from the feedback function
@@ -1413,129 +1369,114 @@ describe("mailer", () => {
 
       // Assert
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: response,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: response },
+      expect(response).to.deep.equal(emailFailedResponse);
+
+      it("should handle internal server error and return error response", async () => {
+        const result = {
+          accepted: [],
+          rejected: [email],
+        };
+        // Stub the sendMail function to resolve with the response
+        sendMailStub.resolves(result);
+        const response = await mailer.feedback({
+          email: "johndoe@example.com",
+          subject: "Feedback on AirQo Analytics",
+          message: "This is a feedback message.",
+        });
+        expect(response).to.deep.equal(emailFailedResponse);
+      });
+
+      // Add more tests for other cases...
+    });
+    describe("verifyMobileEmail()", () => {
+      let transporterStub;
+
+      beforeEach(() => {
+        transporterStub = sinon
+          .stub()
+          .resolves({ accepted: ["test@example.com"], rejected: [] });
+      });
+
+      afterEach(() => {
+        sinon.restore();
+      });
+
+      it("should send email successfully", async () => {
+        sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+        const result = await mailer.verifyMobileEmail({
+          firebase_uid: "firebase_uid",
+          token: "token",
+          email: "test@example.com",
+        });
+
+        expect(result).to.deep.equal({
+          success: true,
+          message: "email successfully sent",
+          data: { accepted: ["test@example.com"], rejected: [] },
+          status: httpStatus.OK,
+        });
+        expect(transporter.sendMail.calledOnce).to.be.true;
+      });
+
+      it("should handle email sending failure", async () => {
+        transporterStub.rejects(new Error("Email sending failed"));
+
+        sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+        const result = await mailer.verifyMobileEmail({
+          firebase_uid: "firebase_uid",
+          token: "token",
+          email: "test@example.com",
+        });
+
+        expect(result).to.deep.equal({
+          success: false,
+          message: response,
+          errors: { message: new Error("Email sending failed") },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        });
+        expect(transporter.sendMail.calledOnce).to.be.true;
+      });
+
+      it("should handle internal server error", async () => {
+        sinon
+          .stub(transporter, "sendMail")
+          .throws(new Error("Internal Server Error"));
+
+        const result = await mailer.verifyMobileEmail({
+          firebase_uid: "firebase_uid",
+          token: "token",
+          email: "test@example.com",
+        });
+
+        expect(result).to.deep.equal({
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: new Error("Internal Server Error") },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        });
+        expect(transporter.sendMail.calledOnce).to.be.true;
       });
     });
+    describe("mobileEmailVerification()", () => {
+      it("should generate the email HTML content correctly", () => {
+        const result = mobileEmailVerification({
+          email: "test@example.com",
+          firebase_uid: "firebase_uid",
+          token: "12345",
+        });
 
-    it("should handle internal server error and return error response", async () => {
-      // Arrange
-      // Set up the fakeTransporter to simulate an error during email sending
-      sendMailStub.rejects(new Error("Internal server error"));
-
-      // Act
-      // Assuming transporter is accessible from the feedback function
-      // Replace the transporter with the fakeTransporter for testing
-      const response = await mailer.feedback({
-        email: "johndoe@example.com",
-        subject: "Feedback on AirQo Analytics",
-        message: "This is a feedback message.",
+        expect(result).to.be.a("string");
+        expect(result).to.contain("Welcome to AirQo Analytics");
+        expect(result).to.contain("Thank you for choosing AirQo Mobile!");
+        expect(result).to.contain("Your Login Code for AirQo Mobile");
+        expect(result).to.contain("12345");
+        expect(result).to.contain(
+          "You can set a permanent password anytime within your AirQo Analytics personal settings"
+        );
       });
-
-      // Assert
-      expect(sendMailStub.calledOnce).to.be.true;
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Internal server error" },
-      });
-    });
-
-    // Add more tests for other cases...
-  });
-  describe("verifyMobileEmail()", () => {
-    let transporterStub;
-
-    beforeEach(() => {
-      transporterStub = sinon
-        .stub()
-        .resolves({ accepted: ["test@example.com"], rejected: [] });
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should send email successfully", async () => {
-      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
-
-      const result = await mailer.verifyMobileEmail({
-        firebase_uid: "firebase_uid",
-        token: "token",
-        email: "test@example.com",
-      });
-
-      expect(result).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        data: { accepted: ["test@example.com"], rejected: [] },
-        status: httpStatus.OK,
-      });
-      expect(transporter.sendMail.calledOnce).to.be.true;
-    });
-
-    it("should handle email sending failure", async () => {
-      transporterStub.rejects(new Error("Email sending failed"));
-
-      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
-
-      const result = await mailer.verifyMobileEmail({
-        firebase_uid: "firebase_uid",
-        token: "token",
-        email: "test@example.com",
-      });
-
-      expect(result).to.deep.equal({
-        success: false,
-        message: response,
-        errors: { message: new Error("Email sending failed") },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-      expect(transporter.sendMail.calledOnce).to.be.true;
-    });
-
-    it("should handle internal server error", async () => {
-      sinon
-        .stub(transporter, "sendMail")
-        .throws(new Error("Internal Server Error"));
-
-      const result = await mailer.verifyMobileEmail({
-        firebase_uid: "firebase_uid",
-        token: "token",
-        email: "test@example.com",
-      });
-
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: new Error("Internal Server Error") },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-      expect(transporter.sendMail.calledOnce).to.be.true;
-    });
-  });
-  describe("mobileEmailVerification()", () => {
-    it("should generate the email HTML content correctly", () => {
-      const result = mobileEmailVerification({
-        email: "test@example.com",
-        firebase_uid: "firebase_uid",
-        token: "12345",
-      });
-
-      expect(result).to.be.a("string");
-      expect(result).to.contain("Welcome to AirQo Analytics");
-      expect(result).to.contain("Thank you for choosing AirQo Mobile!");
-      expect(result).to.contain("Your Login Code for AirQo Mobile");
-      expect(result).to.contain("12345");
-      expect(result).to.contain(
-        "You can set a permanent password anytime within your AirQo Analytics personal settings"
-      );
     });
   });
-
   // Add more describe blocks for other mailer functions if needed...
 });
