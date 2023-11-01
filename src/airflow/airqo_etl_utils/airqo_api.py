@@ -242,11 +242,11 @@ class AirQoApi:
             print(ex)
 
     def refresh_grid(self, grid_id):
-        query_params = {"tenant": str(Tenant.AIRQO), "id": grid_id}
+        query_params = {"tenant": str(Tenant.AIRQO)}
 
         try:
             response = requests.put(
-                url=f"{self.AIRQO_BASE_URL_V2}/devices/grids/refresh",
+                url=f"{self.AIRQO_BASE_URL_V2}/devices/grids/refresh/{grid_id}",
                 params=query_params,
             )
 
