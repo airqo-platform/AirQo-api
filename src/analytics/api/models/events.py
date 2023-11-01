@@ -744,6 +744,29 @@ class EventsModel(BasePyMongoModel):
         return dataframe.to_dict("records")
 
     @cache.memoize()
+    def get_device_averages_from_bigquery(
+        self, start_date, end_date, pollutant, devices
+    ):
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+            raise Exception("Invalid pollutant")
+
+        query = f"""
+            SELECT AVG({pollutant}) as value, device_id 
+            FROM {self.BIGQUERY_EVENTS}
+            WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
+            AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
+            AND {self.BIGQUERY_EVENTS}.device_id IN UNNEST({devices}) GROUP BY device_id
+        """
+
+        client = bigquery.Client()
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = client.query(query, job_config).result().to_dataframe()
+        dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
+        return dataframe.to_dict("records")
+
+    @cache.memoize()
     def get_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         time_format_mapper = {
             "raw": "%Y-%m-%dT%H:%M:%S%z",
