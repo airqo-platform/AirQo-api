@@ -418,13 +418,11 @@ const createEvent = {
       let request = Object.assign({}, req);
 
       if (!isEmpty(site_id)) {
-        request.query.site_id = site_id;
         request.query.recent = "no";
         request.query.metadata = "site_id";
       }
 
       if (!isEmpty(device_id)) {
-        request.query.device_id = device_id;
         request.query.recent = "no";
         request.query.metadata = "device_id";
       }
