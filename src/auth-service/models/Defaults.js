@@ -191,7 +191,7 @@ DefaultsSchema.statics = {
       logger.error(`Data conflicts detected -- ${error.message}`);
       return {
         success: false,
-        message: "Data conflicts detected",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.CONFLICT,
       };
@@ -218,17 +218,20 @@ DefaultsSchema.statics = {
         };
       } else if (isEmpty(updatedDefault)) {
         return {
-          success: true,
-          message: "the default does not exist, please crosscheck",
-          status: httpStatus.OK,
-          data: [],
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "the User Default (Preference) you are trying to UPDATE does not exist, please crosscheck",
+          },
         };
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = {};
-      let message = "";
-      let status = "";
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code == 11000) {
         errors = err.keyValue;
         message = "duplicate values provided";
@@ -264,19 +267,22 @@ DefaultsSchema.statics = {
         };
       } else if (isEmpty(removedDefault)) {
         return {
-          success: true,
-          message: "default does not exist, please crosscheck",
-          status: httpStatus.OK,
-          data: [],
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "the User Default (Preference) you are trying to DELETE does not exist, please crosscheck",
+          },
         };
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
       return {
         success: false,
-        message: "Data conflicts detected",
+        message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.CONFLICT,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
