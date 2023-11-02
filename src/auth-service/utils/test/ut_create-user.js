@@ -2895,4 +2895,92 @@ describe("create-user-util", function () {
       });
     });
   });
+
+  describe("syncAnalyticsAndMobile", () => {
+    it("should create a new user when the user does not exist locally", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "1234567890",
+          firebase_uid: "firebase_uid",
+          firstName: "John",
+          lastName: "Doe",
+        },
+        query: {
+          tenant: "test_tenant",
+        },
+      };
+      const modelStub = sinon.stub(UserModel, "findOne").resolves(false);
+      const registerStub = sinon.stub(UserModel, "register").resolves({
+        success: true, data: {
+          email: "test@example.com",
+          phoneNumber: "1234567890",
+          firebase_uid: "firebase_uid",
+          firstName: "John",
+          lastName: "Doe",
+        },
+      });
+
+      const mailerStub = sinon.stub(mailer, "user").resolves(true);
+
+      const result = await createUser.syncAnalyticsAndMobile(request);
+      expect(result.success).to.deep.equal({
+        success: true,
+        message: "User created successfully.",
+        status: httpStatus.CREATED,
+        user: {
+          email: "test@example.com",
+          phoneNumber: "1234567890",
+          firebase_uid: "firebase_uid",
+          firstName: "John",
+          lastName: "Doe",
+        },
+        syncOperation: "Created"
+      });
+    });
+
+    it("should update the user when the user exists locally", async () => {
+
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "1234567890",
+          firebase_uid: "firebase_uid",
+          firstName: "John",
+          lastName: "Doe",
+        },
+        query: {
+          tenant: "test_tenant",
+        },
+      };
+
+      const existingUser = {
+        _id: "user_id",
+        phoneNumber: "9876543210",
+        firstName: "Alice",
+        lastName: "Smith",
+      };
+      const modelStub = sinon.stub(UserModel.statics, "findOne").resolves(existingUser);
+      const modifyStub = sinon.stub(UserModel.statics, "modify").resolves(true);
+      const listStub = sinon.stub(UserModel.statics, "list").resolves({
+        success: true, data: {
+          email: "test@example.com",
+          phoneNumber: "1234567890",
+          firstName: "John",
+          lastName: "Doe",
+        },
+      });
+
+
+
+      const result = await createUser.syncAnalyticsAndMobile(request);
+
+      expect(result.success).to.be.true;
+      expect(result.syncOperation).to.equal("Updated");
+      expect(result.user).to.deep.equal(existingUser);
+    });
+
+  });
+
+
 });

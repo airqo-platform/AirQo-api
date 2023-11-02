@@ -44,6 +44,26 @@ class MetaDataUtils:
         return pd.DataFrame(airqlouds)
 
     @staticmethod
+    def extract_grids_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        grids = AirQoApi().get_grids(tenant=tenant)
+        grids = [
+            {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
+            for grid in grids
+        ]
+
+        return pd.DataFrame(grids)
+
+    @staticmethod
+    def extract_cohorts_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        cohorts = AirQoApi().get_cohorts(tenant=tenant)
+        cohorts = [
+            {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
+            for cohort in cohorts
+        ]
+
+        return pd.DataFrame(cohorts)
+
+    @staticmethod
     def merge_airqlouds_and_sites(data: pd.DataFrame) -> pd.DataFrame:
         merged_data = []
         data = data.dropna(subset=["sites", "id"])
@@ -56,6 +76,42 @@ class MetaDataUtils:
                         **{"site_id": site},
                     }
                     for site in row["sites"].split(",")
+                ]
+            )
+
+        return pd.DataFrame(merged_data)
+
+    @staticmethod
+    def merge_grids_and_sites(data: pd.DataFrame) -> pd.DataFrame:
+        merged_data = []
+        data = data.dropna(subset=["sites", "id"])
+
+        for _, row in data.iterrows():
+            merged_data.extend(
+                [
+                    {
+                        **{"grid_id": row["id"], "tenant": row["tenant"]},
+                        **{"site_id": site},
+                    }
+                    for site in row["sites"].split(",")
+                ]
+            )
+
+        return pd.DataFrame(merged_data)
+    
+    @staticmethod
+    def merge_cohorts_and_devices(data: pd.DataFrame) -> pd.DataFrame:
+        merged_data = []
+        data = data.dropna(subset=["devices", "id"])
+
+        for _, row in data.iterrows():
+            merged_data.extend(
+                [
+                    {
+                        **{"cohort_id": row["id"], "tenant": row["tenant"]},
+                        **{"device_id": device},
+                    }
+                    for device in row["devices"].split(",")
                 ]
             )
 
@@ -168,3 +224,11 @@ class MetaDataUtils:
 
         for airqloud in airqlouds:
             airqo_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
+
+    @staticmethod
+    def refresh_grids(tenant: Tenant) -> None:
+        airqo_api = AirQoApi()
+        grids = airqo_api.get_grids(tenant=tenant)
+
+        for grid in grids:
+            airqo_api.refresh_grid(grid_id=grid.get("id"))

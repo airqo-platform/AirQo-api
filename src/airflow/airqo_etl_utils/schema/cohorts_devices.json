@@ -1,0 +1,17 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "cohort_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  }
+]
