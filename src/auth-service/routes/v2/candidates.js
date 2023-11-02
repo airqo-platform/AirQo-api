@@ -147,6 +147,48 @@ router.get(
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      query("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the network_id cannot be empty IF provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("id")
+        .optional()
+        .notEmpty()
+        .withMessage("the id cannot be empty IF provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("email")
+        .optional()
+        .notEmpty()
+        .withMessage("the email cannot be empty IF provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      query("email_address")
+        .optional()
+        .notEmpty()
+        .withMessage("the email_address cannot be empty IF provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createCandidateController.list

@@ -298,7 +298,6 @@ RoleSchema.methods = {
       role_permissions: this.role_permissions,
       role_description: this.role_description,
       network_id: this.network_id,
-      role_users: this.role_users,
     };
   },
 };
