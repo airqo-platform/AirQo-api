@@ -136,20 +136,12 @@ router.get(
         .optional()
         .notEmpty()
         .withMessage("device cannot be empty IF provided")
-        .bail()
         .trim(),
       query("device_id")
         .optional()
         .notEmpty()
         .withMessage("the provided device_id cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the device_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       query("lat_long")
         .optional()
         .notEmpty()
@@ -182,14 +174,7 @@ router.get(
         .optional()
         .notEmpty()
         .withMessage("the provided site_id cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the site_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       query("primary")
         .optional()
         .notEmpty()
