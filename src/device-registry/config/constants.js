@@ -721,7 +721,6 @@ const defaultConfig = {
       projection[as]["site_codes"] = 0;
       projection[as]["grids"] = 0;
       projection[as]["images"] = 0;
-      projection[as]["_id"] = 0;
       projection[as]["airqlouds"] = 0;
       projection[as]["generated_name"] = 0;
       projection[as]["createdAt"] = 0;
