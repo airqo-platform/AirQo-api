@@ -149,8 +149,11 @@ const filter = {
   },
   candidates: (req) => {
     try {
-      let { category, id, email_address, network_id } = req.query;
-      let { email } = req.body;
+      let { category, id, email_address, email, network_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
       if (email) {
         filter["email"] = email;

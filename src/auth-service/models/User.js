@@ -92,7 +92,7 @@ const UserSchema = new Schema(
       type: String,
       default: "user",
     },
-    isActive: { type: Boolean },
+    isActive: { type: Boolean, default: false },
     duration: { type: Date, default: oneMonthFromNow },
     network_roles: {
       type: [
@@ -615,17 +615,16 @@ UserSchema.statics = {
       if (!isEmpty(removedUser)) {
         return {
           success: true,
-          message: "successfully removed the user",
+          message: "Successfully removed the user",
           data: removedUser._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
         return {
           success: false,
-          message: "user does not exist, please crosscheck",
+          message: "Provided User does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
-          data: [],
-          errors: { message: "user does not exist, please crosscheck" },
+          errors: { message: "Provide User does not exist, please crosscheck" },
         };
       }
     } catch (error) {

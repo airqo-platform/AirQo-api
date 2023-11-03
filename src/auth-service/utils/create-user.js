@@ -89,6 +89,76 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
     .catch(reject);
 }
 
+const cascadeUserDeletion = async (userId, tenant) => {
+  try {
+    const user = await UserModel(tenant.toLowerCase()).findById(userId);
+
+    if (isEmpty(user)) {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: { message: `User ${userId} not found in the system` },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
+
+    const updatedGroup = await GroupModel(tenant).updateMany(
+      { grp_manager: userId },
+      {
+        $set: {
+          grp_manager: null,
+          grp_manager_username: null,
+          grp_manager_firstname: null,
+          grp_manager_lastname: null,
+        },
+      }
+    );
+
+    if (!isEmpty(updatedGroup.err)) {
+      logger.error(
+        `error while attempting to delete User from the corresponding Group ${JSON.stringify(
+          updatedGroup.err
+        )}`
+      );
+    }
+
+    const updatedNetwork = await NetworkModel(tenant).updateMany(
+      { net_manager: userId },
+      {
+        $set: {
+          net_manager: null,
+          net_manager_username: null,
+          net_manager_firstname: null,
+          net_manager_lastname: null,
+        },
+      }
+    );
+
+    if (!isEmpty(updatedNetwork.err)) {
+      logger.error(
+        `error while attempting to delete User from the corresponding Network ${JSON.stringify(
+          updatedNetwork.err
+        )}`
+      );
+    }
+
+    return {
+      success: true,
+      message: "Successfully Cascaded the User deletion",
+      data: [],
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
 const createUserModule = {
   listLogs: async (request) => {
     try {
@@ -496,6 +566,111 @@ const createUserModule = {
       ];
     }
   },
+
+  syncAnalyticsAndMobile: async (request) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { email, phoneNumber, firebase_uid } = body;
+      let { firstName, lastName } = body;
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      );
+
+      const userExistsLocally = await UserModel(tenant).findOne({
+        $or: [{ email }],
+      });
+
+      if (!userExistsLocally) {
+        let newAnalyticsUserDetails = {};
+        newAnalyticsUserDetails.firebase_uid = firebase_uid;
+        newAnalyticsUserDetails.userName = firstName || email;
+        newAnalyticsUserDetails.email = email;
+        newAnalyticsUserDetails.phoneNumber = phoneNumber || null;
+        newAnalyticsUserDetails.firstName = firstName || "Unknown";
+        newAnalyticsUserDetails.lastName = lastName || "Unknown";
+        newAnalyticsUserDetails.password = password;
+
+        logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
+
+        const responseFromCreateUser = await UserModel(tenant).register(
+          newAnalyticsUserDetails
+        );
+        if (responseFromCreateUser.success === true) {
+          const createdUser = await responseFromCreateUser.data;
+          logObject("created user in util", createdUser._doc);
+          if (firstName === "Unknown" || firstName === undefined) {
+            firstName = "User";
+          }
+          if (lastName === "Unknown" || lastName === undefined) {
+            lastName = "";
+          }
+
+          const responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            "user"
+          );
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
+        }
+        return {
+          success: true,
+          message: "User created successfully.",
+          status: httpStatus.CREATED,
+          user: responseFromCreateUser.data,
+          syncOperation: "Created",
+        };
+      } else if (userExistsLocally) {
+        let updatedAnalyticsUserDetails = {};
+        updatedAnalyticsUserDetails.firebase_uid = firebase_uid;
+        if (!userExistsLocally.phoneNumber) {
+          updatedAnalyticsUserDetails.phoneNumber = phoneNumber || null;
+        }
+        if (!userExistsLocally.firstName) {
+          updatedAnalyticsUserDetails.firstName = firstName || "Unknown";
+        }
+        if (!userExistsLocally.lastName) {
+          updatedAnalyticsUserDetails.lastName = lastName || "Unknown";
+        }
+
+        const responseFromUpdateUser = await UserModel(tenant).modify({
+          filter: { _id: userExistsLocally._id },
+          update: updatedAnalyticsUserDetails,
+        });
+        const updatedUser = await UserModel(tenant).list({
+          filter: { _id: userExistsLocally._id },
+        });
+
+        if (responseFromUpdateUser.success === true) {
+          logObject("updated user in util", updatedUser);
+          return {
+            success: true,
+            message: "User updated successfully.",
+            status: httpStatus.OK,
+            user: updatedUser.data,
+            syncOperation: "Updated",
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Internal Server Error:", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   signUpWithFirebase: async (request) => {
     try {
       const { body, query } = request;
@@ -979,55 +1154,30 @@ const createUserModule = {
 
   delete: async (request) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
+      const { tenant } = request.query;
       const responseFromFilter = generateFilter.users(request);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === false) {
         return responseFromFilter;
       }
       const filter = responseFromFilter.data;
+      const userId = filter._id;
 
-      const updatedRole = await RoleModel(tenant).updateMany(
-        { role_users: filter._id },
-        { $pull: { role_users: filter._id } }
+      const responseFromCascadeDeletion = await cascadeUserDeletion(
+        userId,
+        tenant
       );
 
-      if (!isEmpty(updatedRole.err)) {
-        logger.error(
-          `error while attempting to delete User from the corresponding Role ${JSON.stringify(
-            updatedRole.err
-          )}`
-        );
+      if (responseFromCascadeDeletion.success === true) {
+        const responseFromRemoveUser = await UserModel(
+          tenant.toLowerCase()
+        ).remove({
+          filter,
+        });
+        return responseFromRemoveUser;
+      } else {
+        return responseFromCascadeDeletion;
       }
-
-      const updatedNetwork = await NetworkModel(tenant).updateMany(
-        { net_users: filter._id },
-        {
-          $pull: { net_users: filter._id },
-          $cond: {
-            if: { $eq: ["$net_manager", filter._id] },
-            then: { $set: { net_manager: null } },
-            else: {},
-          },
-        }
-      );
-
-      if (!isEmpty(updatedNetwork.err)) {
-        logger.error(
-          `error while attempting to delete User from the corresponding Network ${JSON.stringify(
-            updatedNetwork.err
-          )}`
-        );
-      }
-
-      const responseFromRemoveUser = await UserModel(
-        tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-
-      return responseFromRemoveUser;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return {

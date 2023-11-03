@@ -18,16 +18,21 @@ class CollocationDefaults:
     DataCompletenessThreshold = os.getenv("DATA_COMPLETENESS_THRESHOLD", 80)
 
     IntraCorrelationThreshold = os.getenv("INTRA_CORRELATION_THRESHOLD", 0.98)
-    IntraCorrelationR2Threshold = os.getenv("INTRA_CORRELATION_R2_THRESHOLD", 0.99)
+    IntraCorrelationR2Threshold = os.getenv(
+        "INTRA_CORRELATION_R2_THRESHOLD", 0.99)
 
     InterCorrelationThreshold = os.getenv("INTER_CORRELATION_THRESHOLD", 0.98)
-    InterCorrelationR2Threshold = os.getenv("INTER_CORRELATION_R2_THRESHOLD", 0.99)
+    InterCorrelationR2Threshold = os.getenv(
+        "INTER_CORRELATION_R2_THRESHOLD", 0.99)
 
     DifferencesThreshold = os.getenv("DIFFERENCES_THRESHOLD", 5)
 
-    InterCorrelationParameter = os.getenv("INTER_CORRELATION_PARAMETER", "pm2_5")
-    IntraCorrelationParameter = os.getenv("INTRA_CORRELATION_PARAMETER", "pm2_5")
-    DataCompletenessParameter = os.getenv("DATA_COMPLETENESS_PARAMETER", "timestamp")
+    InterCorrelationParameter = os.getenv(
+        "INTER_CORRELATION_PARAMETER", "pm2_5")
+    IntraCorrelationParameter = os.getenv(
+        "INTRA_CORRELATION_PARAMETER", "pm2_5")
+    DataCompletenessParameter = os.getenv(
+        "DATA_COMPLETENESS_PARAMETER", "timestamp")
     DifferencesParameter = os.getenv("DIFFERENCES_PARAMETER", "pm2_5")
     InterCorrelationAdditionalParameters = os.getenv(
         "INTER_CORRELATION_ADDITIONAL_PARAMETERS", ["pm10"]
@@ -54,6 +59,10 @@ class Config:
 
     BIGQUERY_AIRQLOUDS_SITES = os.getenv("BIGQUERY_AIRQLOUDS_SITES")
     BIGQUERY_AIRQLOUDS = os.getenv("BIGQUERY_AIRQLOUDS")
+    BIGQUERY_GRIDS_SITES = os.getenv("BIGQUERY_GRIDS_SITES")
+    BIGQUERY_GRIDS = os.getenv("BIGQUERY_GRIDS")
+    BIGQUERY_COHORTS_DEVICES = os.getenv("BIGQUERY_COHORTS_DEVICES")
+    BIGQUERY_COHORTS = os.getenv("BIGQUERY_COHORTS")
     BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
     BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
     BIGQUERY_SITES = os.getenv("BIGQUERY_SITES")

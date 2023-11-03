@@ -43,6 +43,10 @@ class BigQueryApi:
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.airqlouds_table = configuration.BIGQUERY_AIRQLOUDS_TABLE
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
+        self.grids_table = configuration.BIGQUERY_GRIDS_TABLE
+        self.cohorts_table = configuration.BIGQUERY_COHORTS_TABLE
+        self.grids_sites_table = configuration.BIGQUERY_GRIDS_SITES_TABLE
+        self.cohorts_devices_table = configuration.BIGQUERY_COHORTS_DEVICES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
@@ -171,6 +175,14 @@ class BigQueryApi:
             schema_file = "airqlouds.json"
         elif table == self.airqlouds_sites_table:
             schema_file = "airqlouds_sites.json"
+        elif table == self.grids_table:
+            schema_file = "grids.json"
+        elif table == self.cohorts_table:
+            schema_file = "cohorts.json"
+        elif table == self.grids_sites_table:
+            schema_file = "grids_sites.json"
+        elif table == self.cohorts_devices_table:
+            schema_file = "cohorts_devices.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
         elif table == self.sites_meta_data_table:
@@ -293,9 +305,95 @@ class BigQueryApi:
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
+    def update_grids(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.grids_table
+        unique_cols = ["id", "tenant"]
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_cohorts(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.cohorts_table
+        unique_cols = ["id", "tenant"]
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.airqlouds_sites_table
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_grids_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.grids_sites_table
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+    
+    def update_cohorts_devices_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(

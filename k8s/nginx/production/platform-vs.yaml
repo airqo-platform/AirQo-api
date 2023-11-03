@@ -38,6 +38,23 @@ spec:
 
 ---
 apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: inventory
+  namespace: production
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: inventory
+      service: airqo-inventory-svc
+      port: 8000
+  subroutes:
+    - path: /inventory
+      action:
+        pass: inventory        
+
+---
+apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: platform-virtual-server
@@ -98,6 +115,8 @@ spec:
       route: pipeline/airflow
     - path: /argocd
       route: cicd/argocd
+    - path: /inventory
+      route: production/inventory    
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

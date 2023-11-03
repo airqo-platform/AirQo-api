@@ -241,6 +241,19 @@ class AirQoApi:
         except Exception as ex:
             print(ex)
 
+    def refresh_grid(self, grid_id):
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        try:
+            response = requests.put(
+                url=f"{self.AIRQO_BASE_URL_V2}/devices/grids/refresh/{grid_id}",
+                params=query_params,
+            )
+
+            print(response.json())
+        except Exception as ex:
+            print(ex)
+
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
@@ -256,6 +269,40 @@ class AirQoApi:
                 "sites": [site["_id"] for site in airqloud.get("sites", [])],
             }
             for airqloud in response.get("airqlouds", [])
+        ]
+
+    def get_grids(self, tenant: Tenant = Tenant.ALL) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        if tenant != Tenant.ALL:
+            query_params["network"] = str(tenant)
+        response = self.__request("devices/grids/summary", query_params)
+
+        return [
+            {
+                "id": grid.get("_id", None),
+                "name": grid.get("name", None),
+                "tenant": "airqo",
+                "sites": [site["_id"] for site in grid.get("sites", [])],
+            }
+            for grid in response.get("grids", [])
+        ]
+
+    def get_cohorts(self, tenant: Tenant = Tenant.ALL) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        if tenant != Tenant.ALL:
+            query_params["network"] = str(tenant)
+        response = self.__request("devices/cohorts", query_params)
+
+        return [
+            {
+                "id": cohort.get("_id", None),
+                "name": cohort.get("name", None),
+                "tenant": "airqo",
+                "devices": [device["_id"] for device in cohort.get("devices", [])],
+            }
+            for cohort in response.get("cohorts", [])
         ]
 
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
@@ -354,7 +401,7 @@ class AirQoApi:
                     body=simplejson.dumps(body, ignore_nan=True),
                 )
             else:
-                handle_api_error("Invalid")
+                print("Method not supported")
                 return None
 
             print(response._request_url)

@@ -844,6 +844,14 @@ const createGroup = {
             },
           },
           {
+            $lookup: {
+              from: "permissions",
+              localField: "role.role_permissions",
+              foreignField: "_id",
+              as: "role_permissions",
+            },
+          },
+          {
             $project: {
               _id: 1,
               firstName: 1,
@@ -863,6 +871,16 @@ const createGroup = {
               email: 1,
               role_name: { $arrayElemAt: ["$role.role_name", 0] },
               role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_permissions: "$role_permissions",
+            },
+          },
+          {
+            $project: {
+              "role_permissions.network_id": 0,
+              "role_permissions.description": 0,
+              "role_permissions.createdAt": 0,
+              "role_permissions.updatedAt": 0,
+              "role_permissions.__v": 0,
             },
           },
         ])

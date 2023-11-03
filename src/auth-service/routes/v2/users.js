@@ -285,6 +285,50 @@ router.post(
   createUserController.signUpWithFirebase
 );
 
+
+router.post(
+  "/syncAnalyticsAndMobile",
+  oneOf([
+    body("firebase_uid")
+      .exists()
+      .withMessage(
+        "the firebase_uid is missing in body, consider using firebase_uid"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the firebase_uid must not be empty")
+      .bail()
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage(
+        "the email is missing in body, consider using email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage(
+        "the email is missing in body, consider using email"
+      )
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+    body("firstName")
+      .optional()
+      .trim(),
+    body("lastName")
+      .optional()
+      .trim(),
+  ]),
+  createUserController.syncAnalyticsAndMobile
+);
+
 router.post(
   "/firebase/verify",
   oneOf([
