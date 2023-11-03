@@ -248,4 +248,74 @@ class Uptime:
                 "sites": sites.to_dict("records"),
                 "devices": devices_uptime.to_dict("records"),
             }
+        elif grid.strip() != "":
+            uptime = float(devices_uptime["uptime"].mean())
+            downtime = float(devices_uptime["downtime"].mean())
+            data_points = int(devices_uptime["data_points"].sum())
+            hourly_threshold = int(devices_uptime.iloc[0]["hourly_threshold"])
+
+            sites_uptime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["uptime"].mean()
+            sites_downtime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["downtime"].mean()
+            sites_data_points = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["data_points"].sum()
+
+            sites = pd.merge(
+                sites_uptime, sites_downtime, on=["site_id", "site_name"]
+            ).merge(sites_data_points, on=["site_id", "site_name"])
+            sites["hourly_threshold"] = hourly_threshold
+            sites["start_date_time"] = start_date_time
+            sites["end_date_time"] = end_date_time
+
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "grid_id": devices_uptime.iloc[0]["grid_id"],
+                "grid_name": devices_uptime.iloc[0]["grid_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "sites": sites.to_dict("records"),
+                "devices": devices_uptime.to_dict("records"),
+            }
+        elif cohort.strip() != "":
+            uptime = float(devices_uptime["uptime"].mean())
+            downtime = float(devices_uptime["downtime"].mean())
+            data_points = int(devices_uptime["data_points"].sum())
+            hourly_threshold = int(devices_uptime.iloc[0]["hourly_threshold"])
+
+            sites_uptime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["uptime"].mean()
+            sites_downtime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["downtime"].mean()
+            sites_data_points = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["data_points"].sum()
+
+            sites = pd.merge(
+                sites_uptime, sites_downtime, on=["site_id", "site_name"]
+            ).merge(sites_data_points, on=["site_id", "site_name"])
+            sites["hourly_threshold"] = hourly_threshold
+            sites["start_date_time"] = start_date_time
+            sites["end_date_time"] = end_date_time
+
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "cohort_id": devices_uptime.iloc[0]["cohort_id"],
+                "cohort_name": devices_uptime.iloc[0]["cohort_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "sites": sites.to_dict("records"),
+                "devices": devices_uptime.to_dict("records"),
+            }
         return {}
