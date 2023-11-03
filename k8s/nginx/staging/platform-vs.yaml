@@ -24,7 +24,7 @@ spec:
   host: staging-platform.airqo.net
   upstreams:
     - name: grafana
-      service: 
+      service: grafana
       port: 3000
   subroutes:
     - path: /grafana
