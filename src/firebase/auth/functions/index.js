@@ -344,8 +344,8 @@ async function sendEmailNotifications(groupedFavorites) {
           contentDisposition: "inline",
         },
         {
-          filename: "airqoLogo.png",
-          path: "./config/images/airqoLogoAlternate.png",
+          filename: "airqoLogoAlternate.png",
+          path: "./config/images/airqoLogo.png",
           cid: "AirQoEmailLogoAlternate",
           contentDisposition: "inline",
         },
