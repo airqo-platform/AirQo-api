@@ -377,7 +377,7 @@ const createGroup = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromAssignUsers = await createGroupUtil.assignUsers(
+      const responseFromAssignUsers = await createGroupUtil.assignUsersHybrid(
         request
       );
 
