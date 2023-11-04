@@ -484,7 +484,124 @@ const createGroup = {
       };
     }
   },
+  assignUsersHybrid: async (request) => {
+    try {
+      const { params, body, query } = request;
+      const { grp_id } = params;
+      const { user_ids } = body;
+      const { tenant } = query;
 
+      const group = await GroupModel(tenant).findById(grp_id).lean();
+
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Invalid group ID ${grp_id}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const notAssignedUsers = [];
+      let assignedUsers = 0;
+      const bulkWriteOperations = [];
+      const cleanupOperations = [];
+
+      for (const user_id of user_ids) {
+        const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
+
+        if (!user) {
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} not found`,
+          });
+          continue; // Continue to the next user
+        }
+
+        const existingAssignment = user.group_roles
+          ? user.group_roles.find(
+              (assignment) => assignment.group.toString() === grp_id.toString()
+            )
+          : undefined;
+
+        if (!isEmpty(existingAssignment)) {
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} is already assigned to the Group ${grp_id}`,
+          });
+          continue;
+        } else {
+          bulkWriteOperations.push({
+            updateOne: {
+              filter: { _id: user_id },
+              update: {
+                $addToSet: { group_roles: { group: grp_id } },
+              },
+            },
+          });
+        }
+
+        cleanupOperations.push({
+          updateOne: {
+            filter: {
+              _id: { _id: user_id },
+              "group_roles.group": { $exists: true, $eq: null },
+            },
+            update: {
+              $pull: { group_roles: { group: { $exists: true, $eq: null } } },
+            },
+          },
+        });
+      }
+
+      if (bulkWriteOperations.length > 0) {
+        const { nModified } = await UserModel(tenant).bulkWrite(
+          bulkWriteOperations
+        );
+        assignedUsers = nModified;
+      }
+
+      let message;
+      if (assignedUsers === 0) {
+        message = "No users assigned to the group.";
+      } else if (assignedUsers === user_ids.length) {
+        message = "All users have been assigned to the group.";
+      } else {
+        message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the group.`;
+      }
+
+      if (cleanupOperations.length > 0) {
+        await UserModel(tenant).bulkWrite(cleanupOperations);
+      }
+
+      if (notAssignedUsers.length > 0) {
+        return {
+          success: false,
+          message,
+          status: httpStatus.BAD_REQUEST,
+          errors: notAssignedUsers.reduce((errors, user) => {
+            errors[user.user_id] = user.reason;
+            return errors;
+          }, {}),
+        };
+      }
+
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+        data: assignedUsers,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   assignOneUser: async (request) => {
     try {
       const { grp_id, user_id } = request.params;
