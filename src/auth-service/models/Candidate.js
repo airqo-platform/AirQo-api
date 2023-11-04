@@ -71,7 +71,7 @@ CandidateSchema.statics = {
             status: httpStatus.BAD_REQUEST,
             errors: {
               message:
-                "unable to determine the Network to which User will belong",
+                "Contact support@airqo.net -- unable to determine the Network to which User will belong",
             },
           };
         }
