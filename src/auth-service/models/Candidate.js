@@ -67,8 +67,8 @@ CandidateSchema.statics = {
         if (isEmpty(constants.DEFAULT_NETWORK)) {
           return {
             success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
             errors: {
               message:
                 "Contact support@airqo.net -- unable to determine the Network to which User will belong",
