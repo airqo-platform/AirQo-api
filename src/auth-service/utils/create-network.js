@@ -379,8 +379,7 @@ const createNetwork = {
       };
     }
   },
-
-  assignUsers: async (request) => {
+  assignUsersHybrid: async (request) => {
     try {
       const { net_id } = request.params;
       const { user_ids } = request.body;
@@ -397,80 +396,96 @@ const createNetwork = {
         };
       }
 
+      const notAssignedUsers = [];
+      let assignedUsers = 0;
+      const bulkOperations = [];
+      const cleanupOperations = [];
+
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
 
         if (!user) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Invalid User ID ${user_id}, please crosscheck`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
+          notAssignedUsers.push({
+            user_id,
+            reason: `Invalid User ID ${user_id}, please crosscheck`,
+          });
+          continue; // Continue to the next user
         }
 
-        const existingAssignment = user.network_roles.find((assignment) => {
-          return assignment.network.toString() === net_id.toString();
-        });
+        const existingAssignment = user.network_roles.find(
+          (assignment) => assignment.network.toString() === net_id.toString()
+        );
 
         if (existingAssignment) {
-          return {
-            userId: user_id,
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user_id} is already assigned to the Network ${net_id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-      }
-
-      const totalUsers = user_ids.length;
-      const assignments = user_ids.map((user_id) => {
-        return {
-          updateOne: {
-            filter: {
-              _id: user_id,
-            },
-            update: {
-              $addToSet: {
-                network_roles: {
-                  network: net_id,
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} is already assigned to the Network ${net_id}`,
+          });
+          continue;
+        } else {
+          bulkOperations.push({
+            updateOne: {
+              filter: { _id: user_id },
+              update: {
+                $addToSet: {
+                  network_roles: { network: net_id },
                 },
               },
             },
-          },
-        };
-      });
+          });
 
-      const { nModified, n } = await UserModel(tenant).bulkWrite(assignments);
-
-      const notFoundCount = totalUsers - nModified;
-      if (nModified === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        };
+          cleanupOperations.push({
+            updateOne: {
+              filter: {
+                _id: user_id,
+                network_roles: {
+                  $elemMatch: { network: { $exists: true, $eq: null } },
+                },
+              },
+              update: {
+                $pull: {
+                  network_roles: { network: { $exists: true, $eq: null } },
+                },
+              },
+            },
+          });
+        }
       }
 
-      if (notFoundCount > 0) {
+      if (bulkOperations.length > 0) {
+        const { nModified } = await UserModel(tenant).bulkWrite(bulkOperations);
+        assignedUsers = nModified;
+      }
+
+      let message;
+      if (assignedUsers === 0) {
+        message = "No users assigned to the network.";
+      } else if (assignedUsers === user_ids.length) {
+        message = "All users have been assigned to the network.";
+      } else {
+        message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the network.`;
+      }
+
+      if (cleanupOperations.length > 0) {
+        await UserModel(tenant).bulkWrite(cleanupOperations);
+      }
+      if (notAssignedUsers.length > 0) {
         return {
-          success: true,
-          message: `Operation partially successful; some ${notFoundCount} of the provided users were not found in the system`,
-          status: httpStatus.OK,
+          success: false,
+          message,
+          status: httpStatus.BAD_REQUEST,
+          errors: notAssignedUsers.reduce((errors, user) => {
+            errors[user.user_id] = user.reason;
+            return errors;
+          }, {}),
         };
       }
 
       return {
         success: true,
-        message: "Successfully assigned all the provided users to the Network",
+        message,
         status: httpStatus.OK,
-        data: [],
+        data: assignedUsers,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -482,7 +497,6 @@ const createNetwork = {
       };
     }
   },
-
   assignOneUser: async (request) => {
     try {
       const { net_id, user_id } = request.params;
