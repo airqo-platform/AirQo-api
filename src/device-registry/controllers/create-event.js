@@ -15,10 +15,14 @@ const GridModel = require("@models/Grid");
 const distanceUtil = require("@utils/distance");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const generateFilter = require("@utils/generate-filter");
 
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
-    const airQloud = await AirQloudModel(tenant).findById(airqloud_id);
+    const airQloud = await AirQloudModel(tenant)
+      .findById(airqloud_id)
+      .lean();
+    logObject("airQloud", airQloud);
 
     if (!airQloud) {
       return {
@@ -66,9 +70,18 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
 
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
-    const grid = await GridModel(tenant).findById(grid_id);
+    const request = {
+      query: {
+        grid_id,
+      },
+    };
 
-    if (!grid) {
+    const filter = generateFilter.grids(request);
+    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+
+    const gridDetails = reseponseFromListGrid.data[0];
+
+    if (reseponseFromListGrid.data.length > 1 || isEmpty(gridDetails)) {
       return {
         success: false,
         message: "Bad Request Error",
@@ -77,7 +90,7 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       };
     }
 
-    const sites = grid.sites || [];
+    const sites = gridDetails.sites || [];
 
     if (sites.length === 0) {
       return {
@@ -114,20 +127,30 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
 
 const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
   try {
-    const cohort = await CohortModel(tenant).findById(cohort_id);
+    const request = {
+      query: {
+        cohort_id,
+      },
+    };
+    const filter = generateFilter.cohorts(request);
 
-    if (!cohort) {
+    const responseFromListCohort = await CohortModel(tenant).list({ filter });
+    logObject("responseFromListCohort.data[0]", responseFromListCohort.data[0]);
+    const cohortDetails = responseFromListCohort.data[0];
+
+    if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
       return {
         success: false,
         message: "Bad Request Error",
-        errors: { message: "Cohort not found" },
+        errors: { message: "No distinct Cohort found in this search" },
         status: httpStatus.BAD_REQUEST,
       };
     }
-    const assignedDevices = cohort.devices || [];
-    const deviceIds = assignedDevices.map((device) => device.toString());
+    const assignedDevices = cohortDetails.devices || [];
+    const deviceIds = assignedDevices.map((device) => device._id.toString());
 
     const commaSeparatedIds = deviceIds.join(",");
+    logObject("commaSeparatedIds", commaSeparatedIds);
 
     return {
       success: true,
@@ -1769,7 +1792,10 @@ const createEvent = {
           const status = responseFromGetDevicesOfCohort.status
             ? responseFromGetDevicesOfCohort.status
             : httpStatus.OK;
-          return res.status(status).json(responseFromGetDevicesOfCohort);
+          return res.status(status).json({
+            success: true,
+            message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          });
         }
         request.query.device_id = responseFromGetDevicesOfCohort.data;
       }
