@@ -33,16 +33,7 @@ const filter = {
         user_id,
       } = { ...req.body, ...req.query, ...req.params };
 
-      let filter = {
-        $or: [
-          {
-            "network_roles.network": { $exists: true, $ne: null },
-          },
-          {
-            "group_roles.group": { $exists: true, $ne: null },
-          },
-        ],
-      };
+      let filter = {};
 
       if (email) {
         filter["email"] = email;
