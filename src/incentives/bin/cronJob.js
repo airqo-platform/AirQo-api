@@ -1,46 +1,30 @@
 const cron = require("node-cron");
-const UserModel = require("@models/User");
+const SimModel = require("@models/Sim");
 const constants = require("@config/constants");
-const inactiveThreshold = constants.INACTIVE_THRESHOLD || 2592000000; // 30 days
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/cronJob script`
 );
+const checkStatus = require("@utils/create-sim").checkStatus;
+const secondsDelayBetweenRequests = 20000;
+const internetDataBalanceThreshold = 5;
 
 // Everyday at midnight
 cron.schedule("0 0 * * *", async () => {
   try {
-    const batchSize = 100; // Process 100 users at a time
+    const batchSize = 100; // Process 100 SIM cards at a time
     let skip = 0;
 
-    while (true) {
-      const users = await UserModel("airqo")
-        .find({
-          $or: [
-            {
-              lastLogin: {
-                $lt: new Date(Date.now() - inactiveThreshold),
-              },
-            },
-            {
-              lastLogin: null,
-            },
-          ],
-          isActive: { $ne: false }, // Exclude users where isActive is false
-        })
-        .limit(batchSize)
-        .skip(skip)
-        .select("_id")
-        .lean();
+    const simCards = await SimModel("airqo").find({}).select("_id").lean();
 
-      if (users.length === 0) {
+    while (true) {
+      const simBatch = simCards.slice(skip, skip + batchSize);
+
+      if (simBatch.length === 0) {
         break;
       }
 
-      const userIds = users.map((user) => user._id);
-
-      // Process the users with a delay between each batch
-      await processUsersWithDelay(userIds);
+      await processSimCardsWithDelay(simBatch);
 
       skip += batchSize;
     }
@@ -51,15 +35,24 @@ cron.schedule("0 0 * * *", async () => {
   }
 });
 
-async function processUsersWithDelay(userIds) {
-  const delay = 5000; // 5 seconds delay between requests
-  for (const userId of userIds) {
-    await updateUserAndDelay(userId, delay);
+async function processSimCardsWithDelay(simBatch) {
+  for (const sim of simBatch) {
+    const responseFromCheckStatus = await checkStatus({
+      query: { tenant: "airqo" },
+      params: { sim_id: sim._id },
+    });
+
+    // Check if data.balance is less than the declared threshold and log it
+    if (
+      responseFromCheckStatus.success &&
+      responseFromCheckStatus.data.balance < internetDataBalanceThreshold
+    ) {
+      logger.info(
+        `SIM card ${sim._id} has a balance less than ${internetDataBalanceThreshold}`
+      );
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, secondsDelayBetweenRequests)
+    );
   }
-}
-
-async function updateUserAndDelay(userId, delay) {
-  await UserModel("airqo").updateMany({ _id: userId }, { isActive: false });
-
-  return new Promise((resolve) => setTimeout(resolve, delay));
 }
