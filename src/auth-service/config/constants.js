@@ -586,10 +586,22 @@ const defaultConfig = {
     description: 1,
     profilePicture: 1,
     phoneNumber: 1,
-    lol: { $ifNull: [{ $arrayElemAt: ["$lol", 0] }, null] },
-    networks: "$networks",
+    networks: {
+      $cond: {
+        if: { $eq: ["$network_role", []] }, // Check if network_role is empty
+        then: [], // Represent "networks" as an empty array for users with empty network_role
+        else: "$networks", // Include the "networks" field for users with non-empty network_role
+      },
+    },
     clients: "$clients",
-    groups: "$groups",
+    groups: {
+      $cond: {
+        if: { $eq: ["$group_role", []] }, // Check if group_role is empty
+        then: [], // Represent "groups" as an empty array  for users with empty group_role
+        else: "$groups", // Include the "groups" field for users with non-empty group_role
+      },
+    },
+    clients: "$clients",
     permissions: "$permissions",
     createdAt: {
       $dateToString: {
