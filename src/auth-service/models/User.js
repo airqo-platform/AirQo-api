@@ -481,7 +481,8 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
-          lol: { $first: "$lol" },
+          group_role: { $first: "$group_role" },
+          network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
           groups: {
             $addToSet: {
