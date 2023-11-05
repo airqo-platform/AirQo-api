@@ -1,16 +1,15 @@
 const {
   monthsInfront,
-  addMonthsToProvideDateTime,
   isTimeEmpty,
   generateDateFormatWithoutHrs,
-  getDifferenceInMonths,
+  getDifferenceInWeeks,
+  addWeeksToProvideDateTime,
   addDays,
-  addHours,
 } = require("./date");
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
-const { logElement, logObject, logText } = require("./log");
+const { logObject } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
@@ -48,8 +47,6 @@ const generateFilter = {
     // Constants for date calculations
     const today = monthsInfront(0);
     const oneWeekBack = addDays(-7);
-    const oneMonthBack = monthsInfront(-1);
-    const threeHoursBack = addHours(-3);
 
     // Initial filter object
     const filter = {
@@ -113,54 +110,52 @@ const generateFilter = {
     // Handle startTime and endTime corner cases
     if (startTime && !endTime) {
       if (!isTimeEmpty(startTime)) {
-        filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
-          startTime,
-          1
-        );
+        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 2);
       } else {
         delete filter["values.time"];
       }
-      const addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
         startTime,
-        1
+        2
       );
       filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedOneMonthToProvidedDateTime
+        addedTwoWeeksToProvidedDateTime
       );
     }
 
     if (!startTime && endTime) {
       if (!isTimeEmpty(endTime)) {
-        filter["values.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -2);
       } else {
         delete filter["values.time"];
       }
-      const removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
         endTime,
-        -1
+        -2
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedOneMonthFromProvidedDateTime
+        removedTwoWeeksFromProvidedDateTime
       );
     }
 
     if (startTime && endTime) {
-      const months = getDifferenceInMonths(startTime, endTime);
-      if (months > 1) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 2) {
         if (!isTimeEmpty(endTime)) {
-          filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
+          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
             endTime,
-            -1
+            -2
           );
         } else {
           delete filter["values.time"];
         }
-        const removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
           endTime,
-          -1
+          -2
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedOneMonthFromProvidedDateTime
+          removedTwoWeeksFromProvidedDateTime
         );
       }
     }
