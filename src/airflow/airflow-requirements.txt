@@ -3,8 +3,8 @@ apache-airflow-providers-slack
 apache-airflow-providers-slack[http]
 apache-airflow-providers-google
 apache-airflow[sentry]
-lightgbm
+lightgbm~=4.1.0
 mlflow
-gcsfs
-pymongo
+gcsfs~=2023.9.2
+pymongo~=4.5.0
 optuna
