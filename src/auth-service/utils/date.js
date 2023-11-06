@@ -115,6 +115,40 @@ function addMonthsToProvideDateTime(dateTime, number) {
   }
 }
 
+function addWeeksToProvideDateTime(dateTime, number) {
+  try {
+    if (isTimeEmpty(dateTime) === false) {
+      const originalDate = new Date(dateTime);
+      const newDate = new Date(originalDate);
+      newDate.setDate(originalDate.getDate() + number * 7); // Multiply by 7 to add weeks
+
+      return newDate;
+    } else {
+      const newDate = addMonthsToProvidedDate(dateTime, number * 4); // Approximate 4 weeks per month
+      return newDate;
+    }
+  } catch (e) {
+    logger.error(`Internal server error -- ${e.message}`);
+  }
+}
+
+function addDaysToProvideDateTime(dateTime, number) {
+  try {
+    if (isTimeEmpty(dateTime) === false) {
+      const originalDate = new Date(dateTime);
+      const newDate = new Date(originalDate);
+      newDate.setDate(originalDate.getDate() + number);
+
+      return newDate;
+    } else {
+      const newDate = addMonthsToProvidedDate(dateTime, number / 30); // Approximate 30 days per month
+      return newDate;
+    }
+  } catch (e) {
+    logger.error(`Internal server error -- ${e.message}`);
+  }
+}
+
 function monthsInfront(number) {
   try {
     let d = new Date();
@@ -169,6 +203,16 @@ function getDifferenceInMonths(d1, d2) {
   return months <= 0 ? 0 : months;
 }
 
+function getDifferenceInWeeks(d1, d2) {
+  const oneWeekInMilliseconds = 7 * 24 * 60 * 60 * 1000;
+  const startDate = new Date(d1);
+  const endDate = new Date(d2);
+  const timeDifference = Math.abs(endDate - startDate);
+  const weeks = Math.floor(timeDifference / oneWeekInMilliseconds);
+
+  return weeks;
+}
+
 function threeMonthsFromNow(date) {
   d = new Date(date);
   let targetMonth = d.getMonth() + 3;
@@ -184,6 +228,9 @@ module.exports = {
   threeMonthsFromNow,
   generateDateFormatWithoutHrs,
   addMonthsToProvideDateTime,
+  addWeeksToProvideDateTime,
+  addDaysToProvideDateTime,
+  getDifferenceInWeeks,
   monthsInfront,
   isTimeEmpty,
   getDifferenceInMonths,

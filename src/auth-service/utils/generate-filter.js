@@ -258,7 +258,10 @@ const filter = {
 
   defaults: (req) => {
     try {
-      let { id, user, site, airqloud } = req.query;
+      let { id, user, site, airqloud, grid, cohort, group_id, network_id } = {
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
       if (user) {
         filter["user"] = ObjectId(user);
@@ -266,6 +269,23 @@ const filter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
+
+      if (grid) {
+        filter["grid"] = ObjectId(grid);
+      }
+
+      if (cohort) {
+        filter["cohort"] = ObjectId(cohort);
+      }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
+
       if (site) {
         filter["site"] = ObjectId(site);
       }
