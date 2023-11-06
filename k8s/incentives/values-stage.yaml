@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-incentives-api
-  tag: stage-0517d92a-1699228674
+  tag: stage-9f4aeb0a-1699285160
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
