@@ -9,7 +9,9 @@ const checkStatus = require("@utils/create-sim").checkStatus;
 const secondsDelayBetweenRequests = 20000;
 const internetDataBalanceThreshold = 5;
 const schedule =
-  constants.ENVIRONMENT === "production" ? "0 17 * * *" : "0 0 * * *";
+  constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
+    ? "0 0 * * *"
+    : "0 14 * * *";
 
 cron.schedule(
   schedule,
@@ -56,7 +58,7 @@ async function processSimCardsWithDelay(simBatch) {
       responseFromCheckStatus.data.balance < internetDataBalanceThreshold
     ) {
       logger.info(
-        `SIM card ${sim._id} has a balance less than ${internetDataBalanceThreshold}`
+        `SIM card ${sim.msisdn} has a balance less than ${internetDataBalanceThreshold} threshold`
       );
     }
     await new Promise((resolve) =>
