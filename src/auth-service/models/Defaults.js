@@ -13,10 +13,10 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
 
 const periodSchema = new mongoose.Schema(
   {
-    value: { type: String, default: "Last 30 days" },
-    label: { type: String, default: "Last 30 days" },
-    unitValue: { type: Number, default: 30 },
-    unit: { type: String, default: "day" },
+    value: { type: String },
+    label: { type: String },
+    unitValue: { type: Number },
+    unit: { type: String },
   },
   { _id: false }
 );
@@ -139,6 +139,14 @@ DefaultsSchema.statics = {
       let body = args;
       if (body._id) {
         delete body._id;
+      }
+      if (isEmpty(args.period)) {
+        args.period = {
+          value: "Last 30 days",
+          label: "Last 30 days",
+          unitValue: 30,
+          unit: "day",
+        };
       }
       let data = await this.create({
         ...body,
