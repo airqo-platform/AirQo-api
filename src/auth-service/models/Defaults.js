@@ -196,7 +196,7 @@ DefaultsSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 20, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const defaults = await this.find(filter)
         .sort({ createdAt: -1 })
