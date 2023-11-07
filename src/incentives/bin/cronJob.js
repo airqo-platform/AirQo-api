@@ -8,32 +8,40 @@ const logger = log4js.getLogger(
 const checkStatus = require("@utils/create-sim").checkStatus;
 const secondsDelayBetweenRequests = 20000;
 const internetDataBalanceThreshold = 5;
+const schedule =
+  constants.ENVIRONMENT === "production" ? "0 17 * * *" : "0 0 * * *";
 
-// Everyday at midnight
-cron.schedule("0 0 * * *", async () => {
-  try {
-    const batchSize = 100; // Process 100 SIM cards at a time
-    let skip = 0;
+cron.schedule(
+  schedule,
+  async () => {
+    try {
+      const batchSize = 100; // Process 100 SIM cards at a time
+      let skip = 0;
 
-    const simCards = await SimModel("airqo").find({}).select("_id").lean();
+      const simCards = await SimModel("airqo").find({}).select("_id").lean();
 
-    while (true) {
-      const simBatch = simCards.slice(skip, skip + batchSize);
+      while (true) {
+        const simBatch = simCards.slice(skip, skip + batchSize);
 
-      if (simBatch.length === 0) {
-        break;
+        if (simBatch.length === 0) {
+          break;
+        }
+
+        await processSimCardsWithDelay(simBatch);
+
+        skip += batchSize;
       }
-
-      await processSimCardsWithDelay(simBatch);
-
-      skip += batchSize;
+    } catch (error) {
+      logger.error(
+        `An error occurred in the cron job --- ${JSON.stringify(error)}`
+      );
     }
-  } catch (error) {
-    logger.error(
-      `An error occurred in the cron job --- ${JSON.stringify(error)}`
-    );
+  },
+  {
+    scheduled: true,
+    timezone: "Africa/Nairobi",
   }
-});
+);
 
 async function processSimCardsWithDelay(simBatch) {
   for (const sim of simBatch) {
