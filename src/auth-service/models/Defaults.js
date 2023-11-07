@@ -142,9 +142,9 @@ DefaultsSchema.statics = {
       }
       if (isEmpty(args.period)) {
         args.period = {
-          value: "Last 30 days",
-          label: "Last 30 days",
-          unitValue: 30,
+          value: "Last 7 days",
+          label: "Last 7 days",
+          unitValue: 7,
           unit: "day",
         };
       }
