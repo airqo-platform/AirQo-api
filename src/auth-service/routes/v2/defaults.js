@@ -199,8 +199,6 @@ router.put(
         .withMessage("device must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.update
 );
 
@@ -425,8 +423,6 @@ router.get(
         }),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.list
 );
 
