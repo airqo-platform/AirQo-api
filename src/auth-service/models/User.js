@@ -508,7 +508,7 @@ UserSchema.statics = {
                   else: null,
                 },
               },
-              userType: { $first: "$group_roles.userType" },
+              userType: { $first: "$group_role.userType" },
             },
           },
           permissions: { $first: "$permissions" },
@@ -531,7 +531,7 @@ UserSchema.statics = {
                   else: null,
                 },
               },
-              userType: { $first: "$network_roles.userType" },
+              userType: { $first: "$network_role.userType" },
             },
           },
         })
