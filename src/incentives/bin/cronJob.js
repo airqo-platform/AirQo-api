@@ -58,6 +58,8 @@ async function processSimCardsWithDelay(simBatch) {
     // Check if data.balance is less than the declared threshold and log it
     if (
       responseFromCheckStatus.success &&
+      responseFromCheckStatus.data.name &&
+      responseFromCheckStatus.data.status === "active" &&
       responseFromCheckStatus.data.balance < internetDataBalanceThreshold
     ) {
       logger.info(
