@@ -62,8 +62,9 @@ async function processSimCardsWithDelay(simBatch) {
       responseFromCheckStatus.data.status === "active" &&
       responseFromCheckStatus.data.balance < internetDataBalanceThreshold
     ) {
+      const simName = sim.name ? sim.name : sim._id;
       logger.info(
-        `SIM card ${sim.name} has a balance less than ${internetDataBalanceThreshold} threshold`
+        `SIM card ${simName} has a balance less than ${internetDataBalanceThreshold} threshold`
       );
     }
     await new Promise((resolve) =>
