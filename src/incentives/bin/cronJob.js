@@ -10,7 +10,7 @@ const secondsDelayBetweenRequests = 20000;
 const internetDataBalanceThreshold = 5;
 const schedule =
   constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
-    ? "0 0 * * *"
+    ? "0 2 * * *"
     : "0 14 * * *";
 
 cron.schedule(
@@ -20,7 +20,10 @@ cron.schedule(
       const batchSize = 100; // Process 100 SIM cards at a time
       let skip = 0;
 
-      const simCards = await SimModel("airqo").find({}).select("_id").lean();
+      const simCards = await SimModel("airqo")
+        .find({})
+        .select("_id msisdn name")
+        .lean();
 
       while (true) {
         const simBatch = simCards.slice(skip, skip + batchSize);
@@ -58,7 +61,7 @@ async function processSimCardsWithDelay(simBatch) {
       responseFromCheckStatus.data.balance < internetDataBalanceThreshold
     ) {
       logger.info(
-        `SIM card ${sim.msisdn} has a balance less than ${internetDataBalanceThreshold} threshold`
+        `SIM card ${sim.name} has a balance less than ${internetDataBalanceThreshold} threshold`
       );
     }
     await new Promise((resolve) =>
