@@ -355,8 +355,6 @@ router.post(
         .withMessage("device must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.create
 );
 
