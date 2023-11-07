@@ -9,14 +9,23 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
 
 const defaults = {
-  list: async (tenant, filter, limit, skip) => {
+  list: async (request) => {
     try {
-      const responseFromListDefault = await DefaultsModel(tenant).list({
-        filter,
+      const {
+        query: { tenant },
+      } = request;
+      const filterResponse = generateFilter.defaults(request);
+      if (!filterResponse.success) {
+        return filterResponse;
+      }
+      const { limit, skip } = request.query;
+      logObject("limit", limit);
+      logObject("skip", skip);
+      return await DefaultsModel(tenant).list({
+        filter: filterResponse.data,
         limit,
         skip,
       });
-      return responseFromListDefault;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -62,14 +71,30 @@ const defaults = {
       };
     }
   },
-  update: async (tenant, filter, update) => {
+  update: async (request) => {
     try {
-      const responseFromModifyDefault = await DefaultsModel(tenant).modify({
+      const {
+        query: { tenant },
+        body,
+      } = request;
+
+      const filterResponse = generateFilter.defaults(request);
+      logObject("filterResponse", filterResponse);
+
+      if (!filterResponse.success) {
+        return filterResponse;
+      }
+
+      const { data: filter } = filterResponse;
+      const update = body;
+
+      const modifyResponse = await DefaultsModel(tenant).modify({
         filter,
         update,
       });
-      logObject("responseFromModifyDefault", responseFromModifyDefault);
-      return responseFromModifyDefault;
+      logObject("modifyResponse", modifyResponse);
+
+      return modifyResponse;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -84,10 +109,11 @@ const defaults = {
   delete: async (request) => {
     try {
       const responseFromFilter = generateFilter.defaults(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
+
+      if (!responseFromFilter.success) {
         return responseFromFilter;
       }
+
       const filter = responseFromFilter.data;
       const { tenant } = request.query;
       const responseFromRemoveDefault = await DefaultsModel(tenant).remove({
