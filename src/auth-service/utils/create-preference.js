@@ -41,7 +41,7 @@ const preferences = {
       const { body, query } = request;
       const { tenant } = query;
       logObject("the body", body);
-      const user_id = body.user;
+      const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
         return {

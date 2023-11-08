@@ -28,30 +28,30 @@ const preferences = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromUpdateDefault = await createPreferenceUtil.update(
+      let responseFromUpdatePreference = await createPreferenceUtil.update(
         request
       );
-      logObject("responseFromUpdateDefault", responseFromUpdateDefault);
-      if (responseFromUpdateDefault.success === true) {
-        let status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
+      logObject("responseFromUpdatePreference", responseFromUpdatePreference);
+      if (responseFromUpdatePreference.success === true) {
+        let status = responseFromUpdatePreference.status
+          ? responseFromUpdatePreference.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateDefault.message,
-          preference: responseFromUpdateDefault.data,
+          message: responseFromUpdatePreference.message,
+          preference: responseFromUpdatePreference.data,
         });
-      } else if (responseFromUpdateDefault.success === false) {
-        let errors = responseFromUpdateDefault.errors
-          ? responseFromUpdateDefault.errors
+      } else if (responseFromUpdatePreference.success === false) {
+        let errors = responseFromUpdatePreference.errors
+          ? responseFromUpdatePreference.errors
           : { message: "" };
-        let status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
+        let status = responseFromUpdatePreference.status
+          ? responseFromUpdatePreference.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateDefault.message,
-          preference: responseFromUpdateDefault.data,
+          message: responseFromUpdatePreference.message,
+          preference: responseFromUpdatePreference.data,
           errors,
         });
       }
@@ -84,30 +84,30 @@ const preferences = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromCreateDefault = await createPreferenceUtil.create(
+      let responseFromCreatePreference = await createPreferenceUtil.create(
         request
       );
-      logObject("responseFromCreateDefault", responseFromCreateDefault);
-      if (responseFromCreateDefault.success === true) {
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+      logObject("responseFromCreatePreference", responseFromCreatePreference);
+      if (responseFromCreatePreference.success === true) {
+        let status = responseFromCreatePreference.status
+          ? responseFromCreatePreference.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateDefault.message,
-          preference: responseFromCreateDefault.data,
+          message: responseFromCreatePreference.message,
+          preference: responseFromCreatePreference.data,
         });
-      } else if (responseFromCreateDefault.success === false) {
-        let errors = responseFromCreateDefault.errors
-          ? responseFromCreateDefault.errors
+      } else if (responseFromCreatePreference.success === false) {
+        let errors = responseFromCreatePreference.errors
+          ? responseFromCreatePreference.errors
           : { message: "" };
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+        let status = responseFromCreatePreference.status
+          ? responseFromCreatePreference.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateDefault.message,
-          preference: responseFromCreateDefault.data,
+          message: responseFromCreatePreference.message,
+          preference: responseFromCreatePreference.data,
           errors,
         });
       }
@@ -140,30 +140,30 @@ const preferences = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromCreateDefault = await createPreferenceUtil.upsert(
+      let responseFromCreatePreference = await createPreferenceUtil.upsert(
         request
       );
-      logObject("responseFromCreateDefault", responseFromCreateDefault);
-      if (responseFromCreateDefault.success === true) {
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+      logObject("responseFromCreatePreference", responseFromCreatePreference);
+      if (responseFromCreatePreference.success === true) {
+        let status = responseFromCreatePreference.status
+          ? responseFromCreatePreference.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateDefault.message,
-          preference: responseFromCreateDefault.data,
+          message: responseFromCreatePreference.message,
+          preference: responseFromCreatePreference.data,
         });
-      } else if (responseFromCreateDefault.success === false) {
-        let errors = responseFromCreateDefault.errors
-          ? responseFromCreateDefault.errors
+      } else if (responseFromCreatePreference.success === false) {
+        let errors = responseFromCreatePreference.errors
+          ? responseFromCreatePreference.errors
           : { message: "" };
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+        let status = responseFromCreatePreference.status
+          ? responseFromCreatePreference.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateDefault.message,
-          preference: responseFromCreateDefault.data,
+          message: responseFromCreatePreference.message,
+          preference: responseFromCreatePreference.data,
           errors,
         });
       }
@@ -196,28 +196,30 @@ const preferences = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      const responseFromListDefaults = await createPreferenceUtil.list(request);
-      if (responseFromListDefaults.success === true) {
-        let status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
+      const responseFromListPreferences = await createPreferenceUtil.list(
+        request
+      );
+      if (responseFromListPreferences.success === true) {
+        let status = responseFromListPreferences.status
+          ? responseFromListPreferences.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListDefaults.message,
-          preferences: responseFromListDefaults.data,
+          message: responseFromListPreferences.message,
+          preferences: responseFromListPreferences.data,
         });
-      } else if (responseFromListDefaults.success === false) {
-        let errors = responseFromListDefaults.errors
-          ? responseFromListDefaults.errors
+      } else if (responseFromListPreferences.success === false) {
+        let errors = responseFromListPreferences.errors
+          ? responseFromListPreferences.errors
           : "";
 
-        let status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
+        let status = responseFromListPreferences.status
+          ? responseFromListPreferences.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListDefaults.message,
+          message: responseFromListPreferences.message,
           errors,
         });
       }
@@ -233,7 +235,7 @@ const preferences = {
 
   delete: async (req, res) => {
     try {
-      logText("deleting default..........");
+      logText("deleting preference..........");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -248,32 +250,32 @@ const preferences = {
       if (isEmpty(req.query.tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const responseFromDeleteDefault = await createPreferenceUtil.delete(
+      const responseFromDeletePreference = await createPreferenceUtil.delete(
         request
       );
-      logObject("responseFromDeleteDefault", responseFromDeleteDefault);
-      if (responseFromDeleteDefault.success === true) {
-        let status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
+      logObject("responseFromDeletePreference", responseFromDeletePreference);
+      if (responseFromDeletePreference.success === true) {
+        let status = responseFromDeletePreference.status
+          ? responseFromDeletePreference.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeleteDefault.message,
-          preference: responseFromDeleteDefault.data,
+          message: responseFromDeletePreference.message,
+          preference: responseFromDeletePreference.data,
         });
-      } else if (responseFromDeleteDefault.success === false) {
-        let errors = responseFromDeleteDefault.errors
-          ? responseFromDeleteDefault.errors
+      } else if (responseFromDeletePreference.success === false) {
+        let errors = responseFromDeletePreference.errors
+          ? responseFromDeletePreference.errors
           : { message: "" };
 
-        let status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
+        let status = responseFromDeletePreference.status
+          ? responseFromDeletePreference.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
-          message: responseFromDeleteDefault.message,
-          preference: responseFromDeleteDefault.data,
+          message: responseFromDeletePreference.message,
+          preference: responseFromDeletePreference.data,
           errors,
         });
       }
