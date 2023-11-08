@@ -57,15 +57,14 @@ const validateObjectId = (paramName) => {
 const validateOptionalObjectId = (field) => {
   return (req, res, next) => {
     if (req.query[field]) {
-      check(field).custom((value) => {
-        if (!value || isValidObjectId(value)) {
-          return true;
+      const values = req.query[field].split(",");
+      for (const value of values) {
+        if (!isValidObjectId(value)) {
+          throw new Error(`Invalid ${field} format: ${value}`);
         }
-        throw new Error(`Invalid ${field} format`);
-      })(req, res, next);
-    } else {
-      next();
+      }
     }
+    next();
   };
 };
 
