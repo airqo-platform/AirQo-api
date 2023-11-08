@@ -27,7 +27,7 @@ router.use(headers);
 router.use(validatePagination);
 
 router.post(
-  "/:user_id/upsert",
+  "/upsert",
   oneOf([
     [
       query("tenant")
@@ -42,25 +42,21 @@ router.post(
     ],
   ]),
   oneOf([
-    param("user_id")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the user_id"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the provided user_id should not be empty")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("user_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
     [
+      body("user_id")
+        .exists()
+        .withMessage("the user_id should be provided in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the provided user_id should not be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("items")
         .exists()
         .withMessage("the items array must be provided")
