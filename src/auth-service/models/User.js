@@ -488,6 +488,8 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
+          group_roles: { $first: "$group_roles" },
+          network_roles: { $first: "$network_roles" },
           group_role: { $first: "$group_role" },
           network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
@@ -508,7 +510,13 @@ UserSchema.statics = {
                   else: null,
                 },
               },
-              userType: { $first: "$group_role.userType" },
+              userType: {
+                $cond: {
+                  if: { $eq: [{ $type: "$group_roles.userType" }, "missing"] },
+                  then: "user",
+                  else: "$group_roles.userType",
+                },
+              },
             },
           },
           permissions: { $first: "$permissions" },
@@ -531,7 +539,15 @@ UserSchema.statics = {
                   else: null,
                 },
               },
-              userType: { $first: "$network_role.userType" },
+              userType: {
+                $cond: {
+                  if: {
+                    $eq: [{ $type: "$network_roles.userType" }, "missing"],
+                  },
+                  then: "user",
+                  else: "$network_roles.userType",
+                },
+              },
             },
           },
         })
