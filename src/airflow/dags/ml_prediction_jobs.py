@@ -27,11 +27,11 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date)
+        return BigQueryApi().fetch_data(start_date, "prediction")
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
-        return ForecastUtils.preprocess_data(data, "hourly")
+        return ForecastUtils.preprocess_data(data, "hourly", job_type="prediction")
 
     @task
     def generate_lag_and_rolling_features_hourly_forecast(data):

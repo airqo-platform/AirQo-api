@@ -15,6 +15,7 @@ from .config import configuration, db
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
 environment = configuration.ENVIRONMENT
+additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
 
@@ -66,8 +67,9 @@ class GCSUtils:
 
 
 class ForecastUtils:
+
     @staticmethod
-    def preprocess_data(data, data_frequency):
+    def preprocess_data(data, data_frequency, job_type):
         required_columns = {
             "device_id",
             "pm2_5",
@@ -84,17 +86,18 @@ class ForecastUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        data["pm2_5"] = data.groupby(["device_id"])["pm2_5"].transform(
+        group_columns = ["device_id"] + additional_columns if job_type == 'prediction' else [""]
+        data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
         if data_frequency == "daily":
             data = (
-                data.groupby(["device_id"])
+                data.groupby(group_columns)
                 .resample("D", on="timestamp")
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(["device_id"])["pm2_5"].transform(
+        data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
         data = data.dropna(subset=["pm2_5"])
@@ -436,7 +439,7 @@ class ForecastUtils:
             for i in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
                 df_tmp_no_ts = df_tmp.drop(
-                    columns=["timestamp", "device_id"], axis=1, inplace=False
+                    columns=["timestamp", "device_id", "site_id"], axis=1, inplace=False
                 )
                 # daily frequency
                 if frequency == "daily":
@@ -501,6 +504,7 @@ class ForecastUtils:
 
                 excluded_columns = [
                     "device_id",
+                    "site_id",
                     "pm2_5",
                     "timestamp",
                     "latitude",
@@ -559,6 +563,7 @@ class ForecastUtils:
         return forecasts[
             [
                 "device_id",
+                "site_id",
                 "timestamp",
                 "pm2_5",
                 # "margin_of_error",
@@ -576,6 +581,7 @@ class ForecastUtils:
             doc = {
                 "device_id": i,
                 "created_at": created_at,
+                "site_id": data[data["device_id"] == i]["site_id"].unique()[0],
                 "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
                 "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
             }
@@ -590,7 +596,7 @@ class ForecastUtils:
 
         for doc in forecast_results:
             try:
-                filter_query = {"device_id": doc["device_id"]}
+                filter_query = {"device_id": doc["device_id"], "site_id": doc["site_id"]}
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
