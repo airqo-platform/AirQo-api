@@ -57,6 +57,19 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    query("user_id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ]),
   oneOf([
     [
@@ -199,8 +212,6 @@ router.put(
         .withMessage("device must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.update
 );
 
@@ -355,8 +366,6 @@ router.post(
         .withMessage("device must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.create
 );
 
@@ -401,6 +410,18 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       query("airqloud")
         .optional()
         .notEmpty()
@@ -427,8 +448,6 @@ router.get(
         }),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createDefaultController.list
 );
 
@@ -457,6 +476,19 @@ router.delete(
       .trim()
       .isMongoId()
       .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("user_id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("user_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);

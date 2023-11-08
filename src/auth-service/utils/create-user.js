@@ -323,10 +323,7 @@ const createUserModule = {
   list: async (request) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
 
       const responseFromFilter = generateFilter.users(request);
       if (responseFromFilter.success === false) {
