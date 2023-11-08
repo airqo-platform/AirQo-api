@@ -29,47 +29,47 @@ const PreferenceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       required: [true, "pollutant is required!"],
-      preference: "pm2_5",
+      default: "pm2_5",
     },
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
-      preference: "hourly",
+      default: "hourly",
     },
     startDate: {
       type: Date,
       required: [true, "startDate is required!"],
-      preference: addWeeksToProvideDateTime(currentDate, -2),
+      default: addWeeksToProvideDateTime(currentDate, -2),
     },
     endDate: {
       type: Date,
       required: [true, "endDate is required!"],
-      preference: currentDate,
+      default: currentDate,
     },
     chartType: {
       type: String,
       required: [true, "chartTyoe is required!"],
-      preference: "line",
+      default: "line",
     },
     chartTitle: {
       type: String,
       required: [true, "chartTitle is required!"],
-      preference: "Chart Title",
+      default: "Chart Title",
     },
     chartSubTitle: {
       type: String,
       required: [true, "chartSubTitle is required!"],
-      preference: "Chart SubTitle",
+      default: "Chart SubTitle",
     },
     airqloud_id: {
       type: ObjectId,
       ref: "airqloud",
-      preference: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
+      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
     },
     grid_id: {
       type: ObjectId,
       ref: "grid",
-      preference: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
     },
     cohort_id: {
       type: ObjectId,
@@ -78,12 +78,12 @@ const PreferenceSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      preference: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
     },
     group_id: {
       type: ObjectId,
       ref: "group",
-      preference: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
     user_id: {
       type: ObjectId,
