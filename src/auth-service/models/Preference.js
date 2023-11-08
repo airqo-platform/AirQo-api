@@ -9,7 +9,9 @@ const { addWeeksToProvideDateTime } = require("@utils/date");
 const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- preferences-model`
+);
 
 const periodSchema = new mongoose.Schema(
   {
@@ -21,80 +23,80 @@ const periodSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const DefaultsSchema = new mongoose.Schema(
+const PreferenceSchema = new mongoose.Schema(
   {
     pollutant: {
       type: String,
       trim: true,
       required: [true, "pollutant is required!"],
-      default: "pm2_5",
+      preference: "pm2_5",
     },
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
-      default: "hourly",
+      preference: "hourly",
     },
     startDate: {
       type: Date,
       required: [true, "startDate is required!"],
-      default: addWeeksToProvideDateTime(currentDate, -2),
+      preference: addWeeksToProvideDateTime(currentDate, -2),
     },
     endDate: {
       type: Date,
       required: [true, "endDate is required!"],
-      default: currentDate,
+      preference: currentDate,
     },
     chartType: {
       type: String,
       required: [true, "chartTyoe is required!"],
-      default: "line",
+      preference: "line",
     },
     chartTitle: {
       type: String,
       required: [true, "chartTitle is required!"],
-      default: "Chart Title",
+      preference: "Chart Title",
     },
     chartSubTitle: {
       type: String,
       required: [true, "chartSubTitle is required!"],
-      default: "Chart SubTitle",
+      preference: "Chart SubTitle",
     },
-    airqloud: {
+    airqloud_id: {
       type: ObjectId,
       ref: "airqloud",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
+      preference: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
     },
-    grid: {
+    grid_id: {
       type: ObjectId,
       ref: "grid",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
+      preference: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
     },
-    cohort: {
+    cohort_id: {
       type: ObjectId,
       ref: "cohort",
     },
     network_id: {
       type: ObjectId,
       ref: "network",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+      preference: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
     },
     group_id: {
       type: ObjectId,
       ref: "group",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+      preference: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
-    user: {
+    user_id: {
       type: ObjectId,
-      required: [true, "user is required"],
+      required: [true, "user_id is required"],
       ref: "user",
     },
-    sites: [
+    site_ids: [
       {
         type: ObjectId,
         ref: "site",
       },
     ],
-    devices: [
+    device_ids: [
       {
         type: ObjectId,
         ref: "device",
@@ -107,25 +109,27 @@ const DefaultsSchema = new mongoose.Schema(
   }
 );
 
-DefaultsSchema.plugin(uniqueValidator, {
+PreferenceSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-DefaultsSchema.methods = {
+PreferenceSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
       pollutant: this.pollutant,
       frequency: this.frequency,
-      user: this.user,
-      airqloud: this.airqloud,
+      user_id: this.user_id,
+      airqloud_id: this.airqloud_id,
+      cohort_id: this.cohort_id,
+      grid_id: this.grid_id,
       startDate: this.startDate,
       endDate: this.endDate,
       chartType: this.chartType,
       chartTitle: this.chartTitle,
       chartSubTitle: this.chartSubTitle,
-      sites: this.sites,
-      devices: this.devices,
+      site_ids: this.site_ids,
+      device_ids: this.device_ids,
       network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,
@@ -133,7 +137,7 @@ DefaultsSchema.methods = {
   },
 };
 
-DefaultsSchema.statics = {
+PreferenceSchema.statics = {
   async register(args) {
     try {
       let body = args;
@@ -156,13 +160,13 @@ DefaultsSchema.statics = {
         return {
           success: true,
           data,
-          message: "default created successfully with no issues detected",
+          message: "preference created successfully with no issues detected",
           status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
-          message: "default not created despite successful operation",
+          message: "preference not created despite successful operation",
           status: httpStatus.OK,
           data: [],
         };
@@ -198,23 +202,23 @@ DefaultsSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
-      const defaults = await this.find(filter)
+      const preferences = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
-      if (!isEmpty(defaults)) {
+      if (!isEmpty(preferences)) {
         return {
           success: true,
-          data: defaults,
-          message: "successfully listed the defaults",
+          data: preferences,
+          message: "successfully listed the preferences",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(defaults)) {
+      } else if (isEmpty(preferences)) {
         return {
           success: true,
-          message: "no defaults found for this search",
+          message: "no preferences found for this search",
           data: [],
           status: httpStatus.OK,
         };
@@ -235,27 +239,27 @@ DefaultsSchema.statics = {
       if (update._id) {
         delete update._id;
       }
-      const updatedDefault = await this.findOneAndUpdate(
+      const updatedPreference = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
-      if (!isEmpty(updatedDefault)) {
+      if (!isEmpty(updatedPreference)) {
         return {
           success: true,
-          message: "successfully modified the default",
-          data: updatedDefault._doc,
+          message: "successfully modified the preference",
+          data: updatedPreference._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedDefault)) {
+      } else if (isEmpty(updatedPreference)) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default  you are trying to UPDATE does not exist, please crosscheck",
+              "the User Preference  you are trying to UPDATE does not exist, please crosscheck",
           },
         };
       }
@@ -282,29 +286,32 @@ DefaultsSchema.statics = {
       let options = {
         projection: {
           _id: 1,
-          user: 1,
+          user_id: 1,
           chartTitle: 1,
           chartSubTitle: 1,
-          airqloud: 1,
+          airqloud_id: 1,
         },
       };
-      let removedDefault = await this.findOneAndRemove(filter, options).exec();
+      let removedPreference = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
-      if (!isEmpty(removedDefault)) {
+      if (!isEmpty(removedPreference)) {
         return {
           success: true,
-          message: "successfully removed the default",
-          data: removedDefault._doc,
+          message: "successfully removed the preference",
+          data: removedPreference._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedDefault)) {
+      } else if (isEmpty(removedPreference)) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default  you are trying to DELETE does not exist, please crosscheck",
+              "the User Preference  you are trying to DELETE does not exist, please crosscheck",
           },
         };
       }
@@ -320,14 +327,14 @@ DefaultsSchema.statics = {
   },
 };
 
-const DefaultModel = (tenant) => {
+const PreferenceModel = (tenant) => {
   try {
-    let defaults = mongoose.model("defaults");
-    return defaults;
+    let preferences = mongoose.model("preferences");
+    return preferences;
   } catch (error) {
-    let defaults = getModelByTenant(tenant, "default", DefaultsSchema);
-    return defaults;
+    let preferences = getModelByTenant(tenant, "preference", PreferenceSchema);
+    return preferences;
   }
 };
 
-module.exports = DefaultModel;
+module.exports = PreferenceModel;
