@@ -65,42 +65,6 @@ class GCSUtils:
         return mapping_dict
 
 
-class DecodingUtils:
-    """Utility class for encoding and decoding categorical features"""
-
-    @staticmethod
-    def decode_categorical_features_pred(df, frequency):
-        columns = ["device_id", "site_id", "device_category"]
-        mapping = {}
-        for col in columns:
-            if frequency == "hourly":
-                mapping = GCSUtils.get_mapping_from_gcs(
-                    project_id, bucket, f"hourly_{col}_mapping.json"
-                )
-            elif frequency == "daily":
-                mapping = GCSUtils.get_mapping_from_gcs(
-                    project_id, bucket, f"daily_{col}_mapping.json"
-                )
-            df[col] = df[col].map(mapping)
-        return df
-
-    @staticmethod
-    def decode_categorical_features_before_save(df, frequency):
-        columns = ["device_id", "site_id", "device_category"]
-        mapping = {}
-        for col in columns:
-            if frequency == "hourly":
-                mapping = GCSUtils.get_mapping_from_gcs(
-                    project_id, bucket, f"hourly_{col}_mapping.json"
-                )
-            elif frequency == "daily":
-                mapping = GCSUtils.get_mapping_from_gcs(
-                    project_id, bucket, f"daily_{col}_mapping.json"
-                )
-            df[col] = df[col].map({v: k for k, v in mapping.items()})
-        return df
-
-
 class ForecastUtils:
     @staticmethod
     def preprocess_data(data, data_frequency):
@@ -120,9 +84,9 @@ class ForecastUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        data["pm2_5"] = data.groupby(["device_id"])[
-            "pm2_5"
-        ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
+        data["pm2_5"] = data.groupby(["device_id"])["pm2_5"].transform(
+            lambda x: x.interpolate(method="linear", limit_direction="both")
+        )
         if data_frequency == "daily":
             data = (
                 data.groupby(["device_id"])
@@ -130,9 +94,7 @@ class ForecastUtils:
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(["device_id"])[
-                "pm2_5"
-            ].transform(
+            data["pm2_5"] = data.groupby(["device_id"])["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
         data = data.dropna(subset=["pm2_5"])
@@ -262,9 +224,7 @@ class ForecastUtils:
         """
         Perform the actual training for hourly data
         """
-        training_data.dropna(
-            subset=["device_id"], inplace=True
-        )
+        training_data.dropna(subset=["device_id"], inplace=True)
         training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
         features = [
             c
@@ -475,7 +435,9 @@ class ForecastUtils:
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             for i in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
-                df_tmp_no_ts = df_tmp.drop("timestamp", axis=1, inplace=False)
+                df_tmp_no_ts = df_tmp.drop(
+                    columns=["timestamp", "device_id"], axis=1, inplace=False
+                )
                 # daily frequency
                 if frequency == "daily":
                     df_tmp.tail(1)["timestamp"] += timedelta(days=1)
@@ -538,6 +500,7 @@ class ForecastUtils:
                 )
 
                 excluded_columns = [
+                    "device_id",
                     "pm2_5",
                     "timestamp",
                     "latitude",
@@ -593,13 +556,9 @@ class ForecastUtils:
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         # forecasts["margin_of_error"] = forecasts["margin_of_error"].astype(float)
 
-        forecasts = DecodingUtils.decode_categorical_features_before_save(
-            forecasts, frequency
-        )
         return forecasts[
             [
                 "device_id",
-                "site_id",
                 "timestamp",
                 "pm2_5",
                 # "margin_of_error",
@@ -616,7 +575,6 @@ class ForecastUtils:
         for i in device_ids:
             doc = {
                 "device_id": i,
-                "site_id": data[data["device_id"] == i]["site_id"].unique()[0],
                 "created_at": created_at,
                 "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
                 "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
@@ -636,7 +594,6 @@ class ForecastUtils:
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
-                        "site_id": doc["site_id"],
                         "timestamp": doc["timestamp"],
                         "created_at": doc["created_at"],
                     }
