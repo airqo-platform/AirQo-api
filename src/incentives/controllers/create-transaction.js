@@ -65,7 +65,9 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- sendMoneyToHost --- ${JSON.stringify(error)}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -125,7 +127,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+          error
+        )}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -185,7 +191,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- receiveMoneyFromHost --- ${JSON.stringify(
+          error
+        )}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -245,7 +255,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- getTransactionDetails --- ${JSON.stringify(
+          error
+        )}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -306,7 +320,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- listTransactions --- ${JSON.stringify(
+          error
+        )}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -367,7 +385,9 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- loadDataBundle --- ${JSON.stringify(error)}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -429,7 +449,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- checkRemainingDataBundleBalance --- ${JSON.stringify(
+          error
+        )}`
+      );
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
