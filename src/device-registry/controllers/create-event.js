@@ -67,7 +67,6 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
     };
   }
 };
-
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -124,7 +123,6 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-
 const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
   try {
     const request = {
@@ -232,6 +230,178 @@ const getSitesFromLatitudeAndLongitude = async ({
       errors: { message: error.message },
     };
   }
+};
+const processCohortId = async (cohort_id, request) => {
+  if (!isEmpty(cohort_id)) {
+    const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
+      cohort_id,
+    });
+    logObject("responseFromGetDevicesOfCohort", responseFromGetDevicesOfCohort);
+
+    if (!responseFromGetDevicesOfCohort.success) {
+      return responseFromGetDevicesOfCohort;
+    } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
+      return {
+        success: false,
+        message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+      };
+    }
+    request.query.device_id = responseFromGetDevicesOfCohort.data;
+  }
+};
+const processGridId = async (grid_id, request) => {
+  if (!isEmpty(grid_id)) {
+    const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
+    logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
+
+    if (!responseFromGetSitesOfGrid.success) {
+      return responseFromGetSitesOfGrid;
+    } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
+      return {
+        success: false,
+        message: `The provided Cohort ID ${grid_id} does not have any associated Site IDs`,
+      };
+    }
+    request.query.site_id = responseFromGetSitesOfGrid.data;
+  }
+};
+const processGridIds = async (grid_ids, request) => {
+  const gridIdArray = Array.isArray(grid_ids) ? grid_ids : [grid_ids];
+
+  // Use Promise.all to concurrently process each grid_id
+  const siteIdPromises = gridIdArray.map(async (grid_id) => {
+    if (!isEmpty(grid_id)) {
+      const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
+
+      if (!responseFromGetSitesOfGrid.success) {
+        return responseFromGetSitesOfGrid;
+      } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
+        return {
+          success: false,
+          message: `The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        };
+      }
+      // return responsesFromGetSitesOfGrid.data;
+      // Randomly pick one site from the list
+      const randomSite =
+        responseFromGetSitesOfGrid.data[
+          Math.floor(Math.random() * responseFromGetSitesOfGrid.data.length)
+        ];
+      return [randomSite]; // Wrap it in an array
+    }
+  });
+
+  // Wait for all promises to resolve
+  const siteIdResults = await Promise.all(siteIdPromises);
+  logObject("siteIdResults", siteIdResults);
+
+  // Filter out undefined or null values
+  const validSiteIdResults = siteIdResults.filter((result) => result);
+
+  if (!isEmpty(validSiteIdResults)) {
+    const successfulResults = siteIdResults.filter((result) => result.success);
+    const errorResults = siteIdResults.filter((result) => !result.success);
+    if (errorResults) {
+      logObject(
+        "errorResults when extracting the site IDs from the Cohorts",
+        errorResults
+      );
+      logger.error(
+        `Unable to extract the sites IDs from the respective Cohorts --- ${JSON.stringify(
+          errorResults
+        )}`
+      );
+    }
+
+    // Combine all site_ids from the resolved promises
+    const combinedSiteIds = successfulResults.reduce((acc, siteIds) => {
+      if (siteIds) {
+        acc.push(...siteIds);
+      }
+      return acc;
+    }, []);
+
+    if (combinedSiteIds.length > 0) {
+      request.query.site_id = combinedSiteIds;
+    }
+  }
+
+  // return {
+  //   success: true,
+  //   message: "Grid IDs processed successfully",
+  // };
+};
+const processCohortIds = async (cohort_ids, request) => {
+  logObject("cohort_ids", cohort_ids);
+  const cohortIdArray = Array.isArray(cohort_ids) ? cohort_ids : [cohort_ids];
+
+  // const cohortIdArray = cohort_ids.split(",").map((id) => id.trim()); // Split comma-separated IDs
+
+  // Use Promise.all to concurrently process each cohort_id
+  const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
+    if (!isEmpty(cohort_id)) {
+      const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
+        cohort_id,
+      });
+
+      if (responseFromGetDevicesOfCohort.success === false) {
+        return responseFromGetDevicesOfCohort;
+      } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
+        return {
+          success: false,
+          message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+        };
+      }
+      // return responseFromGetDevicesOfCohort.data;
+      // Randomly pick one device from the list
+      const randomDevice =
+        responseFromGetDevicesOfCohort.data[
+          Math.floor(Math.random() * responseFromGetDevicesOfCohort.data.length)
+        ];
+      return [randomDevice]; // Wrap it in an array
+    }
+  });
+
+  // Wait for all promises to resolve
+  const deviceIdsResults = await Promise.all(deviceIdsPromises);
+
+  // Filter out undefined or null values
+  const validDeviceIdResults = deviceIdsResults.filter((result) => result);
+
+  if (!isEmpty(validDeviceIdResults)) {
+    const successfulResults = deviceIdsResults.filter(
+      (result) => result.success
+    );
+    const errorResults = deviceIdsResults.filter((result) => !result.success);
+    if (errorResults) {
+      logObject(
+        "errorResults when extracting the device IDs from the Cohorts",
+        errorResults
+      );
+      logger.error(
+        `Unable to extract the device IDs from the respective Cohorts --- ${JSON.stringify(
+          errorResults
+        )}`
+      );
+    }
+
+    // Combine all device_ids from the resolved promises
+    const combinedDeviceIds = successfulResults.reduce((acc, deviceIds) => {
+      if (deviceIds) {
+        acc.push(...deviceIds);
+      }
+      return acc;
+    }, []);
+
+    if (combinedDeviceIds.length > 0) {
+      request.query.device_id = combinedDeviceIds;
+    }
+  }
+
+  // return {
+  //   success: true,
+  //   message: "Cohort IDs processed successfully",
+  // };
 };
 
 const createEvent = {
@@ -430,27 +600,27 @@ const createEvent = {
       }
 
       logText("we are listing events...");
-      const { query } = req;
-      const { site_id, device_id } = req.params;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
+      const { site_id, device_id, site, device } = {
+        ...req.params,
+        ...req.query,
+      };
 
       let request = Object.assign({}, req);
 
-      if (!isEmpty(site_id)) {
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      if (!isEmpty(site_id) || !isEmpty(site)) {
         request.query.recent = "no";
         request.query.metadata = "site_id";
       }
 
-      if (!isEmpty(device_id)) {
+      if (!isEmpty(device_id) || !isEmpty(device)) {
         request.query.recent = "no";
         request.query.metadata = "device_id";
       }
 
-      request.query.tenant = tenant;
       request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
@@ -630,16 +800,107 @@ const createEvent = {
         );
       }
 
-      let { tenant } = req.query;
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
       let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      request.query.external = "no";
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+      request.query.recent = "yes";
       request.query.metadata = "site_id";
       request.query.brief = "yes";
+      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+      await processCohortIds(cohort_id, request);
+      await processGridIds(grid_id, request);
+
+      const result = await createEventUtil.list(request);
+
+      logObject("the result for listing events", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        const measurementsForDeployedDevices = result.data[0].data.filter(
+          (obj) => {
+            if (obj.siteDetails === null) {
+              return false; // Exclude if siteDetails is null
+            }
+
+            const { pm2_5 } = obj;
+            if (pm2_5 && pm2_5.value === null) {
+              logger.error(
+                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                  obj.device ? obj.device : ""
+                } -- the timestamp is ${
+                  obj.time ? obj.time : ""
+                } -- the frequency is ${
+                  obj.frequency ? obj.frequency : ""
+                } -- the site_name is ${
+                  obj.siteDetails ? obj.siteDetails.name : ""
+                }`
+              );
+              return false; // Exclude if either value is null
+            }
+
+            return true; // Include for other cases
+          }
+        );
+
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: result.message,
+          meta: result.data[0].meta,
+          measurements: measurementsForDeployedDevices,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors ? result.errors : { message: "" };
+        res.status(status).json({
+          success: false,
+          errors,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  listHistorical: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+      request.query.recent = "no";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
+      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+      await processCohortIds(cohort_id, request);
+      await processGridIds(grid_id, request);
       const result = await createEventUtil.list(request);
 
       logObject("the result for listing events", result);
