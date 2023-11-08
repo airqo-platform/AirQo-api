@@ -85,7 +85,7 @@ const checklists = {
       const filterResponse = generateFilter.checklists(request);
       logObject("filterResponse", filterResponse);
 
-      if (!filterResponse.success) {
+      if (filterResponse.success === false) {
         return filterResponse;
       }
 
@@ -119,7 +119,7 @@ const checklists = {
       const filterResponse = generateFilter.checklists(request);
       logObject("filterResponse", filterResponse);
 
-      if (!filterResponse.success) {
+      if (filterResponse.success === false) {
         return filterResponse;
       }
 
@@ -163,7 +163,7 @@ const checklists = {
     try {
       const responseFromFilter = generateFilter.checklists(request);
 
-      if (!responseFromFilter.success) {
+      if (responseFromFilter.success === false) {
         return responseFromFilter;
       }
 

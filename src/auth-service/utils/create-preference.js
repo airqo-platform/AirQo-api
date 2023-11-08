@@ -15,17 +15,24 @@ const preferences = {
         query: { tenant },
       } = request;
       const filterResponse = generateFilter.preferences(request);
-      if (!filterResponse.success) {
+      logObject("filterResponse", filterResponse);
+      if (filterResponse.success === false) {
         return filterResponse;
       }
       const { limit, skip } = request.query;
       logObject("limit", limit);
       logObject("skip", skip);
-      return await PreferenceModel(tenant).list({
-        filter: filterResponse,
+
+      const filter = filterResponse;
+
+      const listResponse = await PreferenceModel(tenant).list({
+        filter,
         limit,
         skip,
       });
+
+      logObject("listResponse", listResponse);
+      return listResponse;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -81,7 +88,7 @@ const preferences = {
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
-      if (!filterResponse.success) {
+      if (filterResponse.success === false) {
         return filterResponse;
       }
 
@@ -115,7 +122,7 @@ const preferences = {
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
-      if (!filterResponse.success) {
+      if (filterResponse.success === false) {
         return filterResponse;
       }
 
@@ -159,7 +166,7 @@ const preferences = {
     try {
       const responseFromFilter = generateFilter.preferences(request);
 
-      if (!responseFromFilter.success) {
+      if (responseFromFilter.success === false) {
         return responseFromFilter;
       }
 
