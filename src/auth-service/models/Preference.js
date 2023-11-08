@@ -89,6 +89,7 @@ const PreferenceSchema = new mongoose.Schema(
       type: ObjectId,
       required: [true, "user_id is required"],
       ref: "user",
+      unique: true,
     },
     site_ids: [
       {
