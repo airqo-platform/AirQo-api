@@ -709,25 +709,21 @@ class BigQueryApi:
         SELECT DISTINCT 
             t1.device_id, 
             t1.timestamp,  
-            t1.site_id, 
             t1.pm2_5_calibrated_value as pm2_5, 
             t2.latitude, 
             t2.longitude, 
-            t3.device_category 
         FROM `{self.hourly_measurements_table_prod}` t1 
         JOIN `{self.sites_table}` t2 on t1.site_id = t2.id 
-        JOIN `{self.devices_table}` t3 on t1.device_id = t3.device_id
         WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
         ORDER BY device_id, timestamp"""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-
         try:
             df = self.client.query(query, job_config).result().to_dataframe()
             return df
         except Exception as e:
-            print("Error fetching data from bigquery")
+            print("Error fetching data from bigquery", {e})
 
     @staticmethod
     def save_forecasts_to_bigquery(df, table):

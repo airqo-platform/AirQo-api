@@ -1,5 +1,4 @@
 import json
-import random
 from datetime import datetime, timedelta
 
 import gcsfs
@@ -101,38 +100,12 @@ class DecodingUtils:
             df[col] = df[col].map({v: k for k, v in mapping.items()})
         return df
 
-    @staticmethod
-    def encode_categorical_training_features(df, freq):
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df1 = df.copy()
-        columns = ["device_id", "site_id", "device_category"]
-        mappings = []
-        for col in columns:
-            mapping = {}
-            for val in df1[col].unique():
-                num = random.randint(0, 1000)
-                while num in mapping.values():
-                    num = random.randint(0, 1000)
-                mapping[val] = num
-            df1[col] = df1[col].map(mapping)
-            mappings.append(mapping)
-        for i, col in enumerate(columns):
-            GCSUtils.upload_mapping_to_gcs(
-                mappings[i],
-                project_id,
-                bucket,
-                f"{freq}_{col}_mapping.json",
-            )
-        return df1
-
 
 class ForecastUtils:
     @staticmethod
     def preprocess_data(data, data_frequency):
         required_columns = {
             "device_id",
-            "site_id",
-            "device_category",
             "pm2_5",
             "timestamp",
         }
@@ -147,17 +120,17 @@ class ForecastUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
+        data["pm2_5"] = data.groupby(["device_id"])[
             "pm2_5"
         ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
         if data_frequency == "daily":
             data = (
-                data.groupby(["device_id", "site_id", "device_category"])
+                data.groupby(["device_id"])
                 .resample("D", on="timestamp")
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(["device_id", "site_id", "device_category"])[
+            data["pm2_5"] = data.groupby(["device_id"])[
                 "pm2_5"
             ].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
@@ -290,20 +263,16 @@ class ForecastUtils:
         Perform the actual training for hourly data
         """
         training_data.dropna(
-            subset=["device_id", "site_id", "device_category"], inplace=True
+            subset=["device_id"], inplace=True
         )
-
-        training_data["device_id"] = training_data["device_id"].astype(int)
-        training_data["site_id"] = training_data["site_id"].astype(int)
-        training_data["device_category"] = training_data["device_category"].astype(int)
-
         training_data["timestamp"] = pd.to_datetime(training_data["timestamp"])
         features = [
             c
             for c in training_data.columns
-            if c not in ["timestamp", "pm2_5", "latitude", "longitude"]
+            if c not in ["timestamp", "pm2_5", "latitude", "longitude", "device_id"]
         ]
         print(features)
+
         target_col = "pm2_5"
         train_data = validation_data = test_data = pd.DataFrame()
         for device in training_data["device_id"].unique():
@@ -312,16 +281,18 @@ class ForecastUtils:
             train_months = months[:8]
             val_months = months[8:9]
             test_months = months[9:]
+
             train_df = device_df[device_df["timestamp"].dt.month.isin(train_months)]
             val_df = device_df[device_df["timestamp"].dt.month.isin(val_months)]
             test_df = device_df[device_df["timestamp"].dt.month.isin(test_months)]
+
             train_data = pd.concat([train_data, train_df])
             validation_data = pd.concat([validation_data, val_df])
             test_data = pd.concat([test_data, test_df])
 
-        train_data.drop(columns=["timestamp"], axis=1, inplace=True)
-        validation_data.drop(columns=["timestamp"], axis=1, inplace=True)
-        test_data.drop(columns=["timestamp"], axis=1, inplace=True)
+        train_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
+        validation_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
+        test_data.drop(columns=["timestamp", "device_id"], axis=1, inplace=True)
 
         train_target, validation_target, test_target = (
             train_data[target_col],
@@ -358,7 +329,6 @@ class ForecastUtils:
                 lgb_reg.fit(
                     train_data[features],
                     train_target,
-                    categorical_feature=["device_id", "site_id", "device_category"],
                     eval_set=[(test_data[features], test_target)],
                     eval_metric="rmse",
                     callbacks=[early_stopping(stopping_rounds=150)],
@@ -399,7 +369,6 @@ class ForecastUtils:
                 train_target,
                 eval_set=[(test_data[features], test_target)],
                 eval_metric="rmse",
-                categorical_feature=["device_id", "site_id", "device_category"],
                 callbacks=[early_stopping(stopping_rounds=150)],
             )
 

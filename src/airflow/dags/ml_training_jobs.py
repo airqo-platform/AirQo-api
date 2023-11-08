@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.ml_utils import ForecastUtils, DecodingUtils
+from airqo_etl_utils.ml_utils import ForecastUtils
 
 
 @dag(
@@ -45,10 +45,6 @@ def train_forecasting_models():
         return ForecastUtils.get_location_features(data)
 
     @task()
-    def encode_categorical_features(data):
-        return DecodingUtils.encode_categorical_training_features(data, "daily")
-
-    @task()
     def train_and_save_hourly_forecast_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(
             train_data, frequency="hourly"
@@ -84,10 +80,6 @@ def train_forecasting_models():
         return ForecastUtils.get_location_features(data)
 
     @task()
-    def encode_categorical_features(data):
-        return DecodingUtils.encode_categorical_training_features(data, "daily")
-
-    @task()
     def train_and_save_daily_model(train_data):
         return ForecastUtils.train_and_save_forecast_models(train_data, "daily")
 
@@ -96,7 +88,6 @@ def train_forecasting_models():
     hourly_data = get_hourly_lag_and_rolling_features(hourly_data)
     hourly_data = get_hourly_time_and_cyclic_features(hourly_data)
     hourly_data = get_location_features(hourly_data)
-    hourly_data = encode_categorical_features(hourly_data)
     train_and_save_hourly_forecast_model(hourly_data)
 
     daily_data = fetch_training_data_for_daily_forecast_model()
@@ -104,7 +95,6 @@ def train_forecasting_models():
     daily_data = get_daily_lag_and_rolling_features(daily_data)
     daily_data = get_daily_time_and_cylic_features(daily_data)
     daily_data = get_location_features(daily_data)
-    daily_data = encode_categorical_features(daily_data)
     train_and_save_daily_model(daily_data)
 
 
