@@ -327,6 +327,90 @@ const filter = {
     }
   },
 
+  preferences: (req) => {
+    try {
+      let {
+        id,
+        user_id,
+        airqloud_id,
+        grid_id,
+        cohort_id,
+        group_id,
+        network_id,
+      } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (grid_id) {
+        filter["grid_id"] = ObjectId(grid_id);
+      }
+
+      if (cohort_id) {
+        filter["cohort_id"] = ObjectId(cohort_id);
+      }
+
+      if (airqloud_id) {
+        filter["airqloud_id"] = ObjectId(airqloud_id);
+      }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  checklists: (req) => {
+    try {
+      let { id, user_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   inquiry: (req) => {
     try {
       let { category, id } = req.query;
