@@ -338,6 +338,7 @@ const filter = {
         group_id,
         network_id,
       } = {
+        ...req.body,
         ...req.query,
         ...req.params,
       };
@@ -382,9 +383,10 @@ const filter = {
       };
     }
   },
-  checklist: (req) => {
+  checklists: (req) => {
     try {
       let { id, user_id } = {
+        ...req.body,
         ...req.query,
         ...req.params,
       };
