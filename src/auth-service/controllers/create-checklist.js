@@ -28,28 +28,30 @@ const checklists = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromUpdateDefault = await createChecklistUtil.update(request);
-      logObject("responseFromUpdateDefault", responseFromUpdateDefault);
-      if (responseFromUpdateDefault.success === true) {
-        let status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
+      let responseFromUpdateChecklist = await createChecklistUtil.update(
+        request
+      );
+      logObject("responseFromUpdateChecklist", responseFromUpdateChecklist);
+      if (responseFromUpdateChecklist.success === true) {
+        let status = responseFromUpdateChecklist.status
+          ? responseFromUpdateChecklist.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateDefault.message,
-          default: responseFromUpdateDefault.data,
+          message: responseFromUpdateChecklist.message,
+          checklist: responseFromUpdateChecklist.data,
         });
-      } else if (responseFromUpdateDefault.success === false) {
-        let errors = responseFromUpdateDefault.errors
-          ? responseFromUpdateDefault.errors
+      } else if (responseFromUpdateChecklist.success === false) {
+        let errors = responseFromUpdateChecklist.errors
+          ? responseFromUpdateChecklist.errors
           : { message: "" };
-        let status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
+        let status = responseFromUpdateChecklist.status
+          ? responseFromUpdateChecklist.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateDefault.message,
-          default: responseFromUpdateDefault.data,
+          message: responseFromUpdateChecklist.message,
+          checklist: responseFromUpdateChecklist.data,
           errors,
         });
       }
@@ -82,28 +84,30 @@ const checklists = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromCreateDefault = await createChecklistUtil.create(request);
-      logObject("responseFromCreateDefault", responseFromCreateDefault);
-      if (responseFromCreateDefault.success === true) {
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+      let responseFromCreateChecklist = await createChecklistUtil.create(
+        request
+      );
+      logObject("responseFromCreateChecklist", responseFromCreateChecklist);
+      if (responseFromCreateChecklist.success === true) {
+        let status = responseFromCreateChecklist.status
+          ? responseFromCreateChecklist.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
+          message: responseFromCreateChecklist.message,
+          checklist: responseFromCreateChecklist.data,
         });
-      } else if (responseFromCreateDefault.success === false) {
-        let errors = responseFromCreateDefault.errors
-          ? responseFromCreateDefault.errors
+      } else if (responseFromCreateChecklist.success === false) {
+        let errors = responseFromCreateChecklist.errors
+          ? responseFromCreateChecklist.errors
           : { message: "" };
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+        let status = responseFromCreateChecklist.status
+          ? responseFromCreateChecklist.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
+          message: responseFromCreateChecklist.message,
+          checklist: responseFromCreateChecklist.data,
           errors,
         });
       }
@@ -136,28 +140,30 @@ const checklists = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromCreateDefault = await createChecklistUtil.upsert(request);
-      logObject("responseFromCreateDefault", responseFromCreateDefault);
-      if (responseFromCreateDefault.success === true) {
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+      let responseFromCreateChecklist = await createChecklistUtil.upsert(
+        request
+      );
+      logObject("responseFromCreateChecklist", responseFromCreateChecklist);
+      if (responseFromCreateChecklist.success === true) {
+        let status = responseFromCreateChecklist.status
+          ? responseFromCreateChecklist.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
+          message: responseFromCreateChecklist.message,
+          checklist: responseFromCreateChecklist.data,
         });
-      } else if (responseFromCreateDefault.success === false) {
-        let errors = responseFromCreateDefault.errors
-          ? responseFromCreateDefault.errors
+      } else if (responseFromCreateChecklist.success === false) {
+        let errors = responseFromCreateChecklist.errors
+          ? responseFromCreateChecklist.errors
           : { message: "" };
-        let status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+        let status = responseFromCreateChecklist.status
+          ? responseFromCreateChecklist.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
+          message: responseFromCreateChecklist.message,
+          checklist: responseFromCreateChecklist.data,
           errors,
         });
       }
@@ -190,28 +196,31 @@ const checklists = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      const responseFromListDefaults = await createChecklistUtil.list(request);
-      if (responseFromListDefaults.success === true) {
-        let status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
+      const responseFromListChecklists = await createChecklistUtil.list(
+        request
+      );
+      logObject("responseFromListChecklists", responseFromListChecklists);
+      if (responseFromListChecklists.success === true) {
+        let status = responseFromListChecklists.status
+          ? responseFromListChecklists.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListDefaults.message,
-          checklists: responseFromListDefaults.data,
+          message: responseFromListChecklists.message,
+          checklists: responseFromListChecklists.data,
         });
-      } else if (responseFromListDefaults.success === false) {
-        let errors = responseFromListDefaults.errors
-          ? responseFromListDefaults.errors
+      } else if (responseFromListChecklists.success === false) {
+        let errors = responseFromListChecklists.errors
+          ? responseFromListChecklists.errors
           : "";
 
-        let status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
+        let status = responseFromListChecklists.status
+          ? responseFromListChecklists.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListDefaults.message,
+          message: responseFromListChecklists.message,
           errors,
         });
       }
@@ -227,7 +236,7 @@ const checklists = {
 
   delete: async (req, res) => {
     try {
-      logText("deleting default..........");
+      logText("deleting checklist..........");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -242,32 +251,32 @@ const checklists = {
       if (isEmpty(req.query.tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const responseFromDeleteDefault = await createChecklistUtil.delete(
+      const responseFromDeleteChecklist = await createChecklistUtil.delete(
         request
       );
-      logObject("responseFromDeleteDefault", responseFromDeleteDefault);
-      if (responseFromDeleteDefault.success === true) {
-        let status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
+      logObject("responseFromDeleteChecklist", responseFromDeleteChecklist);
+      if (responseFromDeleteChecklist.success === true) {
+        let status = responseFromDeleteChecklist.status
+          ? responseFromDeleteChecklist.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeleteDefault.message,
-          default: responseFromDeleteDefault.data,
+          message: responseFromDeleteChecklist.message,
+          checklist: responseFromDeleteChecklist.data,
         });
-      } else if (responseFromDeleteDefault.success === false) {
-        let errors = responseFromDeleteDefault.errors
-          ? responseFromDeleteDefault.errors
+      } else if (responseFromDeleteChecklist.success === false) {
+        let errors = responseFromDeleteChecklist.errors
+          ? responseFromDeleteChecklist.errors
           : { message: "" };
 
-        let status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
+        let status = responseFromDeleteChecklist.status
+          ? responseFromDeleteChecklist.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
-          message: responseFromDeleteDefault.message,
-          default: responseFromDeleteDefault.data,
+          message: responseFromDeleteChecklist.message,
+          checklist: responseFromDeleteChecklist.data,
           errors,
         });
       }

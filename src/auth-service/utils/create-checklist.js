@@ -15,17 +15,21 @@ const checklists = {
         query: { tenant },
       } = request;
       const filterResponse = generateFilter.checklists(request);
-      if (!filterResponse.success) {
+
+      if (filterResponse.success === false) {
         return filterResponse;
       }
       const { limit, skip } = request.query;
       logObject("limit", limit);
       logObject("skip", skip);
-      return await ChecklistModel(tenant).list({
+
+      const responseFromListChecklist = await ChecklistModel(tenant).list({
         filter: filterResponse,
         limit,
         skip,
       });
+
+      return responseFromListChecklist;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -41,7 +45,7 @@ const checklists = {
       const { body, query } = request;
       const { tenant } = query;
       logObject("the body", body);
-      const user_id = body.user;
+      const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
         return {
