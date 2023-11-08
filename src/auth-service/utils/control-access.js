@@ -71,80 +71,8 @@ const findAssociatedIdForRole = async ({
   return null;
 };
 
-const findNetworkIdForRole = async ({
-  role_id,
-  tenant = "airqo",
-  networkRoles,
-} = {}) => {
-  for (const networkRole of networkRoles) {
-    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    logObject("RoleDetails", RoleDetails);
-    if (
-      networkRole.network &&
-      networkRole.network.toString() === RoleDetails.network_id.toString()
-    ) {
-      return networkRole.network;
-    }
-  }
-  return null;
-};
-
-const findGroupIdForRole = async ({
-  role_id,
-  tenant = "airqo",
-  groupRoles,
-} = {}) => {
-  for (const groupRole of groupRoles) {
-    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    logObject("RoleDetails", RoleDetails);
-    if (
-      groupRole.group &&
-      groupRole.group.toString() === RoleDetails.group_id.toString()
-    ) {
-      return groupRole.group;
-    }
-  }
-  return null;
-};
-
-const isUserSuperAdmin = async ({
-  networkId,
-  groupId,
-  networkRoles = [],
-  groupRoles = [],
-  tenant = "airqo",
-}) => {
-  for (const role of networkRoles) {
-    if (role.network && role.network.toString() === networkId.toString()) {
-      const RoleDetails = await RoleModel(tenant)
-        .findById(ObjectId(role.role))
-        .lean();
-      if (
-        RoleDetails &&
-        RoleDetails.role_name &&
-        RoleDetails.role_name.endsWith("SUPER_ADMIN")
-      ) {
-        return true;
-      }
-    }
-  }
-
-  for (const role of groupRoles) {
-    if (role.group && role.group.toString() === groupId.toString()) {
-      const RoleDetails = await RoleModel(tenant)
-        .findById(ObjectId(role.role))
-        .lean();
-      if (
-        RoleDetails &&
-        RoleDetails.role_name &&
-        RoleDetails.role_name.endsWith("SUPER_ADMIN")
-      ) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+const isNetwork = (net_id, grp_id) => {
+  return !isEmpty(net_id) && isEmpty(grp_id);
 };
 
 const isAssignedUserSuperAdmin = async ({
@@ -2440,6 +2368,259 @@ const controlAccess = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /******************** User Types *******************/
+  assignUserType: async (request) => {
+    try {
+      const { user_id, net_id, grp_id } = request.params;
+      const { tenant } = request.query;
+      const { userType } = request.body;
+      const userIdFromBody = user_id;
+      const userIdFromQuery = user_id;
+
+      if (!isEmpty(grp_id) && !isEmpty(net_id)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID, choose one organisation type",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide the user ID using query params and query body; choose one approach",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const userId = userIdFromQuery || userIdFromBody;
+
+      const organisationId = net_id || grp_id;
+
+      const userExists = await UserModel(tenant).exists({ _id: userId });
+
+      if (!userExists) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `User ${userId} not found` },
+        };
+      }
+
+      const updateQuery = {
+        $set: {
+          [isNetwork(net_id, grp_id) ? "network_roles" : "group_roles"]: {
+            [isNetwork(net_id, grp_id) ? "network" : "group"]: organisationId,
+            userType: userType,
+          },
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userId },
+        updateQuery,
+        { new: true }
+      );
+
+      if (updatedUser) {
+        return {
+          success: true,
+          message: "User assigned to the User Type",
+          data: updatedUser,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "Failed to assign user" },
+        };
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  assignManyUsersToUserType: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { user_ids, userType, net_id, grp_id } = request.body;
+
+      const userPromises = [];
+
+      const isNetwork = !isEmpty(net_id);
+      const isGroup = !isEmpty(grp_id);
+
+      if (isNetwork && isGroup) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID. Choose one organization type.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      for (const user_id of user_ids) {
+        const user = await UserModel(tenant).findById(user_id);
+
+        if (!user) {
+          userPromises.push({
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: `User ${user_id} does not exist` },
+            status: httpStatus.BAD_REQUEST,
+          });
+          continue;
+        }
+
+        // Update the user type for the current user
+        const updateQuery = {
+          $set: { userType },
+        };
+
+        if (isNetwork) {
+          updateQuery.$set.network_roles = { network: net_id, userType };
+        } else if (isGroup) {
+          updateQuery.$set.group_roles = { group: grp_id, userType };
+        }
+
+        await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
+
+        userPromises.push(null);
+      }
+
+      const results = await Promise.all(userPromises);
+      const successfulAssignments = results.filter((result) => result === null);
+      const unsuccessfulAssignments = results.filter(
+        (result) => result !== null
+      );
+
+      let response;
+
+      if (unsuccessfulAssignments.length > 0) {
+        response = {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: "Some users could not be assigned the user type.",
+            unsuccessfulAssignments,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      } else {
+        response = {
+          success: true,
+          message:
+            "All provided users were successfully assigned the user type.",
+          status: httpStatus.OK,
+        };
+      }
+
+      return response;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listUsersWithUserType: async (request) => {
+    try {
+      logText("listUsersWithUserType...");
+      const { query, params } = request;
+      const { userType, net_id, grp_id } = params;
+      const { tenant } = query;
+
+      if (net_id && grp_id) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID; choose one organization type",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let userTypeFilter = {};
+
+      if (net_id) {
+        userTypeFilter = {
+          "network_roles.userType": userType,
+          "network_roles.network": net_id,
+        };
+      } else if (grp_id) {
+        userTypeFilter = {
+          "group_roles.userType": userType,
+          "group_roles.group": grp_id,
+        };
+      }
+
+      const responseFromListUsers = await UserModel(tenant)
+        .aggregate([
+          {
+            $match: userTypeFilter,
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              userName: 1,
+            },
+          },
+        ])
+        .exec();
+
+      logObject("responseFromListUsers", responseFromListUsers);
+
+      return {
+        success: true,
+        message: `Retrieved all users with user type ${userType}`,
+        data: responseFromListUsers,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
