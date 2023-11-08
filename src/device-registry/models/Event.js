@@ -1369,8 +1369,8 @@ eventSchema.statics = {
             1,
           ],
         },
-        startTime: "$startTime",
-        endTime: "$endTime",
+        // startTime: "$startTime",
+        // endTime: "$endTime",
       };
       let siteProjection = {};
       let deviceProjection = {};
