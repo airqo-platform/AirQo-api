@@ -15,10 +15,16 @@ const checklistItemSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
+    default: "no title",
   },
   completed: {
     type: Boolean,
     default: false,
+  },
+  status: {
+    type: String,
+    default: "not started",
+    enum: ["not started", "in progress", "completed", "started"],
   },
   completionDate: {
     type: Date,
@@ -26,6 +32,8 @@ const checklistItemSchema = new mongoose.Schema({
   videoProgress: {
     type: Number,
     default: 0,
+    min: 0,
+    max: 100,
   },
 });
 

@@ -71,39 +71,6 @@ router.post(
 
           return true;
         }),
-      body("items.videoProgress")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isFloat({ gt: 0, lt: 100 })
-        .withMessage("items.videoProgress must be a number between 0 and 100")
-        .bail()
-        .toFloat(),
-      body("items.completed")
-        .optional()
-        .notEmpty()
-        .withMessage("items.completed cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("items.completed must be Boolean"),
-      body("items.completionDate")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "the provided items.completionDate should not be empty IF provided"
-        )
-        .bail()
-        .trim()
-        .toDate()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("items.completionDate must be a valid datetime."),
-      body("items.title")
-        .optional()
-        .notEmpty()
-        .withMessage("the provided items.title should not be empty IF provided")
-        .bail()
-        .trim(),
     ],
   ]),
   createChecklistController.upsert
@@ -157,39 +124,6 @@ router.put(
           }
           return true;
         }),
-      body("items.videoProgress")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isFloat({ gt: 0, lt: 100 })
-        .withMessage("items.videoProgress must be a number between 0 and 100")
-        .bail()
-        .toFloat(),
-      body("items.completed")
-        .optional()
-        .notEmpty()
-        .withMessage("items.completed cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("items.completed must be Boolean"),
-      body("items.completionDate")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "the provided items.completionDate should not be empty IF provided"
-        )
-        .bail()
-        .trim()
-        .toDate()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("items.completionDate must be a valid datetime."),
-      body("items.title")
-        .optional()
-        .notEmpty()
-        .withMessage("the provided items.title should not be empty IF provided")
-        .bail()
-        .trim(),
     ],
   ]),
   createChecklistController.update
@@ -239,39 +173,6 @@ router.post(
           }
           return true;
         }),
-      body("items.videoProgress")
-        .optional()
-        .notEmpty()
-        .trim()
-        .isFloat({ gt: 0, lt: 100 })
-        .withMessage("items.videoProgress must be a number between 0 and 100")
-        .bail()
-        .toFloat(),
-      body("items.completed")
-        .optional()
-        .notEmpty()
-        .withMessage("items.completed cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("items.completed must be Boolean"),
-      body("items.completionDate")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "the provided items.completionDate should not be empty IF provided"
-        )
-        .bail()
-        .trim()
-        .toDate()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("items.completionDate must be a valid datetime."),
-      body("items.title")
-        .optional()
-        .notEmpty()
-        .withMessage("the provided items.title should not be empty IF provided")
-        .bail()
-        .trim(),
     ],
   ]),
   createChecklistController.create
