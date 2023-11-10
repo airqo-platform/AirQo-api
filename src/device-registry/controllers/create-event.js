@@ -231,49 +231,18 @@ const getSitesFromLatitudeAndLongitude = async ({
     };
   }
 };
-const processCohortId = async (cohort_id, request) => {
-  if (!isEmpty(cohort_id)) {
-    const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
-      cohort_id,
-    });
-    logObject("responseFromGetDevicesOfCohort", responseFromGetDevicesOfCohort);
-
-    if (!responseFromGetDevicesOfCohort.success) {
-      return responseFromGetDevicesOfCohort;
-    } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
-      return {
-        success: false,
-        message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
-      };
-    }
-    request.query.device_id = responseFromGetDevicesOfCohort.data;
-  }
-};
-const processGridId = async (grid_id, request) => {
-  if (!isEmpty(grid_id)) {
-    const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
-    logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
-
-    if (!responseFromGetSitesOfGrid.success) {
-      return responseFromGetSitesOfGrid;
-    } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
-      return {
-        success: false,
-        message: `The provided Cohort ID ${grid_id} does not have any associated Site IDs`,
-      };
-    }
-    request.query.site_id = responseFromGetSitesOfGrid.data;
-  }
-};
 const processGridIds = async (grid_ids, request) => {
-  const gridIdArray = Array.isArray(grid_ids) ? grid_ids : [grid_ids];
-
+  const gridIdArray = Array.isArray(grid_ids) ? grid_ids : grid_ids.split(",");
+  logObject("gridIdArray", gridIdArray);
   // Use Promise.all to concurrently process each grid_id
   const siteIdPromises = gridIdArray.map(async (grid_id) => {
     if (!isEmpty(grid_id)) {
+      logObject("grid_id under processGridIds", grid_id);
       const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
 
-      if (!responseFromGetSitesOfGrid.success) {
+      logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
+
+      if (responseFromGetSitesOfGrid.success === false) {
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         return {
@@ -281,13 +250,22 @@ const processGridIds = async (grid_ids, request) => {
           message: `The provided Grid ID ${grid_id} does not have any associated Site IDs`,
         };
       }
-      // return responsesFromGetSitesOfGrid.data;
       // Randomly pick one site from the list
+      logObject(
+        "responseFromGetSitesOfGrid.data",
+        responseFromGetSitesOfGrid.data
+      );
+
+      logObject(
+        "responseFromGetSitesOfGrid.data.split",
+        responseFromGetSitesOfGrid.data.split(",")
+      );
+
+      const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
       const randomSite =
-        responseFromGetSitesOfGrid.data[
-          Math.floor(Math.random() * responseFromGetSitesOfGrid.data.length)
-        ];
-      return [randomSite]; // Wrap it in an array
+        arrayOfSites[Math.floor(Math.random() * arrayOfSites.length)];
+      logObject("randomSite", randomSite);
+      return randomSite;
     }
   });
 
@@ -295,47 +273,32 @@ const processGridIds = async (grid_ids, request) => {
   const siteIdResults = await Promise.all(siteIdPromises);
   logObject("siteIdResults", siteIdResults);
 
-  // Filter out undefined or null values
-  const validSiteIdResults = siteIdResults.filter((result) => result);
+  const invalidSiteIdResults = siteIdResults.filter(
+    (result) => result.success === false
+  );
 
-  if (!isEmpty(validSiteIdResults)) {
-    const successfulResults = siteIdResults.filter((result) => result.success);
-    const errorResults = siteIdResults.filter((result) => !result.success);
-    if (errorResults) {
-      logObject(
-        "errorResults when extracting the site IDs from the Cohorts",
-        errorResults
-      );
-      logger.error(
-        `Unable to extract the sites IDs from the respective Cohorts --- ${JSON.stringify(
-          errorResults
-        )}`
-      );
-    }
-
-    // Combine all site_ids from the resolved promises
-    const combinedSiteIds = successfulResults.reduce((acc, siteIds) => {
-      if (siteIds) {
-        acc.push(...siteIds);
-      }
-      return acc;
-    }, []);
-
-    if (combinedSiteIds.length > 0) {
-      request.query.site_id = combinedSiteIds;
-    }
+  if (!isEmpty(invalidSiteIdResults)) {
+    logger.error(
+      `Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+    );
   }
+  logObject("invalidSiteIdResults", invalidSiteIdResults);
 
-  // return {
-  //   success: true,
-  //   message: "Grid IDs processed successfully",
-  // };
+  const validSiteIdResults = siteIdResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  logObject("validSiteIdResults", validSiteIdResults);
+
+  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
+    request.query.site_id = validSiteIdResults.join(",");
+  }
 };
 const processCohortIds = async (cohort_ids, request) => {
   logObject("cohort_ids", cohort_ids);
-  const cohortIdArray = Array.isArray(cohort_ids) ? cohort_ids : [cohort_ids];
-
-  // const cohortIdArray = cohort_ids.split(",").map((id) => id.trim()); // Split comma-separated IDs
+  const cohortIdArray = Array.isArray(cohort_ids)
+    ? cohort_ids
+    : cohort_ids.split(",");
 
   // Use Promise.all to concurrently process each cohort_id
   const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
@@ -352,56 +315,36 @@ const processCohortIds = async (cohort_ids, request) => {
           message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
         };
       }
-      // return responseFromGetDevicesOfCohort.data;
-      // Randomly pick one device from the list
+      const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
       const randomDevice =
         responseFromGetDevicesOfCohort.data[
-          Math.floor(Math.random() * responseFromGetDevicesOfCohort.data.length)
+          Math.floor(Math.random() * arrayOfDevices.length)
         ];
-      return [randomDevice]; // Wrap it in an array
+      return randomDevice;
     }
   });
 
   // Wait for all promises to resolve
   const deviceIdsResults = await Promise.all(deviceIdsPromises);
 
-  // Filter out undefined or null values
-  const validDeviceIdResults = deviceIdsResults.filter((result) => result);
+  const invalidDeviceIdResults = deviceIdsResults.filter(
+    (result) => result.success === false
+  );
 
-  if (!isEmpty(validDeviceIdResults)) {
-    const successfulResults = deviceIdsResults.filter(
-      (result) => result.success
+  if (!isEmpty(invalidDeviceIdResults)) {
+    logger.error(
+      `Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
     );
-    const errorResults = deviceIdsResults.filter((result) => !result.success);
-    if (errorResults) {
-      logObject(
-        "errorResults when extracting the device IDs from the Cohorts",
-        errorResults
-      );
-      logger.error(
-        `Unable to extract the device IDs from the respective Cohorts --- ${JSON.stringify(
-          errorResults
-        )}`
-      );
-    }
-
-    // Combine all device_ids from the resolved promises
-    const combinedDeviceIds = successfulResults.reduce((acc, deviceIds) => {
-      if (deviceIds) {
-        acc.push(...deviceIds);
-      }
-      return acc;
-    }, []);
-
-    if (combinedDeviceIds.length > 0) {
-      request.query.device_id = combinedDeviceIds;
-    }
   }
 
-  // return {
-  //   success: true,
-  //   message: "Cohort IDs processed successfully",
-  // };
+  // Filter out undefined or null values
+  const validDeviceIdResults = deviceIdsResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
+    request.query.device_id = validDeviceIdResults.join(",");
+  }
 };
 
 const createEvent = {
@@ -808,56 +751,80 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
-      await processCohortIds(cohort_id, request);
-      await processGridIds(grid_id, request);
 
-      const result = await createEventUtil.list(request);
+      let locationErrors = 0;
 
-      logObject("the result for listing events", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        const measurementsForDeployedDevices = result.data[0].data.filter(
-          (obj) => {
-            if (obj.siteDetails === null) {
-              return false; // Exclude if siteDetails is null
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (grid_id) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
+
+      if (locationErrors === 0) {
+        logObject("the request.query we are sending", request.query);
+
+        const result = await createEventUtil.list(request);
+
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
             }
+          );
 
-            const { pm2_5 } = obj;
-            if (pm2_5 && pm2_5.value === null) {
-              logger.error(
-                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
-                  obj.device ? obj.device : ""
-                } -- the timestamp is ${
-                  obj.time ? obj.time : ""
-                } -- the frequency is ${
-                  obj.frequency ? obj.frequency : ""
-                } -- the site_name is ${
-                  obj.siteDetails ? obj.siteDetails.name : ""
-                }`
-              );
-              return false; // Exclude if either value is null
-            }
-
-            return true; // Include for other cases
-          }
-        );
-
-        res.status(status).json({
-          success: true,
-          isCache: result.isCache,
-          message: result.message,
-          meta: result.data[0].meta,
-          measurements: measurementsForDeployedDevices,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = result.errors ? result.errors : { message: "" };
-        res.status(status).json({
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: measurementsForDeployedDevices,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
-          errors,
-          message: result.message,
+          errors: {
+            message: `Unable to process measurements for the provided location IDs`,
+          },
+          message: "Internal Server Error",
         });
       }
     } catch (error) {
@@ -899,55 +866,76 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
-      await processCohortIds(cohort_id, request);
-      await processGridIds(grid_id, request);
-      const result = await createEventUtil.list(request);
+      let locationErrors = 0;
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (grid_id) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
 
-      logObject("the result for listing events", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        const measurementsForDeployedDevices = result.data[0].data.filter(
-          (obj) => {
-            if (obj.siteDetails === null) {
-              return false; // Exclude if siteDetails is null
+      if (locationErrors === 0) {
+        const result = await createEventUtil.list(request);
+
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
             }
+          );
 
-            const { pm2_5 } = obj;
-            if (pm2_5 && pm2_5.value === null) {
-              logger.error(
-                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
-                  obj.device ? obj.device : ""
-                } -- the timestamp is ${
-                  obj.time ? obj.time : ""
-                } -- the frequency is ${
-                  obj.frequency ? obj.frequency : ""
-                } -- the site_name is ${
-                  obj.siteDetails ? obj.siteDetails.name : ""
-                }`
-              );
-              return false; // Exclude if either value is null
-            }
-
-            return true; // Include for other cases
-          }
-        );
-
-        res.status(status).json({
-          success: true,
-          isCache: result.isCache,
-          message: result.message,
-          meta: result.data[0].meta,
-          measurements: measurementsForDeployedDevices,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = result.errors ? result.errors : { message: "" };
-        res.status(status).json({
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: measurementsForDeployedDevices,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
-          errors,
-          message: result.message,
+          errors: {
+            message: `Unable to process measurements for the provided location IDs`,
+          },
+          message: "Internal Server Error",
         });
       }
     } catch (error) {
