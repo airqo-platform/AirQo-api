@@ -1335,6 +1335,9 @@ eventSchema.statics = {
 
       logObject("filter", filter);
 
+      const startTime = filter["values.time"]["$gte"];
+      const endTime = filter["values.time"]["$lte"];
+
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -1369,8 +1372,8 @@ eventSchema.statics = {
             1,
           ],
         },
-        // startTime: "$startTime",
-        // endTime: "$endTime",
+        startTime,
+        endTime,
       };
       let siteProjection = {};
       let deviceProjection = {};
