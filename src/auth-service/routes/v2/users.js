@@ -285,7 +285,6 @@ router.post(
   createUserController.signUpWithFirebase
 );
 
-
 router.post(
   "/syncAnalyticsAndMobile",
   oneOf([
@@ -301,14 +300,10 @@ router.post(
       .trim(),
     body("email")
       .exists()
-      .withMessage(
-        "the email is missing in body, consider using email"
-      )
+      .withMessage("the email is missing in body, consider using email")
       .bail()
       .notEmpty()
-      .withMessage(
-        "the email is missing in body, consider using email"
-      )
+      .withMessage("the email is missing in body, consider using email")
       .bail()
       .isEmail()
       .withMessage("this is not a valid email address"),
@@ -319,12 +314,8 @@ router.post(
       .bail()
       .isMobilePhone()
       .withMessage("the phoneNumber must be valid"),
-    body("firstName")
-      .optional()
-      .trim(),
-    body("lastName")
-      .optional()
-      .trim(),
+    body("firstName").optional().trim(),
+    body("lastName").optional().trim(),
   ]),
   createUserController.syncAnalyticsAndMobile
 );
@@ -403,7 +394,7 @@ router.get(
 );
 
 router.get(
-  "/verify/:user_id/:token/:category",
+  "/verify/:user_id/:token",
   oneOf([
     [
       query("tenant")
@@ -431,15 +422,6 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      param("category")
-        .exists()
-        .withMessage("category is missing in your request")
-        .bail()
-        .isIn(["individual", "organisation"])
-        .withMessage(
-          "the category value is not among the expected ones: individual, organisation"
-        )
-        .trim(),
       param("token")
         .exists()
         .withMessage("the token param is missing in the request")
