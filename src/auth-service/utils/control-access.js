@@ -2431,7 +2431,9 @@ const controlAccess = {
       };
 
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        { _id: userId },
+        {
+          _id: userId,
+        },
         updateQuery,
         { new: true }
       );
