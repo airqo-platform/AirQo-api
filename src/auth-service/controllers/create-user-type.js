@@ -13,6 +13,7 @@ const logger = log4js.getLogger(
 const createUserType = {
   listUsersWithUserType: async (req, res) => {
     try {
+      logText("we are listing users with type....");
       const { query } = req;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
