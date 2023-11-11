@@ -11,6 +11,7 @@ router.use("/requests", require("@routes/v2/requests"));
 router.use("/defaults", require("@routes/v2/defaults"));
 router.use("/checklist", require("@routes/v2/checklist"));
 router.use("/preferences", require("@routes/v2/preferences"));
+router.use("/types", require("@routes/v2/user-types"));
 router.use("/tokens", require("@routes/v2/tokens"));
 router.use("/clients", require("@routes/v2/clients"));
 router.use("/scopes", require("@routes/v2/scopes"));

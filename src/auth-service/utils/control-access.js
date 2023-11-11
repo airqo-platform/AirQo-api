@@ -2376,11 +2376,11 @@ const controlAccess = {
   /******************** User Types *******************/
   assignUserType: async (request) => {
     try {
-      const { user_id, net_id, grp_id } = request.params;
-      const { tenant } = request.query;
-      const { userType } = request.body;
-      const userIdFromBody = user_id;
-      const userIdFromQuery = user_id;
+      const { user_id, net_id, grp_id, user, user_type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(grp_id) && !isEmpty(net_id)) {
         return {
@@ -2394,7 +2394,7 @@ const controlAccess = {
         };
       }
 
-      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
+      if (!isEmpty(user) && !isEmpty(user_id)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -2406,7 +2406,7 @@ const controlAccess = {
         };
       }
 
-      const userId = userIdFromQuery || userIdFromBody;
+      const userId = user || user_id;
 
       const organisationId = net_id || grp_id;
 
@@ -2425,7 +2425,7 @@ const controlAccess = {
         $set: {
           [isNetwork(net_id, grp_id) ? "network_roles" : "group_roles"]: {
             [isNetwork(net_id, grp_id) ? "network" : "group"]: organisationId,
-            userType: userType,
+            userType: user_type,
           },
         },
       };
@@ -2466,7 +2466,11 @@ const controlAccess = {
   assignManyUsersToUserType: async (request) => {
     try {
       const { tenant } = request.query;
-      const { user_ids, userType, net_id, grp_id } = request.body;
+      const { user_ids, user_type, net_id, grp_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       const userPromises = [];
 
@@ -2500,13 +2504,16 @@ const controlAccess = {
 
         // Update the user type for the current user
         const updateQuery = {
-          $set: { userType },
+          $set: { userType: user_type },
         };
 
         if (isNetwork) {
-          updateQuery.$set.network_roles = { network: net_id, userType };
+          updateQuery.$set.network_roles = {
+            network: net_id,
+            userType: user_type,
+          };
         } else if (isGroup) {
-          updateQuery.$set.group_roles = { group: grp_id, userType };
+          updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
         }
 
         await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
@@ -2556,9 +2563,11 @@ const controlAccess = {
   listUsersWithUserType: async (request) => {
     try {
       logText("listUsersWithUserType...");
-      const { query, params } = request;
-      const { userType, net_id, grp_id } = params;
-      const { tenant } = query;
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (net_id && grp_id) {
         return {
@@ -2576,12 +2585,12 @@ const controlAccess = {
 
       if (net_id) {
         userTypeFilter = {
-          "network_roles.userType": userType,
+          "network_roles.userType": user_type,
           "network_roles.network": net_id,
         };
       } else if (grp_id) {
         userTypeFilter = {
-          "group_roles.userType": userType,
+          "group_roles.userType": user_type,
           "group_roles.group": grp_id,
         };
       }
@@ -2613,8 +2622,91 @@ const controlAccess = {
 
       return {
         success: true,
-        message: `Retrieved all users with user type ${userType}`,
+        message: `Retrieved all users with user type ${user_type}`,
         data: responseFromListUsers,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listAvailableUsersForUserType: async (request) => {
+    try {
+      logText("listAvailableUsersForUserType...");
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (net_id && grp_id) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID; choose one organization type",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let userTypeFilter = {};
+
+      if (net_id) {
+        userTypeFilter = {
+          "network_roles.userType": user_type,
+          "network_roles.network": net_id,
+        };
+      } else if (grp_id) {
+        userTypeFilter = {
+          "group_roles.userType": user_type,
+          "group_roles.group": grp_id,
+        };
+      }
+
+      const assignedUsers = await UserModel(tenant)
+        .distinct("email", userTypeFilter)
+        .exec();
+
+      const allUsers = await UserModel(tenant).distinct("email").exec();
+
+      const availableUsers = allUsers.filter(
+        (user) => !assignedUsers.includes(user)
+      );
+
+      const responseFromListAvailableUsers = await UserModel(tenant)
+        .find({ email: { $in: availableUsers } })
+        .select({
+          _id: 1,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          userName: 1,
+        })
+        .exec();
+
+      logObject(
+        "responseFromListAvailableUsers",
+        responseFromListAvailableUsers
+      );
+
+      return {
+        success: true,
+        message: `Retrieved all available users for user type ${user_type}`,
+        data: responseFromListAvailableUsers,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
