@@ -594,19 +594,95 @@ const defaultConfig = {
     phoneNumber: 1,
     networks: {
       $cond: {
-        if: { $eq: ["$network_role", []] }, // Check if network_role is empty
-        then: [], // Represent "networks" as an empty array for users with empty network_role
-        else: "$networks", // Include the "networks" field for users with non-empty network_role
+        if: {
+          $and: [
+            { $ne: ["$network_role", []] }, // Check if network_role is not empty
+            {
+              $in: ["airqo", "$networks.net_name"], // Check if user belongs to airqo network
+            },
+          ],
+        },
+        then: {
+          $concatArrays: [
+            [
+              {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$networks",
+                      as: "network",
+                      cond: { $eq: ["$$network.net_name", "airqo"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+            ],
+            {
+              $filter: {
+                input: "$networks",
+                as: "network",
+                cond: { $ne: ["$$network.net_name", "airqo"] },
+              },
+            },
+          ],
+        },
+        else: "$networks",
       },
     },
+    // networks: {
+    //   $cond: {
+    //     if: { $eq: ["$network_role", []] }, // Check if network_role is empty
+    //     then: [], // Represent "networks" as an empty array for users with empty network_role
+    //     else: "$networks", // Include the "networks" field for users with non-empty network_role
+    //   },
+    // },
     clients: "$clients",
     groups: {
       $cond: {
-        if: { $eq: ["$group_role", []] }, // Check if group_role is empty
-        then: [], // Represent "groups" as an empty array  for users with empty group_role
-        else: "$groups", // Include the "groups" field for users with non-empty group_role
+        if: {
+          $and: [
+            { $ne: ["$group_role", []] }, // Check if group_role is not empty
+            {
+              $in: ["airqo", "$groups.grp_title"], // Check if user belongs to airqo group
+            },
+          ],
+        },
+        then: {
+          $concatArrays: [
+            [
+              {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$groups",
+                      as: "group",
+                      cond: { $eq: ["$$group.grp_title", "airqo"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+            ],
+            {
+              $filter: {
+                input: "$groups",
+                as: "group",
+                cond: { $ne: ["$$group.grp_title", "airqo"] },
+              },
+            },
+          ],
+        },
+        else: "$groups",
       },
     },
+    // groups: {
+    //   $cond: {
+    //     if: { $eq: ["$group_role", []] }, // Check if group_role is empty
+    //     then: [], // Represent "groups" as an empty array  for users with empty group_role
+    //     else: "$groups", // Include the "groups" field for users with non-empty group_role
+    //   },
+    // },
     clients: "$clients",
     permissions: "$permissions",
     createdAt: {
