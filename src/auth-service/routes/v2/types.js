@@ -50,7 +50,6 @@ router.get(
       .bail()
       .isMongoId()
       .withMessage("the net_id must be an Object ID"),
-    ,
     query("grp_id")
       .exists()
       .withMessage(
@@ -98,7 +97,6 @@ router.get(
       .bail()
       .isMongoId()
       .withMessage("the net_id must be an Object ID"),
-    ,
     query("grp_id")
       .exists()
       .withMessage(
@@ -147,7 +145,6 @@ router.post(
       .bail()
       .isMongoId()
       .withMessage("the net_id must be an Object ID"),
-    ,
     query("grp_id")
       .exists()
       .withMessage(
@@ -209,7 +206,6 @@ router.post(
       .bail()
       .isMongoId()
       .withMessage("the net_id must be an Object ID"),
-    ,
     query("grp_id")
       .exists()
       .withMessage(
@@ -227,7 +223,6 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the user_type cannot be empty if provided"),
-      ,
       body("user")
         .exists()
         .withMessage("the user ID is missing in the request body")
@@ -272,7 +267,6 @@ router.put(
       .bail()
       .isMongoId()
       .withMessage("the net_id must be an Object ID"),
-    ,
     query("grp_id")
       .exists()
       .withMessage(
@@ -290,7 +284,6 @@ router.put(
         .bail()
         .notEmpty()
         .withMessage("the user_type cannot be empty if provided"),
-      ,
       param("user_id")
         .exists()
         .withMessage("the user ID param is missing in the request")

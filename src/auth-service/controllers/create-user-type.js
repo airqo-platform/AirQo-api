@@ -47,7 +47,7 @@ const createUserType = {
         return res.status(status).json({
           success: true,
           message: responseFromListUsersWithUserType.message,
-          users_with_role: responseFromListUsersWithUserType.data,
+          users_with_user_type: responseFromListUsersWithUserType.data,
         });
       } else if (responseFromListUsersWithUserType.success === false) {
         const status = responseFromListUsersWithUserType.status
