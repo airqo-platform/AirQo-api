@@ -26,7 +26,7 @@ def train_forecasting_models():
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date)
+        return BigQueryApi().fetch_data(start_date, "train")
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
