@@ -14,6 +14,7 @@ const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
+const validUserTypes = ["user", "guest"];
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -102,6 +103,7 @@ const UserSchema = new Schema(
             ref: "network",
             default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
           },
+          userType: { type: String, default: "guest", enum: validUserTypes },
           role: {
             type: ObjectId,
             ref: "role",
@@ -129,6 +131,7 @@ const UserSchema = new Schema(
             ref: "group",
             default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
+          userType: { type: String, default: "guest", enum: validUserTypes },
           role: {
             type: ObjectId,
             ref: "role",
@@ -203,6 +206,14 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+UserSchema.path("network_roles.userType").validate(function (value) {
+  return validUserTypes.includes(value);
+}, "Invalid userType value");
+
+UserSchema.path("group_roles.userType").validate(function (value) {
+  return validUserTypes.includes(value);
+}, "Invalid userType value");
+
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
@@ -231,6 +242,7 @@ UserSchema.pre("save", function (next) {
     this.network_roles = [
       {
         network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+        userType: "guest",
         role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
       },
     ];
@@ -256,6 +268,7 @@ UserSchema.pre("save", function (next) {
     this.group_roles = [
       {
         group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+        userType: "guest",
         role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];
@@ -379,12 +392,6 @@ UserSchema.statics = {
       const response = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "roles",
-          localField: "role",
-          foreignField: "_id",
-          as: "lol",
-        })
-        .lookup({
           from: "permissions",
           localField: "permissions",
           foreignField: "_id",
@@ -481,6 +488,8 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
+          group_roles: { $first: "$group_roles" },
+          network_roles: { $first: "$network_roles" },
           group_role: { $first: "$group_role" },
           network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
@@ -499,6 +508,13 @@ UserSchema.statics = {
                     role_permissions: "$group_role_permissions",
                   },
                   else: null,
+                },
+              },
+              userType: {
+                $cond: {
+                  if: { $eq: [{ $type: "$group_roles.userType" }, "missing"] },
+                  then: "user",
+                  else: "$group_roles.userType",
                 },
               },
             },
@@ -521,6 +537,15 @@ UserSchema.statics = {
                     role_permissions: "$network_role_permissions",
                   },
                   else: null,
+                },
+              },
+              userType: {
+                $cond: {
+                  if: {
+                    $eq: [{ $type: "$network_roles.userType" }, "missing"],
+                  },
+                  then: "user",
+                  else: "$network_roles.userType",
                 },
               },
             },

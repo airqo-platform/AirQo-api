@@ -5281,5 +5281,321 @@ describe("controlAccess", () => {
 
     // Add similar tests for other route definitions
   });
+  describe("assignUserType()", () => {
+    it("should return an error if both net_id and grp_id are provided", async () => {
+      const request = {
+        params: {
+          net_id: "networkId",
+          grp_id: "groupId",
+        },
+      };
+
+      const response = await controlAccess.assignUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal(
+        "You cannot provide both a network ID and a group ID, choose one organisation type"
+      );
+    });
+
+    it("should return an error if both user_id is provided in query params and request body", async () => {
+      const request = {
+        params: {},
+        query: {},
+        body: {
+          user_id: "userId",
+        },
+      };
+
+      const response = await controlAccess.assignUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal(
+        "You cannot provide the user ID using query params and query body; choose one approach"
+      );
+    });
+
+    it("should return an error if the user does not exist", async () => {
+      // Prepare the stub for UserModel.exists to return false
+      const existsStub = sinon
+        .stub(UserModel(tenant), "exists")
+        .resolves(false);
+
+      const request = {
+        params: {
+          user_id: "userId",
+          net_id: "networkId",
+        },
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal("User userId not found");
+
+      // Restore the stub after the test
+      existsStub.restore();
+    });
+
+    it("should assign user to user type and return success", async () => {
+      // Prepare the stubs and mocks for UserModel methods and dependencies
+      const existsStub = sinon.stub(UserModel(tenant), "exists").resolves(true);
+      const findOneAndUpdateStub = sinon
+        .stub(UserModel(tenant), "findOneAndUpdate")
+        .resolves({
+          /* updated user data */
+        });
+
+      const request = {
+        params: {
+          user_id: "userId",
+          net_id: "networkId",
+        },
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignUserType(request);
+
+      expect(response.success).to.be.true;
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal("User assigned to the User Type");
+
+      // Restore the stubs after the test
+      existsStub.restore();
+      findOneAndUpdateStub.restore();
+    });
+
+    it("should handle internal server errors and return an error response", async () => {
+      // Prepare the stub for UserModel.exists to throw an error
+      const existsStub = sinon
+        .stub(UserModel(tenant), "exists")
+        .rejects(new Error("Some error message"));
+
+      const request = {
+        params: {
+          user_id: "userId",
+          net_id: "networkId",
+        },
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      // Restore the stub after the test
+      existsStub.restore();
+    });
+  });
+  describe("assignManyUsersToUserType()", () => {
+    it("should return an error if both net_id and grp_id are provided", async () => {
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          user_ids: ["user1", "user2"],
+          userType: "userType",
+          net_id: "networkId",
+          grp_id: "groupId",
+        },
+      };
+
+      const response = await controlAccess.assignManyUsersToUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal(
+        "You cannot provide both a network ID and a group ID. Choose one organization type."
+      );
+    });
+
+    it("should return an error for non-existing users", async () => {
+      // Prepare the stub for UserModel.exists to return false
+      const existsStub = sinon
+        .stub(UserModel("tenantId"), "exists")
+        .resolves(false);
+
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          user_ids: ["user1", "user2"],
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignManyUsersToUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal(
+        "Some users could not be assigned the user type."
+      );
+
+      // Restore the stub after the test
+      existsStub.restore();
+    });
+
+    it("should successfully assign user type to users", async () => {
+      // Prepare the stubs and mocks for UserModel methods and dependencies
+      const existsStub = sinon
+        .stub(UserModel("tenantId"), "exists")
+        .resolves(true);
+      const updateOneStub = sinon
+        .stub(UserModel("tenantId"), "updateOne")
+        .resolves({
+          /* updated user data */
+        });
+
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          user_ids: ["user1", "user2"],
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignManyUsersToUserType(request);
+
+      expect(response.success).to.be.true;
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
+        "All provided users were successfully assigned the user type."
+      );
+
+      // Restore the stubs after the test
+      existsStub.restore();
+      updateOneStub.restore();
+    });
+
+    it("should handle internal server errors and return an error response", async () => {
+      // Prepare the stub for UserModel.exists to throw an error
+      const existsStub = sinon
+        .stub(UserModel("tenantId"), "exists")
+        .rejects(new Error("Some error message"));
+
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        body: {
+          user_ids: ["user1", "user2"],
+          userType: "userType",
+        },
+      };
+
+      const response = await controlAccess.assignManyUsersToUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      // Restore the stub after the test
+      existsStub.restore();
+    });
+  });
+  describe("listUsersWithUserType()", () => {
+    it("should return an error if both net_id and grp_id are provided", async () => {
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        params: {
+          userType: "userType",
+          net_id: "networkId",
+          grp_id: "groupId",
+        },
+      };
+
+      const response = await controlAccess.listUsersWithUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(response.errors.message).to.equal(
+        "You cannot provide both a network ID and a group ID; choose one organization type."
+      );
+    });
+
+    it("should retrieve users with user type and network ID", async () => {
+      // Prepare the stub for UserModel.aggregate and return mock data
+      const aggregateStub = sinon
+        .stub(UserModel("tenantId"), "aggregate")
+        .resolves([
+          /* mock user data */
+        ]);
+
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        params: {
+          userType: "userType",
+          net_id: "networkId",
+        },
+      };
+
+      const response = await controlAccess.listUsersWithUserType(request);
+
+      expect(response.success).to.be.true;
+      expect(response.status).to.equal(httpStatus.OK);
+      expect(response.message).to.equal(
+        "Retrieved all users with user type userType"
+      );
+
+      // Restore the stub after the test
+      aggregateStub.restore();
+    });
+
+    it("should handle internal server errors and return an error response", async () => {
+      // Prepare the stub for UserModel.aggregate to throw an error
+      const aggregateStub = sinon
+        .stub(UserModel("tenantId"), "aggregate")
+        .rejects(new Error("Some error message"));
+
+      const request = {
+        query: {
+          tenant: "tenantId",
+        },
+        params: {
+          userType: "userType",
+          net_id: "networkId",
+        },
+      };
+
+      const response = await controlAccess.listUsersWithUserType(request);
+
+      expect(response.success).to.be.false;
+      expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.message).to.equal("Internal Server Error");
+
+      // Restore the stub after the test
+      aggregateStub.restore();
+    });
+  });
   // Add more test cases for other()s in the controlAccess object
 });

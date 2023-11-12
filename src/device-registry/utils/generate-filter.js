@@ -203,6 +203,7 @@ const generateFilter = {
     // Handle site filtering
     if (site) {
       filter["values.site"]["$in"] = site.toString().split(",");
+      filter["metadata"] = "site_id";
     }
 
     if (site && !recent && (!external || external === "yes")) {
@@ -237,6 +238,7 @@ const generateFilter = {
         .split(",")
         .map((id) => ObjectId(id));
       filter["values.site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
     }
 
     if (site_id && !recent && (!external || external === "yes")) {

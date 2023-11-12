@@ -1,31 +1,38 @@
-const DefaultsModel = require("@models/Defaults");
+const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- preferences-util`);
 
-const defaults = {
+const preferences = {
   list: async (request) => {
     try {
       const {
         query: { tenant },
       } = request;
-      const filterResponse = generateFilter.defaults(request);
-      if (!filterResponse.success) {
+      const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+      if (filterResponse.success === false) {
         return filterResponse;
       }
       const { limit, skip } = request.query;
       logObject("limit", limit);
       logObject("skip", skip);
-      return await DefaultsModel(tenant).list({
-        filter: filterResponse.data,
+
+      const filter = filterResponse;
+
+      const listResponse = await PreferenceModel(tenant).list({
+        filter,
         limit,
         skip,
       });
+
+      logObject("listResponse", listResponse);
+      return listResponse;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -41,7 +48,7 @@ const defaults = {
       const { body, query } = request;
       const { tenant } = query;
       logObject("the body", body);
-      const user_id = body.user;
+      const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
         return {
@@ -55,9 +62,9 @@ const defaults = {
         };
       }
 
-      const responseFromRegisterDefault = await DefaultsModel(tenant).register(
-        body
-      );
+      const responseFromRegisterDefault = await PreferenceModel(
+        tenant
+      ).register(body);
       logObject("responseFromRegisterDefault", responseFromRegisterDefault);
 
       return responseFromRegisterDefault;
@@ -78,17 +85,17 @@ const defaults = {
         body,
       } = request;
 
-      const filterResponse = generateFilter.defaults(request);
+      const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
-      if (!filterResponse.success) {
+      if (filterResponse.success === false) {
         return filterResponse;
       }
 
-      const { data: filter } = filterResponse;
+      const filter = filterResponse;
       const update = body;
 
-      const modifyResponse = await DefaultsModel(tenant).modify({
+      const modifyResponse = await PreferenceModel(tenant).modify({
         filter,
         update,
       });
@@ -105,18 +112,67 @@ const defaults = {
       };
     }
   },
+  upsert: async (request) => {
+    try {
+      const {
+        query: { tenant },
+        body,
+      } = request;
 
+      const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+
+      if (filterResponse.success === false) {
+        return filterResponse;
+      }
+
+      const filter = filterResponse;
+      const update = body;
+      const options = { upsert: true, new: true };
+
+      const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        options
+      );
+      logObject("modifyResponse", modifyResponse);
+
+      if (!isEmpty(modifyResponse)) {
+        return {
+          success: true,
+          message: "successfully created or updated a preference",
+          data: modifyResponse,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to create or update a preference",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "unable to create or update a preference" },
+        };
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   delete: async (request) => {
     try {
-      const responseFromFilter = generateFilter.defaults(request);
+      const responseFromFilter = generateFilter.preferences(request);
 
-      if (!responseFromFilter.success) {
+      if (responseFromFilter.success === false) {
         return responseFromFilter;
       }
 
-      const filter = responseFromFilter.data;
+      const filter = responseFromFilter;
       const { tenant } = request.query;
-      const responseFromRemoveDefault = await DefaultsModel(tenant).remove({
+      const responseFromRemoveDefault = await PreferenceModel(tenant).remove({
         filter,
       });
       return responseFromRemoveDefault;
@@ -132,4 +188,4 @@ const defaults = {
   },
 };
 
-module.exports = defaults;
+module.exports = preferences;

@@ -9,144 +9,61 @@ const { addWeeksToProvideDateTime } = require("@utils/date");
 const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklist-model`);
 
-const periodSchema = new mongoose.Schema(
-  {
-    value: { type: String },
-    label: { type: String },
-    unitValue: { type: Number },
-    unit: { type: String },
+const checklistItemSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
   },
-  { _id: false }
-);
+  completed: {
+    type: Boolean,
+    default: false,
+  },
+  completionDate: {
+    type: Date,
+  },
+  videoProgress: {
+    type: Number,
+    default: 0,
+  },
+});
 
-const DefaultsSchema = new mongoose.Schema(
+const ChecklistSchema = new mongoose.Schema(
   {
-    pollutant: {
-      type: String,
-      trim: true,
-      required: [true, "pollutant is required!"],
-      default: "pm2_5",
-    },
-    frequency: {
-      type: String,
-      required: [true, "frequency is required!"],
-      default: "hourly",
-    },
-    startDate: {
-      type: Date,
-      required: [true, "startDate is required!"],
-      default: addWeeksToProvideDateTime(currentDate, -2),
-    },
-    endDate: {
-      type: Date,
-      required: [true, "endDate is required!"],
-      default: currentDate,
-    },
-    chartType: {
-      type: String,
-      required: [true, "chartTyoe is required!"],
-      default: "line",
-    },
-    chartTitle: {
-      type: String,
-      required: [true, "chartTitle is required!"],
-      default: "Chart Title",
-    },
-    chartSubTitle: {
-      type: String,
-      required: [true, "chartSubTitle is required!"],
-      default: "Chart SubTitle",
-    },
-    airqloud: {
-      type: ObjectId,
-      ref: "airqloud",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
-    },
-    grid: {
-      type: ObjectId,
-      ref: "grid",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
-    },
-    cohort: {
-      type: ObjectId,
-      ref: "cohort",
-    },
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-    },
-    group_id: {
-      type: ObjectId,
-      ref: "group",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-    },
-    user: {
-      type: ObjectId,
-      required: [true, "user is required"],
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
       ref: "user",
+      required: [true, "user_id is required"],
+      unique: true,
     },
-    sites: [
-      {
-        type: ObjectId,
-        ref: "site",
-      },
-    ],
-    devices: [
-      {
-        type: ObjectId,
-        ref: "device",
-      },
-    ],
-    period: { type: periodSchema, required: [true, "period is required!"] },
+    items: [checklistItemSchema],
   },
   {
     timestamps: true,
   }
 );
 
-DefaultsSchema.plugin(uniqueValidator, {
+ChecklistSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-DefaultsSchema.methods = {
+ChecklistSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      pollutant: this.pollutant,
-      frequency: this.frequency,
-      user: this.user,
-      airqloud: this.airqloud,
-      startDate: this.startDate,
-      endDate: this.endDate,
-      chartType: this.chartType,
-      chartTitle: this.chartTitle,
-      chartSubTitle: this.chartSubTitle,
-      sites: this.sites,
-      devices: this.devices,
-      network_id: this.network_id,
-      period: this.period,
-      createdAt: this.createdAt,
+      user_id: this.user_id,
+      items: this.items,
     };
   },
 };
 
-DefaultsSchema.statics = {
+ChecklistSchema.statics = {
   async register(args) {
     try {
       let body = args;
       if (body._id) {
         delete body._id;
-      }
-      if (isEmpty(args.period)) {
-        args.period = {
-          value: "Last 7 days",
-          label: "Last 7 days",
-          unitValue: 7,
-          unit: "day",
-        };
       }
       let data = await this.create({
         ...body,
@@ -156,13 +73,13 @@ DefaultsSchema.statics = {
         return {
           success: true,
           data,
-          message: "default created successfully with no issues detected",
+          message: "checklist created successfully with no issues detected",
           status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
-          message: "default not created despite successful operation",
+          message: "checklist not created despite successful operation",
           status: httpStatus.OK,
           data: [],
         };
@@ -198,23 +115,23 @@ DefaultsSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
-      const defaults = await this.find(filter)
+      const checklists = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
-      if (!isEmpty(defaults)) {
+      if (!isEmpty(checklists)) {
         return {
           success: true,
-          data: defaults,
-          message: "successfully listed the defaults",
+          data: checklists,
+          message: "successfully listed the checklists",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(defaults)) {
+      } else if (isEmpty(checklists)) {
         return {
           success: true,
-          message: "no defaults found for this search",
+          message: "no checklists found for this search",
           data: [],
           status: httpStatus.OK,
         };
@@ -235,27 +152,27 @@ DefaultsSchema.statics = {
       if (update._id) {
         delete update._id;
       }
-      const updatedDefault = await this.findOneAndUpdate(
+      const updatedChecklist = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
-      if (!isEmpty(updatedDefault)) {
+      if (!isEmpty(updatedChecklist)) {
         return {
           success: true,
-          message: "successfully modified the default",
-          data: updatedDefault._doc,
+          message: "successfully modified the checklist",
+          data: updatedChecklist._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedDefault)) {
+      } else if (isEmpty(updatedChecklist)) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default  you are trying to UPDATE does not exist, please crosscheck",
+              "the User Checklist  you are trying to UPDATE does not exist, please crosscheck",
           },
         };
       }
@@ -282,29 +199,29 @@ DefaultsSchema.statics = {
       let options = {
         projection: {
           _id: 1,
-          user: 1,
-          chartTitle: 1,
-          chartSubTitle: 1,
-          airqloud: 1,
+          user_id: 1,
         },
       };
-      let removedDefault = await this.findOneAndRemove(filter, options).exec();
+      let removedChecklist = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
-      if (!isEmpty(removedDefault)) {
+      if (!isEmpty(removedChecklist)) {
         return {
           success: true,
-          message: "successfully removed the default",
-          data: removedDefault._doc,
+          message: "successfully removed the checklist",
+          data: removedChecklist._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedDefault)) {
+      } else if (isEmpty(removedChecklist)) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default  you are trying to DELETE does not exist, please crosscheck",
+              "the User Checklist  you are trying to DELETE does not exist, please crosscheck",
           },
         };
       }
@@ -320,14 +237,14 @@ DefaultsSchema.statics = {
   },
 };
 
-const DefaultModel = (tenant) => {
+const ChecklistModel = (tenant) => {
   try {
-    let defaults = mongoose.model("defaults");
-    return defaults;
+    let checklists = mongoose.model("checklists");
+    return checklists;
   } catch (error) {
-    let defaults = getModelByTenant(tenant, "default", DefaultsSchema);
-    return defaults;
+    let checklists = getModelByTenant(tenant, "checklist", ChecklistSchema);
+    return checklists;
   }
 };
 
-module.exports = DefaultModel;
+module.exports = ChecklistModel;
