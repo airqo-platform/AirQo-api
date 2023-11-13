@@ -28,6 +28,8 @@ const siteSchema = new mongoose.Schema(
     _id: { type: ObjectId },
     latitude: { type: Number },
     longitude: { type: Number },
+    approximate_latitude: { type: Number },
+    approximate_longitude: { type: Number },
     country: { type: String },
     district: { type: String },
     sub_county: { type: String },
