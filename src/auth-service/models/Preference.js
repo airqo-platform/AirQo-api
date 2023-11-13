@@ -120,7 +120,7 @@ const PreferenceSchema = new mongoose.Schema(
         ref: "site",
       },
     ],
-    selected_sites: { type: siteSchema },
+    selected_sites: [{ type: siteSchema }],
     device_ids: [
       {
         type: ObjectId,
@@ -166,12 +166,18 @@ PreferenceSchema.methods = {
 PreferenceSchema.statics = {
   async register(args) {
     try {
-      let body = args;
-      if (body._id) {
-        delete body._id;
+      let createBody = args;
+      if (createBody._id) {
+        delete createBody._id;
       }
-      if (isEmpty(args.period)) {
-        args.period = {
+      if (createBody.selected_sites) {
+        createBody["$addToSet"] = {
+          selected_sites: { $each: createBody.selected_sites },
+        };
+        delete createBody.selected_sites;
+      }
+      if (isEmpty(createBody.period)) {
+        createBody.period = {
           value: "Last 7 days",
           label: "Last 7 days",
           unitValue: 7,
@@ -179,7 +185,7 @@ PreferenceSchema.statics = {
         };
       }
       let data = await this.create({
-        ...body,
+        ...createBody,
       });
 
       if (!isEmpty(data)) {
@@ -262,12 +268,20 @@ PreferenceSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       const options = { new: true };
-      if (update._id) {
-        delete update._id;
+      let updateBody = update;
+      if (updateBody._id) {
+        delete updateBody._id;
+      }
+
+      if (updateBody.selected_sites) {
+        updateBody["$addToSet"] = {
+          selected_sites: { $each: updateBody.selected_sites },
+        };
+        delete updateBody.selected_sites;
       }
       const updatedPreference = await this.findOneAndUpdate(
         filter,
-        update,
+        updateBody,
         options
       ).exec();
 
