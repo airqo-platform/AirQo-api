@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pymongo as pm
+import tweepy
 import urllib3
 from dotenv import load_dotenv
 
@@ -177,8 +178,31 @@ class Config:
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
 
+    # Twitter bot
+    API_KEY = os.getenv("AIRQO_BOT_API_KEY")
+    API_KEY_SECRET = os.getenv("AIRQO_BOT_API_KEY_SECRET")
+    BEARER_TOKEN = os.getenv("AIRQO_BOT_BEARER_TOKEN")
+    ACCESS_TOKEN = os.getenv("AIRQO_BOT_ACCESS_TOKEN")
+    ACCESS_TOKEN_SECRET = os.getenv("AIRQO_BOT_ACCESS_TOKEN_SECRET")
+
 
 configuration = Config()
 
+# MONGO_DB
 client = pm.MongoClient(configuration.MONGO_URI)
 db = client[configuration.MONGO_DATABASE_NAME]
+
+# Twitter
+twitter_client = tweepy.Client(
+    bearer_token=configuration.BEARER_TOKEN,
+    access_token=configuration.ACCESS_TOKEN,
+    access_token_secret=configuration.ACCESS_TOKEN_SECRET,
+    consumer_key=configuration.API_KEY,
+    consumer_secret=configuration.API_KEY_SECRET,
+)
+twitter_auth = tweepy.OAuthHandler(
+    access_token=configuration.ACCESS_TOKEN,
+    access_token_secret=configuration.ACCESS_TOKEN_SECRET,
+    consumer_key=configuration.API_KEY,
+    consumer_secret=configuration.API_KEY_SECRET,
+)
