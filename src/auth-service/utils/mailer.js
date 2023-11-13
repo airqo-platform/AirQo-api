@@ -500,7 +500,6 @@ const mailer = {
     firstName = "",
     username = "",
     email = "",
-    password = "",
   } = {}) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -512,12 +511,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Welcome to AirQo!",
-        html: msgTemplates.afterEmailVerification(
-          firstName,
-          username,
-          password,
-          email
-        ),
+        html: msgTemplates.afterEmailVerification(firstName, username, email),
         bcc,
         attachments: attachments,
       };
