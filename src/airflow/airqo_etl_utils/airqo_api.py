@@ -3,7 +3,6 @@ from urllib.parse import urlencode
 
 import pandas as pd
 import simplejson
-
 import urllib3
 from urllib3.util.retry import Retry
 
@@ -175,12 +174,12 @@ class AirQoApi:
             for entry in decrypted_keys
         }
 
-    def get_forecast(self, timestamp, channel_id) -> list:
-        endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(endpoint=endpoint, params={}, method="get")
+    def get_forecast(self, frequency, site_id) -> list:
+        endpoint = f"predict/{frequency}_forecast"
+        response = self.__request(endpoint=endpoint, params=site_id, method="get")
 
-        if response is not None and "predictions" in response:
-            return response["predictions"]
+        if response is not None and "forecasts" in response.keys():
+            return response["forecasts"]
 
         return []
 
@@ -389,11 +388,7 @@ class AirQoApi:
                         body=simplejson.dumps(body, ignore_nan=True),
                     )
                 else:
-                    response = http.request(
-                        "PUT",
-                        url,
-                        headers=headers
-                    )
+                    response = http.request("PUT", url, headers=headers)
             elif method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
