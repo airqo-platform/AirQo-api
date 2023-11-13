@@ -23,6 +23,27 @@ const periodSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const siteSchema = new mongoose.Schema(
+  {
+    _id: { type: ObjectId },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    country: { type: String },
+    district: { type: String },
+    sub_county: { type: String },
+    parish: { type: String },
+    county: { type: String },
+    generated_name: { type: String },
+    name: { type: String },
+    city: { type: String },
+    formatted_name: { type: String },
+    region: { type: String },
+    search_name: { type: String },
+    sub_county: { type: String },
+  },
+  { _id: false }
+);
+
 const PreferenceSchema = new mongoose.Schema(
   {
     pollutant: {
@@ -97,6 +118,7 @@ const PreferenceSchema = new mongoose.Schema(
         ref: "site",
       },
     ],
+    selected_sites: { type: siteSchema },
     device_ids: [
       {
         type: ObjectId,
@@ -134,6 +156,7 @@ PreferenceSchema.methods = {
       network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,
+      selected_sites: this.selected_sites,
     };
   },
 };
