@@ -47,6 +47,38 @@ const siteSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const gridSchema = new mongoose.Schema(
+  {
+    _id: { type: ObjectId },
+    name: { type: String },
+  },
+  { _id: false }
+);
+
+const cohortSchema = new mongoose.Schema(
+  {
+    _id: { type: ObjectId },
+    name: { type: String },
+  },
+  { _id: false }
+);
+
+const deviceSchema = new mongoose.Schema(
+  {
+    _id: { type: ObjectId },
+    name: { type: String },
+  },
+  { _id: false }
+);
+
+const airqloudSchema = new mongoose.Schema(
+  {
+    _id: { type: ObjectId },
+    name: { type: String },
+  },
+  { _id: false }
+);
+
 const PreferenceSchema = new mongoose.Schema(
   {
     pollutant: {
@@ -152,6 +184,11 @@ const PreferenceSchema = new mongoose.Schema(
       },
     ],
     selected_sites: [{ type: siteSchema }],
+    selected_grids: [{ type: gridSchema }],
+    selected_devices: [{ type: deviceSchema }],
+    selected_cohorts: [{ type: cohortSchema }],
+    selected_airqlouds: [{ type: airqloudSchema }],
+
     device_ids: [
       {
         type: ObjectId,
@@ -173,6 +210,30 @@ PreferenceSchema.pre("save", function (next) {
   if (this.selected_sites) {
     this.selected_sites = Array.from(
       new Set(this.selected_sites.map((id) => id.toString()))
+    );
+  }
+
+  if (this.selected_grids) {
+    this.selected_grids = Array.from(
+      new Set(this.selected_grids.map((id) => id.toString()))
+    );
+  }
+
+  if (this.selected_cohorts) {
+    this.selected_cohorts = Array.from(
+      new Set(this.selected_cohorts.map((id) => id.toString()))
+    );
+  }
+
+  if (this.selected_devices) {
+    this.selected_devices = Array.from(
+      new Set(this.selected_devices.map((id) => id.toString()))
+    );
+  }
+
+  if (this.selected_airqlouds) {
+    this.selected_airqlouds = Array.from(
+      new Set(this.selected_airqlouds.map((id) => id.toString()))
     );
   }
 
@@ -248,6 +309,10 @@ PreferenceSchema.methods = {
       period: this.period,
       createdAt: this.createdAt,
       selected_sites: this.selected_sites,
+      selected_grids: this.selected_grids,
+      selected_devices: this.selected_devices,
+      selected_cohorts: this.selected_cohorts,
+      selected_airqlouds: this.selected_airqlouds,
     };
   },
 };
@@ -367,6 +432,34 @@ PreferenceSchema.statics = {
           selected_sites: { $each: updateBody.selected_sites },
         };
         delete updateBody.selected_sites;
+      }
+
+      if (updateBody.selected_grids) {
+        updateBody["$addToSet"] = {
+          selected_grids: { $each: updateBody.selected_grids },
+        };
+        delete updateBody.selected_grids;
+      }
+
+      if (updateBody.selected_cohorts) {
+        updateBody["$addToSet"] = {
+          selected_cohorts: { $each: updateBody.selected_cohorts },
+        };
+        delete updateBody.selected_cohorts;
+      }
+
+      if (updateBody.selected_devices) {
+        updateBody["$addToSet"] = {
+          selected_devices: { $each: updateBody.selected_devices },
+        };
+        delete updateBody.selected_devices;
+      }
+
+      if (updateBody.selected_airqlouds) {
+        updateBody["$addToSet"] = {
+          selected_airqlouds: { $each: updateBody.selected_airqlouds },
+        };
+        delete updateBody.selected_airqlouds;
       }
 
       if (updateBody.airqloud_ids) {
