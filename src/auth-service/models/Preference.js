@@ -170,37 +170,53 @@ PreferenceSchema.plugin(uniqueValidator, {
 });
 
 PreferenceSchema.pre("save", function (next) {
-  this.selected_sites = Array.from(
-    new Set(this.selected_sites.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.selected_sites) {
+    this.selected_sites = Array.from(
+      new Set(this.selected_sites.map((id) => id.toString()))
+    );
+  }
 
-  this.airqloud_ids = Array.from(
-    new Set(this.airqloud_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.airqloud_ids) {
+    this.airqloud_ids = Array.from(
+      new Set(this.airqloud_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.device_ids = Array.from(
-    new Set(this.device_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.device_ids) {
+    this.device_ids = Array.from(
+      new Set(this.device_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.site_ids = Array.from(
-    new Set(this.site_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.site_ids) {
+    this.site_ids = Array.from(
+      new Set(this.site_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.cohort_ids = Array.from(
-    new Set(this.cohort_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.cohort_ids) {
+    this.cohort_ids = Array.from(
+      new Set(this.cohort_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.grid_ids = Array.from(
-    new Set(this.grid_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.grid_ids) {
+    this.grid_ids = Array.from(
+      new Set(this.grid_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.network_ids = Array.from(
-    new Set(this.network_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.network_ids) {
+    this.network_ids = Array.from(
+      new Set(this.network_ids.map((id) => id.toString()))
+    );
+  }
 
-  this.group_ids = Array.from(
-    new Set(this.group_ids.map((id) => id.toString()))
-  ).map((id) => mongoose.Types.ObjectId(id));
+  if (this.group_ids) {
+    this.group_ids = Array.from(
+      new Set(this.group_ids.map((id) => id.toString()))
+    );
+  }
 
   return next();
 });
@@ -275,6 +291,7 @@ PreferenceSchema.statics = {
         };
       }
     } catch (err) {
+      logObject("error in the object", err);
       logger.error(`Data conflicts detected -- ${err.message}`);
       let response = {};
       let errors = {};

@@ -62,12 +62,15 @@ const preferences = {
         };
       }
 
-      const responseFromRegisterDefault = await PreferenceModel(
+      const responseFromRegisterPreference = await PreferenceModel(
         tenant
       ).register(body);
-      logObject("responseFromRegisterDefault", responseFromRegisterDefault);
+      logObject(
+        "responseFromRegisterPreference in UTILS",
+        responseFromRegisterPreference
+      );
 
-      return responseFromRegisterDefault;
+      return responseFromRegisterPreference;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -172,10 +175,12 @@ const preferences = {
 
       const filter = responseFromFilter;
       const { tenant } = request.query;
-      const responseFromRemoveDefault = await PreferenceModel(tenant).remove({
-        filter,
-      });
-      return responseFromRemoveDefault;
+      const responseFromRemovePreference = await PreferenceModel(tenant).remove(
+        {
+          filter,
+        }
+      );
+      return responseFromRemovePreference;
     } catch (error) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
