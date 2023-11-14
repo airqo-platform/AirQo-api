@@ -668,7 +668,7 @@ const manageSite = {
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-      request.category = "summary";
+      request.query.category = "summary";
       const responseFromListSites = await createSiteUtil.list(request);
 
       if (responseFromListSites.success === true) {
