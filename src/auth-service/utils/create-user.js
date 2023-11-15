@@ -1867,11 +1867,15 @@ const createUserModule = {
       const pdfFile = files.pdf;
       const csvFile = files.csv;
 
+      const normalizedRecepientEmails = Array.isArray(recepientEmails)
+        ? recepientEmails
+        : [recepientEmails];
+
       let responseFromSendEmail = {};
 
       responseFromSendEmail = await mailer.sendReport(
         senderEmail,
-        recepientEmails,
+        normalizedRecepientEmails,
         pdfFile,
         csvFile
       );
