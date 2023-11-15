@@ -175,10 +175,11 @@ class AirQoApi:
         }
 
     def get_forecast(self, frequency, site_id) -> list:
-        endpoint = f"predict/{frequency}_forecast"
-        response = self.__request(endpoint=endpoint, params=site_id, method="get")
+        endpoint = f"predict/{frequency}-forecast"
+        params = {"site_id": site_id}
+        response = self.__request(endpoint=endpoint, params=params, method="get")
 
-        if response is not None and "forecasts" in response.keys():
+        if response is not None and "forecasts" in response.keys() and len(response["forecasts"]) > 0:
             return response["forecasts"]
 
         return []
