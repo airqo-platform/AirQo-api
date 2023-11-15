@@ -179,7 +179,11 @@ class AirQoApi:
         params = {"site_id": site_id}
         response = self.__request(endpoint=endpoint, params=params, method="get")
 
-        if response is not None and "forecasts" in response.keys() and len(response["forecasts"]) > 0:
+        if (
+            response is not None
+            and "forecasts" in response.keys()
+            and len(response["forecasts"]) > 0
+        ):
             return response["forecasts"]
 
         return []

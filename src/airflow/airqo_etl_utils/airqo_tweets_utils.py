@@ -18,7 +18,9 @@ class AirQoTweetsUtils:
         all_site_forecasts = {}
         for site_name, site_id in sites_dict.items():
             try:
-                site_forecast = AirQoApi().get_forecast(frequency="daily", site_id=site_id)[0]
+                site_forecast = AirQoApi().get_forecast(
+                    frequency="daily", site_id=site_id
+                )[0]
             except IndexError:
                 continue
             all_site_forecasts[site_name] = site_forecast
@@ -28,7 +30,9 @@ class AirQoTweetsUtils:
     def create_tweet(site_forecasts):
         message = "Air quality PM2.5 forecasts for today: \n"
         for site_name, site_forecast in site_forecasts.items():
-            message += f"{site_name}: {round(site_forecast['pm2_5'], ndigits=2)} ug/m3, \n"
+            message += (
+                f"{site_name}: {round(site_forecast['pm2_5'], ndigits=2)} ug/m3, \n"
+            )
 
         ## TODO: Disabling for now, starting off with basic functionality
         # get the first health tip for the first site
