@@ -1859,6 +1859,48 @@ const createUserModule = {
       };
     }
   },
+
+  emailPdf: async (request) => {
+    try {
+      const { body, files } = request;
+      const { senderEmail, recepientEmails } = body;
+      const pdfFile = files.pdf;
+
+      let responseFromSendEmail = {};
+
+      responseFromSendEmail = await mailer.sendPdf(
+        senderEmail,
+        recepientEmails,
+        pdfFile
+      );
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "Successfully sent the PDF File",
+          status: httpStatus.OK,
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logger.error(`Failed to send PDF`);
+        return {
+          success: false,
+          message: "Failed to send PDF",
+          errors: responseFromSendEmail.errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
 };
 
 module.exports = createUserModule;

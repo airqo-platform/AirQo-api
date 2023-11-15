@@ -397,6 +397,77 @@ const createUser = {
     }
   },
 
+  emailPdf: async (req, res) => {
+    try {
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ errors: [{ msg: 'No PDF file attached' }] });
+      }
+
+      const pdfFile = req.files.pdf;
+      if (!pdfFile || !pdfFile.mimetype.includes('pdf')) {
+        return res.status(400).json({ errors: [{ msg: 'Invalid PDF file' }] });
+      }
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "Bad Request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      let { tenant } = req.query;
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromEmailPdf =
+        await createUserUtil.emailPdf(request);
+
+      logObject("responseFromEmailPdf", responseFromEmailPdf);
+
+      if (responseFromEmailPdf.success === true) {
+        const status = responseFromEmailPdf.status
+          ? responseFromEmailPdf.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "Pdf Emailed sucessfully",
+        });
+      } else if (responseFromEmailPdf.success === false) {
+        const status = responseFromEmailPdf.status
+          ? responseFromEmailPdf.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromEmailPdf.message,
+          errors: responseFromEmailPdf.errors
+            ? responseFromEmailPdf.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+
   lookUpFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

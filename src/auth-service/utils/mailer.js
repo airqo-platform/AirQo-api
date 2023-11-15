@@ -11,7 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
 
 const imagePath = path.join(__dirname, "../config/images");
-const attachments = [
+let attachments = [
   {
     filename: "airqoLogo.png",
     path: imagePath + "/airqoLogo.png",
@@ -1023,6 +1023,87 @@ const mailer = {
       };
     }
   },
+
+  sendPdf: async (senderEmail, recepientEmails, pdf) => {
+    try {
+      const pdfBase64 = pdf.data.toString('base64');
+      const emailResults = [];
+
+      for (const recepientEmail of recepientEmails) {
+        if (recepientEmail === "automated-tests@airqo.net") {
+          return {
+            success: true,
+            message: "Email successfully sent",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+        const pdfAttachment = {
+          filename: "Report.pdf",
+          contentType: 'application/pdf',
+          content: pdfBase64,
+          encoding: 'base64',
+        };
+        attachments.push(pdfAttachment);
+
+        const mailOptions = {
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
+          subject: "AirQo Analytics Report",
+          html: msgs.report(senderEmail, recepientEmail),
+          to: recepientEmail,
+          attachments
+        };
+
+        const response = await transporter.sendMail(mailOptions);
+
+        if (isEmpty(response.rejected) && !isEmpty(response.accepted)) {
+          emailResults.push({
+            success: true,
+            message: "Email successfully sent",
+            data: response,
+            status: httpStatus.OK,
+          });
+        } else {
+          emailResults.push({
+            success: false,
+            message: "Email not sent",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: response },
+          });
+        }
+      }
+      const hasFailedEmail = emailResults.some(result => !result.success);
+
+      if (hasFailedEmail) {
+        return {
+          success: false,
+          message: "One or more emails failed to send",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { messages: emailResults },
+        };
+      } else {
+        return {
+          success: true,
+          message: "All emails successfully sent",
+          data: emailResults,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      return {
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
 };
 
 module.exports = mailer;

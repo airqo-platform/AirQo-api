@@ -330,6 +330,41 @@ router.post(
 );
 
 router.post(
+  "/emailPdf",
+  oneOf([
+
+    body('senderEmail')
+      .exists()
+      .withMessage('senderEmail is missing in your request')
+      .bail()
+      .notEmpty()
+      .withMessage('senderEmail should not be empty')
+      .bail()
+      .isEmail()
+      .withMessage('senderEmail is not valid'),
+
+    body('recepientEmails')
+      .isArray()
+      .withMessage('emails should be an array'),
+
+    body('recepientEmails.*')
+      .exists()
+      .withMessage('An email is missing in the array')
+      .bail()
+      .notEmpty()
+      .withMessage('An email in the array is empty')
+      .bail()
+      .isEmail()
+      .withMessage('One or more emails in the array are not valid'),
+  ]),
+
+  setJWTAuth,
+  authJWT,
+  createUserController.emailPdf
+);
+
+
+router.post(
   "/firebase/verify",
   oneOf([
     [
