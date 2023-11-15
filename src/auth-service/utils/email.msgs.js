@@ -329,7 +329,7 @@ module.exports = {
     return constants.EMAIL_BODY(email, content);
     },
 
-    report: (senderEmail, recepientEmail) => {
+    report: (senderEmail, recepientEmail, formart) => {
         const content = `
     <tr>
                                 <td
@@ -340,7 +340,7 @@ module.exports = {
                                 <br />
                                Report Details:
                                <ul>
-                                <li>Format: PDF</li>
+                                <li>Format: ${formart}</li>
 
                                </ul>
                                     <br />

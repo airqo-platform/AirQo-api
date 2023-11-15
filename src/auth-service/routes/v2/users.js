@@ -330,7 +330,7 @@ router.post(
 );
 
 router.post(
-  "/emailPdf",
+  "/emailReport",
   oneOf([
 
     body('senderEmail')
@@ -360,7 +360,7 @@ router.post(
 
   setJWTAuth,
   authJWT,
-  createUserController.emailPdf
+  createUserController.emailReport
 );
 
 

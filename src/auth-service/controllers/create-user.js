@@ -397,16 +397,21 @@ const createUser = {
     }
   },
 
-  emailPdf: async (req, res) => {
+  emailReport: async (req, res) => {
     try {
 
       if (!req.files || Object.keys(req.files).length === 0) {
-        return res.status(400).json({ errors: [{ msg: 'No PDF file attached' }] });
+        return res.status(400).json({ errors: [{ msg: 'No PDF or CSV file attached' }] });
       }
 
       const pdfFile = req.files.pdf;
-      if (!pdfFile || !pdfFile.mimetype.includes('pdf')) {
+      if (pdfFile && !pdfFile.mimetype.includes('pdf')) {
         return res.status(400).json({ errors: [{ msg: 'Invalid PDF file' }] });
+      }
+
+      const csvFile = req.files.csv;
+      if (csvFile && !csvFile.mimetype.includes('csv')) {
+        return res.status(400).json({ errors: [{ msg: 'Invalid CSV file' }] });
       }
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -433,28 +438,28 @@ const createUser = {
         request.query.tenant = "airqo";
       }
 
-      const responseFromEmailPdf =
-        await createUserUtil.emailPdf(request);
+      const responseFromEmailReport =
+        await createUserUtil.emailReport(request);
 
-      logObject("responseFromEmailPdf", responseFromEmailPdf);
+      logObject("responseFromEmailReport", responseFromEmailReport);
 
-      if (responseFromEmailPdf.success === true) {
-        const status = responseFromEmailPdf.status
-          ? responseFromEmailPdf.status
+      if (responseFromEmailReport.success === true) {
+        const status = responseFromEmailReport.status
+          ? responseFromEmailReport.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: "Pdf Emailed sucessfully",
+          message: "Report Emailed sucessfully",
         });
-      } else if (responseFromEmailPdf.success === false) {
-        const status = responseFromEmailPdf.status
-          ? responseFromEmailPdf.status
+      } else if (responseFromEmailReport.success === false) {
+        const status = responseFromEmailReport.status
+          ? responseFromEmailReport.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromEmailPdf.message,
-          errors: responseFromEmailPdf.errors
-            ? responseFromEmailPdf.errors
+          message: responseFromEmailReport.message,
+          errors: responseFromEmailReport.errors
+            ? responseFromEmailReport.errors
             : { message: "internal server errors" },
         });
       }

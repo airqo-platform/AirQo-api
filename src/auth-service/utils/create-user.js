@@ -1860,31 +1860,33 @@ const createUserModule = {
     }
   },
 
-  emailPdf: async (request) => {
+  emailReport: async (request) => {
     try {
       const { body, files } = request;
       const { senderEmail, recepientEmails } = body;
       const pdfFile = files.pdf;
+      const csvFile = files.csv;
 
       let responseFromSendEmail = {};
 
-      responseFromSendEmail = await mailer.sendPdf(
+      responseFromSendEmail = await mailer.sendReport(
         senderEmail,
         recepientEmails,
-        pdfFile
+        pdfFile,
+        csvFile
       );
 
       if (responseFromSendEmail.success === true) {
         return {
           success: true,
-          message: "Successfully sent the PDF File",
+          message: "Successfully sent the Report File",
           status: httpStatus.OK,
         };
       } else if (responseFromSendEmail.success === false) {
-        logger.error(`Failed to send PDF`);
+        logger.error(`Failed to send Report`);
         return {
           success: false,
-          message: "Failed to send PDF",
+          message: "Failed to send Report",
           errors: responseFromSendEmail.errors,
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };

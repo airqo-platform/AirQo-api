@@ -1024,9 +1024,30 @@ const mailer = {
     }
   },
 
-  sendPdf: async (senderEmail, recepientEmails, pdf) => {
+  sendReport: async (senderEmail, recepientEmails, pdfFile, csvFile) => {
     try {
-      const pdfBase64 = pdf.data.toString('base64');
+      let formart;
+      if (pdfFile) {
+        formart = "PDF";
+        const pdfBase64 = pdfFile.data.toString('base64');
+        const pdfAttachment = {
+          filename: "Report.pdf",
+          contentType: 'application/pdf',
+          content: pdfBase64,
+          encoding: 'base64',
+        };
+        attachments.push(pdfAttachment);
+      }
+      if (csvFile) {
+        formart = "CSV"
+        const csvBase64 = csvFile.data.toString('base64');
+        const csvAttachment = {
+          filename: 'Report.csv',
+          content: csvBase64,
+          encoding: 'base64',
+        };
+        attachments.push(csvAttachment);
+      }
       const emailResults = [];
 
       for (const recepientEmail of recepientEmails) {
@@ -1038,13 +1059,6 @@ const mailer = {
             status: httpStatus.OK,
           };
         }
-        const pdfAttachment = {
-          filename: "Report.pdf",
-          contentType: 'application/pdf',
-          content: pdfBase64,
-          encoding: 'base64',
-        };
-        attachments.push(pdfAttachment);
 
         const mailOptions = {
           from: {
@@ -1052,7 +1066,7 @@ const mailer = {
             address: constants.EMAIL,
           },
           subject: "AirQo Analytics Report",
-          html: msgs.report(senderEmail, recepientEmail),
+          html: msgs.report(senderEmail, recepientEmail, formart),
           to: recepientEmail,
           attachments
         };
