@@ -16,6 +16,10 @@ from main import cache, CONFIGURATIONS
 class EventsModel(BasePyMongoModel):
     BIGQUERY_AIRQLOUDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS_SITES}`"
     BIGQUERY_AIRQLOUDS = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS}`"
+    BIGQUERY_GRIDS == f"`{CONFIGURATIONS.BIGQUERY_GRIDS}`"
+    BIGQUERY_GRIDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_GRIDS_SITES}`"
+    BIGQUERY_COHORTS == f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
+    BIGQUERY_COHORTS_SITES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_SITES}`"
     BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
     BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
@@ -512,10 +516,7 @@ class EventsModel(BasePyMongoModel):
     @classmethod
     @cache.memoize()
     def get_devices_summary(
-        cls,
-        airqloud,
-        start_date_time,
-        end_date_time,
+        cls, airqloud, start_date_time, end_date_time, grid: str, cohort: str
     ) -> list:
         data_table = f"`{cls.DEVICES_SUMMARY_TABLE}`"
 
@@ -523,6 +524,10 @@ class EventsModel(BasePyMongoModel):
         sites_table = cls.BIGQUERY_SITES
         airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
         airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+        grids_table = cls.BIGQUERY_GRIDS
+        grids_sites_table = cls.BIGQUERY_GRIDS_SITES
+        cohorts_devices_table = cls.BIGQUERY_COHORTS_DEVICES
+        cohorts_table = cls.BIGQUERY_COHORTS
 
         data_query = (
             f" SELECT {data_table}.device ,  "
@@ -533,41 +538,111 @@ class EventsModel(BasePyMongoModel):
             f" (SUM({data_table}.uncalibrated_records) / SUM({data_table}.hourly_records)) * 100 as uncalibrated_percentage "
         )
 
-        meta_data_query = (
-            f" SELECT {airqlouds_sites_table}.airqloud_id , "
-            f" {airqlouds_sites_table}.site_id , "
-            f" FROM {airqlouds_sites_table} "
-            f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
-        )
+        if airqloud.strip() != "":
+            meta_data_query = (
+                f" SELECT {airqlouds_sites_table}.airqloud_id , "
+                f" {airqlouds_sites_table}.site_id , "
+                f" FROM {airqlouds_sites_table} "
+                f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
+            )
 
-        # Adding airqloud information
-        meta_data_query = (
-            f" SELECT "
-            f" {airqlouds_table}.name AS airqloud , "
-            f" meta_data.* "
-            f" FROM {airqlouds_table} "
-            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
-        )
+            # Adding airqloud information
+            meta_data_query = (
+                f" SELECT "
+                f" {airqlouds_table}.name AS airqloud , "
+                f" meta_data.* "
+                f" FROM {airqlouds_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+            )
 
-        # Adding site information
-        meta_data_query = (
-            f" SELECT "
-            f" {sites_table}.name AS site_name , "
-            f" meta_data.* "
-            f" FROM {sites_table} "
-            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
-        )
+            # Adding site information
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
 
-        query = (
-            f" {data_query} , "
-            f" meta_data.* "
-            f" FROM {data_table} "
-            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
-            f" WHERE {data_table}.timestamp >= '{start_date_time}' "
-            f" AND {data_table}.timestamp <= '{end_date_time}' "
-            f" GROUP BY {data_table}.device, "
-            f" meta_data.site_id, meta_data.airqloud_id, meta_data.site_name, meta_data.airqloud"
-        )
+            query = (
+                f" {data_query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+                f" AND {data_table}.timestamp <= '{end_date_time}' "
+                f" GROUP BY {data_table}.device, "
+                f" meta_data.site_id, meta_data.airqloud_id, meta_data.site_name, meta_data.airqloud"
+            )
+
+        elif grid.strip() != "":
+            meta_data_query = (
+                f" SELECT {grids_sites_table}.grid_id , "
+                f" {grids_sites_table}.site_id , "
+                f" FROM {grids_sites_table} "
+                f" WHERE {grids_sites_table}.grid_id = '{grid}' "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {grids_table}.name AS grid_name , "
+                f" meta_data.* "
+                f" FROM {grids_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.grid_id = {grids_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            query = (
+                f" {data_query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+                f" AND {data_table}.timestamp <= '{end_date_time}' "
+                f" GROUP BY {data_table}.device, "
+                f" meta_data.site_id, meta_data.grid_id, meta_data.site_name, meta_data.grid"
+            )
+        elif cohort.strip() != "":
+            meta_data_query = (
+                f" SELECT {cohorts_devices_table}.cohort_id , "
+                f" {cohorts_devices_table}.site_id , "
+                f" FROM {cohorts_devices_table} "
+                f" WHERE {cohorts_devices_table}.cohort_id = '{cohort}' "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {cohorts_table}.name AS cohort_name , "
+                f" meta_data.* "
+                f" FROM {cohorts_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.cohort_id = {cohorts_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            query = (
+                f" {data_query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+                f" AND {data_table}.timestamp <= '{end_date_time}' "
+                f" GROUP BY {data_table}.device, "
+                f" meta_data.site_id, meta_data.cohort_id, meta_data.site_name, meta_data.cohort"
+            )
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True

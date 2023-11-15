@@ -378,6 +378,8 @@ class DataSummaryResource(Resource):
         "startDateTime|required:datetime",
         "endDateTime|required:datetime",
         "airqloud|optional:str",
+        "cohort|optional:str",
+        "grid|optional:str",
     )
     def post(self):
         try:
@@ -386,21 +388,17 @@ class DataSummaryResource(Resource):
             start_date_time = str_to_date(json_data["startDateTime"])
             end_date_time = str_to_date(json_data["endDateTime"])
             airqloud = str(json_data.get("airqloud", ""))
+            cohort = str(json_data.get("cohort", ""))
+            grid = str(json_data.get("grid", ""))
 
-            if airqloud.strip() == "":
-                return (
-                    create_response(
-                        f"Specify the airqloud id in the request body",
-                        success=False,
-                    ),
-                    Status.HTTP_400_BAD_REQUEST,
-                )
             start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
             end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
             data = EventsModel.get_devices_summary(
                 airqloud=airqloud,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
+                grid=grid,
+                cohort=cohort,
             )
 
             summary = compute_airqloud_summary(
