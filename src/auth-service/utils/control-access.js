@@ -350,7 +350,6 @@ const controlAccess = {
                 {
                   firstName: userDetails[0].firstName,
                   username: userDetails[0].userName,
-                  password,
                   email: userDetails[0].email,
                 }
               );
