@@ -1856,6 +1856,54 @@ const createUserModule = {
       };
     }
   },
+
+  emailReport: async (request) => {
+    try {
+      const { body, files } = request;
+      const { senderEmail, recepientEmails } = body;
+      const pdfFile = files.pdf;
+      const csvFile = files.csv;
+
+      const normalizedRecepientEmails = Array.isArray(recepientEmails)
+        ? recepientEmails
+        : [recepientEmails];
+
+      let responseFromSendEmail = {};
+
+      responseFromSendEmail = await mailer.sendReport(
+        senderEmail,
+        normalizedRecepientEmails,
+        pdfFile,
+        csvFile
+      );
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "Successfully sent the Report File",
+          status: httpStatus.OK,
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logger.error(`Failed to send Report`);
+        return {
+          success: false,
+          message: "Failed to send Report",
+          errors: responseFromSendEmail.errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
 };
 
 module.exports = createUserModule;

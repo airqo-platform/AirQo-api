@@ -50,6 +50,7 @@
         "express-session": "^1.17.3",
         "express-validation": "^1.0.3",
         "express-validator": "^6.12.1",
+        "express-fileupload": "^1.2.1",
         "firebase-admin": "^11.10.1",
         "firebase-functions": "^4.2.1",
         "generate-password": "^1.5.1",

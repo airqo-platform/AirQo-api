@@ -133,7 +133,7 @@ const createDevice = {
         };
       }
 
-      if (process.env.NODE_ENV !== "production") {
+      if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
         return {
           success: false,
           message: "Bad Request",
@@ -274,7 +274,7 @@ const createDevice = {
   update: async (request) => {
     try {
       // logger.info(`in the update util....`);
-      if (process.env.NODE_ENV !== "production") {
+      if (constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT") {
         return {
           success: false,
           message: "Bad Request",
