@@ -3,11 +3,13 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.airqo_tweets_utils import AirQoTweetsUtils
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import Tenant
 
 
 @dag(
     "AirQo-automated-tweets",
-    schedule="0 1 * * *",
+    # set the schedule to 7am every day
+    schedule_interval="0 7 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     tags=["airqo", "automated-tweets"],
 )
@@ -16,7 +18,7 @@ def create_forecast_tweets():
     def retrieve_sites():
         from airqo_etl_utils.airqo_api import AirQoApi
 
-        return AirQoApi().get_sites(tenant=configuration.TENANT)
+        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
 
     @task()
     def select_forecast_sites(sites):
@@ -36,4 +38,5 @@ def create_forecast_tweets():
     send_tweet(site_forecasts)
 
 
-create_forecast_tweets()
+if configuration.ENVIRONMENT == "production":
+    create_forecast_tweets()
