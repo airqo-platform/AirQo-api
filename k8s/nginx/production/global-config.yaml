@@ -6,9 +6,6 @@ metadata:
 data:
   proxy-body-size:  "350m"
   client-max-body-size: "350m"
-  proxy-protocol: "True"
-  real-ip-header: "proxy_protocol"
-  set-real-ip-from: "10.240.0.103"
   location-snippets: "
     auth_request /auth;
     error_page 500 = @internal_server_error;
