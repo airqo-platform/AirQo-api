@@ -22,3 +22,6 @@ scipy~=1.11.1
 coverage
 pytest-cov
 google-cloud-bigquery
+db_dtypes
+firebase-admin
+tweepy
