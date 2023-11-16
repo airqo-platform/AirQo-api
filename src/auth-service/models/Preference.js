@@ -43,7 +43,7 @@ const siteSchema = new mongoose.Schema(
     search_name: { type: String },
     sub_county: { type: String },
     grid_id: { type: ObjectId },
-    createdAt: { type: Date, default: Date.now },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -52,6 +52,7 @@ const gridSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -60,6 +61,7 @@ const cohortSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -68,6 +70,7 @@ const deviceSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -76,6 +79,7 @@ const airqloudSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -208,22 +212,40 @@ PreferenceSchema.plugin(uniqueValidator, {
 });
 
 PreferenceSchema.pre("save", function (next) {
-  const fieldsToHandle = [
+  const fieldsToUpdate = [
     "selected_sites",
     "selected_grids",
     "selected_cohorts",
     "selected_devices",
     "selected_airqlouds",
+  ];
+
+  const currentDate = new Date();
+
+  fieldsToUpdate.forEach((field) => {
+    if (this[field]) {
+      this[field] = Array.from(
+        new Set(
+          this[field].map((item) => ({
+            ...item,
+            createdAt: item.createdAt || currentDate,
+          }))
+        )
+      );
+    }
+  });
+
+  const fieldsToAddToSet = [
     "airqloud_ids",
     "device_ids",
-    "site_ids",
     "cohort_ids",
     "grid_ids",
+    "site_ids",
     "network_ids",
     "group_ids",
   ];
 
-  fieldsToHandle.forEach((field) => {
+  fieldsToAddToSet.forEach((field) => {
     if (this[field]) {
       this[field] = Array.from(new Set(this[field].map((id) => id.toString())));
     }
@@ -343,17 +365,25 @@ PreferenceSchema.statics = {
         .limit(limit)
         .exec();
 
+      preferences.forEach((preference) => {
+        preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_airqlouds.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
+      });
+
       if (!isEmpty(preferences)) {
         return {
           success: true,
           data: preferences,
-          message: "successfully listed the preferences",
+          message: "Successfully listed the preferences",
           status: httpStatus.OK,
         };
       } else if (isEmpty(preferences)) {
         return {
           success: true,
-          message: "no preferences found for this search",
+          message: "No preferences found for this search",
           data: [],
           status: httpStatus.OK,
         };

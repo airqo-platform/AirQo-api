@@ -648,7 +648,7 @@ router.get(
 );
 
 router.delete(
-  "/",
+  "/:user_id",
   oneOf([
     [
       query("tenant")
@@ -663,24 +663,9 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
+    param("user_id")
       .exists()
-      .withMessage(
-        "the defaults identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("user_id")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the user_id"
-      )
+      .withMessage("the the user_id is missing in request")
       .bail()
       .trim()
       .isMongoId()
