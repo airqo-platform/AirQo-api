@@ -9,13 +9,13 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-site-util`
 );
-const distanceUtil = require("./distance");
-const createAirqloudUtil = require("./create-airqloud");
+const distanceUtil = require("@utils/distance");
+const createAirqloudUtil = require("@utils/create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const geolib = require("geolib");
 
@@ -824,7 +824,10 @@ const createSite = {
       const { skip, limit, tenant } = request.query;
       logObject("the limit", limit);
       logObject("the skip", skip);
+
       let filter = generateFilter.sites(request);
+
+      logObject("we are the filter man", filter);
 
       const responseFromListSite = await SiteModel(tenant).list({
         filter,
@@ -832,7 +835,7 @@ const createSite = {
         skip,
       });
 
-      if (!responseFromListSite.success) {
+      if (responseFromListSite.success === false) {
         return responseFromListSite;
       }
 

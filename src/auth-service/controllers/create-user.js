@@ -397,6 +397,82 @@ const createUser = {
     }
   },
 
+  emailReport: async (req, res) => {
+    try {
+
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ errors: [{ msg: 'No PDF or CSV file attached' }] });
+      }
+
+      const pdfFile = req.files.pdf;
+      if (pdfFile && !pdfFile.mimetype.includes('pdf')) {
+        return res.status(400).json({ errors: [{ msg: 'Invalid PDF file' }] });
+      }
+
+      const csvFile = req.files.csv;
+      if (csvFile && !csvFile.mimetype.includes('csv')) {
+        return res.status(400).json({ errors: [{ msg: 'Invalid CSV file' }] });
+      }
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "Bad Request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      let { tenant } = req.query;
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromEmailReport =
+        await createUserUtil.emailReport(request);
+
+      logObject("responseFromEmailReport", responseFromEmailReport);
+
+      if (responseFromEmailReport.success === true) {
+        const status = responseFromEmailReport.status
+          ? responseFromEmailReport.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "Report Emailed sucessfully",
+        });
+      } else if (responseFromEmailReport.success === false) {
+        const status = responseFromEmailReport.status
+          ? responseFromEmailReport.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromEmailReport.message,
+          errors: responseFromEmailReport.errors
+            ? responseFromEmailReport.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+
   lookUpFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

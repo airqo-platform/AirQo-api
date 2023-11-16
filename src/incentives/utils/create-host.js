@@ -18,7 +18,9 @@ const createHost = {
       return responseFromRegisterHost;
     } catch (error) {
       logElement(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- create ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -47,7 +49,9 @@ const createHost = {
       return responseFromModifyHost;
     } catch (error) {
       logElement("update Hosts util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- update ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -70,7 +74,9 @@ const createHost = {
       return responseFromRemoveHost;
     } catch (error) {
       logElement("delete Host util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- delete ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -103,7 +109,9 @@ const createHost = {
       return responseFromListHost;
     } catch (error) {
       logElement("list Hosts util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- list ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",

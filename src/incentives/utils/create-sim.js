@@ -45,7 +45,9 @@ const createSim = {
         });
     } catch (error) {
       logElement(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- createLocal ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -121,7 +123,11 @@ const createSim = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- createBulkLocal ---  ${JSON.stringify(
+          error
+        )}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -154,7 +160,9 @@ const createSim = {
       return responseFromListSim;
     } catch (error) {
       logElement("list Sims util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- listLocal ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -177,7 +185,9 @@ const createSim = {
       return responseFromRemoveSim;
     } catch (error) {
       logElement("delete Sim util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- deleteLocal ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -214,7 +224,9 @@ const createSim = {
       return responseFromModifySim;
     } catch (error) {
       logElement("update Sims util", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- updateLocal ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -345,7 +357,9 @@ const createSim = {
         })
         .catch((error) => {
           logObject("the error inside the checkStatus util", error);
-          logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+          logger.error(
+            `Internal Server Error --- checkStatus --- ${JSON.stringify(error)}`
+          );
           return {
             success: false,
             errors: { message: error.message },
@@ -355,7 +369,9 @@ const createSim = {
         });
     } catch (error) {
       logObject(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- checkStatus ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -439,7 +455,9 @@ const createSim = {
         })
         .catch((error) => {
           logObject("error", error);
-          logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+          logger.error(
+            `Internal Server Error --- activateSim --- ${JSON.stringify(error)}`
+          );
           return {
             success: false,
             errors: { message: error.message },
@@ -449,7 +467,9 @@ const createSim = {
         });
     } catch (error) {
       logObject(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- activateSim ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -534,7 +554,11 @@ const createSim = {
         })
         .catch((error) => {
           logObject("error", error);
-          logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+          logger.error(
+            `Internal Server Error --- deactivateSim --- ${JSON.stringify(
+              error
+            )}`
+          );
           return {
             success: false,
             errors: { message: JSON.stringify(error) },
@@ -544,7 +568,9 @@ const createSim = {
         });
     } catch (error) {
       logObject(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- deactivateSim ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -630,7 +656,11 @@ const createSim = {
         })
         .catch((error) => {
           logObject("error", error);
-          logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+          logger.error(
+            `Internal Server Error --- updateSimName --- ${JSON.stringify(
+              error
+            )}`
+          );
           return {
             success: false,
             errors: { message: JSON.stringify(error) },
@@ -640,7 +670,9 @@ const createSim = {
         });
     } catch (error) {
       logObject(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- updateSimName ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -726,7 +758,9 @@ const createSim = {
         })
         .catch((error) => {
           logObject("error", error);
-          logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+          logger.error(
+            `Internal Server Error --- rechargeSim --- ${JSON.stringify(error)}`
+          );
           return {
             success: false,
             errors: { message: JSON.stringify(error) },
@@ -736,7 +770,9 @@ const createSim = {
         });
     } catch (error) {
       logObject(" the util server error,", error.message);
-      logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- rechargeSim ---  ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server Error",

@@ -24,56 +24,33 @@ const defaults = {
         );
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
+      let request = Object.assign({}, req);
+      if (isEmpty(request.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      const responseFromFilter = generateFilter.defaults(req);
-      logObject("responseFromFilter", responseFromFilter);
-
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let request = req.body;
-        let responseFromUpdateDefault = await createDefaultUtil.update(
-          tenant,
-          filter,
-          request
-        );
-        logObject("responseFromUpdateDefault", responseFromUpdateDefault);
-        if (responseFromUpdateDefault.success === true) {
-          let status = responseFromUpdateDefault.status
-            ? responseFromUpdateDefault.status
-            : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            message: responseFromUpdateDefault.message,
-            default: responseFromUpdateDefault.data,
-          });
-        } else if (responseFromUpdateDefault.success === false) {
-          let errors = responseFromUpdateDefault.errors
-            ? responseFromUpdateDefault.errors
-            : { message: "" };
-          let status = responseFromUpdateDefault.status
-            ? responseFromUpdateDefault.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            message: responseFromUpdateDefault.message,
-            default: responseFromUpdateDefault.data,
-            errors,
-          });
-        }
-      } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
+      let responseFromUpdateDefault = await createDefaultUtil.update(request);
+      logObject("responseFromUpdateDefault", responseFromUpdateDefault);
+      if (responseFromUpdateDefault.success === true) {
+        let status = responseFromUpdateDefault.status
+          ? responseFromUpdateDefault.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromUpdateDefault.message,
+          default: responseFromUpdateDefault.data,
+        });
+      } else if (responseFromUpdateDefault.success === false) {
+        let errors = responseFromUpdateDefault.errors
+          ? responseFromUpdateDefault.errors
           : { message: "" };
-        let status = responseFromFilter.status
-          ? responseFromFilter.status
+        let status = responseFromUpdateDefault.status
+          ? responseFromUpdateDefault.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
+        res.status(status).json({
           success: false,
-          message: responseFromFilter.message,
+          message: responseFromUpdateDefault.message,
+          default: responseFromUpdateDefault.data,
           errors,
         });
       }
@@ -154,58 +131,34 @@ const defaults = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
+
+      let request = Object.assign({}, req);
+      if (isEmpty(request.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
 
-      let request = {};
-      request["body"] = req.body;
-      request["query"] = req.query;
-      let responseFromFilter = generateFilter.defaults(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let responseFromListDefaults = await createDefaultUtil.list(
-          tenant,
-          filter,
-          limit,
-          skip
-        );
-        if (responseFromListDefaults.success === true) {
-          let status = responseFromListDefaults.status
-            ? responseFromListDefaults.status
-            : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            message: responseFromListDefaults.message,
-            defaults: responseFromListDefaults.data,
-          });
-        } else if (responseFromListDefaults.success === false) {
-          let errors = responseFromListDefaults.errors
-            ? responseFromListDefaults.errors
-            : "";
+      const responseFromListDefaults = await createDefaultUtil.list(request);
+      if (responseFromListDefaults.success === true) {
+        let status = responseFromListDefaults.status
+          ? responseFromListDefaults.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListDefaults.message,
+          defaults: responseFromListDefaults.data,
+        });
+      } else if (responseFromListDefaults.success === false) {
+        let errors = responseFromListDefaults.errors
+          ? responseFromListDefaults.errors
+          : "";
 
-          let status = responseFromListDefaults.status
-            ? responseFromListDefaults.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-
-          return res.status(status).json({
-            success: false,
-            message: responseFromListDefaults.message,
-            errors,
-          });
-        }
-      } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-        let status = responseFromFilter.status
-          ? responseFromFilter.status
+        let status = responseFromListDefaults.status
+          ? responseFromListDefaults.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+
         return res.status(status).json({
           success: false,
-          message: responseFromFilter.message,
+          message: responseFromListDefaults.message,
           errors,
         });
       }
@@ -236,7 +189,7 @@ const defaults = {
       if (isEmpty(req.query.tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      let responseFromDeleteDefault = await createDefaultUtil.delete(request);
+      const responseFromDeleteDefault = await createDefaultUtil.delete(request);
       logObject("responseFromDeleteDefault", responseFromDeleteDefault);
       if (responseFromDeleteDefault.success === true) {
         let status = responseFromDeleteDefault.status

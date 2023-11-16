@@ -15,10 +15,14 @@ const GridModel = require("@models/Grid");
 const distanceUtil = require("@utils/distance");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const generateFilter = require("@utils/generate-filter");
 
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
-    const airQloud = await AirQloudModel(tenant).findById(airqloud_id);
+    const airQloud = await AirQloudModel(tenant)
+      .findById(airqloud_id)
+      .lean();
+    logObject("airQloud", airQloud);
 
     if (!airQloud) {
       return {
@@ -63,12 +67,20 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
     };
   }
 };
-
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
-    const grid = await GridModel(tenant).findById(grid_id);
+    const request = {
+      query: {
+        grid_id,
+      },
+    };
 
-    if (!grid) {
+    const filter = generateFilter.grids(request);
+    const reseponseFromListGrid = await GridModel(tenant).list({ filter });
+
+    const gridDetails = reseponseFromListGrid.data[0];
+
+    if (reseponseFromListGrid.data.length > 1 || isEmpty(gridDetails)) {
       return {
         success: false,
         message: "Bad Request Error",
@@ -77,7 +89,7 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
       };
     }
 
-    const sites = grid.sites || [];
+    const sites = gridDetails.sites || [];
 
     if (sites.length === 0) {
       return {
@@ -111,23 +123,32 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-
 const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
   try {
-    const cohort = await CohortModel(tenant).findById(cohort_id);
+    const request = {
+      query: {
+        cohort_id,
+      },
+    };
+    const filter = generateFilter.cohorts(request);
 
-    if (!cohort) {
+    const responseFromListCohort = await CohortModel(tenant).list({ filter });
+    logObject("responseFromListCohort.data[0]", responseFromListCohort.data[0]);
+    const cohortDetails = responseFromListCohort.data[0];
+
+    if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
       return {
         success: false,
         message: "Bad Request Error",
-        errors: { message: "Cohort not found" },
+        errors: { message: "No distinct Cohort found in this search" },
         status: httpStatus.BAD_REQUEST,
       };
     }
-    const assignedDevices = cohort.devices || [];
-    const deviceIds = assignedDevices.map((device) => device.toString());
+    const assignedDevices = cohortDetails.devices || [];
+    const deviceIds = assignedDevices.map((device) => device._id.toString());
 
     const commaSeparatedIds = deviceIds.join(",");
+    logObject("commaSeparatedIds", commaSeparatedIds);
 
     return {
       success: true,
@@ -208,6 +229,121 @@ const getSitesFromLatitudeAndLongitude = async ({
       status: httpStatus.INTERNAL_SERVER_ERROR,
       errors: { message: error.message },
     };
+  }
+};
+const processGridIds = async (grid_ids, request) => {
+  const gridIdArray = Array.isArray(grid_ids) ? grid_ids : grid_ids.split(",");
+  logObject("gridIdArray", gridIdArray);
+  // Use Promise.all to concurrently process each grid_id
+  const siteIdPromises = gridIdArray.map(async (grid_id) => {
+    if (!isEmpty(grid_id)) {
+      logObject("grid_id under processGridIds", grid_id);
+      const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
+
+      logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
+
+      if (responseFromGetSitesOfGrid.success === false) {
+        return responseFromGetSitesOfGrid;
+      } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
+        return {
+          success: false,
+          message: `The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        };
+      }
+      // Randomly pick one site from the list
+      logObject(
+        "responseFromGetSitesOfGrid.data",
+        responseFromGetSitesOfGrid.data
+      );
+
+      logObject(
+        "responseFromGetSitesOfGrid.data.split",
+        responseFromGetSitesOfGrid.data.split(",")
+      );
+
+      const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
+      const randomSite =
+        arrayOfSites[Math.floor(Math.random() * arrayOfSites.length)];
+      logObject("randomSite", randomSite);
+      return randomSite;
+    }
+  });
+
+  // Wait for all promises to resolve
+  const siteIdResults = await Promise.all(siteIdPromises);
+  logObject("siteIdResults", siteIdResults);
+
+  const invalidSiteIdResults = siteIdResults.filter(
+    (result) => result.success === false
+  );
+
+  if (!isEmpty(invalidSiteIdResults)) {
+    logger.error(
+      `Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+    );
+  }
+  logObject("invalidSiteIdResults", invalidSiteIdResults);
+
+  const validSiteIdResults = siteIdResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  logObject("validSiteIdResults", validSiteIdResults);
+
+  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
+    request.query.site_id = validSiteIdResults.join(",");
+  }
+};
+const processCohortIds = async (cohort_ids, request) => {
+  logObject("cohort_ids", cohort_ids);
+  const cohortIdArray = Array.isArray(cohort_ids)
+    ? cohort_ids
+    : cohort_ids.split(",");
+
+  // Use Promise.all to concurrently process each cohort_id
+  const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
+    if (!isEmpty(cohort_id)) {
+      const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
+        cohort_id,
+      });
+
+      if (responseFromGetDevicesOfCohort.success === false) {
+        return responseFromGetDevicesOfCohort;
+      } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
+        return {
+          success: false,
+          message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+        };
+      }
+      const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
+      const randomDevice =
+        responseFromGetDevicesOfCohort.data[
+          Math.floor(Math.random() * arrayOfDevices.length)
+        ];
+      return randomDevice;
+    }
+  });
+
+  // Wait for all promises to resolve
+  const deviceIdsResults = await Promise.all(deviceIdsPromises);
+
+  const invalidDeviceIdResults = deviceIdsResults.filter(
+    (result) => result.success === false
+  );
+
+  if (!isEmpty(invalidDeviceIdResults)) {
+    logger.error(
+      `Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
+    );
+  }
+
+  // Filter out undefined or null values
+  const validDeviceIdResults = deviceIdsResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
+    request.query.device_id = validDeviceIdResults.join(",");
   }
 };
 
@@ -407,27 +543,27 @@ const createEvent = {
       }
 
       logText("we are listing events...");
-      const { query } = req;
-      const { site_id, device_id } = req.params;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
+      const { site_id, device_id, site, device } = {
+        ...req.params,
+        ...req.query,
+      };
 
       let request = Object.assign({}, req);
 
-      if (!isEmpty(site_id)) {
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      if (!isEmpty(site_id) || !isEmpty(site)) {
         request.query.recent = "no";
         request.query.metadata = "site_id";
       }
 
-      if (!isEmpty(device_id)) {
+      if (!isEmpty(device_id) || !isEmpty(device)) {
         request.query.recent = "no";
         request.query.metadata = "device_id";
       }
 
-      request.query.tenant = tenant;
       request.query.brief = "yes";
 
       const result = await createEventUtil.list(request);
@@ -607,63 +743,199 @@ const createEvent = {
         );
       }
 
-      let { tenant } = req.query;
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
       let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      request.query.external = "no";
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+      request.query.recent = "yes";
       request.query.metadata = "site_id";
       request.query.brief = "yes";
-      const result = await createEventUtil.list(request);
+      const { cohort_id, grid_id } = { ...req.query, ...req.params };
 
-      logObject("the result for listing events", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        const measurementsForDeployedDevices = result.data[0].data.filter(
-          (obj) => {
-            if (obj.siteDetails === null) {
-              return false; // Exclude if siteDetails is null
+      let locationErrors = 0;
+
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (grid_id) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
+
+      if (locationErrors === 0) {
+        logObject("the request.query we are sending", request.query);
+
+        const result = await createEventUtil.list(request);
+
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
             }
+          );
 
-            const { pm2_5 } = obj;
-            if (pm2_5 && pm2_5.value === null) {
-              logger.error(
-                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
-                  obj.device ? obj.device : ""
-                } -- the timestamp is ${
-                  obj.time ? obj.time : ""
-                } -- the frequency is ${
-                  obj.frequency ? obj.frequency : ""
-                } -- the site_name is ${
-                  obj.siteDetails ? obj.siteDetails.name : ""
-                }`
-              );
-              return false; // Exclude if either value is null
-            }
-
-            return true; // Include for other cases
-          }
-        );
-
-        res.status(status).json({
-          success: true,
-          isCache: result.isCache,
-          message: result.message,
-          meta: result.data[0].meta,
-          measurements: measurementsForDeployedDevices,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = result.errors ? result.errors : { message: "" };
-        res.status(status).json({
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: measurementsForDeployedDevices,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
-          errors,
-          message: result.message,
+          errors: {
+            message: `Unable to process measurements for the provided location IDs`,
+          },
+          message: "Internal Server Error",
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  listHistorical: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = "airqo";
+      }
+      request.query.recent = "no";
+      request.query.metadata = "site_id";
+      request.query.brief = "yes";
+      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+      let locationErrors = 0;
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (grid_id) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
+
+      if (locationErrors === 0) {
+        const result = await createEventUtil.list(request);
+
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
+            }
+          );
+
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: measurementsForDeployedDevices,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          errors: {
+            message: `Unable to process measurements for the provided location IDs`,
+          },
+          message: "Internal Server Error",
         });
       }
     } catch (error) {
@@ -1769,7 +2041,10 @@ const createEvent = {
           const status = responseFromGetDevicesOfCohort.status
             ? responseFromGetDevicesOfCohort.status
             : httpStatus.OK;
-          return res.status(status).json(responseFromGetDevicesOfCohort);
+          return res.status(status).json({
+            success: true,
+            message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+          });
         }
         request.query.device_id = responseFromGetDevicesOfCohort.data;
       }

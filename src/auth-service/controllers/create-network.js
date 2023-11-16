@@ -145,7 +145,7 @@ const createNetwork = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromAssignUsers = await createNetworkUtil.assignUsers(
+      const responseFromAssignUsers = await createNetworkUtil.assignUsersHybrid(
         request
       );
 

@@ -25,7 +25,9 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- hosts -- ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         errors: { message: error.message },
@@ -56,6 +58,9 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
+      logger.error(
+        `Internal Server Error --- transactions -- ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         message: "Internal Server error",
@@ -84,7 +89,9 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(
+        `Internal Server Error --- sims --- ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         errors: { message: error.message },
@@ -115,6 +122,9 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
+      logger.error(
+        `Internal Server Error --- networks -- ${JSON.stringify(error)}`
+      );
       return {
         success: false,
         errors: { message: error.message },

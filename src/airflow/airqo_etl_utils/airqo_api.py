@@ -2,9 +2,7 @@ import traceback
 from urllib.parse import urlencode
 
 import pandas as pd
-import requests
 import simplejson
-
 import urllib3
 from urllib3.util.retry import Retry
 
@@ -176,12 +174,17 @@ class AirQoApi:
             for entry in decrypted_keys
         }
 
-    def get_forecast(self, timestamp, channel_id) -> list:
-        endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(endpoint=endpoint, params={}, method="get")
+    def get_forecast(self, frequency, site_id) -> list:
+        endpoint = f"predict/{frequency}-forecast"
+        params = {"site_id": site_id}
+        response = self.__request(endpoint=endpoint, params=params, method="get")
 
-        if response is not None and "predictions" in response:
-            return response["predictions"]
+        if (
+            response is not None
+            and "forecasts" in response.keys()
+            and len(response["forecasts"]) > 0
+        ):
+            return response["forecasts"]
 
         return []
 
@@ -232,12 +235,11 @@ class AirQoApi:
         query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
 
         try:
-            response = requests.put(
-                url=f"{self.AIRQO_BASE_URL_V2}/devices/airqlouds/refresh",
+            response = self.__request(
+                endpoint="devices/airqlouds/refresh",
                 params=query_params,
+                method="put",
             )
-
-            print(response.json())
         except Exception as ex:
             print(ex)
 
@@ -245,12 +247,11 @@ class AirQoApi:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         try:
-            response = requests.put(
-                url=f"{self.AIRQO_BASE_URL_V2}/devices/grids/refresh/{grid_id}",
+            response = self.__request(
+                endpoint=f"devices/grids/refresh/{grid_id}",
                 params=query_params,
+                method="put",
             )
-
-            print(response.json())
         except Exception as ex:
             print(ex)
 
@@ -384,12 +385,15 @@ class AirQoApi:
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
                 url = url + "?" + encoded_args
-                response = http.request(
-                    "PUT",
-                    url,
-                    headers=headers,
-                    body=simplejson.dumps(body, ignore_nan=True),
-                )
+                if body is not None:
+                    response = http.request(
+                        "PUT",
+                        url,
+                        headers=headers,
+                        body=simplejson.dumps(body, ignore_nan=True),
+                    )
+                else:
+                    response = http.request("PUT", url, headers=headers)
             elif method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
@@ -405,6 +409,7 @@ class AirQoApi:
                 return None
 
             print(response._request_url)
+            print(response.data)
 
             if response.status == 200 or response.status == 201:
                 return simplejson.loads(response.data)

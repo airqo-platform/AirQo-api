@@ -113,6 +113,12 @@ router.put(
         .withMessage("the grp_industry should not be empty if provided")
         .bail()
         .trim(),
+      body("grp_image")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_image should not be empty if provided")
+        .bail()
+        .trim(),
       body("grp_website")
         .optional()
         .notEmpty()
@@ -228,6 +234,12 @@ router.post(
         .optional()
         .notEmpty()
         .withMessage("the grp_country should not be empty if provided")
+        .bail()
+        .trim(),
+      body("grp_image")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_image should not be empty if provided")
         .bail()
         .trim(),
       body("grp_timezone")

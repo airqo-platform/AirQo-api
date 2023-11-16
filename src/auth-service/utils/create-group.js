@@ -381,7 +381,7 @@ const createGroup = {
       };
     }
   },
-  assignUsers: async (request) => {
+  assignUsersHybrid: async (request) => {
     try {
       const { params, body, query } = request;
       const { grp_id } = params;
@@ -400,7 +400,9 @@ const createGroup = {
       }
 
       const notAssignedUsers = [];
-      const assignedUsers = [];
+      let assignedUsers = 0;
+      const bulkWriteOperations = [];
+      const cleanupOperations = [];
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
@@ -424,36 +426,49 @@ const createGroup = {
             user_id,
             reason: `User ${user_id} is already assigned to the Group ${grp_id}`,
           });
+          continue;
         } else {
-          const result = await UserModel(tenant).updateOne(
-            { _id: user_id },
-            {
-              $addToSet: {
-                group_roles: {
-                  group: grp_id,
-                },
+          bulkWriteOperations.push({
+            updateOne: {
+              filter: { _id: user_id },
+              update: {
+                $addToSet: { group_roles: { group: grp_id } },
               },
-            }
-          );
-
-          if (result.nModified > 0) {
-            assignedUsers.push(user_id);
-          } else {
-            notAssignedUsers.push({
-              user_id,
-              reason: `Failed to assign User ${user_id}`,
-            });
-          }
+            },
+          });
         }
+
+        cleanupOperations.push({
+          updateOne: {
+            filter: {
+              _id: { _id: user_id },
+              "group_roles.group": { $exists: true, $eq: null },
+            },
+            update: {
+              $pull: { group_roles: { group: { $exists: true, $eq: null } } },
+            },
+          },
+        });
+      }
+
+      if (bulkWriteOperations.length > 0) {
+        const { nModified } = await UserModel(tenant).bulkWrite(
+          bulkWriteOperations
+        );
+        assignedUsers = nModified;
       }
 
       let message;
-      if (assignedUsers.length === 0) {
+      if (assignedUsers === 0) {
         message = "No users assigned to the group.";
-      } else if (assignedUsers.length === user_ids.length) {
+      } else if (assignedUsers === user_ids.length) {
         message = "All users have been assigned to the group.";
       } else {
-        message = `Operation partially successful; ${assignedUsers.length} of ${user_ids.length} users have been assigned to the group.`;
+        message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the group.`;
+      }
+
+      if (cleanupOperations.length > 0) {
+        await UserModel(tenant).bulkWrite(cleanupOperations);
       }
 
       if (notAssignedUsers.length > 0) {
@@ -484,7 +499,6 @@ const createGroup = {
       };
     }
   },
-
   assignOneUser: async (request) => {
     try {
       const { grp_id, user_id } = request.params;

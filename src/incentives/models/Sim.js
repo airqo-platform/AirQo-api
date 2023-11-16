@@ -52,8 +52,10 @@ SimSchema.index(
 
 const handleServerError = (error, message) => {
   logObject("error", error);
-  const stingifiedMessage = JSON.stringify(error ? error : "");
-  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+  const stingifiedMessage = JSON.stringify(
+    error ? error : { message: "Internal Server Error" }
+  );
+  logger.error(`Internal Server Error -- ${stingifiedMessage} --- ${message}`);
   return {
     // ...errorRsesponse,
     message,
@@ -81,7 +83,10 @@ SimSchema.statics.register = async function (args) {
     };
   } catch (error) {
     logObject("error", error);
-    return handleServerError(error, "Internal Server Error");
+    return handleServerError(
+      error,
+      "Internal Server Error --- statics.egister ---"
+    );
   }
 };
 
@@ -120,7 +125,10 @@ SimSchema.statics.list = async function ({
       data: [],
     };
   } catch (error) {
-    return handleServerError(error, "unable to retrieve sims");
+    return handleServerError(
+      error,
+      "unable to retrieve sims --- statics.list ---"
+    );
   }
 };
 
@@ -153,7 +161,10 @@ SimSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
       };
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    return handleServerError(
+      error,
+      "Internal Server Error --- statics.modify ---"
+    );
   }
 };
 
@@ -178,7 +189,10 @@ SimSchema.statics.remove = async function ({ filter = {} } = {}) {
       };
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    return handleServerError(
+      error,
+      "Internal Server Error --- statics.remove ---"
+    );
   }
 };
 

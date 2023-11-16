@@ -5,7 +5,8 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-
+const { addWeeksToProvideDateTime } = require("@utils/date");
+const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
@@ -26,38 +27,61 @@ const DefaultsSchema = new mongoose.Schema(
       type: String,
       trim: true,
       required: [true, "pollutant is required!"],
+      default: "pm2_5",
     },
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
+      default: "hourly",
     },
     startDate: {
       type: Date,
       required: [true, "startDate is required!"],
+      default: addWeeksToProvideDateTime(currentDate, -2),
     },
     endDate: {
       type: Date,
       required: [true, "endDate is required!"],
+      default: currentDate,
     },
     chartType: {
       type: String,
       required: [true, "chartTyoe is required!"],
+      default: "line",
     },
     chartTitle: {
       type: String,
       required: [true, "chartTitle is required!"],
+      default: "Chart Title",
     },
     chartSubTitle: {
       type: String,
       required: [true, "chartSubTitle is required!"],
+      default: "Chart SubTitle",
     },
     airqloud: {
       type: ObjectId,
       ref: "airqloud",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
+    },
+    grid: {
+      type: ObjectId,
+      ref: "grid",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
+    },
+    cohort: {
+      type: ObjectId,
+      ref: "cohort",
     },
     network_id: {
       type: ObjectId,
       ref: "network",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+    },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
     user: {
       type: ObjectId,
@@ -116,6 +140,14 @@ DefaultsSchema.statics = {
       if (body._id) {
         delete body._id;
       }
+      if (isEmpty(args.period)) {
+        args.period = {
+          value: "Last 7 days",
+          label: "Last 7 days",
+          unitValue: 7,
+          unit: "day",
+        };
+      }
       let data = await this.create({
         ...body,
       });
@@ -164,7 +196,7 @@ DefaultsSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 20, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       const defaults = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -223,7 +255,7 @@ DefaultsSchema.statics = {
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default (Preference) you are trying to UPDATE does not exist, please crosscheck",
+              "the User Default  you are trying to UPDATE does not exist, please crosscheck",
           },
         };
       }
@@ -272,7 +304,7 @@ DefaultsSchema.statics = {
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "the User Default (Preference) you are trying to DELETE does not exist, please crosscheck",
+              "the User Default  you are trying to DELETE does not exist, please crosscheck",
           },
         };
       }
