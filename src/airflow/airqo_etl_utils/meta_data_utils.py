@@ -98,7 +98,7 @@ class MetaDataUtils:
             )
 
         return pd.DataFrame(merged_data)
-    
+
     @staticmethod
     def merge_cohorts_and_devices(data: pd.DataFrame) -> pd.DataFrame:
         merged_data = []

@@ -89,6 +89,7 @@ def update_big_query_airqlouds_sites_and_devices():
     sites_meta_data = extract_sites_meta_data()
     load_sites_meta_data(sites_meta_data)
 
+
 @dag(
     "Update-BigQuery-Sites-Grids-And-Devices",
     schedule="*/15 * * * *",
@@ -123,7 +124,6 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
         BigQueryApi().update_cohorts(data)
 
-    
     @task()
     def update_grid_sites_table(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi

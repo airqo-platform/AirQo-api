@@ -26,6 +26,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/server script`
 );
 const { logText, logObject } = require("@utils/log");
+const fileUpload = require('express-fileupload');
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -40,6 +41,7 @@ app.use(
     saveUninitialized: false,
   })
 ); // session setup
+app.use(fileUpload());
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {

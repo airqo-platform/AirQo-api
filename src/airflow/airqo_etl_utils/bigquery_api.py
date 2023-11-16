@@ -390,7 +390,7 @@ class BigQueryApi:
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
-    
+
     def update_cohorts_devices_table(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.cohorts_devices_table

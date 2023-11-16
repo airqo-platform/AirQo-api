@@ -29,6 +29,7 @@ const GroupSchema = new Schema(
     grp_industry: { type: String },
     grp_country: { type: String },
     grp_timezone: { type: String },
+    grp_image: { type: String },
   },
   {
     timestamps: true,
@@ -58,6 +59,7 @@ GroupSchema.methods = {
       grp_industry: this.grp_industry,
       grp_country: this.grp_country,
       grp_timezone: this.grp_timezone,
+      grp_image: this.grp_image,
     };
   },
 };

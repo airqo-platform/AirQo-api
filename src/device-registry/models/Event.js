@@ -1335,6 +1335,10 @@ eventSchema.statics = {
 
       logObject("filter", filter);
 
+      const startTime = filter["values.time"]["$gte"];
+      const endTime = filter["values.time"]["$lte"];
+      // const visibilityFilter = true;
+
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -1369,8 +1373,8 @@ eventSchema.statics = {
             1,
           ],
         },
-        // startTime: "$startTime",
-        // endTime: "$endTime",
+        startTime,
+        endTime,
       };
       let siteProjection = {};
       let deviceProjection = {};
@@ -1547,6 +1551,7 @@ eventSchema.statics = {
             foreignField: "_id",
             as: "device_details",
           })
+          // .match({ "device_details.visibility": visibilityFilter })
           .lookup({
             from,
             localField,

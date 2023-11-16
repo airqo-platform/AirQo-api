@@ -9,7 +9,7 @@ const {
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
-const { logObject } = require("./log");
+const { logObject, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
@@ -110,13 +110,13 @@ const generateFilter = {
     // Handle startTime and endTime corner cases
     if (startTime && !endTime) {
       if (!isTimeEmpty(startTime)) {
-        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 2);
+        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
       } else {
         delete filter["values.time"];
       }
       const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
         startTime,
-        2
+        1
       );
       filter["day"]["$lte"] = generateDateFormatWithoutHrs(
         addedTwoWeeksToProvidedDateTime
@@ -125,13 +125,13 @@ const generateFilter = {
 
     if (!startTime && endTime) {
       if (!isTimeEmpty(endTime)) {
-        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -2);
+        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
       } else {
         delete filter["values.time"];
       }
       const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
         endTime,
-        -2
+        -1
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
         removedTwoWeeksFromProvidedDateTime
@@ -141,18 +141,18 @@ const generateFilter = {
     if (startTime && endTime) {
       const weeks = getDifferenceInWeeks(startTime, endTime);
       logObject("the weeks between provided dates", weeks);
-      if (weeks > 2) {
+      if (weeks > 1) {
         if (!isTimeEmpty(endTime)) {
           filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
             endTime,
-            -2
+            -1
           );
         } else {
           delete filter["values.time"];
         }
         const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
           endTime,
-          -2
+          -1
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
           removedTwoWeeksFromProvidedDateTime
@@ -418,7 +418,7 @@ const generateFilter = {
       google_place_id,
     } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
-
+    logText("we are generating the filter man!");
     if (name) {
       filter["name"] = name;
     }
