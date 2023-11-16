@@ -122,6 +122,24 @@ const preferences = {
         body,
       } = request;
 
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
@@ -129,8 +147,33 @@ const preferences = {
         return filterResponse;
       }
 
-      const filter = filterResponse;
       const update = body;
+
+      fieldsToAddToSet.forEach((field) => {
+        if (update[field]) {
+          update["$addToSet"] = {
+            [field]: { $each: update[field] },
+          };
+
+          delete update[field];
+        }
+      });
+
+      fieldsToUpdate.forEach((field) => {
+        if (update[field]) {
+          update[field] = update[field].map((item) => ({
+            ...item,
+            createdAt: item.createdAt || new Date(),
+          }));
+
+          update["$addToSet"] = {
+            [field]: { $each: update[field] },
+          };
+
+          delete update[field];
+        }
+      });
+      const filter = filterResponse;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
