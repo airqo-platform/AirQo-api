@@ -43,6 +43,7 @@ const siteSchema = new mongoose.Schema(
     search_name: { type: String },
     sub_county: { type: String },
     grid_id: { type: ObjectId },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -51,6 +52,7 @@ const gridSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -59,6 +61,7 @@ const cohortSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -67,6 +70,7 @@ const deviceSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -75,6 +79,7 @@ const airqloudSchema = new mongoose.Schema(
   {
     _id: { type: ObjectId },
     name: { type: String },
+    createdAt: { type: Date },
   },
   { _id: false }
 );
@@ -207,77 +212,44 @@ PreferenceSchema.plugin(uniqueValidator, {
 });
 
 PreferenceSchema.pre("save", function (next) {
-  if (this.selected_sites) {
-    this.selected_sites = Array.from(
-      new Set(this.selected_sites.map((id) => id.toString()))
-    );
-  }
+  const fieldsToUpdate = [
+    "selected_sites",
+    "selected_grids",
+    "selected_cohorts",
+    "selected_devices",
+    "selected_airqlouds",
+  ];
 
-  if (this.selected_grids) {
-    this.selected_grids = Array.from(
-      new Set(this.selected_grids.map((id) => id.toString()))
-    );
-  }
+  const currentDate = new Date();
 
-  if (this.selected_cohorts) {
-    this.selected_cohorts = Array.from(
-      new Set(this.selected_cohorts.map((id) => id.toString()))
-    );
-  }
+  fieldsToUpdate.forEach((field) => {
+    if (this[field]) {
+      this[field] = Array.from(
+        new Set(
+          this[field].map((item) => ({
+            ...item,
+            createdAt: item.createdAt || currentDate,
+          }))
+        )
+      );
+    }
+  });
 
-  if (this.selected_devices) {
-    this.selected_devices = Array.from(
-      new Set(this.selected_devices.map((id) => id.toString()))
-    );
-  }
+  const fieldsToAddToSet = [
+    "airqloud_ids",
+    "device_ids",
+    "cohort_ids",
+    "grid_ids",
+    "site_ids",
+    "network_ids",
+    "group_ids",
+  ];
 
-  if (this.selected_airqlouds) {
-    this.selected_airqlouds = Array.from(
-      new Set(this.selected_airqlouds.map((id) => id.toString()))
-    );
-  }
-
-  if (this.airqloud_ids) {
-    this.airqloud_ids = Array.from(
-      new Set(this.airqloud_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.device_ids) {
-    this.device_ids = Array.from(
-      new Set(this.device_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.site_ids) {
-    this.site_ids = Array.from(
-      new Set(this.site_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.cohort_ids) {
-    this.cohort_ids = Array.from(
-      new Set(this.cohort_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.grid_ids) {
-    this.grid_ids = Array.from(
-      new Set(this.grid_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.network_ids) {
-    this.network_ids = Array.from(
-      new Set(this.network_ids.map((id) => id.toString()))
-    );
-  }
-
-  if (this.group_ids) {
-    this.group_ids = Array.from(
-      new Set(this.group_ids.map((id) => id.toString()))
-    );
-  }
+  fieldsToAddToSet.forEach((field) => {
+    if (this[field]) {
+      this[field] = Array.from(new Set(this[field].map((id) => id.toString())));
+    }
+  });
 
   return next();
 });
@@ -393,17 +365,25 @@ PreferenceSchema.statics = {
         .limit(limit)
         .exec();
 
+      preferences.forEach((preference) => {
+        preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_airqlouds.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
+        preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
+      });
+
       if (!isEmpty(preferences)) {
         return {
           success: true,
           data: preferences,
-          message: "successfully listed the preferences",
+          message: "Successfully listed the preferences",
           status: httpStatus.OK,
         };
       } else if (isEmpty(preferences)) {
         return {
           success: true,
-          message: "no preferences found for this search",
+          message: "No preferences found for this search",
           data: [],
           status: httpStatus.OK,
         };
@@ -421,94 +401,52 @@ PreferenceSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       const options = { new: true };
-      let updateBody = update;
+      const updateBody = update;
+
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
+      const handleFieldUpdate = (field) => {
+        if (updateBody[field]) {
+          updateBody[field] = updateBody[field].map((item) => ({
+            ...item,
+            createdAt: item.createdAt || new Date(),
+          }));
+
+          updateBody["$addToSet"] = {
+            [field]: { $each: updateBody[field] },
+          };
+          delete updateBody[field];
+        }
+      };
+
+      fieldsToUpdate.forEach(handleFieldUpdate);
+      fieldsToAddToSet.forEach((field) => {
+        if (updateBody[field]) {
+          updateBody["$addToSet"] = {
+            [field]: { $each: updateBody[field] },
+          };
+          delete updateBody[field];
+        }
+      });
 
       if (updateBody._id) {
         delete updateBody._id;
-      }
-
-      if (updateBody.selected_sites) {
-        updateBody["$addToSet"] = {
-          selected_sites: { $each: updateBody.selected_sites },
-        };
-        delete updateBody.selected_sites;
-      }
-
-      if (updateBody.selected_grids) {
-        updateBody["$addToSet"] = {
-          selected_grids: { $each: updateBody.selected_grids },
-        };
-        delete updateBody.selected_grids;
-      }
-
-      if (updateBody.selected_cohorts) {
-        updateBody["$addToSet"] = {
-          selected_cohorts: { $each: updateBody.selected_cohorts },
-        };
-        delete updateBody.selected_cohorts;
-      }
-
-      if (updateBody.selected_devices) {
-        updateBody["$addToSet"] = {
-          selected_devices: { $each: updateBody.selected_devices },
-        };
-        delete updateBody.selected_devices;
-      }
-
-      if (updateBody.selected_airqlouds) {
-        updateBody["$addToSet"] = {
-          selected_airqlouds: { $each: updateBody.selected_airqlouds },
-        };
-        delete updateBody.selected_airqlouds;
-      }
-
-      if (updateBody.airqloud_ids) {
-        updateBody["$addToSet"] = {
-          airqloud_ids: { $each: updateBody.airqloud_ids },
-        };
-        delete updateBody.airqloud_ids;
-      }
-
-      if (updateBody.device_ids) {
-        updateBody["$addToSet"] = {
-          device_ids: { $each: updateBody.device_ids },
-        };
-        delete updateBody.device_ids;
-      }
-
-      if (updateBody.cohort_ids) {
-        updateBody["$addToSet"] = {
-          cohort_ids: { $each: updateBody.cohort_ids },
-        };
-        delete updateBody.cohort_ids;
-      }
-
-      if (updateBody.grid_ids) {
-        updateBody["$addToSet"] = {
-          grid_ids: { $each: updateBody.grid_ids },
-        };
-        delete updateBody.grid_ids;
-      }
-
-      if (updateBody.site_ids) {
-        updateBody["$addToSet"] = {
-          site_ids: { $each: updateBody.site_ids },
-        };
-        delete updateBody.site_ids;
-      }
-
-      if (updateBody.network_ids) {
-        updateBody["$addToSet"] = {
-          network_ids: { $each: updateBody.network_ids },
-        };
-        delete updateBody.network_ids;
-      }
-
-      if (updateBody.group_ids) {
-        updateBody["$addToSet"] = {
-          group_ids: { $each: updateBody.group_ids },
-        };
-        delete updateBody.group_ids;
       }
 
       const updatedPreference = await this.findOneAndUpdate(
