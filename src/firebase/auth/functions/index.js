@@ -547,24 +547,19 @@ exports.sendFCMNotification =
     .timeZone("Africa/Kampala")
     .onRun(async (context) => {
       try {
-        const title = "Your Notification Title";
-        const body = "Your Notification Body";
-
-        const registrationToken = "fQiXy8TGShKmzWjZVPTns8:APA91bH6KjWVRZeMhqmUgl6KiNIUUYA1cnSOPHmWLu0aso2afu3NwmNOA-DkDINZ5ZABHcPWr_UipybBRpS5JbM6wWCF_zunPZCiyZGUmMcBl7w0vGMJASwOJ-5fo0L8_VERcU53uRXs";
-
         const message = {
           notification: {
             title: "Air quality update from favorites!",
             body: "You have some updates from your favorite locations. View now",
           },
-          token: registrationToken,
+          data: {
+            subject: "favorites",
+          },
+          topic: "push-notifications",
         };
 
-        // Send a message to the device corresponding to the provided
-        // registration token.
         admin.messaging().send(message)
           .then((response) => {
-            // Response is a message ID string.
             console.log("Successfully sent message:", response);
           })
           .catch((error) => {
