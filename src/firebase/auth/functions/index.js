@@ -543,7 +543,7 @@ exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
 
 exports.sendFCMNotification =
   functions.pubsub
-    .schedule("0 0 * * 1")
+  .schedule("0 8 * * *")
     .timeZone("Africa/Kampala")
     .onRun(async (context) => {
       try {
