@@ -1021,6 +1021,8 @@ const mailer = {
   sendReport: async (senderEmail, recepientEmails, pdfFile, csvFile) => {
     try {
       let formart;
+      let reportAttachments = [...attachments];
+
       if (pdfFile) {
         formart = "PDF";
         const pdfBase64 = pdfFile.data.toString('base64');
@@ -1030,7 +1032,7 @@ const mailer = {
           content: pdfBase64,
           encoding: 'base64',
         };
-        attachments.push(pdfAttachment);
+        reportAttachments.push(pdfAttachment);
       }
       if (csvFile) {
         formart = "CSV"
@@ -1040,7 +1042,7 @@ const mailer = {
           content: csvBase64,
           encoding: 'base64',
         };
-        attachments.push(csvAttachment);
+        reportAttachments.push(csvAttachment);
       }
       const emailResults = [];
 
@@ -1062,7 +1064,7 @@ const mailer = {
           subject: "AirQo Analytics Report",
           html: msgs.report(senderEmail, recepientEmail, formart),
           to: recepientEmail,
-          attachments
+          attachments: reportAttachments
         };
 
         const response = await transporter.sendMail(mailOptions);
