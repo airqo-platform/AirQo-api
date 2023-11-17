@@ -30,7 +30,7 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "hourly")
+        return ForecastUtils.preprocess_data(data, "hourly", "train")
 
     @task()
     def get_hourly_lag_and_rolling_features(data):
@@ -61,11 +61,11 @@ def train_forecasting_models():
             months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date)
+        return BigQueryApi().fetch_data(start_date, "train")
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "daily")
+        return ForecastUtils.preprocess_data(data, "daily", job_type="train")
 
     @task()
     def get_daily_lag_and_rolling_features(data):
