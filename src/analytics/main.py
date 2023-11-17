@@ -39,7 +39,7 @@ def create_app(rest_api, config=CONFIGURATIONS):
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)
-    CORS(app)
+    cors = CORS(app, resources={r'/api/v2/*':{'origins':'*'}})
     Swagger(app)
 
     initialize_blueprints(app)
