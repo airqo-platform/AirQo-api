@@ -5,7 +5,6 @@ import math
 from flasgger import swag_from
 from flask import request
 from flask_restx import Resource
-from flask_cors import cross_origin
 
 from api.models import (
     EventsModel,
@@ -129,7 +128,6 @@ class ChartDataResource(Resource):
         )
 
 
-@cross_origin()
 @rest_api_v2.route("/dashboard/chart/d3/data")
 class D3ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/d3_chart_data_post.yml")

@@ -71,11 +71,11 @@ def make_forecasts():
             days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date)
+        return BigQueryApi().fetch_data(start_date, "prediction")
 
     @task()
     def preprocess_historical_data_daily_forecast(data):
-        return ForecastUtils.preprocess_data(data, "daily")
+        return ForecastUtils.preprocess_data(data, "daily", job_type="prediction")
 
     @task()
     def generate_lag_and_rolling_features_daily_forecast(data):
