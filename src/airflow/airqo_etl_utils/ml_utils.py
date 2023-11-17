@@ -86,7 +86,7 @@ class ForecastUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        group_columns = ["device_id"] + additional_columns if job_type == 'prediction' else [""]
+        group_columns = ["device_id"] + additional_columns if job_type == 'prediction' else ["device_id"]
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )

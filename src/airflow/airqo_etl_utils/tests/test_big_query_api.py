@@ -85,7 +85,7 @@ def test_fetch_data_correct_se(mock_bigquery_client, start_date_time, expected_d
     bq_api = BigQueryApi()
     bq_api.client = mock_bigquery_client
 
-    actual_df = bq_api.fetch_data(start_date_time)
+    actual_df = bq_api.fetch_data(start_date_time, "train")
     pd.testing.assert_frame_equal(actual_df, expected_df)
 
 
@@ -97,7 +97,7 @@ def test_fetch_data_invalid_date(mock_bigquery_client, start_date_time):
     bq_api.client = mock_bigquery_client
 
     with pytest.raises(ValueError):
-        bq_api.fetch_data(start_date_time)
+        bq_api.fetch_data(start_date_time, "train")
 
 
 @pytest.mark.parametrize("start_date_time", ["2023-01-03"])
@@ -109,7 +109,7 @@ def test_fetch_data_bigquery_error(mock_bigquery_client, start_date_time):
     bq_api.client = mock_bigquery_client
 
     with pytest.raises(Exception):
-        bq_api.fetch_data(start_date_time)
+        bq_api.fetch_data(start_date_time, "train")
 
 
 def test_fetch_raw_readings_empty(mock_bigquery_client):
