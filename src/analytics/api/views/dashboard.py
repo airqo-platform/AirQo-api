@@ -5,6 +5,7 @@ import math
 from flasgger import swag_from
 from flask import request
 from flask_restx import Resource
+from flask_cors import cross_origin
 
 from api.models import (
     EventsModel,
@@ -25,6 +26,7 @@ from main import rest_api_v2
 
 
 @rest_api_v2.route("/dashboard/chart/data")
+@cross_origin()
 class ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/customised_chart_post.yml")
     @validate_request_json(
