@@ -39,16 +39,21 @@ def create_app(rest_api, config=CONFIGURATIONS):
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)
-    CORS(app)
+    CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=True,
+    expose_headers=["Content-Disposition"],
+    allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    intercept_exceptions=False,
+    max_age=3600,
+    vary_header=True,
+    automatic_options=True,
+    always_send=True,
+    send_wildcard=True,
+)
     Swagger(app)
-
-    # Enable CORS for all routes
-    @app.after_request
-    def add_cors_headers(response):
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE"
-        return response
 
     initialize_blueprints(app)
 
