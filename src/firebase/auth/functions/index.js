@@ -9,6 +9,7 @@ require("dotenv").config();
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 
+const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
 const nodemailer = require("nodemailer");
@@ -538,3 +539,35 @@ exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
     res.status(500).send("An error occurred while processing your request.");
   }
 });
+
+
+exports.sendFCMNotification =
+  functions.pubsub
+  .schedule("0 8 * * *")
+    .timeZone("Africa/Kampala")
+    .onRun(async (context) => {
+      try {
+        const message = {
+          notification: {
+            title: "Air quality update from favorites!",
+            body: "You have some updates from your favorite locations. View now",
+          },
+          data: {
+            subject: "favorites",
+          },
+          topic: "push-notifications",
+        };
+
+        admin.messaging().send(message)
+          .then((response) => {
+            console.log("Successfully sent message:", response);
+          })
+          .catch((error) => {
+            console.log("Error sending message:", error);
+          });
+        return null;
+      } catch (error) {
+        console.error("Error sending FCM notifications:", error);
+        return null;
+      }
+    });
