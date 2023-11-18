@@ -747,6 +747,7 @@ const defaultConfig = {
     approximate_longitude: 1,
     approximate_distance_in_km: 1,
     bearing_in_radians: 1,
+    formatted_name: 1,
     description: 1,
     site_tags: 1,
     site_codes: 1,
