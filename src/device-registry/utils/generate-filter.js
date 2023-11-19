@@ -42,7 +42,7 @@ const generateFilter = {
       index,
       running,
       brief,
-    } = { ...params, ...query };
+    } = { ...query, ...params };
 
     // Constants for date calculations
     const today = monthsInfront(0);
