@@ -725,6 +725,46 @@ const createGrid = {
       };
     }
   },
+  getSiteAndDeviceIds: async (request) => {
+    try {
+      const { grid_id, tenant } = { ...request.query, ...request.params };
+      // Fetch sites based on the provided Grid ID
+      const sites = await SiteModel(tenant).find({ grids: grid_id });
+
+      // Extract site IDs from the fetched sites
+      const arrayOfSiteIds = sites.map((site) => site._id);
+
+      // Fetch devices for each site
+      const arrayOfDeviceIds = [];
+      for (const siteId of arrayOfSiteIds) {
+        const devices = await DeviceModel(tenant).find({ site_id: siteId });
+
+        // Extract device IDs from the fetched devices
+        devices.forEach((device) => {
+          arrayOfDeviceIds.push(device._id);
+        });
+      }
+
+      logObject("arrayOfSiteIds:", arrayOfSiteIds);
+      logObject("arrayOfDeviceIds:", arrayOfDeviceIds);
+
+      return {
+        success: true,
+        message: "Successfully returned the Site IDs and the Device IDs",
+        status: httpStatus.OK,
+        data: { arrayOfSiteIds, arrayOfDeviceIds },
+      };
+    } catch (error) {
+      logElement("Internal Server Error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
 module.exports = createGrid;
