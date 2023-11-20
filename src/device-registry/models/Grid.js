@@ -248,9 +248,9 @@ gridSchema.statics.list = async function({
         foreignField: "grids",
         as: "sites",
       })
-      .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
+      .sort({ createdAt: -1 })
       .skip(skip ? skip : 0)
       .limit(limit ? limit : 1000)
       .allowDiskUse(true);
