@@ -9,7 +9,7 @@ const {
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
-const { logObject } = require("./log");
+const { logObject, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
@@ -42,7 +42,7 @@ const generateFilter = {
       index,
       running,
       brief,
-    } = { ...params, ...query };
+    } = { ...query, ...params };
 
     // Constants for date calculations
     const today = monthsInfront(0);
@@ -418,7 +418,7 @@ const generateFilter = {
       google_place_id,
     } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
-
+    logText("we are generating the filter man!");
     if (name) {
       filter["name"] = name;
     }

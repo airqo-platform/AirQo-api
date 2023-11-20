@@ -62,12 +62,15 @@ const preferences = {
         };
       }
 
-      const responseFromRegisterDefault = await PreferenceModel(
+      const responseFromRegisterPreference = await PreferenceModel(
         tenant
       ).register(body);
-      logObject("responseFromRegisterDefault", responseFromRegisterDefault);
+      logObject(
+        "responseFromRegisterPreference in UTILS",
+        responseFromRegisterPreference
+      );
 
-      return responseFromRegisterDefault;
+      return responseFromRegisterPreference;
     } catch (e) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {
@@ -119,6 +122,24 @@ const preferences = {
         body,
       } = request;
 
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
@@ -126,8 +147,33 @@ const preferences = {
         return filterResponse;
       }
 
-      const filter = filterResponse;
       const update = body;
+
+      fieldsToAddToSet.forEach((field) => {
+        if (update[field]) {
+          update["$addToSet"] = {
+            [field]: { $each: update[field] },
+          };
+
+          delete update[field];
+        }
+      });
+
+      fieldsToUpdate.forEach((field) => {
+        if (update[field]) {
+          update[field] = update[field].map((item) => ({
+            ...item,
+            createdAt: item.createdAt || new Date(),
+          }));
+
+          update["$addToSet"] = {
+            [field]: { $each: update[field] },
+          };
+
+          delete update[field];
+        }
+      });
+      const filter = filterResponse;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -172,10 +218,12 @@ const preferences = {
 
       const filter = responseFromFilter;
       const { tenant } = request.query;
-      const responseFromRemoveDefault = await PreferenceModel(tenant).remove({
-        filter,
-      });
-      return responseFromRemoveDefault;
+      const responseFromRemovePreference = await PreferenceModel(tenant).remove(
+        {
+          filter,
+        }
+      );
+      return responseFromRemovePreference;
     } catch (error) {
       logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return {

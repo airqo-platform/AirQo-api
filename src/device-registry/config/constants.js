@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
+const { logText } = require("../utils/log");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
@@ -746,6 +747,7 @@ const defaultConfig = {
     approximate_longitude: 1,
     approximate_distance_in_km: 1,
     bearing_in_radians: 1,
+    formatted_name: 1,
     description: 1,
     site_tags: 1,
     site_codes: 1,
@@ -824,6 +826,7 @@ const defaultConfig = {
       "devices.owner": 0,
       "devices.device_manufacturer": 0,
       "devices.channelID": 0,
+      "devices.alias": 0,
       "grids.network_id": 0,
       "grids.geoHash": 0,
       "grids.center_point": 0,
@@ -832,6 +835,11 @@ const defaultConfig = {
       "grids.grid_tags": 0,
       "grids.grid_codes": 0,
       "grids.shape": 0,
+      "grids.network": 0,
+      "grids.centers": 0,
+      "grids.createdAt": 0,
+      "grids.updatedAt": 0,
+      "grids.__v": 0,
     };
 
     let projection = Object.assign({}, initialProjection);
@@ -842,17 +850,7 @@ const defaultConfig = {
         images: 0,
         site_codes: 0,
         site_tags: 0,
-        city: 0,
-        county: 0,
-        latitude: 0,
-        longitude: 0,
         network: 0,
-        approximate_latitude: 0,
-        parish: 0,
-        village: 0,
-        sub_county: 0,
-        street: 0,
-        approximate_longitude: 0,
         bearing_in_radians: 0,
         approximate_distance_in_km: 0,
         lat_long: 0,
@@ -870,8 +868,6 @@ const defaultConfig = {
         bearing_to_capital_city_center: 0,
         landform_270: 0,
         landform_90: 0,
-        location_name: 0,
-        search_name: 0,
         weather_stations: 0,
         greenness: 0,
         createdAt: 0,
@@ -1198,6 +1194,7 @@ const defaultConfig = {
     grid_codes: 1,
     centers: 1,
     shape: 1,
+    createdAt: 1,
     network: 1,
     group: 1,
     sites: "$sites",
@@ -1279,6 +1276,7 @@ const defaultConfig = {
     description: 1,
     cohort_tags: 1,
     group: 1,
+    createdAt: 1,
     visibility: 1,
     cohort_codes: 1,
     devices: "$devices",

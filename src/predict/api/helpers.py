@@ -40,11 +40,12 @@ def daily_forecasts_cache_key():
     county = args.get("county")
     district = args.get("district")
     parish = args.get("parish")
+    language = args.get("language")
     city = args.get("city")
     site_id = args.get("site_id")
     device_id = args.get("device_id")
 
-    return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
+    return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{language}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def hourly_forecasts_cache_key():
@@ -56,10 +57,12 @@ def hourly_forecasts_cache_key():
     county = args.get("county")
     district = args.get("district")
     parish = args.get("parish")
+    language = args.get("language")
     city = args.get("city")
     site_id = args.get("site_id")
+    device_id = args.get("device_id")
 
-    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
+    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def get_faults_cache_key():
@@ -86,11 +89,13 @@ def geo_coordinates_cache_key():
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_health_tips() -> list[dict]:
+def get_health_tips(language="") -> list[dict]:
+    params = {"language": language} if language else {}
     try:
         response = requests.get(
             f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
             timeout=10,
+            params=params,
         )
         if response.status_code == 200:
             result = response.json()
@@ -333,8 +338,8 @@ def read_faulty_devices(query):
     return result
 
 
-def add_forecast_health_tips(result: dict):
-    health_tips = get_health_tips()
+def add_forecast_health_tips(result: dict, language: str = ""):
+    health_tips = get_health_tips(language=language)
     if health_tips:
         for i in result["forecasts"]:
             pm2_5 = i["pm2_5"]

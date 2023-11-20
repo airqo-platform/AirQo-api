@@ -965,6 +965,7 @@ const defaultConfig = {
     grp_industry: 1,
     grp_country: 1,
     grp_timezone: 1,
+    grp_image: 1,
     createdAt: 1,
     numberOfGroupUsers: {
       $cond: {

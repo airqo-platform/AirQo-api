@@ -648,7 +648,7 @@ router.get(
 );
 
 router.delete(
-  "/",
+  "/:user_id",
   oneOf([
     [
       query("tenant")
@@ -663,24 +663,9 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
+    param("user_id")
       .exists()
-      .withMessage(
-        "the defaults identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("user_id")
-      .exists()
-      .withMessage(
-        "the record's identifier is missing in request, consider using the user_id"
-      )
+      .withMessage("the the user_id is missing in request")
       .bail()
       .trim()
       .isMongoId()
@@ -693,6 +678,41 @@ router.delete(
   setJWTAuth,
   authJWT,
   createPreferenceController.delete
+);
+
+router.get(
+  "/:user_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("user_id")
+        .exists()
+        .withMessage("the user ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPreferenceController.list
 );
 
 module.exports = router;

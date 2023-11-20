@@ -135,7 +135,7 @@ module.exports = {
     return constants.EMAIL_BODY(email, content);
   },
 
-  afterEmailVerification: (firstName, username, password, email) => {
+  afterEmailVerification: (firstName, username, email) => {
     const name = firstName;
     const content = ` <tr>
                                 <td

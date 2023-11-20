@@ -1337,6 +1337,7 @@ eventSchema.statics = {
 
       const startTime = filter["values.time"]["$gte"];
       const endTime = filter["values.time"]["$lte"];
+      // const visibilityFilter = true;
 
       let search = filter;
       let groupId = "$device";
@@ -1550,6 +1551,16 @@ eventSchema.statics = {
             foreignField: "_id",
             as: "device_details",
           })
+          .lookup({
+            from: "cohorts",
+            localField: "device_details.cohorts",
+            foreignField: "_id",
+            as: "cohort_details",
+          })
+          .match({
+            "cohort_details.visibility": { $ne: false },
+          })
+          // .match({ "device_details.visibility": visibilityFilter })
           .lookup({
             from,
             localField,
