@@ -4,7 +4,6 @@ from .dashboard import (
     DailyAveragesResource,
     DailyAveragesResource2,
     ChartDataResource,
-    D3ChartDataResource
     MonitoringSiteResource,
 )
 
