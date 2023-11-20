@@ -742,12 +742,10 @@ const createGrid = {
         );
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK || "airqo";
-      }
       let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_NETWORK || "airqo";
+      }
       request.query.category = "summary";
       const responseFromListGrids = await createGridUtil.list(request);
       logElement(
@@ -953,7 +951,7 @@ const createGrid = {
         return errors.badRequest(
           res,
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -1014,7 +1012,7 @@ const createGrid = {
         return errors.badRequest(
           res,
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -1061,6 +1059,65 @@ const createGrid = {
           message: responseFromListAssignedSites.message,
           errors: responseFromListAssignedSites.errors
             ? responseFromListAssignedSites.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logElement("internal server error", error.message);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  getSiteAndDeviceIds: async (req, res) => {
+    try {
+      logText("generate Sites and Devices from provided Grid ID....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromGetSiteAndDeviceIds = await createGridUtil.getSiteAndDeviceIds(
+        request
+      );
+
+      logObject(
+        "responseFromGetSiteAndDeviceIds in controller",
+        responseFromGetSiteAndDeviceIds
+      );
+
+      if (responseFromGetSiteAndDeviceIds.success === true) {
+        const status = responseFromGetSiteAndDeviceIds.status
+          ? responseFromGetSiteAndDeviceIds.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromGetSiteAndDeviceIds.message,
+          sites_and_devices: responseFromGetSiteAndDeviceIds.data,
+        });
+      } else if (responseFromGetSiteAndDeviceIds.success === false) {
+        const status = responseFromGetSiteAndDeviceIds.status
+          ? responseFromGetSiteAndDeviceIds.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromGetSiteAndDeviceIds.message,
+          errors: responseFromGetSiteAndDeviceIds.errors
+            ? responseFromGetSiteAndDeviceIds.errors
             : { message: "Internal Server Error" },
         });
       }
