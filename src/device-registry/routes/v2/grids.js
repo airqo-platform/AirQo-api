@@ -364,7 +364,7 @@ router.put(
   oneOf([
     param("grid_id")
       .exists()
-      .withMessage("the grid_ids is missing in request")
+      .withMessage("the grid_id is missing in request")
       .bail()
       .trim()
       .isMongoId()
@@ -444,6 +444,36 @@ router.put(
   createGridController.refresh
 );
 /************************ managing grids *************************/
+router.get(
+  "/:grid_id/generate",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grid_id")
+      .exists()
+      .withMessage("the grid_id is missing in request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("grid_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGridController.getSiteAndDeviceIds
+);
 router.get(
   "/:grid_id/assigned-sites",
   oneOf([

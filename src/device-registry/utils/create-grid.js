@@ -566,7 +566,6 @@ const createGrid = {
       };
     }
   },
-
   createGridFromShapefile: async (request) => {
     const uploadedFile = request.file;
     const shapefilePath = uploadedFile.path;
@@ -616,7 +615,6 @@ const createGrid = {
       };
     }
   },
-
   listAvailableSites: async (request) => {
     try {
       const { tenant } = request.query;
@@ -661,7 +659,6 @@ const createGrid = {
       };
     }
   },
-
   listAssignedSites: async (request) => {
     try {
       const { tenant } = request.query;
@@ -728,31 +725,40 @@ const createGrid = {
   getSiteAndDeviceIds: async (request) => {
     try {
       const { grid_id, tenant } = { ...request.query, ...request.params };
+      const gridDetails = await GridModel(tenant).findById(grid_id);
+      if (isEmpty(gridDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: "This Grid does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       // Fetch sites based on the provided Grid ID
       const sites = await SiteModel(tenant).find({ grids: grid_id });
 
       // Extract site IDs from the fetched sites
-      const arrayOfSiteIds = sites.map((site) => site._id);
+      const site_ids = sites.map((site) => site._id);
 
       // Fetch devices for each site
-      const arrayOfDeviceIds = [];
-      for (const siteId of arrayOfSiteIds) {
+      const device_ids = [];
+      for (const siteId of site_ids) {
         const devices = await DeviceModel(tenant).find({ site_id: siteId });
 
         // Extract device IDs from the fetched devices
         devices.forEach((device) => {
-          arrayOfDeviceIds.push(device._id);
+          device_ids.push(device._id);
         });
       }
 
-      logObject("arrayOfSiteIds:", arrayOfSiteIds);
-      logObject("arrayOfDeviceIds:", arrayOfDeviceIds);
+      logObject("site_ids:", site_ids);
+      logObject("device_ids:", device_ids);
 
       return {
         success: true,
         message: "Successfully returned the Site IDs and the Device IDs",
         status: httpStatus.OK,
-        data: { arrayOfSiteIds, arrayOfDeviceIds },
+        data: { site_ids, device_ids },
       };
     } catch (error) {
       logElement("Internal Server Error", error.message);
