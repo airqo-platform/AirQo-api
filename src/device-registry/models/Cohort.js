@@ -209,6 +209,7 @@ cohortSchema.statics.list = async function({
         cohort_tags: { $first: "$cohort_tags" },
         cohort_codes: { $first: "$cohort_codes" },
         name: { $first: "$name" },
+        createdAt: { $first: "$createdAt" },
         network: { $first: "$network" },
         group: { $first: "$group" },
         numberOfDevices: { $sum: 1 },
@@ -220,33 +221,36 @@ cohortSchema.statics.list = async function({
 
     const cohorts = await pipeline.exec();
 
-    const result = cohorts.map((cohort) => ({
-      _id: cohort._id,
-      visibility: cohort.visibility,
-      cohort_tags: cohort.cohort_tags,
-      cohort_codes: cohort.cohort_codes,
-      name: cohort.name,
-      network: cohort.network,
-      group: cohort.group,
-      numberOfDevices: cohort.numberOfDevices,
-      devices: cohort.devices.map((device) => ({
-        _id: device._id,
-        status: device.status,
-        name: device.name,
-        network: device.network,
-        group: device.group,
-        device_number: device.device_number,
-        description: device.description,
-        long_name: device.long_name,
-        createdAt: device.createdAt,
-        host_id: device.host_id,
-        site: device.site &&
-          device.site[0] && {
-            _id: device.site[0]._id,
-            name: device.site[0].name,
-          },
-      })),
-    }));
+    const result = cohorts
+      .map((cohort) => ({
+        _id: cohort._id,
+        visibility: cohort.visibility,
+        cohort_tags: cohort.cohort_tags,
+        cohort_codes: cohort.cohort_codes,
+        name: cohort.name,
+        network: cohort.network,
+        createdAt: cohort.createdAt,
+        group: cohort.group,
+        numberOfDevices: cohort.numberOfDevices,
+        devices: cohort.devices.map((device) => ({
+          _id: device._id,
+          status: device.status,
+          name: device.name,
+          network: device.network,
+          group: device.group,
+          device_number: device.device_number,
+          description: device.description,
+          long_name: device.long_name,
+          createdAt: device.createdAt,
+          host_id: device.host_id,
+          site: device.site &&
+            device.site[0] && {
+              _id: device.site[0]._id,
+              name: device.site[0].name,
+            },
+        })),
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     if (result.length > 0) {
       return {
