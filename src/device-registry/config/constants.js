@@ -1194,6 +1194,7 @@ const defaultConfig = {
     grid_codes: 1,
     centers: 1,
     shape: 1,
+    createdAt: 1,
     network: 1,
     group: 1,
     sites: "$sites",
