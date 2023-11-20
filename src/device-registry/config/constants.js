@@ -1276,6 +1276,7 @@ const defaultConfig = {
     description: 1,
     cohort_tags: 1,
     group: 1,
+    createdAt: 1,
     visibility: 1,
     cohort_codes: 1,
     devices: "$devices",
