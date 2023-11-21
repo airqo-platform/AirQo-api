@@ -140,30 +140,86 @@ const preferences = {
         request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let responseFromCreatePreference = await createPreferenceUtil.upsert(
+      let responseFromUpsertPreference = await createPreferenceUtil.upsert(
         request
       );
-      logObject("responseFromCreatePreference", responseFromCreatePreference);
-      if (responseFromCreatePreference.success === true) {
-        let status = responseFromCreatePreference.status
-          ? responseFromCreatePreference.status
+      logObject("responseFromUpsertPreference", responseFromUpsertPreference);
+      if (responseFromUpsertPreference.success === true) {
+        let status = responseFromUpsertPreference.status
+          ? responseFromUpsertPreference.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreatePreference.message,
-          preference: responseFromCreatePreference.data,
+          message: responseFromUpsertPreference.message,
+          preference: responseFromUpsertPreference.data,
         });
-      } else if (responseFromCreatePreference.success === false) {
-        let errors = responseFromCreatePreference.errors
-          ? responseFromCreatePreference.errors
+      } else if (responseFromUpsertPreference.success === false) {
+        let errors = responseFromUpsertPreference.errors
+          ? responseFromUpsertPreference.errors
           : { message: "" };
-        let status = responseFromCreatePreference.status
-          ? responseFromCreatePreference.status
+        let status = responseFromUpsertPreference.status
+          ? responseFromUpsertPreference.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreatePreference.message,
-          preference: responseFromCreatePreference.data,
+          message: responseFromUpsertPreference.message,
+          preference: responseFromUpsertPreference.data,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  replace: async (req, res) => {
+    try {
+      let { body, query } = req;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      let responseFromReplacePreference = await createPreferenceUtil.replace(
+        request
+      );
+      logObject("responseFromReplacePreference", responseFromReplacePreference);
+      if (responseFromReplacePreference.success === true) {
+        let status = responseFromReplacePreference.status
+          ? responseFromReplacePreference.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromReplacePreference.message,
+          preference: responseFromReplacePreference.data,
+        });
+      } else if (responseFromReplacePreference.success === false) {
+        let errors = responseFromReplacePreference.errors
+          ? responseFromReplacePreference.errors
+          : { message: "" };
+        let status = responseFromReplacePreference.status
+          ? responseFromReplacePreference.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromReplacePreference.message,
+          preference: responseFromReplacePreference.data,
           errors,
         });
       }
