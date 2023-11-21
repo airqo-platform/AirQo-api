@@ -1337,6 +1337,7 @@ eventSchema.statics = {
 
       const startTime = filter["values.time"]["$gte"];
       const endTime = filter["values.time"]["$lte"];
+      let idField;
       // const visibilityFilter = true;
 
       let search = filter;
@@ -1440,6 +1441,7 @@ eventSchema.statics = {
       }
 
       if (!metadata || metadata === "device" || metadata === "device_id") {
+        idField = "$device";
         groupId = "$" + metadata ? metadata : groupId;
         localField = metadata ? metadata : localField;
         if (metadata === "device_id") {
@@ -1458,6 +1460,7 @@ eventSchema.statics = {
       }
 
       if (metadata === "site_id" || metadata === "site") {
+        idField = "$site_id";
         groupId = "$" + metadata;
         localField = metadata;
         if (metadata === "site") {
@@ -1590,7 +1593,7 @@ eventSchema.statics = {
           })
           .sort(sort)
           .group({
-            _id: "$device",
+            _id: idField,
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
             site_image: {
