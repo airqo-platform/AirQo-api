@@ -19,6 +19,7 @@ const preferences = {
       if (filterResponse.success === false) {
         return filterResponse;
       }
+
       const { limit, skip } = request.query;
       logObject("limit", limit);
       logObject("skip", skip);
@@ -93,9 +94,24 @@ const preferences = {
 
       if (filterResponse.success === false) {
         return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
 
-      const filter = filterResponse;
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      const filter = PreferenceDetails;
       const update = body;
 
       const modifyResponse = await PreferenceModel(tenant).modify({
@@ -145,7 +161,24 @@ const preferences = {
 
       if (filterResponse.success === false) {
         return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
+
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      logObject("PreferenceDetails", PreferenceDetails);
 
       const update = body;
 
@@ -173,7 +206,8 @@ const preferences = {
           delete update[field];
         }
       });
-      const filter = filterResponse;
+      const filter = PreferenceDetails;
+      logObject("filter", filter);
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -222,10 +256,25 @@ const preferences = {
 
       if (filterResponse.success === false) {
         return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
 
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
       const update = body;
-      const filter = filterResponse;
+      const filter = PreferenceDetails;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -262,13 +311,28 @@ const preferences = {
   },
   delete: async (request) => {
     try {
-      const responseFromFilter = generateFilter.preferences(request);
+      const filterResponse = generateFilter.preferences(request);
 
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
+      if (filterResponse.success === false) {
+        return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
 
-      const filter = responseFromFilter;
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      const filter = PreferenceDetails;
       const { tenant } = request.query;
       const responseFromRemovePreference = await PreferenceModel(tenant).remove(
         {
