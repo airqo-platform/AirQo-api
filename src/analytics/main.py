@@ -6,7 +6,7 @@
 from flasgger import Swagger
 from flask import Flask, jsonify
 from flask_caching import Cache
-# from flask_cors import CORS
+from flask_cors import CORS
 from flask_excel import init_excel
 from flask_restx import Api, Namespace
 from marshmallow import ValidationError as MarshmallowValidationError
@@ -29,13 +29,6 @@ def initialize_blueprints(application):
 
     application.register_blueprint(middleware_blueprint)
 
-def set_cors_headers(response):
-    """Set CORS headers manually."""
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH"
-    return response
-
 def create_app(rest_api, config=CONFIGURATIONS):
     """creates a flask app object from a config object"""
 
@@ -45,11 +38,11 @@ def create_app(rest_api, config=CONFIGURATIONS):
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}}, 
+          headers="Content-Type")
     Swagger(app)
 
     initialize_blueprints(app)
-
-    app.before_request(set_cors_headers)
 
     import api.views
 
