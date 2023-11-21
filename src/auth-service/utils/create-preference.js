@@ -208,6 +208,58 @@ const preferences = {
       };
     }
   },
+  replace: async (request) => {
+    try {
+      const {
+        query: { tenant },
+        body,
+      } = request;
+
+      logText("Replace the existing selected_ids....");
+
+      const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+
+      if (filterResponse.success === false) {
+        return filterResponse;
+      }
+
+      const update = body;
+      const filter = filterResponse;
+      const options = { upsert: true, new: true };
+
+      const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        options
+      );
+      logObject("modifyResponse", modifyResponse);
+
+      if (!isEmpty(modifyResponse)) {
+        return {
+          success: true,
+          message: "successfully created or updated a preference",
+          data: modifyResponse,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to create or update a preference",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "unable to create or update a preference" },
+        };
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   delete: async (request) => {
     try {
       const responseFromFilter = generateFilter.preferences(request);
