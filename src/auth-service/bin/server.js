@@ -27,10 +27,15 @@ const logger = log4js.getLogger(
 );
 const { logText, logObject } = require("@utils/log");
 const fileUpload = require('express-fileupload');
+const cors = require('cors');
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
+
+
+// Use CORS middleware
+app.use(cors());
 
 // Express Middlewares
 app.use(
