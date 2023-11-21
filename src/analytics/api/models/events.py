@@ -16,10 +16,10 @@ from main import cache, CONFIGURATIONS
 class EventsModel(BasePyMongoModel):
     BIGQUERY_AIRQLOUDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS_SITES}`"
     BIGQUERY_AIRQLOUDS = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS}`"
-    BIGQUERY_GRIDS == f"`{CONFIGURATIONS.BIGQUERY_GRIDS}`"
+    BIGQUERY_GRIDS = f"`{CONFIGURATIONS.BIGQUERY_GRIDS}`"
     BIGQUERY_GRIDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_GRIDS_SITES}`"
-    BIGQUERY_COHORTS == f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
-    BIGQUERY_COHORTS_SITES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_SITES}`"
+    BIGQUERY_COHORTS = f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
+    BIGQUERY_COHORTS_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_DEVICES}`"
     BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
     BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
@@ -528,6 +528,7 @@ class EventsModel(BasePyMongoModel):
         grids_sites_table = cls.BIGQUERY_GRIDS_SITES
         cohorts_devices_table = cls.BIGQUERY_COHORTS_DEVICES
         cohorts_table = cls.BIGQUERY_COHORTS
+        devices_table = cls.BIGQUERY_DEVICES
 
         data_query = (
             f" SELECT {data_table}.device ,  "
@@ -585,7 +586,7 @@ class EventsModel(BasePyMongoModel):
 
             meta_data_query = (
                 f" SELECT "
-                f" {grids_table}.name AS grid_name , "
+                f" {grids_table}.name AS grid, "
                 f" meta_data.* "
                 f" FROM {grids_table} "
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.grid_id = {grids_table}.id "
@@ -609,17 +610,18 @@ class EventsModel(BasePyMongoModel):
                 f" GROUP BY {data_table}.device, "
                 f" meta_data.site_id, meta_data.grid_id, meta_data.site_name, meta_data.grid"
             )
+
         elif cohort.strip() != "":
             meta_data_query = (
                 f" SELECT {cohorts_devices_table}.cohort_id , "
-                f" {cohorts_devices_table}.site_id , "
+                f" {cohorts_devices_table}.device_id , "
                 f" FROM {cohorts_devices_table} "
                 f" WHERE {cohorts_devices_table}.cohort_id = '{cohort}' "
             )
 
             meta_data_query = (
                 f" SELECT "
-                f" {cohorts_table}.name AS cohort_name , "
+                f" {cohorts_table}.name AS cohort, "
                 f" meta_data.* "
                 f" FROM {cohorts_table} "
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.cohort_id = {cohorts_table}.id "
@@ -627,21 +629,21 @@ class EventsModel(BasePyMongoModel):
 
             meta_data_query = (
                 f" SELECT "
-                f" {sites_table}.name  AS site_name , "
+                f" {devices_table}.name  AS device_name , "
                 f" meta_data.* "
-                f" FROM {sites_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+                f" FROM {devices_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.device_id = {devices_table}.device_id "
             )
 
             query = (
                 f" {data_query} , "
                 f" meta_data.* "
                 f" FROM {data_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.device_id = {data_table}.device"
                 f" WHERE {data_table}.timestamp >= '{start_date_time}' "
                 f" AND {data_table}.timestamp <= '{end_date_time}' "
                 f" GROUP BY {data_table}.device, "
-                f" meta_data.site_id, meta_data.cohort_id, meta_data.site_name, meta_data.cohort"
+                f" meta_data.device_id, meta_data.cohort_id, meta_data.device_name, meta_data.cohort"
             )
 
         job_config = bigquery.QueryJobConfig()

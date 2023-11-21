@@ -410,7 +410,7 @@ class DataSummaryResource(Resource):
             if len(summary) == 0:
                 return (
                     create_response(
-                        f"No data found for airqloud {airqloud} from {start_date_time} to {end_date_time}",
+                        f"No data found for grid {grid} from {start_date_time} to {end_date_time}",
                         data={},
                         success=False,
                     ),
