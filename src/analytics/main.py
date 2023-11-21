@@ -38,12 +38,7 @@ def create_app(rest_api, config=CONFIGURATIONS):
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)
-    CORS(
-    app,
-    origins="*",
-    allow_headers=["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH"]
-)
+    CORS(app)
     Swagger(app)
 
     initialize_blueprints(app)
