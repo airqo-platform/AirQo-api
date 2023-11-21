@@ -10,6 +10,12 @@ const path = require("path");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
 
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
+
 const imagePath = path.join(__dirname, "../config/images");
 let attachments = [
   {
@@ -161,7 +167,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        subject: `AirQo Analytics Request to Access ${processString(
+          entity_title
+        )} Team`,
         html: msgTemplates.acceptInvitation({
           email,
           entity_title,
@@ -1025,22 +1033,22 @@ const mailer = {
 
       if (pdfFile) {
         formart = "PDF";
-        const pdfBase64 = pdfFile.data.toString('base64');
+        const pdfBase64 = pdfFile.data.toString("base64");
         const pdfAttachment = {
           filename: "Report.pdf",
-          contentType: 'application/pdf',
+          contentType: "application/pdf",
           content: pdfBase64,
-          encoding: 'base64',
+          encoding: "base64",
         };
         reportAttachments.push(pdfAttachment);
       }
       if (csvFile) {
-        formart = "CSV"
-        const csvBase64 = csvFile.data.toString('base64');
+        formart = "CSV";
+        const csvBase64 = csvFile.data.toString("base64");
         const csvAttachment = {
-          filename: 'Report.csv',
+          filename: "Report.csv",
           content: csvBase64,
-          encoding: 'base64',
+          encoding: "base64",
         };
         reportAttachments.push(csvAttachment);
       }
@@ -1064,7 +1072,7 @@ const mailer = {
           subject: "AirQo Analytics Report",
           html: msgs.report(senderEmail, recepientEmail, formart),
           to: recepientEmail,
-          attachments: reportAttachments
+          attachments: reportAttachments,
         };
 
         const response = await transporter.sendMail(mailOptions);
@@ -1085,7 +1093,7 @@ const mailer = {
           });
         }
       }
-      const hasFailedEmail = emailResults.some(result => !result.success);
+      const hasFailedEmail = emailResults.some((result) => !result.success);
 
       if (hasFailedEmail) {
         return {
@@ -1113,7 +1121,6 @@ const mailer = {
       };
     }
   },
-
 };
 
 module.exports = mailer;

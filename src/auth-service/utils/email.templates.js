@@ -1,4 +1,9 @@
 const constants = require("../config/constants");
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
 module.exports = {
   confirm: (id) => ({
     subject: "AirQo Analytics JOIN request",
@@ -105,9 +110,15 @@ module.exports = {
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Join your team on ${entity_title} 🎉
+                                    Join your team on ${processString(
+                                      entity_title
+                                    )} 🎉
                                     <br /><br />
-                                    ${entity_title}, ${inviterEmail} has invited you to collaborate in ${entity_title} on AirQo Analytics
+                                    ${processString(
+                                      entity_title
+                                    )}, ${inviterEmail} has invited you to collaborate in ${processString(
+      entity_title
+    )} on AirQo Analytics
                                     <br /><br />
                                     Use AirQo Analytics to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
                                     <br /><br />
@@ -116,7 +127,9 @@ module.exports = {
                                             style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                                Join ${entity_title}</div>
+                                                Join ${processString(
+                                                  entity_title
+                                                )}</div>
                                         </div>
                                     </a>
                                     <br /><br />
