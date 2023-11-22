@@ -13,3 +13,4 @@ spec:
     - path: /
       action:
         pass: airqalibrate
+# Adding a comment to trigger the application without changing the functionality
