@@ -189,17 +189,6 @@ const preferences = {
         .select("_id")
         .lean();
 
-      if (isEmpty(PreferenceDetails)) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
-            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
       logObject("PreferenceDetails", PreferenceDetails);
 
       const update = body;
@@ -294,17 +283,6 @@ const preferences = {
         .findOne(filterResponse)
         .select("_id")
         .lean();
-
-      if (isEmpty(PreferenceDetails)) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
-            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
 
       const update = body;
       const filter = PreferenceDetails;
