@@ -19,6 +19,7 @@ const preferences = {
       if (filterResponse.success === false) {
         return filterResponse;
       }
+
       const { limit, skip } = request.query;
       logObject("limit", limit);
       logObject("skip", skip);
@@ -93,9 +94,35 @@ const preferences = {
 
       if (filterResponse.success === false) {
         return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
 
-      const filter = filterResponse;
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      if (isEmpty(PreferenceDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const filter = PreferenceDetails;
       const update = body;
 
       const modifyResponse = await PreferenceModel(tenant).modify({
@@ -145,7 +172,24 @@ const preferences = {
 
       if (filterResponse.success === false) {
         return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
+
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      logObject("PreferenceDetails", PreferenceDetails);
 
       const update = body;
 
@@ -173,7 +217,75 @@ const preferences = {
           delete update[field];
         }
       });
-      const filter = filterResponse;
+      const filter = PreferenceDetails;
+      logObject("filter", filter);
+      const options = { upsert: true, new: true };
+
+      const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        options
+      );
+      logObject("modifyResponse", modifyResponse);
+
+      if (!isEmpty(modifyResponse)) {
+        return {
+          success: true,
+          message: "successfully created or updated a preference",
+          data: modifyResponse,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to create or update a preference",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "unable to create or update a preference" },
+        };
+      }
+    } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  replace: async (request) => {
+    try {
+      const {
+        query: { tenant },
+        body,
+      } = request;
+
+      logText("Replace the existing selected_ids....");
+
+      const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+
+      if (filterResponse.success === false) {
+        return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
+      }
+
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      const update = body;
+      const filter = PreferenceDetails;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -210,14 +322,48 @@ const preferences = {
   },
   delete: async (request) => {
     try {
-      const responseFromFilter = generateFilter.preferences(request);
+      const {
+        query: { tenant },
+        body,
+      } = request;
 
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
+      const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+      logObject("the user_id", filterResponse.user_id.toString());
+
+      if (filterResponse.success === false) {
+        return filterResponse;
+      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+        };
       }
 
-      const filter = responseFromFilter;
-      const { tenant } = request.query;
+      const PreferenceDetails = await PreferenceModel(tenant)
+        .findOne(filterResponse)
+        .select("_id")
+        .lean();
+
+      if (isEmpty(PreferenceDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      logObject("PreferenceDetails", PreferenceDetails);
+
+      const filter = PreferenceDetails;
       const responseFromRemovePreference = await PreferenceModel(tenant).remove(
         {
           filter,
@@ -225,11 +371,11 @@ const preferences = {
       );
       return responseFromRemovePreference;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: e.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
