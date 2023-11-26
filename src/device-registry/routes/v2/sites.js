@@ -42,6 +42,12 @@ const validatePagination = (req, res, next) => {
 };
 
 const headers = (req, res, next) => {
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "https://analytics.airqo.net, https://staging-analytics.airqo.net",
+    "https://platform.airqo.net",
+    "https://staging-platform.airqo.net"
+  );
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
