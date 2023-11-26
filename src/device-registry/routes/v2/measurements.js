@@ -97,7 +97,12 @@ const headers = (req, res, next) => {
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
+  // Check if the request method is OPTIONS (preflight request)
+  if (req.method === "OPTIONS") {
+    res.sendStatus(200); // Respond with a 200 status for preflight requests
+  } else {
+    next(); // Continue to the next middleware for non-preflight requests
+  }
 };
 router.use(headers);
 router.use(validatePagination);
