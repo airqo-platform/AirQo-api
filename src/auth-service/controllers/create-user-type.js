@@ -73,7 +73,6 @@ const createUserType = {
   },
   listAvailableUsersForUserType: async (req, res) => {
     try {
-      const { query, body } = req;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -87,12 +86,17 @@ const createUserType = {
 
       let request = Object.assign({}, req);
 
-      if (isEmpty(query.tenant)) {
+      if (isEmpty(req.query.tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
       }
 
       const responseFromListAvailableUsersForUserType =
         await controlAccessUtil.listAvailableUsersForUserType(request);
+
+      logObject(
+        "responseFromListAvailableUsersForUserType",
+        responseFromListAvailableUsersForUserType
+      );
 
       if (responseFromListAvailableUsersForUserType.success === true) {
         const status = responseFromListAvailableUsersForUserType.status

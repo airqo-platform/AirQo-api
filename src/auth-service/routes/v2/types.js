@@ -114,7 +114,6 @@ router.get(
         .bail()
         .notEmpty()
         .withMessage("the user_type cannot be empty if provided"),
-      ,
     ],
   ]),
   setJWTAuth,

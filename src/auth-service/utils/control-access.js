@@ -2583,11 +2583,42 @@ const controlAccess = {
       let userTypeFilter = {};
 
       if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
+
         userTypeFilter = {
           "network_roles.userType": user_type,
           "network_roles.network": net_id,
         };
       } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
         userTypeFilter = {
           "group_roles.userType": user_type,
           "group_roles.group": grp_id,
@@ -2618,11 +2649,16 @@ const controlAccess = {
         .exec();
 
       logObject("responseFromListUsers", responseFromListUsers);
+      let message = `Retrieved all ${user_type} users for this Organisation`;
+      if (isEmpty(responseFromListUsers)) {
+        message = `No ${user_type} users exist for provided Organisation`;
+      }
 
       return {
         success: true,
-        message: `Retrieved all users with user type ${user_type}`,
+        message,
         data: responseFromListUsers,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -2630,7 +2666,7 @@ const controlAccess = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -2659,11 +2695,41 @@ const controlAccess = {
       let userTypeFilter = {};
 
       if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
         userTypeFilter = {
           "network_roles.userType": user_type,
           "network_roles.network": net_id,
         };
       } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
         userTypeFilter = {
           "group_roles.userType": user_type,
           "group_roles.group": grp_id,
@@ -2702,10 +2768,15 @@ const controlAccess = {
         responseFromListAvailableUsers
       );
 
+      let message = `Retrieved all eligible ${user_type} Users for the provided Organisation`;
+      if (isEmpty(responseFromListAvailableUsers)) {
+        message = `No users are available to be ${user_type} for the provided Organisation `;
+      }
       return {
         success: true,
-        message: `Retrieved all available users for user type ${user_type}`,
+        message,
         data: responseFromListAvailableUsers,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
