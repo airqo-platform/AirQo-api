@@ -2375,11 +2375,11 @@ const controlAccess = {
   /******************** User Types *******************/
   assignUserType: async (request) => {
     try {
-      const { user_id, net_id, grp_id } = request.params;
-      const { tenant } = request.query;
-      const { userType } = request.body;
-      const userIdFromBody = user_id;
-      const userIdFromQuery = user_id;
+      const { user_id, net_id, grp_id, user, user_type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(grp_id) && !isEmpty(net_id)) {
         return {
@@ -2387,13 +2387,13 @@ const controlAccess = {
           message: "Bad Request Error",
           errors: {
             message:
-              "You cannot provide both a network ID and a group ID, choose one organisation type",
+              "You cannot provide both a network ID and a group ID, choose one organization type",
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
+      if (!isEmpty(user) && !isEmpty(user_id)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -2405,8 +2405,7 @@ const controlAccess = {
         };
       }
 
-      const userId = userIdFromQuery || userIdFromBody;
-
+      const userId = user || user_id;
       const organisationId = net_id || grp_id;
 
       const userExists = await UserModel(tenant).exists({ _id: userId });
@@ -2420,11 +2419,32 @@ const controlAccess = {
         };
       }
 
+      const isNetworkType = isNetwork(net_id, grp_id);
+      const roleType = isNetworkType ? "network_roles" : "group_roles";
+
+      const isAlreadyAssigned = await UserModel(tenant).exists({
+        _id: userId,
+        [`${roleType}.${isNetworkType ? "network" : "group"}`]: organisationId,
+      });
+
+      if (!isAlreadyAssigned) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `User ${userId} is NOT assigned to the provided ${
+              isNetworkType ? "Network" : "Group"
+            } ${organisationId}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const updateQuery = {
         $set: {
-          [isNetwork(net_id, grp_id) ? "network_roles" : "group_roles"]: {
-            [isNetwork(net_id, grp_id) ? "network" : "group"]: organisationId,
-            userType: userType,
+          [roleType]: {
+            [isNetworkType ? "network" : "group"]: organisationId,
+            userType: user_type,
           },
         },
       };
@@ -2432,13 +2452,13 @@ const controlAccess = {
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userId },
         updateQuery,
-        { new: true }
+        { new: true, select: `${roleType}` }
       );
 
       if (updatedUser) {
         return {
           success: true,
-          message: "User assigned to the User Type",
+          message: `User assigned to the ${user_type} User Type`,
           data: updatedUser,
           status: httpStatus.OK,
         };
@@ -2460,15 +2480,21 @@ const controlAccess = {
       };
     }
   },
+
   assignManyUsersToUserType: async (request) => {
     try {
       const { tenant } = request.query;
-      const { user_ids, userType, net_id, grp_id } = request.body;
+      const { user_ids, user_type, net_id, grp_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       const userPromises = [];
 
       const isNetwork = !isEmpty(net_id);
       const isGroup = !isEmpty(grp_id);
+      let updateQuery = {};
 
       if (isNetwork && isGroup) {
         return {
@@ -2488,52 +2514,86 @@ const controlAccess = {
         if (!user) {
           userPromises.push({
             success: false,
-            message: "Bad Request Error",
-            errors: { message: `User ${user_id} does not exist` },
-            status: httpStatus.BAD_REQUEST,
+            message: `User ${user_id} does not exist`,
           });
           continue;
         }
 
-        // Update the user type for the current user
-        const updateQuery = {
-          $set: { userType },
-        };
-
         if (isNetwork) {
-          updateQuery.$set.network_roles = { network: net_id, userType };
+          const isAlreadyAssigned = user.network_roles.some(
+            (role) => role.network.toString() === net_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to the provided Network ${net_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
+          updateQuery.$set.network_roles = {
+            network: net_id,
+            userType: user_type,
+          };
         } else if (isGroup) {
-          updateQuery.$set.group_roles = { group: grp_id, userType };
+          const isAlreadyAssigned = user.group_roles.some(
+            (role) => role.group.toString() === grp_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to provided Group ${grp_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
+          updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
         }
 
         await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
 
-        userPromises.push(null);
+        userPromises.push({
+          success: true,
+          message: `User ${user_id} successfully assigned`,
+        });
       }
 
       const results = await Promise.all(userPromises);
-      const successfulAssignments = results.filter((result) => result === null);
-      const unsuccessfulAssignments = results.filter(
-        (result) => result !== null
+      const successful = results.filter(
+        (result) => result !== null && result.success === true
+      );
+      const unsuccessful = results.filter(
+        (result) => result !== null && result.success === false
       );
 
       let response;
 
-      if (unsuccessfulAssignments.length > 0) {
+      if (unsuccessful.length > 0 && unsuccessful.length === user_ids.length) {
         response = {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: "Some users could not be assigned the user type.",
-            unsuccessfulAssignments,
+            message: `All users could not be assigned the ${user_type} user type.`,
+            unsuccessful,
           },
           status: httpStatus.BAD_REQUEST,
+        };
+      } else if (
+        unsuccessful.length > 0 &&
+        unsuccessful.length !== user_ids.length
+      ) {
+        response = {
+          success: true,
+          message: "Operation Partially successfull",
+          data: { unsuccessful, successful },
+          status: httpStatus.OK,
         };
       } else {
         response = {
           success: true,
-          message:
-            "All provided users were successfully assigned the user type.",
+          message: `ALL provided users were successfully assigned the ${user_type} user type.`,
           status: httpStatus.OK,
         };
       }
@@ -2553,9 +2613,11 @@ const controlAccess = {
   listUsersWithUserType: async (request) => {
     try {
       logText("listUsersWithUserType...");
-      const { query, params } = request;
-      const { userType, net_id, grp_id } = params;
-      const { tenant } = query;
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (net_id && grp_id) {
         return {
@@ -2572,13 +2634,44 @@ const controlAccess = {
       let userTypeFilter = {};
 
       if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
+
         userTypeFilter = {
-          "network_roles.userType": userType,
+          "network_roles.userType": user_type,
           "network_roles.network": net_id,
         };
       } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
         userTypeFilter = {
-          "group_roles.userType": userType,
+          "group_roles.userType": user_type,
           "group_roles.group": grp_id,
         };
       }
@@ -2607,11 +2700,134 @@ const controlAccess = {
         .exec();
 
       logObject("responseFromListUsers", responseFromListUsers);
+      let message = `Retrieved all ${user_type} users for this Organisation`;
+      if (isEmpty(responseFromListUsers)) {
+        message = `No ${user_type} users exist for provided Organisation`;
+      }
 
       return {
         success: true,
-        message: `Retrieved all users with user type ${userType}`,
+        message,
         data: responseFromListUsers,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listAvailableUsersForUserType: async (request) => {
+    try {
+      logText("listAvailableUsersForUserType...");
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (net_id && grp_id) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID; choose one organization type",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let userTypeFilter = {};
+
+      if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
+        userTypeFilter = {
+          "network_roles.userType": user_type,
+          "network_roles.network": net_id,
+        };
+      } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
+        userTypeFilter = {
+          "group_roles.userType": user_type,
+          "group_roles.group": grp_id,
+        };
+      }
+
+      const assignedUsers = await UserModel(tenant)
+        .distinct("email", userTypeFilter)
+        .exec();
+
+      const allUsers = await UserModel(tenant).distinct("email").exec();
+
+      const availableUsers = allUsers.filter(
+        (user) => !assignedUsers.includes(user)
+      );
+
+      const responseFromListAvailableUsers = await UserModel(tenant)
+        .find({ email: { $in: availableUsers } })
+        .select({
+          _id: 1,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          userName: 1,
+        })
+        .exec();
+
+      logObject(
+        "responseFromListAvailableUsers",
+        responseFromListAvailableUsers
+      );
+
+      let message = `Retrieved all eligible ${user_type} Users for the provided Organisation`;
+      if (isEmpty(responseFromListAvailableUsers)) {
+        message = `No users are available to be ${user_type} for the provided Organisation `;
+      }
+      return {
+        success: true,
+        message,
+        data: responseFromListAvailableUsers,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
