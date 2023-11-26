@@ -2387,7 +2387,7 @@ const controlAccess = {
           message: "Bad Request Error",
           errors: {
             message:
-              "You cannot provide both a network ID and a group ID, choose one organisation type",
+              "You cannot provide both a network ID and a group ID, choose one organization type",
           },
           status: httpStatus.BAD_REQUEST,
         };
@@ -2406,7 +2406,6 @@ const controlAccess = {
       }
 
       const userId = user || user_id;
-
       const organisationId = net_id || grp_id;
 
       const userExists = await UserModel(tenant).exists({ _id: userId });
@@ -2420,27 +2419,46 @@ const controlAccess = {
         };
       }
 
+      const isNetworkType = isNetwork(net_id, grp_id);
+      const roleType = isNetworkType ? "network_roles" : "group_roles";
+
+      const isAlreadyAssigned = await UserModel(tenant).exists({
+        _id: userId,
+        [`${roleType}.${isNetworkType ? "network" : "group"}`]: organisationId,
+      });
+
+      if (!isAlreadyAssigned) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `User ${userId} is NOT assigned to the provided ${
+              isNetworkType ? "Network" : "Group"
+            } ${organisationId}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const updateQuery = {
         $set: {
-          [isNetwork(net_id, grp_id) ? "network_roles" : "group_roles"]: {
-            [isNetwork(net_id, grp_id) ? "network" : "group"]: organisationId,
+          [roleType]: {
+            [isNetworkType ? "network" : "group"]: organisationId,
             userType: user_type,
           },
         },
       };
 
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
-        {
-          _id: userId,
-        },
+        { _id: userId },
         updateQuery,
-        { new: true }
+        { new: true, select: `${roleType}` }
       );
 
       if (updatedUser) {
         return {
           success: true,
-          message: "User assigned to the User Type",
+          message: `User assigned to the ${user_type} User Type`,
           data: updatedUser,
           status: httpStatus.OK,
         };
@@ -2462,6 +2480,7 @@ const controlAccess = {
       };
     }
   },
+
   assignManyUsersToUserType: async (request) => {
     try {
       const { tenant } = request.query;
@@ -2475,6 +2494,7 @@ const controlAccess = {
 
       const isNetwork = !isEmpty(net_id);
       const isGroup = !isEmpty(grp_id);
+      let updateQuery = {};
 
       if (isNetwork && isGroup) {
         return {
@@ -2494,66 +2514,80 @@ const controlAccess = {
         if (!user) {
           userPromises.push({
             success: false,
-            message: "Bad Request Error",
-            errors: { message: `User ${user_id} does not exist` },
-            status: httpStatus.BAD_REQUEST,
+            message: `User ${user_id} does not exist`,
           });
           continue;
         }
 
         if (isNetwork) {
-          /**
-           * need to find out if the user is already assigned
-           * to this Network first before proceeding
-           * if not, then we push to the appropriate error to the userPromises arrays
-           */
+          const isAlreadyAssigned = user.network_roles.some(
+            (role) => role.network.toString() === net_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to the provided Network ${net_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
           updateQuery.$set.network_roles = {
             network: net_id,
             userType: user_type,
           };
         } else if (isGroup) {
-          /**
-           * need to find out if the user is already assigned
-           * to this Group first before proceeding
-           * if not, then we push to the appropriate error to the userPromises array
-           */
+          const isAlreadyAssigned = user.group_roles.some(
+            (role) => role.group.toString() === grp_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to provided Group ${grp_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
           updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
         }
 
         await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
 
-        userPromises.push(null);
+        userPromises.push({
+          success: true,
+          message: `User ${user_id} successfully assigned`,
+        });
       }
 
       const results = await Promise.all(userPromises);
-      const successfulAssignments = results.filter((result) => result === null);
-      const unsuccessfulAssignments = results.filter(
-        (result) => result !== null
+      const successful = results.filter(
+        (result) => result !== null && result.success === true
+      );
+      const unsuccessful = results.filter(
+        (result) => result !== null && result.success === false
       );
 
       let response;
 
-      if (
-        unsuccessfulAssignments.length > 0 &&
-        unsuccessfulAssignments.length === user_ids.length
-      ) {
+      if (unsuccessful.length > 0 && unsuccessful.length === user_ids.length) {
         response = {
           success: false,
           message: "Bad Request Error",
           errors: {
             message: `All users could not be assigned the ${user_type} user type.`,
-            unsuccessfulAssignments,
+            unsuccessful,
           },
           status: httpStatus.BAD_REQUEST,
         };
       } else if (
-        unsuccessfulAssignments.length > 0 &&
-        unsuccessfulAssignments.length !== user_ids.length
+        unsuccessful.length > 0 &&
+        unsuccessful.length !== user_ids.length
       ) {
         response = {
           success: true,
           message: "Operation Partially successfull",
-          data: { unsuccessfulAssignments, successfulAssignments },
+          data: { unsuccessful, successful },
           status: httpStatus.OK,
         };
       } else {
@@ -2574,104 +2608,6 @@ const controlAccess = {
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
-    }
-  },
-  v2_assignManyUsersToUserType: async (request) => {
-    try {
-      /**
-       * This modification checks if the user is already assigned
-       * to the specified net_id or grp_id before attempting to
-       * update the roles. If the user is already assigned,
-       * it adds an error entry to userPromises and continues with the
-       *  next user in the loop. The rest of the logic remains the same,
-       * handling successful and unsuccessful assignments as before.
-       */
-      const { tenant } = request.query;
-      const { user_ids, user_type, net_id, grp_id } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
-
-      const userPromises = [];
-
-      const isNetwork = !isEmpty(net_id);
-      const isGroup = !isEmpty(grp_id);
-
-      if (isNetwork && isGroup) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message:
-              "You cannot provide both a network ID and a group ID. Choose one organization type.",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      for (const user_id of user_ids) {
-        const user = await UserModel(tenant).findById(user_id);
-
-        if (!user) {
-          userPromises.push({
-            success: false,
-            message: "Bad Request Error",
-            errors: { message: `User ${user_id} does not exist` },
-            status: httpStatus.BAD_REQUEST,
-          });
-          continue;
-        }
-
-        if (isNetwork) {
-          const isAlreadyAssigned = user.network_roles.some(
-            (role) => role.network.toString() === net_id
-          );
-
-          if (isAlreadyAssigned) {
-            userPromises.push({
-              success: false,
-              message: "Bad Request Error",
-              errors: {
-                message: `User ${user_id} is already assigned to Network ${net_id}`,
-              },
-              status: httpStatus.BAD_REQUEST,
-            });
-            continue;
-          }
-
-          updateQuery.$set.network_roles = {
-            network: net_id,
-            userType: user_type,
-          };
-        } else if (isGroup) {
-          const isAlreadyAssigned = user.group_roles.some(
-            (role) => role.group.toString() === grp_id
-          );
-
-          if (isAlreadyAssigned) {
-            userPromises.push({
-              success: false,
-              message: "Bad Request Error",
-              errors: {
-                message: `User ${user_id} is already assigned to Group ${grp_id}`,
-              },
-              status: httpStatus.BAD_REQUEST,
-            });
-            continue;
-          }
-
-          updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
-        }
-
-        await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
-
-        userPromises.push(null);
-      }
-
-      // ... (rest of the code remains unchanged)
-    } catch (error) {
-      // ... (error handling remains unchanged)
     }
   },
   listUsersWithUserType: async (request) => {

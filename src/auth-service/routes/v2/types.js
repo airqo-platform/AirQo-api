@@ -136,24 +136,6 @@ router.post(
     ],
   ]),
   oneOf([
-    query("net_id")
-      .exists()
-      .withMessage(
-        "the organisational identifier is missing in request, consider using net_id"
-      )
-      .bail()
-      .isMongoId()
-      .withMessage("the net_id must be an Object ID"),
-    query("grp_id")
-      .exists()
-      .withMessage(
-        "the organisational identifier is missing in request, consider using grp_id"
-      )
-      .bail()
-      .isMongoId()
-      .withMessage("the grid_id must be an Object ID"),
-  ]),
-  oneOf([
     [
       param("user_type")
         .exists()
@@ -177,6 +159,25 @@ router.post(
         .withMessage("user_id provided must be an object ID"),
     ],
   ]),
+  oneOf([
+    query("net_id")
+      .exists()
+      .withMessage(
+        "the organisational identifier is missing in request, consider using net_id"
+      )
+      .bail()
+      .isMongoId()
+      .withMessage("the net_id must be an Object ID"),
+    query("grp_id")
+      .exists()
+      .withMessage(
+        "the organisational identifier is missing in request, consider using grp_id"
+      )
+      .bail()
+      .isMongoId()
+      .withMessage("the grid_id must be an Object ID"),
+  ]),
+
   setJWTAuth,
   authJWT,
   createUserTypeController.assignManyUsersToUserType

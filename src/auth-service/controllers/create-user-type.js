@@ -212,7 +212,7 @@ const createUserType = {
         return res.status(status).json({
           success: true,
           message: responseFromAssignManyUsersToUserType.message,
-          updated_records: responseFromAssignManyUsersToUserType.data,
+          user_type_assignments: responseFromAssignManyUsersToUserType.data,
         });
       } else if (responseFromAssignManyUsersToUserType.success === false) {
         const status = responseFromAssignManyUsersToUserType.status
