@@ -5,26 +5,25 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blaclist-ip-model`
+  `${constants.ENVIRONMENT} -- blacklist-ip-range-model`
 );
 const { getModelByTenant } = require("@config/database");
 
-const BlacklistedIPSchema = new mongoose.Schema(
+const BlacklistedIPRangeSchema = new mongoose.Schema(
   {
-    ip: {
+    range: {
       type: String,
-      unique: true,
-      required: [true, "ip is required!"],
+      required: [true, "range is required!"],
     },
   },
   { timestamps: true }
 );
 
-BlacklistedIPSchema.pre("save", function (next) {
+BlacklistedIPRangeSchema.pre("save", function (next) {
   return next();
 });
 
-BlacklistedIPSchema.pre("findOneAndUpdate", function () {
+BlacklistedIPRangeSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
   if (update.__v != null) {
@@ -43,13 +42,13 @@ BlacklistedIPSchema.pre("findOneAndUpdate", function () {
   update.$inc.__v = 1;
 });
 
-BlacklistedIPSchema.pre("update", function (next) {
+BlacklistedIPRangeSchema.pre("update", function (next) {
   return next();
 });
 
-BlacklistedIPSchema.index({ ip: 1 }, { unique: true });
+BlacklistedIPRangeSchema.index({ range: 1 }, { unique: true });
 
-BlacklistedIPSchema.statics = {
+BlacklistedIPRangeSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = args;
@@ -60,14 +59,14 @@ BlacklistedIPSchema.statics = {
         return {
           success: true,
           data,
-          message: "IP created",
+          message: "IP Range created",
           status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
           data: [],
-          message: "operation successful but IP NOT successfully created",
+          message: "operation successful but IP Range NOT successfully created",
           status: httpStatus.ACCEPTED,
         };
       }
@@ -92,8 +91,8 @@ BlacklistedIPSchema.statics = {
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logObject("filtering here", filter);
-      const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.IPS_EXCLUSION_PROJECTION(
+      const inclusionProjection = constants.IP_RANGES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.IP_RANGES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
 
@@ -113,7 +112,7 @@ BlacklistedIPSchema.statics = {
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the ip details",
+          message: "successfully retrieved the range details",
           data: response,
           status: httpStatus.OK,
         };
@@ -148,16 +147,16 @@ BlacklistedIPSchema.statics = {
       if (!isEmpty(updatedIP)) {
         return {
           success: true,
-          message: "successfully modified the IP",
+          message: "successfully modified the IP Range",
           data: updatedIP._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedIP)) {
         return {
           success: false,
-          message: "IP does not exist, please crosscheck",
+          message: "IP Range does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "IP does not exist, please crosscheck" },
+          errors: { message: "IP Range does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -176,7 +175,7 @@ BlacklistedIPSchema.statics = {
       let options = {
         projection: {
           _id: 0,
-          ip: 1,
+          range: 1,
         },
       };
 
@@ -187,16 +186,16 @@ BlacklistedIPSchema.statics = {
       if (!isEmpty(removedIP)) {
         return {
           success: true,
-          message: "successfully removed the IP",
+          message: "successfully removed the IP Range",
           data: removedIP._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedIP)) {
         return {
           success: false,
-          message: "IP does not exist, please crosscheck",
+          message: "IP Range does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "IP does not exist, please crosscheck" },
+          errors: { message: "IP Range does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -211,23 +210,27 @@ BlacklistedIPSchema.statics = {
   },
 };
 
-BlacklistedIPSchema.methods = {
+BlacklistedIPRangeSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      ip: this.ip,
+      range: this.range,
     };
   },
 };
 
-const BlacklistedIPModel = (tenant) => {
+const BlacklistedIPRangeModel = (tenant) => {
   try {
-    let ips = mongoose.model("BlacklistedIPs");
+    let ips = mongoose.model("BlacklistedIPRanges");
     return ips;
   } catch (error) {
-    let ips = getModelByTenant(tenant, "BlacklistedIP", BlacklistedIPSchema);
+    let ips = getModelByTenant(
+      tenant,
+      "BlacklistedIPRange",
+      BlacklistedIPRangeSchema
+    );
     return ips;
   }
 };
 
-module.exports = BlacklistedIPModel;
+module.exports = BlacklistedIPRangeModel;

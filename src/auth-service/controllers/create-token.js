@@ -334,6 +334,8 @@ const createAccessToken = {
     }
   },
 
+  /******************** IP ADDRESSES ********************** */
+
   blackListIp: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -347,13 +349,11 @@ const createAccessToken = {
         );
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
       }
 
-      let request = req;
-      request.query.tenant = tenant;
       const responseFromBlackListIp = await controlAccessUtil.blackListIp(
         request
       );
@@ -392,7 +392,6 @@ const createAccessToken = {
       });
     }
   },
-
   removeBlacklistedIp: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -406,13 +405,10 @@ const createAccessToken = {
         );
       }
 
-      let { tenant, id } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
       let request = req;
-      request["query"]["tenant"] = tenant;
+      if (isEmpty(req.query.tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
       const responseFromRemoveBlackListedIp =
         await controlAccessUtil.removeBlacklistedIp(request);
 
@@ -438,6 +434,170 @@ const createAccessToken = {
             : "",
           errors: responseFromRemoveBlackListedIp.errors
             ? responseFromRemoveBlackListedIp.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  whiteListIp: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      const responseFromWhiteListIp = await controlAccessUtil.whiteListIp(
+        request
+      );
+
+      if (responseFromWhiteListIp.success === true) {
+        const status = responseFromWhiteListIp.status
+          ? responseFromWhiteListIp.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromWhiteListIp.message
+            ? responseFromWhiteListIp.message
+            : "",
+          whitelisted_ip: responseFromWhiteListIp.data
+            ? responseFromWhiteListIp.data
+            : [],
+        });
+      } else if (responseFromWhiteListIp.success === false) {
+        const status = responseFromWhiteListIp.status
+          ? responseFromWhiteListIp.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromWhiteListIp.message
+            ? responseFromWhiteListIp.message
+            : "",
+          errors: responseFromWhiteListIp.errors
+            ? responseFromWhiteListIp.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  removeWhitelistedIp: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromRemoveWhiteListedIp =
+        await controlAccessUtil.removeWhitelistedIp(request);
+
+      if (responseFromRemoveWhiteListedIp.success === true) {
+        const status = responseFromRemoveWhiteListedIp.status
+          ? responseFromRemoveWhiteListedIp.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromRemoveWhiteListedIp.message
+            ? responseFromRemoveWhiteListedIp.message
+            : "",
+          removed_ip: responseFromRemoveWhiteListedIp.data
+            ? responseFromRemoveWhiteListedIp.data
+            : {},
+        });
+      } else if (responseFromRemoveWhiteListedIp.success === false) {
+        const status = responseFromRemoveWhiteListedIp.status
+          ? responseFromRemoveWhiteListedIp.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromRemoveWhiteListedIp.message
+            ? responseFromRemoveWhiteListedIp.message
+            : "",
+          errors: responseFromRemoveWhiteListedIp.errors
+            ? responseFromRemoveWhiteListedIp.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  listUnknownIPs: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromListUnknownIPs = await controlAccessUtil.listUnknownIPs(
+        request
+      );
+
+      if (responseFromListUnknownIPs.success === true) {
+        const status = responseFromListUnknownIPs.status
+          ? responseFromListUnknownIPs.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromListUnknownIPs.message
+            ? responseFromListUnknownIPs.message
+            : "",
+          unknown_ips: responseFromListUnknownIPs.data
+            ? responseFromListUnknownIPs.data
+            : {},
+        });
+      } else if (responseFromListUnknownIPs.success === false) {
+        const status = responseFromListUnknownIPs.status
+          ? responseFromListUnknownIPs.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromListUnknownIPs.message
+            ? responseFromListUnknownIPs.message
+            : "",
+          errors: responseFromListUnknownIPs.errors
+            ? responseFromListUnknownIPs.errors
             : { message: "" },
         });
       }
