@@ -275,7 +275,7 @@ router.get(
   authJWT,
   createTokenController.list
 );
-/******************** IP addresses *********************/
+/******************** blacklisted IP addresses *********************/
 router.post(
   "/blacklist-ip",
   oneOf([
@@ -298,7 +298,10 @@ router.post(
       .bail()
       .notEmpty()
       .withMessage("the ip should not be empty if provided")
-      .trim(),
+      .trim()
+      .bail()
+      .isIP()
+      .withMessage("Invalid IP address"),
   ]),
   setJWTAuth,
   authJWT,
@@ -326,11 +329,78 @@ router.delete(
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("the ip must not be empty"),
+      .withMessage("the ip must not be empty")
+      .bail()
+      .isIP()
+      .withMessage("Invalid IP address"),
   ]),
   setJWTAuth,
   authJWT,
   createTokenController.removeBlacklistedIp
+);
+
+/******************** whitelisted IP addresses *********************/
+router.post(
+  "/whitelist-ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("ip")
+      .exists()
+      .withMessage("the ip is missing in your request body")
+      .bail()
+      .notEmpty()
+      .withMessage("the ip should not be empty if provided")
+      .trim()
+      .bail()
+      .isIP()
+      .withMessage("Invalid IP address"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.whiteListIp
+);
+router.delete(
+  "/whitelist-ip/:ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("ip")
+      .exists()
+      .withMessage("the ip parameter is missing in the request")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the ip must not be empty")
+      .bail()
+      .isIP()
+      .withMessage("Invalid IP address"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.removeWhitelistedIp
 );
 
 module.exports = router;

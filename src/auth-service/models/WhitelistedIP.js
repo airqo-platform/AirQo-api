@@ -7,7 +7,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- ip-model`);
 const { getModelByTenant } = require("@config/database");
 
-const BlacklistedIPSchema = new mongoose.Schema(
+const WhitelistedIPSchema = new mongoose.Schema(
   {
     ip: {
       type: String,
@@ -18,11 +18,11 @@ const BlacklistedIPSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-BlacklistedIPSchema.pre("save", function (next) {
+WhitelistedIPSchema.pre("save", function (next) {
   return next();
 });
 
-BlacklistedIPSchema.pre("findOneAndUpdate", function () {
+WhitelistedIPSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
   if (update.__v != null) {
@@ -41,13 +41,13 @@ BlacklistedIPSchema.pre("findOneAndUpdate", function () {
   update.$inc.__v = 1;
 });
 
-BlacklistedIPSchema.pre("update", function (next) {
+WhitelistedIPSchema.pre("update", function (next) {
   return next();
 });
 
-BlacklistedIPSchema.index({ ip: 1 }, { unique: true });
+WhitelistedIPSchema.index({ ip: 1 }, { unique: true });
 
-BlacklistedIPSchema.statics = {
+WhitelistedIPSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = args;
@@ -211,7 +211,7 @@ BlacklistedIPSchema.statics = {
   },
 };
 
-BlacklistedIPSchema.methods = {
+WhitelistedIPSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
@@ -220,14 +220,14 @@ BlacklistedIPSchema.methods = {
   },
 };
 
-const BlacklistedIPModel = (tenant) => {
+const WhitelistedIPModel = (tenant) => {
   try {
-    let ips = mongoose.model("BlacklistedIPs");
+    let ips = mongoose.model("WhitelistedIPs");
     return ips;
   } catch (error) {
-    let ips = getModelByTenant(tenant, "BlacklistedIP", BlacklistedIPSchema);
+    let ips = getModelByTenant(tenant, "WhitelistedIP", WhitelistedIPSchema);
     return ips;
   }
 };
 
-module.exports = BlacklistedIPModel;
+module.exports = WhitelistedIPModel;

@@ -1,6 +1,8 @@
 const PermissionModel = require("@models/Permission");
 const ScopeModel = require("@models/Scope");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
+const WhitelistedIPModel = require("@models/WhitelistedIP");
+const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const UserModel = require("@models/User");
@@ -18,6 +20,7 @@ const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
+const rangeCheck = require("ip-range-check");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const log4js = require("log4js");
@@ -248,7 +251,29 @@ const handleServerError = (error) => {
 
 const isIPBlacklisted = async (ip) => {
   const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
-  return blacklistedIP !== null;
+  if (blacklistedIP) {
+    return true; // IP is blacklisted
+  }
+
+  const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
+  if (whitelistedIP) {
+    return false; // IP is whitelisted
+  }
+
+  // Check if the IP falls within any blacklisted range
+  const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
+  const isInRange = blacklistedRanges.some((range) =>
+    rangeCheck(ip, range.range)
+  );
+
+  if (isInRange) {
+    return true; // IP is within a blacklisted range
+  }
+
+  logger.info(
+    `🚨🚨 Potential Hacker IP -- ${ip} -- IP is neither blacklisted nor whitelisted`
+  );
+  return false; // IP is neither blacklisted nor whitelisted
 };
 
 const controlAccess = {
@@ -612,21 +637,28 @@ const controlAccess = {
           const endpoint = request.headers["x-original-uri"];
           const clientOriginalIp = request.headers["x-client-original-ip"];
 
-          if (!isEmpty(clientIp)) {
-            const isBlacklisted = await isIPBlacklisted(clientIp);
-            if (isBlacklisted) {
-              return createUnauthorizedResponse();
-            }
-          }
-
           logObject("service", service);
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const { user: { email = "", userName = "", _id = "" } = {} } =
-              responseFromListAccessToken.data[0];
+            const {
+              name = "",
+              token = "",
+              user: { email = "", userName = "", _id = "" } = {},
+            } = responseFromListAccessToken.data[0];
+
             logObject("email", email);
             logObject("userName", userName);
+
+            if (!isEmpty(clientIp)) {
+              const isBlacklisted = await isIPBlacklisted(clientIp);
+              if (isBlacklisted) {
+                logger.info(
+                  `🚨🚨 An AirQo Analytics Access Token is compromised -- ${token} -- ${name} -- ${email} `
+                );
+                return createUnauthorizedResponse();
+              }
+            }
 
             if (!isEmpty(_id)) {
               const currentDate = new Date();
@@ -3592,6 +3624,58 @@ const controlAccess = {
         tenant
       ).remove({ filter });
       return responseFromRemoveBlacklistedIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /****************** Whitelisting IPs ******************************/
+  whiteListIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromWhitelistIp = await WhitelistedIPModel(tenant).register(
+        {
+          ip,
+        }
+      );
+      return responseFromWhitelistIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeWhitelistedIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
+        tenant
+      ).remove({ filter });
+      return responseFromRemoveWhitelistedIp;
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
