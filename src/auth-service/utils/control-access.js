@@ -728,6 +728,14 @@ const controlAccess = {
   },
   createAccessToken: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled",
+        errors: {
+          message: "Service Temporarily Disabled",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
       const { tenant } = request.query;
       const { client_id } = request.body;
 
@@ -1083,11 +1091,20 @@ const controlAccess = {
   },
   createClient: async (request) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled",
+        errors: {
+          message: "Service Temporarily Disabled",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
       const { body, query } = request;
       const { tenant } = query;
       const { user_id } = body;
       const client_secret = generateClientSecret(100);
       const userExists = await UserModel(tenant).exists({ _id: user_id });
+
       if (!userExists) {
         return {
           success: false,
