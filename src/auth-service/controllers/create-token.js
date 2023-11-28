@@ -333,6 +333,123 @@ const createAccessToken = {
       });
     }
   },
+
+  blackListIp: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = req;
+      request.query.tenant = tenant;
+      const responseFromBlackListIp = await controlAccessUtil.blackListIp(
+        request
+      );
+
+      if (responseFromBlackListIp.success === true) {
+        const status = responseFromBlackListIp.status
+          ? responseFromBlackListIp.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromBlackListIp.message
+            ? responseFromBlackListIp.message
+            : "",
+          blacklisted_ip: responseFromBlackListIp.data
+            ? responseFromBlackListIp.data
+            : [],
+        });
+      } else if (responseFromBlackListIp.success === false) {
+        const status = responseFromBlackListIp.status
+          ? responseFromBlackListIp.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromBlackListIp.message
+            ? responseFromBlackListIp.message
+            : "",
+          errors: responseFromBlackListIp.errors
+            ? responseFromBlackListIp.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  removeBlacklistedIp: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = req;
+      request["query"]["tenant"] = tenant;
+      const responseFromRemoveBlackListedIp =
+        await controlAccessUtil.removeBlacklistedIp(request);
+
+      if (responseFromRemoveBlackListedIp.success === true) {
+        const status = responseFromRemoveBlackListedIp.status
+          ? responseFromRemoveBlackListedIp.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromRemoveBlackListedIp.message
+            ? responseFromRemoveBlackListedIp.message
+            : "",
+          removed_ip: responseFromRemoveBlackListedIp.data
+            ? responseFromRemoveBlackListedIp.data
+            : {},
+        });
+      } else if (responseFromRemoveBlackListedIp.success === false) {
+        const status = responseFromRemoveBlackListedIp.status
+          ? responseFromRemoveBlackListedIp.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromRemoveBlackListedIp.message
+            ? responseFromRemoveBlackListedIp.message
+            : "",
+          errors: responseFromRemoveBlackListedIp.errors
+            ? responseFromRemoveBlackListedIp.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
 };
 
 module.exports = createAccessToken;
