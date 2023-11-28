@@ -44,7 +44,6 @@ router.get(
   authJWT,
   createTokenController.list
 );
-
 router.post(
   "/",
   oneOf([
@@ -97,9 +96,10 @@ router.post(
         .trim(),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createTokenController.create
 );
-
 router.put(
   "/:token/regenerate",
   oneOf([
@@ -144,7 +144,6 @@ router.put(
   authJWT,
   createTokenController.regenerate
 );
-
 router.put(
   "/:token/update",
   oneOf([
@@ -189,7 +188,6 @@ router.put(
   authJWT,
   createTokenController.update
 );
-
 router.delete(
   "/:token",
   oneOf([
@@ -218,7 +216,6 @@ router.delete(
   authJWT,
   createTokenController.delete
 );
-
 router.get(
   "/:token/verify",
   oneOf([
@@ -277,6 +274,63 @@ router.get(
   setJWTAuth,
   authJWT,
   createTokenController.list
+);
+/******************** IP addresses *********************/
+router.post(
+  "/blacklist-ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("ip")
+      .exists()
+      .withMessage("the ip is missing in your request body")
+      .bail()
+      .notEmpty()
+      .withMessage("the ip should not be empty if provided")
+      .trim(),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.blackListIp
+);
+router.delete(
+  "/blacklist-ip/:ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("ip")
+      .exists()
+      .withMessage("the ip parameter is missing in the request")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the ip must not be empty"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.removeBlacklistedIp
 );
 
 module.exports = router;

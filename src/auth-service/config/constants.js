@@ -1145,6 +1145,20 @@ const defaultConfig = {
     return projection;
   },
 
+  BLACKLISTED_IPS_INCLUSION_PROJECTION: {
+    _id: 1,
+    ip: 1,
+  },
+  BLACKLISTED_IPS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
   CLIENTS_INCLUSION_PROJECTION: {
     _id: 1,
     client_id: 1,

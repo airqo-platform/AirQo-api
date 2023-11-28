@@ -728,6 +728,8 @@ UserSchema.methods = {
       firstName: this.firstName,
       organization: this.organization,
       long_organization: this.long_organization,
+      group_roles: this.group_roles,
+      network_roles: this.network_roles,
       privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,
