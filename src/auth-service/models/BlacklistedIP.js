@@ -4,7 +4,9 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- ip-model`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- blaclist-ip-model`
+);
 const { getModelByTenant } = require("@config/database");
 
 const BlacklistedIPSchema = new mongoose.Schema(
@@ -90,12 +92,10 @@ BlacklistedIPSchema.statics = {
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logObject("filtering here", filter);
-      const inclusionProjection =
-        constants.BLACKLISTED_IPS_INCLUSION_PROJECTION;
-      const exclusionProjection =
-        constants.BLACKLISTED_IPS_EXCLUSION_PROJECTION(
-          filter.category ? filter.category : "none"
-        );
+      const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.IPS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
 
       if (!isEmpty(filter.category)) {
         delete filter.category;

@@ -4,12 +4,10 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- whitelist-ip-model`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
 
-const WhitelistedIPSchema = new mongoose.Schema(
+const UnknownIPSchema = new mongoose.Schema(
   {
     ip: {
       type: String,
@@ -20,11 +18,11 @@ const WhitelistedIPSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-WhitelistedIPSchema.pre("save", function (next) {
+UnknownIPSchema.pre("save", function (next) {
   return next();
 });
 
-WhitelistedIPSchema.pre("findOneAndUpdate", function () {
+UnknownIPSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
   if (update.__v != null) {
@@ -43,13 +41,13 @@ WhitelistedIPSchema.pre("findOneAndUpdate", function () {
   update.$inc.__v = 1;
 });
 
-WhitelistedIPSchema.pre("update", function (next) {
+UnknownIPSchema.pre("update", function (next) {
   return next();
 });
 
-WhitelistedIPSchema.index({ ip: 1 }, { unique: true });
+UnknownIPSchema.index({ ip: 1 }, { unique: true });
 
-WhitelistedIPSchema.statics = {
+UnknownIPSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = args;
@@ -121,7 +119,7 @@ WhitelistedIPSchema.statics = {
         return {
           success: true,
           message: "No ips found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
           data: [],
         };
       }
@@ -211,7 +209,7 @@ WhitelistedIPSchema.statics = {
   },
 };
 
-WhitelistedIPSchema.methods = {
+UnknownIPSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
@@ -220,14 +218,14 @@ WhitelistedIPSchema.methods = {
   },
 };
 
-const WhitelistedIPModel = (tenant) => {
+const UnknownIPModel = (tenant) => {
   try {
-    let ips = mongoose.model("WhitelistedIPs");
+    let ips = mongoose.model("UnknownIPs");
     return ips;
   } catch (error) {
-    let ips = getModelByTenant(tenant, "WhitelistedIP", WhitelistedIPSchema);
+    let ips = getModelByTenant(tenant, "UnknownIP", UnknownIPSchema);
     return ips;
   }
 };
 
-module.exports = WhitelistedIPModel;
+module.exports = UnknownIPModel;

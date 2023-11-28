@@ -1145,12 +1145,26 @@ const defaultConfig = {
     return projection;
   },
 
-  BLACKLISTED_IPS_INCLUSION_PROJECTION: {
+  IPS_INCLUSION_PROJECTION: {
     _id: 1,
     ip: 1,
   },
-  BLACKLISTED_IPS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+  IPS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  IP_RANGES_INCLUSION_PROJECTION: {
+    _id: 1,
+    range: 1,
+  },
+  IP_RANGES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});

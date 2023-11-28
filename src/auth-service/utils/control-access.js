@@ -1,6 +1,7 @@
 const PermissionModel = require("@models/Permission");
 const ScopeModel = require("@models/Scope");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
+const UnknownIPModel = require("@models/UnknownIP");
 const WhitelistedIPModel = require("@models/WhitelistedIP");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
@@ -270,9 +271,11 @@ const isIPBlacklisted = async (ip) => {
     return true; // IP is within a blacklisted range
   }
 
-  logger.info(
-    `🚨🚨 Potential Hacker IP -- ${ip} -- IP is neither blacklisted nor whitelisted`
-  );
+  try {
+    await UnknownIP("airqo").register({ ip });
+  } catch (error) {
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+  }
   return false; // IP is neither blacklisted nor whitelisted
 };
 
@@ -3676,6 +3679,35 @@ const controlAccess = {
         tenant
       ).remove({ filter });
       return responseFromRemoveWhitelistedIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /****************** Unknown IPs ******************************/
+  listUnknownIPs: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromListUnkownIP = await UnknownIPModel(tenant).list({
+        filter,
+      });
+      return responseFromListUnkownIP;
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
