@@ -272,7 +272,7 @@ const isIPBlacklisted = async (ip) => {
   }
 
   try {
-    await UnknownIP("airqo").register({ ip });
+    await UnknownIPModel("airqo").register({ ip });
   } catch (error) {
     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
