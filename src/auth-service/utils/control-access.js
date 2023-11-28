@@ -1,5 +1,6 @@
 const PermissionModel = require("@models/Permission");
 const ScopeModel = require("@models/Scope");
+const BlacklistedIPModel = require("@models/BlacklistedIP");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const UserModel = require("@models/User");
@@ -243,6 +244,11 @@ const handleServerError = (error) => {
     status: httpStatus.INTERNAL_SERVER_ERROR,
     errors: { message: errorMessage },
   };
+};
+
+const isIPBlacklisted = async (ip) => {
+  const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
+  return blacklistedIP !== null;
 };
 
 const controlAccess = {
@@ -601,16 +607,24 @@ const controlAccess = {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          const clientIp = request.headers["x-client-ip"];
+          const hostName = request.headers["x-host-name"];
+          const endpoint = request.headers["x-original-uri"];
+          const clientOriginalIp = request.headers["x-client-original-ip"];
+
+          if (!isEmpty(clientIp)) {
+            const isBlacklisted = await isIPBlacklisted(clientIp);
+            if (isBlacklisted) {
+              return createUnauthorizedResponse();
+            }
+          }
+
           logObject("service", service);
           logObject("userAction", userAction);
 
           if (service && userAction) {
             const { user: { email = "", userName = "", _id = "" } = {} } =
               responseFromListAccessToken.data[0];
-            const clientIp = request.headers["x-client-ip"];
-            const hostName = request.headers["x-host-name"];
-            const endpoint = request.headers["x-original-uri"];
-            const clientOriginalIp = request.headers["x-client-original-ip"];
             logObject("email", email);
             logObject("userName", userName);
 
@@ -2480,7 +2494,6 @@ const controlAccess = {
       };
     }
   },
-
   assignManyUsersToUserType: async (request) => {
     try {
       const { tenant } = request.query;
@@ -3534,6 +3547,58 @@ const controlAccess = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
+      };
+    }
+  },
+
+  /****************** Blacklisting IPs ******************************/
+  blackListIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromBlacklistIp = await BlacklistedIPModel(tenant).register(
+        {
+          ip,
+        }
+      );
+      return responseFromBlacklistIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeBlacklistedIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
+        tenant
+      ).remove({ filter });
+      return responseFromRemoveBlacklistedIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
