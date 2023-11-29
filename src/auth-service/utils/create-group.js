@@ -968,6 +968,7 @@ const createGroup = {
               lastName: 1,
               userName: 1,
               profilePicture: 1,
+              group_roles: 1,
               isActive: 1,
               lastLogin: 1,
               status: 1,
@@ -996,28 +997,84 @@ const createGroup = {
         ])
         .exec();
 
-      // Fetch access requests from AccessRequestModel
+      logObject("users", users);
+
       const accessRequests = await AccessRequestModel(tenant)
-        .find({
-          targetId: group._id,
-          requestType: "group",
-        })
-        .select({
-          user_id: 1,
-          email: 1,
-          status: 1,
-          createdAt: 1,
-          userType: "guest", // Provide a default value for userType from access requests
-        })
+        .aggregate([
+          {
+            $match: {
+              targetId: group._id,
+              requestType: "group",
+              status: "pending",
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "user_id",
+              foreignField: "_id",
+              as: "userDetails",
+            },
+          },
+          {
+            $project: {
+              email: 1,
+              status: 1,
+              firstName: { $arrayElemAt: ["$userDetails.firstName", 0] },
+              lastName: { $arrayElemAt: ["$userDetails.lastName", 0] },
+              createdAt: 1,
+              group_roles: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$userDetails.group_roles",
+                      as: "groupRole",
+                      cond: {
+                        $eq: ["$$groupRole.group", group._id],
+                      },
+                    },
+                  },
+                  0,
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              email: 1,
+              status: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: 1,
+              group_roles: 1,
+              userType: {
+                $ifNull: [
+                  { $arrayElemAt: ["$group_roles.userType", 0] },
+                  "guest",
+                ],
+              },
+            },
+          },
+        ])
         .exec();
 
-      // Merge results manually, ensuring no duplicate emails
       const mergedResults = [];
       const emailSet = new Set();
 
-      // Function to add a user to the merged results
+      const getUserTypeByGroupId = (groupRoles, grpId) => {
+        if (Array.isArray(groupRoles)) {
+          for (const groupRole of groupRoles) {
+            if (groupRole.group && groupRole.group.equals(grpId)) {
+              return groupRole.userType || "guest";
+            }
+          }
+        }
+        return "guest";
+      };
+
       const addUserToResults = (user) => {
         if (!emailSet.has(user.email)) {
+          const userType = getUserTypeByGroupId(user.group_roles, grp_id);
           mergedResults.push({
             _id: user._id,
             firstName: user.firstName,
@@ -1032,29 +1089,29 @@ const createGroup = {
             role_name: user.role_name,
             role_id: user.role_id,
             role_permissions: user.role_permissions,
-            userType:
-              user.group_roles && user.group_roles.userType
-                ? user.group_roles.userType
-                : "guest",
-            status: user.status || "approved", // Default to "approved" if status is not available
+            userType,
+            status: user.status || "approved",
           });
           emailSet.add(user.email);
         }
       };
 
-      // Add users from UserModel
       users.forEach(addUserToResults);
 
-      // Add users from AccessRequestModel
       accessRequests.forEach((accessRequest) => {
         addUserToResults({
-          _id: accessRequest.user_id, // Assuming user_id corresponds to the _id in UserModel
           email: accessRequest.email,
+          firstName: accessRequest.firstName,
+          lastName: accessRequest.lastName,
+          group_roles: accessRequest.group_roles,
           status: accessRequest.status,
           createdAt: accessRequest.createdAt,
-          userType: accessRequest.userType,
         });
       });
+
+      mergedResults.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
 
       logObject("mergedResults", mergedResults);
 

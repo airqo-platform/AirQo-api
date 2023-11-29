@@ -729,7 +729,6 @@ describe("createGroup Module", () => {
       UserModel(tenant).bulkWrite.restore();
     });
   });
-
   describe("assignUsersHybrid", () => {
     it("should assign users to the group and return success", async () => {
       // Create mock data and stubs for GroupModel and UserModel
@@ -1725,6 +1724,45 @@ describe("createGroup Module", () => {
 
       GroupModel(tenant).findById.restore();
       UserModel(tenant).aggregate.restore();
+    });
+  });
+  describe("listAllGroupUsers()", () => {
+    it("should return a valid response for a valid group ID", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        params: { grp_id: "validGroupId" },
+      };
+
+      // Mock the GroupModel's findById method to return a valid group
+      sinon.stub(GroupModel("airqo"), "findById").resolves({
+        _id: "validGroupId",
+        // Other properties...
+      });
+
+      // Mock the UserModel's aggregate method to return some users
+      sinon.stub(UserModel("airqo"), "aggregate").resolves([
+        // Mocked user data...
+      ]);
+
+      // Mock the AccessRequestModel's aggregate method to return some access requests
+      sinon.stub(AccessRequestModel("airqo"), "aggregate").resolves([
+        // Mocked access request data...
+      ]);
+
+      // Call the function and get the result
+      const result = await createGroup.listAllGroupUsers(request);
+
+      // Assert the result
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      // Add more assertions based on the expected behavior of your function
+    });
+
+    // Add more test cases as needed...
+
+    // Clean up sinon stubs after each test
+    afterEach(() => {
+      sinon.restore();
     });
   });
 });
