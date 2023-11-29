@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
@@ -937,42 +938,11 @@ const createGroup = {
         };
       }
 
-      const responseFromListAllGroupUsers = await UserModel(tenant)
+      const users = await UserModel(tenant)
         .aggregate([
           {
             $match: {
               "group_roles.group": group._id,
-            },
-          },
-          {
-            $lookup: {
-              from: "access_requests",
-              let: { userId: "$_id", groupId: group._id },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ["$user_id", "$$userId"] },
-                        { $eq: ["$targetId", "$$groupId"] },
-                        { $eq: ["$status", "pending"] },
-                      ],
-                    },
-                  },
-                },
-              ],
-              as: "access_requests",
-            },
-          },
-          {
-            $addFields: {
-              status: {
-                $cond: {
-                  if: { $gt: [{ $size: "$access_requests" }, 0] },
-                  then: "pending",
-                  else: "approved",
-                },
-              },
             },
           },
           {
@@ -1000,6 +970,7 @@ const createGroup = {
               profilePicture: 1,
               isActive: 1,
               lastLogin: 1,
+              status: 1,
               jobTitle: 1,
               createdAt: {
                 $dateToString: {
@@ -1011,8 +982,6 @@ const createGroup = {
               role_name: { $arrayElemAt: ["$role.role_name", 0] },
               role_id: { $arrayElemAt: ["$role._id", 0] },
               role_permissions: "$role_permissions",
-              userType: { $arrayElemAt: ["$group_roles.userType", 0] },
-              status: 1,
             },
           },
           {
@@ -1027,12 +996,72 @@ const createGroup = {
         ])
         .exec();
 
-      logObject("responseFromListAllGroupUsers", responseFromListAllGroupUsers);
+      // Fetch access requests from AccessRequestModel
+      const accessRequests = await AccessRequestModel(tenant)
+        .find({
+          targetId: group._id,
+          requestType: "group",
+        })
+        .select({
+          user_id: 1,
+          email: 1,
+          status: 1,
+          createdAt: 1,
+          userType: "guest", // Provide a default value for userType from access requests
+        })
+        .exec();
+
+      // Merge results manually, ensuring no duplicate emails
+      const mergedResults = [];
+      const emailSet = new Set();
+
+      // Function to add a user to the merged results
+      const addUserToResults = (user) => {
+        if (!emailSet.has(user.email)) {
+          mergedResults.push({
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userName: user.userName,
+            profilePicture: user.profilePicture,
+            isActive: user.isActive,
+            lastLogin: user.lastLogin,
+            jobTitle: user.jobTitle,
+            createdAt: user.createdAt,
+            email: user.email,
+            role_name: user.role_name,
+            role_id: user.role_id,
+            role_permissions: user.role_permissions,
+            userType:
+              user.group_roles && user.group_roles.userType
+                ? user.group_roles.userType
+                : "guest",
+            status: user.status || "approved", // Default to "approved" if status is not available
+          });
+          emailSet.add(user.email);
+        }
+      };
+
+      // Add users from UserModel
+      users.forEach(addUserToResults);
+
+      // Add users from AccessRequestModel
+      accessRequests.forEach((accessRequest) => {
+        addUserToResults({
+          _id: accessRequest.user_id, // Assuming user_id corresponds to the _id in UserModel
+          email: accessRequest.email,
+          status: accessRequest.status,
+          createdAt: accessRequest.createdAt,
+          userType: accessRequest.userType,
+        });
+      });
+
+      logObject("mergedResults", mergedResults);
 
       return {
         success: true,
         message: `Retrieved all users (including pending invites) for group ${grp_id}`,
-        data: responseFromListAllGroupUsers,
+        data: mergedResults,
         status: httpStatus.OK,
       };
     } catch (error) {
