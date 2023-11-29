@@ -1148,6 +1148,10 @@ const defaultConfig = {
   IPS_INCLUSION_PROJECTION: {
     _id: 1,
     ip: 1,
+    email: 1,
+    token: 1,
+    token_name: 1,
+    endpoints: 1,
   },
   IPS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };

@@ -570,7 +570,7 @@ const filter = {
 
   ips: (req) => {
     try {
-      const { id, ip } = {
+      const { id, ip, range } = {
         ...req.query,
         ...req.params,
       };
@@ -582,6 +582,10 @@ const filter = {
 
       if (ip) {
         filter["ip"] = ip;
+      }
+
+      if (range) {
+        filter["range"] = range;
       }
 
       return filter;
