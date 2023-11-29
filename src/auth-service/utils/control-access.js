@@ -284,7 +284,14 @@ const isIPBlacklisted = async ({
       .lean();
 
     const options = { upsert: true, new: true };
-    const filter = { _id: UnknownIPDetails && UnknownIPDetails._id };
+
+    const newId =
+      UnknownIPDetails && UnknownIPDetails._id
+        ? UnknownIPDetails._id
+        : new mongoose.Types.ObjectId();
+
+    const filter = { _id: newId };
+
     const update = {
       ip,
       $addToSet: { endpoints: endpoint },
