@@ -14,14 +14,17 @@ const UnknownIPSchema = new mongoose.Schema(
       unique: true,
       required: [true, "ip is required!"],
     },
-    email: {
-      type: String,
+    emails: {
+      type: [{ type: String }],
+      default: [],
     },
-    token: {
-      type: String,
+    tokens: {
+      type: [{ type: String }],
+      default: [],
     },
-    token_name: {
-      type: String,
+    token_names: {
+      type: [{ type: String }],
+      default: [],
     },
     endpoints: {
       type: [{ type: String }],
@@ -227,6 +230,10 @@ UnknownIPSchema.methods = {
     return {
       _id: this._id,
       ip: this.ip,
+      emails: this.emails,
+      tokens: this.tokens,
+      token_names: this.token_names,
+      endpoints: this.endpoints,
     };
   },
 };
