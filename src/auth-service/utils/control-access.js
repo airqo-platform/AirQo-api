@@ -284,27 +284,28 @@ const isIPBlacklisted = async ({
       .lean();
 
     const options = { upsert: true, new: true };
+    let filter;
 
-    const newId =
-      UnknownIPDetails && UnknownIPDetails._id
-        ? UnknownIPDetails._id
-        : new mongoose.Types.ObjectId();
-
-    const filter = { _id: newId };
+    if (UnknownIPDetails && UnknownIPDetails._id) {
+      filter = { _id: UnknownIPDetails._id };
+    } else {
+      filter = { _id: new mongoose.Types.ObjectId() };
+    }
 
     const update = {
-      ip,
-      $addToSet: { endpoints: endpoint },
-      email,
-      token,
-      token_name,
+      $addToSet: {
+        endpoints: endpoint,
+        emails: email,
+        tokens: token,
+        token_names: token_name,
+      },
     };
 
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
-  return false; // IP is neither blacklisted nor whitelisted
+  return false;
 };
 
 const controlAccess = {
