@@ -665,7 +665,7 @@ const createGroup = {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
       const responseFromListAvailableUsersForGroup =
-        await createGroupUtil.listAvailableUsersForGroup(request);
+        await createGroupUtil.listAvailableUsers(request);
 
       if (responseFromListAvailableUsersForGroup.success === true) {
         const status = responseFromListAvailableUsersForGroup.status
@@ -691,6 +691,66 @@ const createGroup = {
             : "",
           errors: responseFromListAvailableUsersForGroup.errors
             ? responseFromListAvailableUsersForGroup.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listAllGroupUsers: async (req, res) => {
+    try {
+      const { query } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = req;
+      if (isEmpty(tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromListAllGroupUsers =
+        await createGroupUtil.listAllGroupUsers(request);
+
+      if (responseFromListAllGroupUsers.success === true) {
+        const status = responseFromListAllGroupUsers.status
+          ? responseFromListAllGroupUsers.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListAllGroupUsers.message
+            ? responseFromListAllGroupUsers.message
+            : "",
+          group_members: responseFromListAllGroupUsers.data
+            ? responseFromListAllGroupUsers.data
+            : [],
+        });
+      } else if (responseFromListAllGroupUsers.success === false) {
+        const status = responseFromListAllGroupUsers.status
+          ? responseFromListAllGroupUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListAllGroupUsers.message
+            ? responseFromListAllGroupUsers.message
+            : "",
+          errors: responseFromListAllGroupUsers.errors
+            ? responseFromListAllGroupUsers.errors
             : { message: "" },
         });
       }
