@@ -665,7 +665,7 @@ const controlAccess = {
               const isBlacklisted = await isIPBlacklisted(clientIp);
               if (isBlacklisted) {
                 logger.info(
-                  `🚨🚨 An AirQo Analytics Access Token is compromised -- ${token} -- ${name} -- ${email} `
+                  `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
                 );
                 return createUnauthorizedResponse();
               }
