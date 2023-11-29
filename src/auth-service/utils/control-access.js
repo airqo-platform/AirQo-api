@@ -250,7 +250,13 @@ const handleServerError = (error) => {
   };
 };
 
-const isIPBlacklisted = async (ip) => {
+const isIPBlacklisted = async ({
+  ip = "",
+  email = "",
+  token = "",
+  token_name = "",
+  endpoint = "",
+} = {}) => {
   const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
   if (blacklistedIP) {
     return true; // IP is blacklisted
@@ -274,13 +280,20 @@ const isIPBlacklisted = async (ip) => {
   try {
     const UnknownIPDetails = await UnknownIPModel("airqo")
       .findOne({ ip })
-      .select("_id")
+      .select("_id endpoints")
       .lean();
 
     const options = { upsert: true, new: true };
-    const filter = UnknownIPDetails;
+    const filter = { _id: UnknownIPDetails && UnknownIPDetails._id };
+    const update = {
+      ip,
+      $addToSet: { endpoints: endpoint },
+      email,
+      token,
+      token_name,
+    };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, { ip }, options);
+    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
@@ -662,7 +675,15 @@ const controlAccess = {
             logObject("userName", userName);
 
             if (!isEmpty(clientIp)) {
-              const isBlacklisted = await isIPBlacklisted(clientIp);
+              const ip = clientIp;
+              const token_name = name;
+              const isBlacklisted = await isIPBlacklisted({
+                ip,
+                email,
+                token,
+                token_name,
+                endpoint,
+              });
               if (isBlacklisted) {
                 logger.info(
                   `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `

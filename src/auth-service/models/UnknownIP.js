@@ -14,6 +14,19 @@ const UnknownIPSchema = new mongoose.Schema(
       unique: true,
       required: [true, "ip is required!"],
     },
+    email: {
+      type: String,
+    },
+    token: {
+      type: String,
+    },
+    token_name: {
+      type: String,
+    },
+    endpoints: {
+      type: [{ type: String }],
+      default: [],
+    },
   },
   { timestamps: true }
 );
