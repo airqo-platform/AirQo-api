@@ -808,6 +808,7 @@ const defaultConfig = {
 
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
+    user_id: 1,
     email: 1,
     requestType: 1,
     targetId: 1,

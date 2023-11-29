@@ -116,7 +116,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        subject: `AirQo Analytics Request to Access ${processString(
+          entity_title
+        )} Team`,
         html: msgs.joinEntityRequest(email, entity_title),
         bcc,
         attachments: attachments,
