@@ -1146,6 +1146,7 @@ const defaultConfig = {
   },
 
   IPS_INCLUSION_PROJECTION: {
+    _id: 1,
     ip: 1,
     email: 1,
     token: 1,

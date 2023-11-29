@@ -446,6 +446,169 @@ const createAccessToken = {
       });
     }
   },
+  blackListIpRange: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromBlackListIpRange =
+        await controlAccessUtil.blackListIpRange(request);
+
+      if (responseFromBlackListIpRange.success === true) {
+        const status = responseFromBlackListIpRange.status
+          ? responseFromBlackListIpRange.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromBlackListIpRange.message
+            ? responseFromBlackListIpRange.message
+            : "",
+          blacklisted_ip_range: responseFromBlackListIpRange.data
+            ? responseFromBlackListIpRange.data
+            : [],
+        });
+      } else if (responseFromBlackListIpRange.success === false) {
+        const status = responseFromBlackListIpRange.status
+          ? responseFromBlackListIpRange.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromBlackListIpRange.message
+            ? responseFromBlackListIpRange.message
+            : "",
+          errors: responseFromBlackListIpRange.errors
+            ? responseFromBlackListIpRange.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  removeBlacklistedIpRange: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
+      const responseFromRemoveBlackListedIpRange =
+        await controlAccessUtil.removeBlacklistedIpRange(request);
+
+      if (responseFromRemoveBlackListedIpRange.success === true) {
+        const status = responseFromRemoveBlackListedIpRange.status
+          ? responseFromRemoveBlackListedIpRange.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromRemoveBlackListedIpRange.message
+            ? responseFromRemoveBlackListedIpRange.message
+            : "",
+          removed_ip_range: responseFromRemoveBlackListedIpRange.data
+            ? responseFromRemoveBlackListedIpRange.data
+            : {},
+        });
+      } else if (responseFromRemoveBlackListedIpRange.success === false) {
+        const status = responseFromRemoveBlackListedIpRange.status
+          ? responseFromRemoveBlackListedIpRange.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromRemoveBlackListedIpRange.message
+            ? responseFromRemoveBlackListedIpRange.message
+            : "",
+          errors: responseFromRemoveBlackListedIpRange.errors
+            ? responseFromRemoveBlackListedIpRange.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  listBlacklistedIpRange: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromListBlacklistedIPRanges =
+        await controlAccessUtil.listBlacklistedIpRange(request);
+
+      if (responseFromListBlacklistedIPRanges.success === true) {
+        const status = responseFromListBlacklistedIPRanges.status
+          ? responseFromListBlacklistedIPRanges.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromListBlacklistedIPRanges.message
+            ? responseFromListBlacklistedIPRanges.message
+            : "",
+          blacklisted_ip_ranges: responseFromListBlacklistedIPRanges.data
+            ? responseFromListBlacklistedIPRanges.data
+            : {},
+        });
+      } else if (responseFromListBlacklistedIPRanges.success === false) {
+        const status = responseFromListBlacklistedIPRanges.status
+          ? responseFromListBlacklistedIPRanges.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromListBlacklistedIPRanges.message
+            ? responseFromListBlacklistedIPRanges.message
+            : "",
+          errors: responseFromListBlacklistedIPRanges.errors
+            ? responseFromListBlacklistedIPRanges.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   whiteListIp: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

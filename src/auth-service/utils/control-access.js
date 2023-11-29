@@ -3683,6 +3683,84 @@ const controlAccess = {
       };
     }
   },
+  blackListIpRange: async (request) => {
+    try {
+      const { range, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromBlacklistIpRange = await BlacklistedIPRangeModel(
+        tenant
+      ).register({
+        range,
+      });
+      return responseFromBlacklistIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeBlacklistedIpRange: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveBlacklistedIpRange =
+        await BlacklistedIPRangeModel(tenant).remove({ filter });
+      return responseFromRemoveBlacklistedIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listBlacklistedIpRange: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
+        tenant
+      ).list({
+        filter,
+      });
+      return responseFromListBlacklistedIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 
   /****************** Whitelisting IPs ******************************/
   whiteListIp: async (request) => {
