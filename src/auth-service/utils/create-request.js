@@ -59,6 +59,7 @@ const createAccessRequest = {
         tenant
       ).register({
         user_id: user._id,
+        email: user.email,
         targetId: grp_id,
         status: "pending",
         requestType: "group",
