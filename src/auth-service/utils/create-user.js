@@ -212,27 +212,7 @@ const createUserModule = {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(
         tenant
       );
-      if (responseFromListStatistics.success === true) {
-        return {
-          success: true,
-          message: responseFromListStatistics.message,
-          data: responseFromListStatistics.data,
-          status: responseFromListStatistics.status
-            ? responseFromListStatistics.status
-            : httpStatus.OK,
-        };
-      } else if (responseFromListStatistics.success === false) {
-        return {
-          success: false,
-          message: responseFromListStatistics.message,
-          errors: responseFromListStatistics.errors
-            ? responseFromListStatistics.errors
-            : { message: "Internal Server Error" },
-          status: responseFromListStatistics.status
-            ? responseFromListStatistics.status
-            : httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
+      return responseFromListStatistics;
     } catch (e) {
       logElement("list users util", e.message);
       logger.error(`Internal Server Error ${e.message}`);
