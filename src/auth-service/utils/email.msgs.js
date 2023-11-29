@@ -1,4 +1,9 @@
 const constants = require("../config/constants");
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
 
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
@@ -48,7 +53,9 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to access ${entity_title} has been received, we shall get back to you as soon as possible.
+                                    Your request to access ${processString(
+                                      entity_title
+                                    )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
@@ -327,10 +334,10 @@ module.exports = {
                                 </td>
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
-    },
+  },
 
-    report: (senderEmail, recepientEmail, formart) => {
-        const content = `
+  report: (senderEmail, recepientEmail, formart) => {
+    const content = `
     <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -349,6 +356,6 @@ module.exports = {
                                 </td>
                             </tr>
   `;
-        return constants.EMAIL_BODY(recepientEmail, content);
-    },
+    return constants.EMAIL_BODY(recepientEmail, content);
+  },
 };

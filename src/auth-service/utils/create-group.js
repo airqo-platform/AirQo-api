@@ -919,6 +919,133 @@ const createGroup = {
       };
     }
   },
+  listAllGroupUsers: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { grp_id } = request.params;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid group ID ${grp_id}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const responseFromListAllGroupUsers = await UserModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              "group_roles.group": group._id,
+            },
+          },
+          {
+            $lookup: {
+              from: "access_requests",
+              let: { userId: "$_id", groupId: group._id },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$user_id", "$$userId"] },
+                        { $eq: ["$targetId", "$$groupId"] },
+                        { $eq: ["$status", "pending"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "access_requests",
+            },
+          },
+          {
+            $addFields: {
+              status: {
+                $cond: {
+                  if: { $gt: [{ $size: "$access_requests" }, 0] },
+                  then: "pending",
+                  else: "approved",
+                },
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: "roles",
+              localField: "group_roles.role",
+              foreignField: "_id",
+              as: "role",
+            },
+          },
+          {
+            $lookup: {
+              from: "permissions",
+              localField: "role.role_permissions",
+              foreignField: "_id",
+              as: "role_permissions",
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
+              profilePicture: 1,
+              isActive: 1,
+              lastLogin: 1,
+              jobTitle: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              email: 1,
+              role_name: { $arrayElemAt: ["$role.role_name", 0] },
+              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_permissions: "$role_permissions",
+              userType: { $arrayElemAt: ["$group_roles.userType", 0] },
+              status: 1,
+            },
+          },
+          {
+            $project: {
+              "role_permissions.network_id": 0,
+              "role_permissions.description": 0,
+              "role_permissions.createdAt": 0,
+              "role_permissions.updatedAt": 0,
+              "role_permissions.__v": 0,
+            },
+          },
+        ])
+        .exec();
+
+      logObject("responseFromListAllGroupUsers", responseFromListAllGroupUsers);
+
+      return {
+        success: true,
+        message: `Retrieved all users (including pending invites) for group ${grp_id}`,
+        data: responseFromListAllGroupUsers,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logElement("internal server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
 module.exports = createGroup;

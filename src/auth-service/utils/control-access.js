@@ -280,17 +280,11 @@ const isIPBlacklisted = async ({
   try {
     const UnknownIPDetails = await UnknownIPModel("airqo")
       .findOne({ ip })
-      .select("_id endpoints")
+      .select("_id")
       .lean();
 
     const options = { upsert: true, new: true };
-    let filter;
-
-    if (UnknownIPDetails && UnknownIPDetails._id) {
-      filter = { _id: UnknownIPDetails._id };
-    } else {
-      filter = { _id: new mongoose.Types.ObjectId() };
-    }
+    const filter = UnknownIPDetails;
 
     const update = {
       $addToSet: {
