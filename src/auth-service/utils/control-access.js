@@ -298,7 +298,7 @@ const isIPBlacklisted = async ({
 
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
   return false;
 };
