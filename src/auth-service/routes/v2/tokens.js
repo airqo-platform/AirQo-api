@@ -265,36 +265,7 @@ router.get(
   authJWT,
   createTokenController.listUnknownIPs
 );
-router.get(
-  "/:token",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("token")
-        .exists()
-        .withMessage("the token param is missing in the request")
-        .bail()
-        .trim()
-        .notEmpty()
-        .withMessage("the token must not be empty"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createTokenController.list
-);
+
 /******************** blacklisted IP addresses *********************/
 router.post(
   "/blacklist-ip",
@@ -358,7 +329,88 @@ router.delete(
   authJWT,
   createTokenController.removeBlacklistedIp
 );
-
+router.post(
+  "/blacklist-ip-range",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("range")
+      .exists()
+      .withMessage("the range is missing in your request body")
+      .bail()
+      .notEmpty()
+      .withMessage("the range should not be empty if provided")
+      .trim(),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.blackListIpRange
+);
+router.delete(
+  "/blacklist-ip-range/:id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("id")
+      .exists()
+      .withMessage("the id param is missing in the request")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the id cannot be empty when provided")
+      .bail()
+      .isMongoId()
+      .withMessage("the id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.removeBlacklistedIpRange
+);
+router.get(
+  "/blacklist-ip-range",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.listBlacklistedIpRange
+);
 /******************** whitelisted IP addresses *********************/
 router.post(
   "/whitelist-ip",
@@ -421,6 +473,37 @@ router.delete(
   setJWTAuth,
   authJWT,
   createTokenController.removeWhitelistedIp
+);
+
+router.get(
+  "/:token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("token")
+        .exists()
+        .withMessage("the token param is missing in the request")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("the token must not be empty"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.list
 );
 
 module.exports = router;
