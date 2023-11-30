@@ -19,6 +19,7 @@ const ClientSchema = new Schema(
     name: { type: String, trim: true, required: [true, "name is required!"] },
     client_secret: { type: String, trim: true },
     redirect_uri: { type: String },
+    ip_address: { type: String },
     description: { type: String },
     rateLimit: { type: Number },
   },
@@ -230,6 +231,7 @@ ClientSchema.methods = {
       name: this.name,
       description: this.description,
       rateLimit: this.rateLimit,
+      ip_address: this.ip_address,
     };
   },
 };
