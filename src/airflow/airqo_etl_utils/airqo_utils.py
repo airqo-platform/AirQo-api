@@ -926,6 +926,17 @@ class AirQoDataUtils:
 
         return data
 
+    ### Fault detection job
+
+
+    @staticmethod
+    def resample_raw_data(df):
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.groupby("device_name").resample("H", on="timestamp").mean()
+        df.reset_index(inplace=True)
+        return df
+
+
     @staticmethod
     def flag_faults(df):
         if not isinstance(df, pd.DataFrame):

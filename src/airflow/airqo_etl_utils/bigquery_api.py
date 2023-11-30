@@ -687,16 +687,27 @@ class BigQueryApi:
         try:
             if dataframe.empty:
                 raise Exception("No data found from bigquery")
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
-            dataframe = (
-                dataframe.groupby("device_name").resample("H", on="timestamp").mean()
-            )
-            dataframe.reset_index(inplace=True)
             return dataframe
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
 
-    #
+    def add_device_metadata(self, df):
+        query = (f"SELECT distinct latitude, longitude, device_id   "
+                 f"FROM `{self.sites_meta_data_table}` "
+                 f"where device_category = 'lowcost' "
+                 f"and latitude is not null "
+                 f"and longitude is not null")
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        try:
+            sites = self.client.query(query, job_config).result().to_dataframe()
+            df = df.merge(sites, on='device_id', how='left')
+            return df
+        except Exception as e:
+            print(f"Error when fetching data from bigquery, {e}")
+
     def fetch_data(
             self,
             start_date_time: str,

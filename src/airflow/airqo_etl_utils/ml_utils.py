@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 
 import gcsfs
@@ -49,25 +48,10 @@ class GCSUtils:
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
 
-    @staticmethod
-    def upload_mapping_to_gcs(
-        mapping_dict, project_name, bucket_name, source_blob_name
-    ):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        mapping_dict = json.dumps(mapping_dict)
-        with fs.open(bucket_name + "/" + source_blob_name, "w") as f:
-            f.write(mapping_dict)
 
-    @staticmethod
-    def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        with fs.open(bucket_name + "/" + source_blob_name, "r") as f:
-            mapping_dict = json.load(f)
-        return mapping_dict
+class MlPipelineUtils:
 
-
-class ForecastUtils:
-
+    # forecast model utils
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
         required_columns = {
@@ -609,3 +593,22 @@ class ForecastUtils:
                 print(
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
+
+    @staticmethod
+    def detect_faults(data):
+        from sklearn.preprocessing import MinMaxScaler
+        from sklearn.ensemble import IsolationForest
+
+        scaler = MinMaxScaler()
+        scaled_df = data.drop(['timestamp', 'device_id', 'latitude', 'longitude'], axis=1)
+        scaled_df = scaler.fit_transform(scaled_df)
+        clf = IsolationForest(contamination=0.001)
+        clf.fit(pd.DataFrame(scaled_df, columns=data.columns))
+        scaled_df['anomaly_value'] = clf.predict(pd.DataFrame(scaled_df, columns=data.columns))
+
+        anomalies = scaled_df[scaled_df['anomaly_value'] == -1].copy().drop(['anomaly_value'], axis=1)
+        anomalies = scaler.inverse_transform(anomalies)
+        anomalies = pd.DataFrame(anomalies, columns=data.columns)
+        device_details = data[['device_id', 'latitude', 'longitude']].drop_duplicates()
+        anomalies = anomalies.merge(device_details, on='device_id', how='left')
+        return anomalies

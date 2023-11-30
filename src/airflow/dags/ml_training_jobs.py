@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.ml_utils import ForecastUtils
+from airqo_etl_utils.ml_utils import MlPipelineUtils
 
 
 @dag(
@@ -30,23 +30,23 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "hourly", "train")
+        return MlPipelineUtils.preprocess_data(data, "hourly", "train")
 
     @task()
     def get_hourly_lag_and_rolling_features(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+        return MlPipelineUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
 
     @task()
     def get_hourly_time_and_cyclic_features(data):
-        return ForecastUtils.get_time_and_cyclic_features(data, "hourly")
+        return MlPipelineUtils.get_time_and_cyclic_features(data, "hourly")
 
     @task()
     def get_location_features(data):
-        return ForecastUtils.get_location_features(data)
+        return MlPipelineUtils.get_location_features(data)
 
     @task()
     def train_and_save_hourly_forecast_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(
+        return MlPipelineUtils.train_and_save_forecast_models(
             train_data, frequency="hourly"
         )
 
@@ -65,23 +65,23 @@ def train_forecasting_models():
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):
-        return ForecastUtils.preprocess_data(data, "daily", job_type="train")
+        return MlPipelineUtils.preprocess_data(data, "daily", job_type="train")
 
     @task()
     def get_daily_lag_and_rolling_features(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+        return MlPipelineUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
 
     @task()
     def get_daily_time_and_cylic_features(data):
-        return ForecastUtils.get_time_and_cyclic_features(data, "daily")
+        return MlPipelineUtils.get_time_and_cyclic_features(data, "daily")
 
     @task()
     def get_location_features(data):
-        return ForecastUtils.get_location_features(data)
+        return MlPipelineUtils.get_location_features(data)
 
     @task()
     def train_and_save_daily_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(train_data, "daily")
+        return MlPipelineUtils.train_and_save_forecast_models(train_data, "daily")
 
     hourly_data = fetch_training_data_for_hourly_forecast_model()
     hourly_preprocessed_data = preprocess_training_data_for_hourly_forecast_model(hourly_data)
