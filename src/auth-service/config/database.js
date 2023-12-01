@@ -22,6 +22,7 @@ const options = {
   socketTimeoutMS: 600000,
   serverSelectionTimeoutMS: 3600000,
   dbName: constants.DB_NAME,
+  readPreference: "primary",
 };
 
 const connect = () => mongoose.createConnection(URI, options);
