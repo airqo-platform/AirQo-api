@@ -340,7 +340,7 @@ UserSchema.statics = {
   async listStatistics() {
     try {
       const response = await this.aggregate()
-        .match({})
+        .match({ email: { $ne: null } })
         .sort({ createdAt: -1 })
         .lookup({
           from: "clients",
@@ -348,17 +348,43 @@ UserSchema.statics = {
           foreignField: "user_id",
           as: "clients",
         })
+        .lookup({
+          from: "users",
+          localField: "clients.user_id",
+          foreignField: "_id",
+          as: "api_emails",
+        })
         .group({
           _id: null,
-          api_users: { $addToSet: "$clients.user_id" }, // Assuming user_id is the field that uniquely identifies users in the clients collection
           users: { $sum: 1 },
+          user_emails: { $push: "$email" },
           active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
+          active_user_emails: {
+            $addToSet: {
+              $cond: {
+                if: "$isActive",
+                then: "$email",
+                else: "",
+              },
+            },
+          },
+          api_users: { $addToSet: "$clients.user_id" },
+          api_user_emails: { $push: "$api_emails.email" },
         })
         .project({
           _id: 0,
-          api_users: { $size: "$api_users" },
-          users: 1,
-          active_users: 1,
+          users: {
+            number: "$users",
+            emails: "$user_emails",
+          },
+          active_users: {
+            number: "$active_users",
+            emails: "$active_user_emails",
+          },
+          api_users: {
+            number: { $size: { $ifNull: ["$api_users", []] } },
+            emails: "$api_user_emails",
+          },
         })
         .allowDiskUse(true);
 
@@ -366,7 +392,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "Successfully retrieved the user statistics",
-          data: response,
+          data: response[0],
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
