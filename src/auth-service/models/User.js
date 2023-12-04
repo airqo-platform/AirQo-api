@@ -352,7 +352,7 @@ UserSchema.statics = {
           from: "users",
           localField: "clients.user_id",
           foreignField: "_id",
-          as: "api_emails",
+          as: "api_clients",
         })
         .group({
           _id: null,
@@ -364,12 +364,12 @@ UserSchema.statics = {
               $cond: {
                 if: "$isActive",
                 then: "$email",
-                else: "",
+                else: "$nothing",
               },
             },
           },
-          api_users: { $addToSet: "$clients.user_id" },
-          api_user_emails: { $push: "$api_emails.email" },
+          // number_of_api_users: {},
+          // api_user_emails: {},
         })
         .project({
           _id: 0,
@@ -381,10 +381,10 @@ UserSchema.statics = {
             number: "$active_users",
             emails: "$active_user_emails",
           },
-          api_users: {
-            number: { $size: { $ifNull: ["$api_users", []] } },
-            emails: "$api_user_emails",
-          },
+          // api_users: {
+          //   number: "$number_of_api_users",
+          //   emails: "$api_user_emails",
+          // },
         })
         .allowDiskUse(true);
 
