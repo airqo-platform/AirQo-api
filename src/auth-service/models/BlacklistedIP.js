@@ -1,36 +1,30 @@
 const mongoose = require("mongoose").set("debug", true);
-const Schema = mongoose.Schema;
-const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("@utils/log");
-const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- blaclist-ip-model`
+);
 const { getModelByTenant } = require("@config/database");
 
-const ClientSchema = new Schema(
+const BlacklistedIPSchema = new mongoose.Schema(
   {
-    user_id: {
-      type: ObjectId,
-      ref: "user",
-      required: [true, "user_id is required!"],
+    ip: {
+      type: String,
+      unique: true,
+      required: [true, "ip is required!"],
     },
-    name: { type: String, trim: true, required: [true, "name is required!"] },
-    client_secret: { type: String, trim: true },
-    redirect_uri: { type: String },
-    ip_address: { type: String },
-    description: { type: String },
-    rateLimit: { type: Number },
   },
   { timestamps: true }
 );
 
-ClientSchema.pre("save", function (next) {
+BlacklistedIPSchema.pre("save", function (next) {
   return next();
 });
 
-ClientSchema.pre("findOneAndUpdate", function () {
+BlacklistedIPSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
   if (update.__v != null) {
@@ -49,29 +43,32 @@ ClientSchema.pre("findOneAndUpdate", function () {
   update.$inc.__v = 1;
 });
 
-ClientSchema.pre("update", function (next) {
+BlacklistedIPSchema.pre("update", function (next) {
   return next();
 });
 
-ClientSchema.statics = {
+BlacklistedIPSchema.index({ ip: 1 }, { unique: true });
+
+BlacklistedIPSchema.statics = {
   async register(args) {
     try {
-      data = await this.create({
-        ...args,
+      let modifiedArgs = args;
+      const data = await this.create({
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
-          message: "client created",
+          message: "IP created",
           status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
           data: [],
-          message: "operation successful but client NOT successfully created",
-          status: httpStatus.OK,
+          message: "operation successful but IP NOT successfully created",
+          status: httpStatus.ACCEPTED,
         };
       }
     } catch (err) {
@@ -82,12 +79,6 @@ ClientSchema.statics = {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
-      } else if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      } else if (err.code === 11000) {
-        response["message"] = "the Client must be unique for every client";
       }
       return {
         error: response,
@@ -100,46 +91,41 @@ ClientSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      const inclusionProjection = constants.CLIENTS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.CLIENTS_EXCLUSION_PROJECTION(
+      logObject("filtering here", filter);
+      const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.IPS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
 
       const response = await this.aggregate()
         .match(filter)
-        .lookup({
-          from: "access_tokens",
-          localField: "_id",
-          foreignField: "client_id",
-          as: "access_token",
-        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : 300)
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the client details",
+          message: "successfully retrieved the ip details",
           data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "no clients exist",
-          data: [],
+          message: "No ips found, please crosscheck provided details",
           status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
@@ -152,98 +138,96 @@ ClientSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      let modifiedUpdate = Object.assign({}, update);
 
-      const updatedClient = await this.findOneAndUpdate(
+      const updatedIP = await this.findOneAndUpdate(
         filter,
-        update,
+        modifiedUpdate,
         options
       ).exec();
-
-      if (!isEmpty(updatedClient)) {
+      if (!isEmpty(updatedIP)) {
         return {
           success: true,
-          message: "successfully modified the client",
-          data: updatedClient._doc,
+          message: "successfully modified the IP",
+          data: updatedIP._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedClient)) {
+      } else if (isEmpty(updatedIP)) {
         return {
-          success: true,
-          message: "client does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.NOT_FOUND,
+          success: false,
+          message: "IP does not exist, please crosscheck",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "IP does not exist, please crosscheck" },
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "INTERNAL SERVER ERROR",
-        error: error.message,
-        errors: { message: error.message },
+        message: "Internal Server Error",
+        error: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
       };
     }
   },
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, client_secret: 1 },
+        projection: {
+          _id: 0,
+          ip: 1,
+        },
       };
-      let removedClient = await this.findOneAndRemove(filter, options).exec();
 
-      if (!isEmpty(removedClient)) {
+      const removedIP = await this.findOneAndRemove(filter, options).exec();
+
+      logObject("removedIP", removedIP);
+
+      if (!isEmpty(removedIP)) {
         return {
           success: true,
-          message: "successfully removed the client",
-          data: removedClient._doc,
+          message: "successfully removed the IP",
+          data: removedIP._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedClient)) {
+      } else if (isEmpty(removedIP)) {
         return {
-          success: true,
-          message: "client does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
+          success: false,
+          message: "IP does not exist, please crosscheck",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "IP does not exist, please crosscheck" },
         };
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: "internal server errors", error: error.message },
+        message: "internal server error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 };
 
-ClientSchema.methods = {
+BlacklistedIPSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      client_secret: this.client_secret,
-      redirect_uri: this.redirect_uri,
-      name: this.name,
-      description: this.description,
-      rateLimit: this.rateLimit,
-      ip_address: this.ip_address,
+      ip: this.ip,
     };
   },
 };
 
-const ClientModel = (tenant) => {
+const BlacklistedIPModel = (tenant) => {
   try {
-    let clients = mongoose.model("clients");
-    return clients;
+    let ips = mongoose.model("BlacklistedIPs");
+    return ips;
   } catch (error) {
-    let clients = getModelByTenant(tenant, "client", ClientSchema);
-    return clients;
+    let ips = getModelByTenant(tenant, "BlacklistedIP", BlacklistedIPSchema);
+    return ips;
   }
 };
 
-module.exports = ClientModel;
+module.exports = BlacklistedIPModel;

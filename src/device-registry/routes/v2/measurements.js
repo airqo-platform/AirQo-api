@@ -57,7 +57,12 @@ const validateObjectId = (paramName) => {
 const validateOptionalObjectId = (field) => {
   return (req, res, next) => {
     if (req.query[field]) {
-      const values = req.query[field].split(",");
+      let values;
+      if (Array.isArray(req.query[field])) {
+        values = req.query[field];
+      } else {
+        values = req.query[field].toString().split(",");
+      }
       for (const value of values) {
         if (!isValidObjectId(value)) {
           throw new Error(`Invalid ${field} format: ${value}`);
@@ -92,7 +97,12 @@ const headers = (req, res, next) => {
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
+  // Check if the request method is OPTIONS (preflight request)
+  if (req.method === "OPTIONS") {
+    res.sendStatus(200); // Respond with a 200 status for preflight requests
+  } else {
+    next(); // Continue to the next middleware for non-preflight requests
+  }
 };
 router.use(headers);
 router.use(validatePagination);

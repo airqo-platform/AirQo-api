@@ -1,5 +1,9 @@
 const PermissionModel = require("@models/Permission");
 const ScopeModel = require("@models/Scope");
+const BlacklistedIPModel = require("@models/BlacklistedIP");
+const UnknownIPModel = require("@models/UnknownIP");
+const WhitelistedIPModel = require("@models/WhitelistedIP");
+const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
 const UserModel = require("@models/User");
@@ -17,6 +21,7 @@ const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
+const rangeCheck = require("ip-range-check");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const log4js = require("log4js");
@@ -243,6 +248,59 @@ const handleServerError = (error) => {
     status: httpStatus.INTERNAL_SERVER_ERROR,
     errors: { message: errorMessage },
   };
+};
+
+const isIPBlacklisted = async ({
+  ip = "",
+  email = "",
+  token = "",
+  token_name = "",
+  endpoint = "",
+} = {}) => {
+  const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
+  if (blacklistedIP) {
+    return true; // IP is blacklisted
+  }
+
+  const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
+  if (whitelistedIP) {
+    return false; // IP is whitelisted
+  }
+
+  // Check if the IP falls within any blacklisted range
+  const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
+  const isInRange = blacklistedRanges.some((range) =>
+    rangeCheck(ip, range.range)
+  );
+
+  if (isInRange) {
+    return true; // IP is within a blacklisted range
+  }
+
+  try {
+    const UnknownIPDetails = await UnknownIPModel("airqo")
+      .findOne({ ip })
+      .select("_id")
+      .lean();
+
+    const options = { upsert: true, new: true };
+    const filter = UnknownIPDetails;
+
+    const update = {
+      $addToSet: {
+        endpoints: endpoint,
+        emails: email,
+        tokens: token,
+        token_names: token_name,
+        ip,
+      },
+    };
+
+    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+  } catch (error) {
+    // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+  }
+  return false;
 };
 
 const controlAccess = {
@@ -601,18 +659,41 @@ const controlAccess = {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return createUnauthorizedResponse();
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          const clientIp = request.headers["x-client-ip"];
+          const hostName = request.headers["x-host-name"];
+          const endpoint = request.headers["x-original-uri"];
+          const clientOriginalIp = request.headers["x-client-original-ip"];
+
           logObject("service", service);
           logObject("userAction", userAction);
 
           if (service && userAction) {
-            const { user: { email = "", userName = "", _id = "" } = {} } =
-              responseFromListAccessToken.data[0];
-            const clientIp = request.headers["x-client-ip"];
-            const hostName = request.headers["x-host-name"];
-            const endpoint = request.headers["x-original-uri"];
-            const clientOriginalIp = request.headers["x-client-original-ip"];
+            const {
+              name = "",
+              token = "",
+              user: { email = "", userName = "", _id = "" } = {},
+            } = responseFromListAccessToken.data[0];
+
             logObject("email", email);
             logObject("userName", userName);
+
+            if (!isEmpty(clientIp)) {
+              const ip = clientIp;
+              const token_name = name;
+              const isBlacklisted = await isIPBlacklisted({
+                ip,
+                email,
+                token,
+                token_name,
+                endpoint,
+              });
+              if (isBlacklisted) {
+                logger.info(
+                  `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
+                );
+                return createUnauthorizedResponse();
+              }
+            }
 
             if (!isEmpty(_id)) {
               const currentDate = new Date();
@@ -671,6 +752,14 @@ const controlAccess = {
   },
   createAccessToken: async (request) => {
     try {
+      // return {
+      //   success: false,
+      //   message: "Service Temporarily Disabled",
+      //   errors: {
+      //     message: "Service Temporarily Disabled",
+      //   },
+      //   status: httpStatus.SERVICE_UNAVAILABLE,
+      // };
       const { tenant } = request.query;
       const { client_id } = request.body;
 
@@ -1026,11 +1115,20 @@ const controlAccess = {
   },
   createClient: async (request) => {
     try {
+      // return {
+      //   success: false,
+      //   message: "Service Temporarily Disabled",
+      //   errors: {
+      //     message: "Service Temporarily Disabled",
+      //   },
+      //   status: httpStatus.SERVICE_UNAVAILABLE,
+      // };
       const { body, query } = request;
       const { tenant } = query;
       const { user_id } = body;
       const client_secret = generateClientSecret(100);
       const userExists = await UserModel(tenant).exists({ _id: user_id });
+
       if (!userExists) {
         return {
           success: false,
@@ -2375,11 +2473,11 @@ const controlAccess = {
   /******************** User Types *******************/
   assignUserType: async (request) => {
     try {
-      const { user_id, net_id, grp_id } = request.params;
-      const { tenant } = request.query;
-      const { userType } = request.body;
-      const userIdFromBody = user_id;
-      const userIdFromQuery = user_id;
+      const { user_id, net_id, grp_id, user, user_type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(grp_id) && !isEmpty(net_id)) {
         return {
@@ -2387,13 +2485,13 @@ const controlAccess = {
           message: "Bad Request Error",
           errors: {
             message:
-              "You cannot provide both a network ID and a group ID, choose one organisation type",
+              "You cannot provide both a network ID and a group ID, choose one organization type",
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
+      if (!isEmpty(user) && !isEmpty(user_id)) {
         return {
           success: false,
           message: "Bad Request Error",
@@ -2405,8 +2503,7 @@ const controlAccess = {
         };
       }
 
-      const userId = userIdFromQuery || userIdFromBody;
-
+      const userId = user || user_id;
       const organisationId = net_id || grp_id;
 
       const userExists = await UserModel(tenant).exists({ _id: userId });
@@ -2420,11 +2517,32 @@ const controlAccess = {
         };
       }
 
+      const isNetworkType = isNetwork(net_id, grp_id);
+      const roleType = isNetworkType ? "network_roles" : "group_roles";
+
+      const isAlreadyAssigned = await UserModel(tenant).exists({
+        _id: userId,
+        [`${roleType}.${isNetworkType ? "network" : "group"}`]: organisationId,
+      });
+
+      if (!isAlreadyAssigned) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `User ${userId} is NOT assigned to the provided ${
+              isNetworkType ? "Network" : "Group"
+            } ${organisationId}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const updateQuery = {
         $set: {
-          [isNetwork(net_id, grp_id) ? "network_roles" : "group_roles"]: {
-            [isNetwork(net_id, grp_id) ? "network" : "group"]: organisationId,
-            userType: userType,
+          [roleType]: {
+            [isNetworkType ? "network" : "group"]: organisationId,
+            userType: user_type,
           },
         },
       };
@@ -2432,13 +2550,13 @@ const controlAccess = {
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userId },
         updateQuery,
-        { new: true }
+        { new: true, select: `${roleType}` }
       );
 
       if (updatedUser) {
         return {
           success: true,
-          message: "User assigned to the User Type",
+          message: `User assigned to the ${user_type} User Type`,
           data: updatedUser,
           status: httpStatus.OK,
         };
@@ -2463,12 +2581,17 @@ const controlAccess = {
   assignManyUsersToUserType: async (request) => {
     try {
       const { tenant } = request.query;
-      const { user_ids, userType, net_id, grp_id } = request.body;
+      const { user_ids, user_type, net_id, grp_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       const userPromises = [];
 
       const isNetwork = !isEmpty(net_id);
       const isGroup = !isEmpty(grp_id);
+      let updateQuery = {};
 
       if (isNetwork && isGroup) {
         return {
@@ -2488,52 +2611,86 @@ const controlAccess = {
         if (!user) {
           userPromises.push({
             success: false,
-            message: "Bad Request Error",
-            errors: { message: `User ${user_id} does not exist` },
-            status: httpStatus.BAD_REQUEST,
+            message: `User ${user_id} does not exist`,
           });
           continue;
         }
 
-        // Update the user type for the current user
-        const updateQuery = {
-          $set: { userType },
-        };
-
         if (isNetwork) {
-          updateQuery.$set.network_roles = { network: net_id, userType };
+          const isAlreadyAssigned = user.network_roles.some(
+            (role) => role.network.toString() === net_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to the provided Network ${net_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
+          updateQuery.$set.network_roles = {
+            network: net_id,
+            userType: user_type,
+          };
         } else if (isGroup) {
-          updateQuery.$set.group_roles = { group: grp_id, userType };
+          const isAlreadyAssigned = user.group_roles.some(
+            (role) => role.group.toString() === grp_id
+          );
+
+          if (!isAlreadyAssigned) {
+            userPromises.push({
+              success: false,
+              message: `User ${user_id} is NOT assigned to provided Group ${grp_id}`,
+            });
+            continue;
+          }
+          updateQuery.$set = updateQuery.$set || {};
+          updateQuery.$set.group_roles = { group: grp_id, userType: user_type };
         }
 
         await UserModel(tenant).updateOne({ _id: user_id }, updateQuery);
 
-        userPromises.push(null);
+        userPromises.push({
+          success: true,
+          message: `User ${user_id} successfully assigned`,
+        });
       }
 
       const results = await Promise.all(userPromises);
-      const successfulAssignments = results.filter((result) => result === null);
-      const unsuccessfulAssignments = results.filter(
-        (result) => result !== null
+      const successful = results.filter(
+        (result) => result !== null && result.success === true
+      );
+      const unsuccessful = results.filter(
+        (result) => result !== null && result.success === false
       );
 
       let response;
 
-      if (unsuccessfulAssignments.length > 0) {
+      if (unsuccessful.length > 0 && unsuccessful.length === user_ids.length) {
         response = {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: "Some users could not be assigned the user type.",
-            unsuccessfulAssignments,
+            message: `All users could not be assigned the ${user_type} user type.`,
+            unsuccessful,
           },
           status: httpStatus.BAD_REQUEST,
+        };
+      } else if (
+        unsuccessful.length > 0 &&
+        unsuccessful.length !== user_ids.length
+      ) {
+        response = {
+          success: true,
+          message: "Operation Partially successfull",
+          data: { unsuccessful, successful },
+          status: httpStatus.OK,
         };
       } else {
         response = {
           success: true,
-          message:
-            "All provided users were successfully assigned the user type.",
+          message: `ALL provided users were successfully assigned the ${user_type} user type.`,
           status: httpStatus.OK,
         };
       }
@@ -2553,9 +2710,11 @@ const controlAccess = {
   listUsersWithUserType: async (request) => {
     try {
       logText("listUsersWithUserType...");
-      const { query, params } = request;
-      const { userType, net_id, grp_id } = params;
-      const { tenant } = query;
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (net_id && grp_id) {
         return {
@@ -2572,13 +2731,44 @@ const controlAccess = {
       let userTypeFilter = {};
 
       if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
+
         userTypeFilter = {
-          "network_roles.userType": userType,
+          "network_roles.userType": user_type,
           "network_roles.network": net_id,
         };
       } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
         userTypeFilter = {
-          "group_roles.userType": userType,
+          "group_roles.userType": user_type,
           "group_roles.group": grp_id,
         };
       }
@@ -2607,11 +2797,134 @@ const controlAccess = {
         .exec();
 
       logObject("responseFromListUsers", responseFromListUsers);
+      let message = `Retrieved all ${user_type} users for this Organisation`;
+      if (isEmpty(responseFromListUsers)) {
+        message = `No ${user_type} users exist for provided Organisation`;
+      }
 
       return {
         success: true,
-        message: `Retrieved all users with user type ${userType}`,
+        message,
         data: responseFromListUsers,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listAvailableUsersForUserType: async (request) => {
+    try {
+      logText("listAvailableUsersForUserType...");
+      const { user_type, net_id, grp_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (net_id && grp_id) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "You cannot provide both a network ID and a group ID; choose one organization type",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      let userTypeFilter = {};
+
+      if (net_id) {
+        const network = await NetworkModel(tenant)
+          .findById(net_id)
+          .select("_id")
+          .lean();
+
+        if (isEmpty(network)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Network ${net_id.toString()} does not exist`,
+            },
+          };
+        }
+        userTypeFilter = {
+          "network_roles.userType": user_type,
+          "network_roles.network": net_id,
+        };
+      } else if (grp_id) {
+        const group = await GroupModel(tenant)
+          .findById(grp_id)
+          .select("_id")
+          .lean();
+        logObject("group", group);
+        if (isEmpty(group)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: `Provided Group ${grp_id.toString()} does not exist`,
+            },
+          };
+        }
+        userTypeFilter = {
+          "group_roles.userType": user_type,
+          "group_roles.group": grp_id,
+        };
+      }
+
+      const assignedUsers = await UserModel(tenant)
+        .distinct("email", userTypeFilter)
+        .exec();
+
+      const allUsers = await UserModel(tenant).distinct("email").exec();
+
+      const availableUsers = allUsers.filter(
+        (user) => !assignedUsers.includes(user)
+      );
+
+      const responseFromListAvailableUsers = await UserModel(tenant)
+        .find({ email: { $in: availableUsers } })
+        .select({
+          _id: 1,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+          userName: 1,
+        })
+        .exec();
+
+      logObject(
+        "responseFromListAvailableUsers",
+        responseFromListAvailableUsers
+      );
+
+      let message = `Retrieved all eligible ${user_type} Users for the provided Organisation`;
+      if (isEmpty(responseFromListAvailableUsers)) {
+        message = `No users are available to be ${user_type} for the provided Organisation `;
+      }
+      return {
+        success: true,
+        message,
+        data: responseFromListAvailableUsers,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -3318,6 +3631,217 @@ const controlAccess = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
+      };
+    }
+  },
+
+  /****************** Blacklisting IPs ******************************/
+  blackListIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromBlacklistIp = await BlacklistedIPModel(tenant).register(
+        {
+          ip,
+        }
+      );
+      return responseFromBlacklistIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeBlacklistedIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
+        tenant
+      ).remove({ filter });
+      return responseFromRemoveBlacklistedIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  blackListIpRange: async (request) => {
+    try {
+      const { range, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromBlacklistIpRange = await BlacklistedIPRangeModel(
+        tenant
+      ).register({
+        range,
+      });
+      return responseFromBlacklistIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeBlacklistedIpRange: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveBlacklistedIpRange =
+        await BlacklistedIPRangeModel(tenant).remove({ filter });
+      return responseFromRemoveBlacklistedIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listBlacklistedIpRange: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
+        tenant
+      ).list({
+        filter,
+      });
+      return responseFromListBlacklistedIpRange;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /****************** Whitelisting IPs ******************************/
+  whiteListIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromWhitelistIp = await WhitelistedIPModel(tenant).register(
+        {
+          ip,
+        }
+      );
+      return responseFromWhitelistIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  removeWhitelistedIp: async (request) => {
+    try {
+      const { ip, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
+        tenant
+      ).remove({ filter });
+      return responseFromRemoveWhitelistedIp;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /****************** Unknown IPs ******************************/
+  listUnknownIPs: async (request) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filterResponse = generateFilter.ips(request);
+      if (filterResponse === false) {
+        return filterResponse;
+      }
+      const filter = filterResponse;
+      const responseFromListUnkownIP = await UnknownIPModel(tenant).list({
+        filter,
+      });
+      return responseFromListUnkownIP;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

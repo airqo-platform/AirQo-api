@@ -78,6 +78,14 @@ router.post(
         .exists()
         .withMessage("the name is missing in your request")
         .trim(),
+      body("ip_address")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("the ip_address must not be empty IF provided")
+        .bail()
+        .isIP()
+        .withMessage("Invalid IP address"),
       body("redirect_url")
         .optional()
         .notEmpty()

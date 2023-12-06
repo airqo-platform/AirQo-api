@@ -568,6 +568,38 @@ const filter = {
     }
   },
 
+  ips: (req) => {
+    try {
+      const { id, ip, range } = {
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (ip) {
+        filter["ip"] = ip;
+      }
+
+      if (range) {
+        filter["range"] = range;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   clients: (req) => {
     try {
       const { query, params } = req;

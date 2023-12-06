@@ -76,48 +76,113 @@ def compute_airqloud_summary(
     ]
     devices = devices.to_dict("records")
 
-    sites_hourly_records = data.groupby(["site_id", "site_name"], as_index=False)[
-        "hourly_records"
-    ].sum()
-    sites_calibrated_records = data.groupby(["site_id", "site_name"], as_index=False)[
-        "calibrated_records"
-    ].sum()
-    sites_uncalibrated_records = data.groupby(["site_id", "site_name"], as_index=False)[
-        "uncalibrated_records"
-    ].sum()
+    if "cohort" in data.columns:
+        sites_hourly_records = data.groupby(["site_id", "site_name"], as_index=False)[
+            "hourly_records"
+        ].sum()
+        sites_calibrated_records = data.groupby(
+            ["site_id", "site_name"], as_index=False
+        )["calibrated_records"].sum()
+        sites_uncalibrated_records = data.groupby(
+            ["site_id", "site_name"], as_index=False
+        )["uncalibrated_records"].sum()
 
-    sites = pd.merge(
-        sites_hourly_records, sites_calibrated_records, on=["site_id", "site_name"]
-    ).merge(sites_uncalibrated_records, on=["site_id", "site_name"])
+        sites = pd.merge(
+            sites_hourly_records, sites_calibrated_records, on=["site_id", "site_name"]
+        ).merge(sites_uncalibrated_records, on=["site_id", "site_name"])
 
-    sites["calibrated_percentage"] = (
-        sites["calibrated_records"] / sites["hourly_records"]
-    ) * 100
-    sites["uncalibrated_percentage"] = (
-        sites["uncalibrated_records"] / sites["hourly_records"]
-    ) * 100
+        sites["calibrated_percentage"] = (
+            sites["calibrated_records"] / sites["hourly_records"]
+        ) * 100
+        sites["uncalibrated_percentage"] = (
+            sites["uncalibrated_records"] / sites["hourly_records"]
+        ) * 100
 
-    sites = sites.to_dict("records")
+        sites = sites.to_dict("records")
 
-    hourly_records = int(data["hourly_records"].sum())
-    calibrated_records = int(data["calibrated_records"].sum())
-    un_calibrated_records = int(data["uncalibrated_records"].sum())
-    airqloud = data.iloc[0]["airqloud"]
-    airqloud_id = data.iloc[0]["airqloud_id"]
+        hourly_records = int(data["hourly_records"].sum())
+        calibrated_records = int(data["calibrated_records"].sum())
+        un_calibrated_records = int(data["uncalibrated_records"].sum())
 
-    return {
-        "airqloud": airqloud,
-        "airqloud_id": airqloud_id,
-        "hourly_records": hourly_records,
-        "calibrated_records": calibrated_records,
-        "uncalibrated_records": un_calibrated_records,
-        "calibrated_percentage": (calibrated_records / hourly_records) * 100,
-        "uncalibrated_percentage": (un_calibrated_records / hourly_records) * 100,
-        "start_date_time": start_date_time,
-        "end_date_time": end_date_time,
-        "sites": sites,
-        "devices": devices,
-    }
+        cohort = data.iloc[0]["cohort"]
+        cohort_id = data.iloc[0]["cohort_id"]
+        return {
+            "cohort": cohort,
+            "cohort_id": cohort_id,
+            "hourly_records": hourly_records,
+            "calibrated_records": calibrated_records,
+            "uncalibrated_records": un_calibrated_records,
+            "calibrated_percentage": (calibrated_records / hourly_records) * 100,
+            "uncalibrated_percentage": (un_calibrated_records / hourly_records) * 100,
+            "start_date_time": start_date_time,
+            "end_date_time": end_date_time,
+            "sites": sites,
+            "devices": devices,
+        }
+
+    else:
+        sites_hourly_records = data.groupby(["site_id", "site_name"], as_index=False)[
+            "hourly_records"
+        ].sum()
+        sites_calibrated_records = data.groupby(
+            ["site_id", "site_name"], as_index=False
+        )["calibrated_records"].sum()
+        sites_uncalibrated_records = data.groupby(
+            ["site_id", "site_name"], as_index=False
+        )["uncalibrated_records"].sum()
+
+        sites = pd.merge(
+            sites_hourly_records, sites_calibrated_records, on=["site_id", "site_name"]
+        ).merge(sites_uncalibrated_records, on=["site_id", "site_name"])
+
+        sites["calibrated_percentage"] = (
+            sites["calibrated_records"] / sites["hourly_records"]
+        ) * 100
+        sites["uncalibrated_percentage"] = (
+            sites["uncalibrated_records"] / sites["hourly_records"]
+        ) * 100
+
+        sites = sites.to_dict("records")
+
+        hourly_records = int(data["hourly_records"].sum())
+        calibrated_records = int(data["calibrated_records"].sum())
+        un_calibrated_records = int(data["uncalibrated_records"].sum())
+
+        if "grid" in data.columns:
+            grid = data.iloc[0]["grid"]
+            grid_id = data.iloc[0]["grid_id"]
+            return {
+                "grid": grid,
+                "grid_id": grid_id,
+                "hourly_records": hourly_records,
+                "calibrated_records": calibrated_records,
+                "uncalibrated_records": un_calibrated_records,
+                "calibrated_percentage": (calibrated_records / hourly_records) * 100,
+                "uncalibrated_percentage": (un_calibrated_records / hourly_records)
+                * 100,
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "sites": sites,
+                "devices": devices,
+            }
+
+        elif "airqloud" in data.columns:
+            airqloud = data.iloc[0]["airqloud"]
+            airqloud_id = data.iloc[0]["airqloud_id"]
+            return {
+                "airqloud": airqloud,
+                "airqloud_id": airqloud_id,
+                "hourly_records": hourly_records,
+                "calibrated_records": calibrated_records,
+                "uncalibrated_records": un_calibrated_records,
+                "calibrated_percentage": (calibrated_records / hourly_records) * 100,
+                "uncalibrated_percentage": (un_calibrated_records / hourly_records)
+                * 100,
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "sites": sites,
+                "devices": devices,
+            }
 
 
 def format_to_aqcsv(

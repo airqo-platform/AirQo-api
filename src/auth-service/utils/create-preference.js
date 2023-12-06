@@ -111,6 +111,17 @@ const preferences = {
         .select("_id")
         .lean();
 
+      if (isEmpty(PreferenceDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const filter = PreferenceDetails;
       const update = body;
 
@@ -311,7 +322,14 @@ const preferences = {
   },
   delete: async (request) => {
     try {
+      const {
+        query: { tenant },
+        body,
+      } = request;
+
       const filterResponse = generateFilter.preferences(request);
+      logObject("filterResponse", filterResponse);
+      logObject("the user_id", filterResponse.user_id.toString());
 
       if (filterResponse.success === false) {
         return filterResponse;
@@ -332,8 +350,20 @@ const preferences = {
         .select("_id")
         .lean();
 
+      if (isEmpty(PreferenceDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      logObject("PreferenceDetails", PreferenceDetails);
+
       const filter = PreferenceDetails;
-      const { tenant } = request.query;
       const responseFromRemovePreference = await PreferenceModel(tenant).remove(
         {
           filter,
@@ -341,11 +371,11 @@ const preferences = {
       );
       return responseFromRemovePreference;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: e.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

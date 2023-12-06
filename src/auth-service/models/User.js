@@ -342,33 +342,43 @@ UserSchema.statics = {
       const response = await this.aggregate()
         .match({})
         .sort({ createdAt: -1 })
+        .lookup({
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
+        })
         .group({
           _id: null,
-          count: { $sum: 1 },
-          active: { $sum: { $cond: ["$isActive", 1, 0] } },
+          api_users: { $addToSet: "$clients.user_id" }, // Assuming user_id is the field that uniquely identifies users in the clients collection
+          users: { $sum: 1 },
+          active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
         })
         .project({
           _id: 0,
+          api_users: { $size: "$api_users" },
+          users: 1,
+          active_users: 1,
         })
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the user statistics",
+          message: "Successfully retrieved the user statistics",
           data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "no users statistics exist",
+          message: "No users statistics exist",
           data: [],
           status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
+      logger.error(`Internal server error -- ${JSON.stringify(error)}`);
       logObject("error", error);
       return {
         success: false,
@@ -728,6 +738,8 @@ UserSchema.methods = {
       firstName: this.firstName,
       organization: this.organization,
       long_organization: this.long_organization,
+      group_roles: this.group_roles,
+      network_roles: this.network_roles,
       privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,

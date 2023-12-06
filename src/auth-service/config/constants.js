@@ -808,6 +808,7 @@ const defaultConfig = {
 
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
+    user_id: 1,
     email: 1,
     requestType: 1,
     targetId: 1,
@@ -1145,11 +1146,44 @@ const defaultConfig = {
     return projection;
   },
 
+  IPS_INCLUSION_PROJECTION: {
+    _id: 1,
+    ip: 1,
+    emails: 1,
+    tokens: 1,
+    token_names: 1,
+    endpoints: 1,
+  },
+  IPS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  IP_RANGES_INCLUSION_PROJECTION: {
+    _id: 1,
+    range: 1,
+  },
+  IP_RANGES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
   CLIENTS_INCLUSION_PROJECTION: {
     _id: 1,
     client_id: 1,
     client_secret: 1,
     redirect_uri: 1,
+    ip_address: 1,
     name: 1,
     description: 1,
     networks: "$networks",

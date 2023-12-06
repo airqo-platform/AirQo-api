@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
@@ -906,6 +907,218 @@ const createGroup = {
         success: true,
         message: `Retrieved all assigned users for group ${grp_id}`,
         data: responseFromListAssignedUsers,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logElement("internal server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  listAllGroupUsers: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { grp_id } = request.params;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid group ID ${grp_id}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const users = await UserModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              "group_roles.group": group._id,
+            },
+          },
+          {
+            $lookup: {
+              from: "roles",
+              localField: "group_roles.role",
+              foreignField: "_id",
+              as: "role",
+            },
+          },
+          {
+            $lookup: {
+              from: "permissions",
+              localField: "role.role_permissions",
+              foreignField: "_id",
+              as: "role_permissions",
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
+              profilePicture: 1,
+              group_roles: 1,
+              isActive: 1,
+              lastLogin: 1,
+              status: 1,
+              jobTitle: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              email: 1,
+              role_name: { $arrayElemAt: ["$role.role_name", 0] },
+              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_permissions: "$role_permissions",
+            },
+          },
+          {
+            $project: {
+              "role_permissions.network_id": 0,
+              "role_permissions.description": 0,
+              "role_permissions.createdAt": 0,
+              "role_permissions.updatedAt": 0,
+              "role_permissions.__v": 0,
+            },
+          },
+        ])
+        .exec();
+
+      logObject("users", users);
+
+      const accessRequests = await AccessRequestModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              targetId: group._id,
+              requestType: "group",
+              status: "pending",
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "user_id",
+              foreignField: "_id",
+              as: "userDetails",
+            },
+          },
+          {
+            $project: {
+              email: 1,
+              status: 1,
+              firstName: { $arrayElemAt: ["$userDetails.firstName", 0] },
+              lastName: { $arrayElemAt: ["$userDetails.lastName", 0] },
+              createdAt: 1,
+              group_roles: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$userDetails.group_roles",
+                      as: "groupRole",
+                      cond: {
+                        $eq: ["$$groupRole.group", group._id],
+                      },
+                    },
+                  },
+                  0,
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              email: 1,
+              status: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: 1,
+              group_roles: 1,
+              userType: {
+                $ifNull: [
+                  { $arrayElemAt: ["$group_roles.userType", 0] },
+                  "guest",
+                ],
+              },
+            },
+          },
+        ])
+        .exec();
+
+      const mergedResults = [];
+      const emailSet = new Set();
+
+      const getUserTypeByGroupId = (groupRoles, grpId) => {
+        if (Array.isArray(groupRoles)) {
+          for (const groupRole of groupRoles) {
+            if (groupRole.group && groupRole.group.equals(grpId)) {
+              return groupRole.userType || "guest";
+            }
+          }
+        }
+        return "guest";
+      };
+
+      const addUserToResults = (user) => {
+        if (!emailSet.has(user.email)) {
+          const userType = getUserTypeByGroupId(user.group_roles, grp_id);
+          mergedResults.push({
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userName: user.userName,
+            profilePicture: user.profilePicture,
+            isActive: user.isActive,
+            lastLogin: user.lastLogin,
+            jobTitle: user.jobTitle,
+            createdAt: user.createdAt,
+            email: user.email,
+            role_name: user.role_name,
+            role_id: user.role_id,
+            role_permissions: user.role_permissions,
+            userType,
+            status: user.status || "approved",
+          });
+          emailSet.add(user.email);
+        }
+      };
+
+      users.forEach(addUserToResults);
+
+      accessRequests.forEach((accessRequest) => {
+        addUserToResults({
+          email: accessRequest.email,
+          firstName: accessRequest.firstName,
+          lastName: accessRequest.lastName,
+          group_roles: accessRequest.group_roles,
+          status: accessRequest.status,
+          createdAt: accessRequest.createdAt,
+        });
+      });
+
+      mergedResults.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
+      logObject("mergedResults", mergedResults);
+
+      return {
+        success: true,
+        message: `Retrieved all users (including pending invites) for group ${grp_id}`,
+        data: mergedResults,
         status: httpStatus.OK,
       };
     } catch (error) {
