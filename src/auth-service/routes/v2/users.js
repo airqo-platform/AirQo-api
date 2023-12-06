@@ -323,37 +323,33 @@ router.post(
 router.post(
   "/emailReport",
   oneOf([
-
-    body('senderEmail')
+    body("senderEmail")
       .exists()
-      .withMessage('senderEmail is missing in your request')
+      .withMessage("senderEmail is missing in your request")
       .bail()
       .notEmpty()
-      .withMessage('senderEmail should not be empty')
+      .withMessage("senderEmail should not be empty")
       .bail()
       .isEmail()
-      .withMessage('senderEmail is not valid'),
+      .withMessage("senderEmail is not valid"),
 
-    body('recepientEmails')
-      .isArray()
-      .withMessage('emails should be an array'),
+    body("recepientEmails").isArray().withMessage("emails should be an array"),
 
-    body('recepientEmails.*')
+    body("recepientEmails.*")
       .exists()
-      .withMessage('An email is missing in the array')
+      .withMessage("An email is missing in the array")
       .bail()
       .notEmpty()
-      .withMessage('An email in the array is empty')
+      .withMessage("An email in the array is empty")
       .bail()
       .isEmail()
-      .withMessage('One or more emails in the array are not valid'),
+      .withMessage("One or more emails in the array are not valid"),
   ]),
 
   setJWTAuth,
   authJWT,
   createUserController.emailReport
 );
-
 
 router.post(
   "/firebase/verify",
@@ -942,6 +938,24 @@ router.get(
   setJWTAuth,
   authJWT,
   createUserController.listStatistics
+);
+
+router.get(
+  "/cache",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listCache
 );
 
 router.get(

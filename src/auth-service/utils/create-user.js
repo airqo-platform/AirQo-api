@@ -5,6 +5,7 @@ const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
+const { generateDateFormatWithoutHrs } = require("@utils/date");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
@@ -20,7 +21,11 @@ const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
-const { ioredis, redis } = require("@config/redis");
+const { redis, ioredis } = require("@config/redis");
+const util = require("util");
+const redisGetAsync = util.promisify(redis.get).bind(redis);
+const redisSetAsync = util.promisify(redis.set).bind(redis);
+const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
 const GroupModel = require("../models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -148,6 +153,99 @@ const cascadeUserDeletion = async (userId, tenant) => {
       success: false,
       message: "Internal Server Error",
       errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+const generateCacheID = (request) => {
+  const {
+    privilege,
+    id,
+    userName,
+    active,
+    email_address,
+    role_id,
+    email,
+    resetPasswordToken,
+    user,
+    user_id,
+  } = { ...request.body, ...request.query, ...request.params };
+  const currentTime = new Date().toISOString();
+  const day = generateDateFormatWithoutHrs(currentTime);
+  return `list_users_${privilege ? privilege : "no_privilege"}_${
+    id ? id : "no_id"
+  }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${
+    email_address ? email_address : "no_email_address"
+  }_${role_id ? role_id : "no_role_id"}_${email ? email : "no_email"}_${
+    resetPasswordToken ? resetPasswordToken : "no_resetPasswordToken"
+  }_${user ? user : "no_user"}_${user_id ? user_id : "no_user_id"}_${
+    day ? day : "noDay"
+  }`;
+};
+const setCache = async (data, request) => {
+  try {
+    const cacheID = generateCacheID(request);
+    await redisSetAsync(
+      cacheID,
+      JSON.stringify({
+        isCache: true,
+        success: true,
+        message: "Successfully retrieved the users",
+        data,
+      })
+    );
+    await redisExpireAsync(cacheID, 0);
+    // 10 mins is 600 seconds
+
+    return {
+      success: true,
+      message: "Response stored in cache",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Internal server error -- ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+const getCache = async (request) => {
+  try {
+    const cacheID = generateCacheID(request);
+    logObject("cacheID", cacheID);
+
+    const result = await redisGetAsync(cacheID);
+
+    logObject("result", result);
+    const resultJSON = JSON.parse(result);
+    logObject("resultJSON", resultJSON);
+
+    if (result) {
+      return {
+        success: true,
+        message: "Utilizing cache...",
+        data: resultJSON,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: false,
+        message: "No cache present",
+        errors: { message: "No cache present" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  } catch (error) {
+    logObject("error in the util", error);
+    logger.error(`Internal server error -- ${error.message}`);
+    return {
+      success: false,
+      errors: { message: error.message },
+      message: "Internal Server Error",
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }
@@ -290,6 +388,115 @@ const createUserModule = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listCache: async (request) => {
+    try {
+      let missingDataMessage = "";
+      const { query } = request;
+      const { tenant, limit, skip } = query;
+
+      try {
+        const cacheResult = await Promise.race([
+          getCache(request),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        logObject("Cache result", cacheResult);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+      }
+
+      const responseFromFilter = generateFilter.users(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+      const responseFromListUser = await UserModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+
+      if (responseFromListUser.success === true) {
+        const data = responseFromListUser.data;
+        logObject("data", data);
+        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
+
+        logText("Setting cache...");
+
+        try {
+          const resultOfCacheOperation = await Promise.race([
+            setCache(data, request),
+            new Promise((resolve) =>
+              setTimeout(resolve, 60000, {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: { message: "Cache timeout" },
+              })
+            ),
+          ]);
+          if (resultOfCacheOperation.success === false) {
+            const errors = resultOfCacheOperation.errors
+              ? resultOfCacheOperation.errors
+              : { message: "Internal Server Error" };
+            logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
+          }
+        } catch (error) {
+          logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+        }
+
+        logText("Cache set.");
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data[0].data)
+            ? "no users for this search"
+            : responseFromListUser.message,
+          data,
+          status: responseFromListUser.status || "",
+          isCache: false,
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve events --- ${JSON.stringify(
+            responseFromListUser.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: responseFromListUser.message,
+          errors: responseFromListUser.errors || { message: "" },
+          status: responseFromListUser.status || "",
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal server error -- ${error.message}`);
+
+      return {
+        success: false,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
       };
     }
   },
@@ -720,7 +927,7 @@ const createUserModule = {
       };
     }
   },
-  generateCacheID: (request) => {
+  generateMobileUserCacheID: (request) => {
     const { tenant } = request.query;
     const { context } = request;
     if (isEmpty(context) || isEmpty(tenant)) {
@@ -736,9 +943,9 @@ const createUserModule = {
     }
     return `${context}_${tenant}`;
   },
-  setCache: async (data, cacheID) => {
+  setMobileUserCache: async (data, cacheID) => {
     try {
-      logObject("cacheID supplied to setCache", cacheID);
+      logObject("cacheID supplied to setMobileUserCache", cacheID);
       const result = await ioredis.set(
         cacheID,
         JSON.stringify(data),
@@ -756,7 +963,7 @@ const createUserModule = {
       };
     }
   },
-  getCache: async (cacheID) => {
+  getMobileUserCache: async (cacheID) => {
     try {
       logText("we are getting the cache......");
       logObject("cacheID supplied", cacheID);
@@ -834,7 +1041,8 @@ const createUserModule = {
           ? firebaseUser.email
           : firebaseUser.phoneNumber;
         generateCacheRequest.context = userIdentifier;
-        const cacheID = createUserModule.generateCacheID(generateCacheRequest);
+        const cacheID =
+          createUserModule.generateMobileUserCacheID(generateCacheRequest);
         logObject("cacheID", cacheID);
         if (cacheID.success && cacheID.success === false) {
           return cacheID;
@@ -844,10 +1052,8 @@ const createUserModule = {
             ...firebaseUser,
           };
 
-          const responseFromSettingCache = await createUserModule.setCache(
-            data,
-            cacheID
-          );
+          const responseFromSettingCache =
+            await createUserModule.setMobileUserCache(data, cacheID);
           if (
             responseFromSettingCache.success &&
             responseFromSettingCache.success === false
@@ -906,14 +1112,15 @@ const createUserModule = {
       const userIdentifier = email ? email : phoneNumber;
       generateCacheRequest.context = userIdentifier;
 
-      const cacheID = createUserModule.generateCacheID(generateCacheRequest);
+      const cacheID =
+        createUserModule.generateMobileUserCacheID(generateCacheRequest);
       logObject("the cacheID search results", cacheID);
 
       if (cacheID.success && cacheID.success === false) {
         return cacheID;
       }
 
-      const cachedData = await createUserModule.getCache(cacheID);
+      const cachedData = await createUserModule.getMobileUserCache(cacheID);
       logObject("cachedData", cachedData);
 
       if (cachedData.success === false) {
