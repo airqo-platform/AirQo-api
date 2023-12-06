@@ -1,8 +1,6 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("@utils/log");
-const { tryCatchErrors, missingQueryParams } = require("@utils/errors");
+const { logText, logObject } = require("@utils/log");
 const createUserUtil = require("@utils/create-user");
-const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
@@ -251,7 +249,6 @@ const createUser = {
       });
     }
   },
-
   listUsersAndAccessRequests: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -347,7 +344,6 @@ const createUser = {
       });
     }
   },
-
   verify: (req, res) => {
     logText("..................................");
     logText("user verify......");
@@ -456,7 +452,6 @@ const createUser = {
       });
     }
   },
-
   emailReport: async (req, res) => {
     try {
       if (!req.files || Object.keys(req.files).length === 0) {
@@ -531,7 +526,6 @@ const createUser = {
       });
     }
   },
-
   lookUpFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -592,7 +586,6 @@ const createUser = {
       });
     }
   },
-
   syncAnalyticsAndMobile: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -645,7 +638,6 @@ const createUser = {
       });
     }
   },
-
   signUpWithFirebase: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -704,7 +696,6 @@ const createUser = {
       });
     }
   },
-
   loginWithFirebase: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
@@ -766,7 +757,6 @@ const createUser = {
       });
     }
   },
-
   verifyFirebaseCustomToken: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -823,7 +813,6 @@ const createUser = {
       });
     }
   },
-
   createFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -883,7 +872,6 @@ const createUser = {
       });
     }
   },
-
   sendFeedback: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -940,7 +928,6 @@ const createUser = {
       });
     }
   },
-
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");
@@ -1004,7 +991,6 @@ const createUser = {
       });
     }
   },
-
   register: async (req, res) => {
     logText("..................................................");
     logText("register user.............");
@@ -1069,7 +1055,6 @@ const createUser = {
       });
     }
   },
-
   create: async (req, res) => {
     logText("..................................................");
     logText("create user.............");
@@ -1126,7 +1111,6 @@ const createUser = {
       });
     }
   },
-
   login: async (req, res) => {
     logText("..................................");
     logText("user login......");
@@ -1198,7 +1182,6 @@ const createUser = {
       });
     }
   },
-
   guest: (req, res) => {
     logText("..................................");
     logText("user guest login......");
@@ -1240,7 +1223,6 @@ const createUser = {
       });
     }
   },
-
   delete: async (req, res) => {
     try {
       logText(".................................................");
@@ -1302,7 +1284,6 @@ const createUser = {
       });
     }
   },
-
   update: async (req, res) => {
     try {
       logText(".................................................");
@@ -1359,7 +1340,6 @@ const createUser = {
       });
     }
   },
-
   loginInViaEmail: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1417,7 +1397,6 @@ const createUser = {
       });
     }
   },
-
   emailAuth: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1479,7 +1458,6 @@ const createUser = {
       });
     }
   },
-
   updateForgottenPassword: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1537,7 +1515,6 @@ const createUser = {
       });
     }
   },
-
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
