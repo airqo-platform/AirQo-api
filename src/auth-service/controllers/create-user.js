@@ -1,8 +1,6 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("@utils/log");
-const { tryCatchErrors, missingQueryParams } = require("@utils/errors");
+const { logText, logObject } = require("@utils/log");
 const createUserUtil = require("@utils/create-user");
-const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
@@ -131,6 +129,66 @@ const createUser = {
       });
     }
   },
+  listCache: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListUsers = await createUserUtil.listCache(request);
+
+      if (responseFromListUsers.success === true) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListUsers.message,
+          users: responseFromListUsers.data,
+        });
+      } else if (responseFromListUsers.success === false) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUsers.message,
+          errors: responseFromListUsers.errors
+            ? responseFromListUsers.errors
+            : { message: "Internal Server Errors" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   list: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -191,7 +249,6 @@ const createUser = {
       });
     }
   },
-
   listUsersAndAccessRequests: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -287,7 +344,6 @@ const createUser = {
       });
     }
   },
-
   verify: (req, res) => {
     logText("..................................");
     logText("user verify......");
@@ -396,22 +452,22 @@ const createUser = {
       });
     }
   },
-
   emailReport: async (req, res) => {
     try {
-
       if (!req.files || Object.keys(req.files).length === 0) {
-        return res.status(400).json({ errors: [{ msg: 'No PDF or CSV file attached' }] });
+        return res
+          .status(400)
+          .json({ errors: [{ msg: "No PDF or CSV file attached" }] });
       }
 
       const pdfFile = req.files.pdf;
-      if (pdfFile && !pdfFile.mimetype.includes('pdf')) {
-        return res.status(400).json({ errors: [{ msg: 'Invalid PDF file' }] });
+      if (pdfFile && !pdfFile.mimetype.includes("pdf")) {
+        return res.status(400).json({ errors: [{ msg: "Invalid PDF file" }] });
       }
 
       const csvFile = req.files.csv;
-      if (csvFile && !csvFile.mimetype.includes('csv')) {
-        return res.status(400).json({ errors: [{ msg: 'Invalid CSV file' }] });
+      if (csvFile && !csvFile.mimetype.includes("csv")) {
+        return res.status(400).json({ errors: [{ msg: "Invalid CSV file" }] });
       }
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -438,8 +494,7 @@ const createUser = {
         request.query.tenant = "airqo";
       }
 
-      const responseFromEmailReport =
-        await createUserUtil.emailReport(request);
+      const responseFromEmailReport = await createUserUtil.emailReport(request);
 
       logObject("responseFromEmailReport", responseFromEmailReport);
 
@@ -471,8 +526,6 @@ const createUser = {
       });
     }
   },
-
-
   lookUpFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -533,7 +586,6 @@ const createUser = {
       });
     }
   },
-
   syncAnalyticsAndMobile: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -585,9 +637,7 @@ const createUser = {
         error: error.message,
       });
     }
-
   },
-
   signUpWithFirebase: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -646,7 +696,6 @@ const createUser = {
       });
     }
   },
-
   loginWithFirebase: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
@@ -708,7 +757,6 @@ const createUser = {
       });
     }
   },
-
   verifyFirebaseCustomToken: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -765,7 +813,6 @@ const createUser = {
       });
     }
   },
-
   createFirebaseUser: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -825,7 +872,6 @@ const createUser = {
       });
     }
   },
-
   sendFeedback: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -882,7 +928,6 @@ const createUser = {
       });
     }
   },
-
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");
@@ -946,7 +991,6 @@ const createUser = {
       });
     }
   },
-
   register: async (req, res) => {
     logText("..................................................");
     logText("register user.............");
@@ -1011,7 +1055,6 @@ const createUser = {
       });
     }
   },
-
   create: async (req, res) => {
     logText("..................................................");
     logText("create user.............");
@@ -1068,7 +1111,6 @@ const createUser = {
       });
     }
   },
-
   login: async (req, res) => {
     logText("..................................");
     logText("user login......");
@@ -1140,7 +1182,6 @@ const createUser = {
       });
     }
   },
-
   guest: (req, res) => {
     logText("..................................");
     logText("user guest login......");
@@ -1182,7 +1223,6 @@ const createUser = {
       });
     }
   },
-
   delete: async (req, res) => {
     try {
       logText(".................................................");
@@ -1244,7 +1284,6 @@ const createUser = {
       });
     }
   },
-
   update: async (req, res) => {
     try {
       logText(".................................................");
@@ -1301,7 +1340,6 @@ const createUser = {
       });
     }
   },
-
   loginInViaEmail: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1359,7 +1397,6 @@ const createUser = {
       });
     }
   },
-
   emailAuth: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1421,7 +1458,6 @@ const createUser = {
       });
     }
   },
-
   updateForgottenPassword: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -1479,7 +1515,6 @@ const createUser = {
       });
     }
   },
-
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
