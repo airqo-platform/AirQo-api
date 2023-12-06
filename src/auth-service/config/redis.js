@@ -1,11 +1,11 @@
-const credis = require("redis");
+const Redis = require("redis");
 const constants = require("./constants");
 const { logElement } = require("@utils/log");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
 logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
 
-const redis = credis.createClient({
+const redis = Redis.createClient({
   host: REDIS_SERVER,
   port: REDIS_PORT,
   retry_strategy: () => 1000,
