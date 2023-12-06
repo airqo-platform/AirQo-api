@@ -340,7 +340,7 @@ UserSchema.statics = {
   async listStatistics() {
     try {
       const response = await this.aggregate()
-        .match({})
+        .match({ email: { $ne: null } })
         .sort({ createdAt: -1 })
         .lookup({
           from: "clients",
@@ -348,17 +348,59 @@ UserSchema.statics = {
           foreignField: "user_id",
           as: "clients",
         })
+        .lookup({
+          from: "users",
+          localField: "clients.user_id",
+          foreignField: "_id",
+          as: "api_clients",
+        })
         .group({
           _id: null,
-          api_users: { $addToSet: "$clients.user_id" }, // Assuming user_id is the field that uniquely identifies users in the clients collection
           users: { $sum: 1 },
+          user_details: {
+            $push: {
+              userName: "$userName",
+              email: "$email",
+              _id: "$_id",
+            },
+          },
           active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
+          active_user_details: {
+            $addToSet: {
+              $cond: {
+                if: "$isActive",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  _id: "$_id",
+                },
+                else: "$nothing",
+              },
+            },
+          },
+          client_users: { $addToSet: "$clients.user_id" },
+          api_user_details: {
+            $addToSet: {
+              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
+              email: { $arrayElemAt: ["$api_clients.email", 0] },
+              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+            },
+          },
         })
         .project({
           _id: 0,
-          api_users: { $size: "$api_users" },
-          users: 1,
-          active_users: 1,
+          users: {
+            number: "$users",
+            details: "$user_details",
+          },
+          active_users: {
+            number: "$active_users",
+            details: "$active_user_details",
+          },
+          api_users: {
+            number: { $size: { $ifNull: ["$client_users", []] } },
+            details: "$api_user_details",
+          },
         })
         .allowDiskUse(true);
 
@@ -366,7 +408,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "Successfully retrieved the user statistics",
-          data: response,
+          data: response[0],
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
