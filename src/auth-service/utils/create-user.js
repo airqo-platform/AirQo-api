@@ -536,7 +536,6 @@ const createUserModule = {
       ];
     }
   },
-
   syncAnalyticsAndMobile: async (request) => {
     try {
       const { body, query } = request;
@@ -640,7 +639,6 @@ const createUserModule = {
       };
     }
   },
-
   signUpWithFirebase: async (request) => {
     try {
       const { body, query } = request;
@@ -722,6 +720,22 @@ const createUserModule = {
       };
     }
   },
+  generateCacheID: (request) => {
+    const { tenant } = request.query;
+    const { context } = request;
+    if (isEmpty(context) || isEmpty(tenant)) {
+      logger.error(`the request is either missing the context or the tenant`);
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: {
+          message: "the request is either missing the context or tenant",
+        },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
+    return `${context}_${tenant}`;
+  },
   setCache: async (data, cacheID) => {
     try {
       logObject("cacheID supplied to setCache", cacheID);
@@ -789,22 +803,6 @@ const createUserModule = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
-  },
-  generateCacheID: (request) => {
-    const { tenant } = request.query;
-    const { context } = request;
-    if (isEmpty(context) || isEmpty(tenant)) {
-      logger.error(`the request is either missing the context or the tenant`);
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: {
-          message: "the request is either missing the context or tenant",
-        },
-        status: httpStatus.BAD_REQUEST,
-      };
-    }
-    return `${context}_${tenant}`;
   },
   loginWithFirebase: async (request) => {
     try {
