@@ -1,3 +1,5 @@
+/* eslint-disable quotes */
+/* eslint-disable no-unused-vars */
 /* eslint-disable object-curly-spacing */
 /* eslint-disable require-jsdoc */
 /* eslint-disable indent */
@@ -317,6 +319,221 @@ module.exports = {
                                             </table>
 
                                             ${favoritesContent}
+                                    <tr>
+                                        <td style=" height: 8px; background: #EBF1FF;"></td>
+                                    </tr>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Social media section -->
+                    ${footerTemplate}
+                    </td>
+                    </tr>
+                    </table>
+                </div>
+
+            </body>
+        </html> `;
+    },
+
+    favorite_forecast_email: (userFavorites, userID) => {
+        const { userEmail } = userFavorites[0];
+        const unSubsciptionUrl = `https://us-central1-airqo-250220.cloudfunctions.net/emailNotifsUnsubscribe?email=${userEmail}&userId=${userID}`;
+        const footerTemplate = module.exports.email_footer_template(userEmail, unSubsciptionUrl);
+        let favoritesContent = ``;
+
+
+        for (let i = 0; i < userFavorites.length; i++) {
+            let airQualityLevels = [];
+            let calendarContent = ``;
+            let locationContent = ``;
+            airQualityLevels = userFavorites[i].airQualityLevels;
+
+            calendarContent = `    
+             <!-- Insights Calendar -->
+              <div style=" border: 2px solid #EBF1FF; width: 80%; margin-left: 50px; display:flex; place-content: center;">
+            
+             <table style="width: 60%;padding: 30px; display: revert;padding-left: 40px;">
+                                        <tr>
+                                            <td>
+                                                <div
+                                                    style="width:fit-content; padding: 4.59px; background: #145DFF; border-radius: 10px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: white; font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        M</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        T</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        W</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        T</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        F</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        S</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="padding: 4.59px; flex-direction: column; justify-content: flex-start; align-items: center; gap: 1.32px; display: flex">
+                                                    <div
+                                                        style="color: rgba(18, 23, 35, 0.80); font-size: 8.31px; font-family: Inter; font-weight: 400; line-height: 12.48px; word-wrap: break-word">
+                                                        S</div>
+                                                </div>
+                                            </td>
+                  
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <div style=" height: 22.30px; place-content: center; display: flex;  padding-right: 5px; ">
+                                                    <img src="cid:${airQualityLevels[0]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[1]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[2]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[3]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[4]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[5]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style=" height: 22.30px; position: relative; place-content: center; display: flex;padding-right: 5px;">
+                                                    <img src="cid:${airQualityLevels[6]}Emoji" style="height: 24px; width: 24px;">
+                                                </div>
+                                            </td>
+                                        
+                                        </tr>
+                                        </table>
+                                    </div>
+                                    `;
+            locationContent = `
+            <table style="width: 100%; text-align: center; background-color: #fff;">
+                                        <tr style="border: 1px #EBF1FF solid;">
+                                            <td style="text-align: center; padding: 10px;">
+                                                <img src="cid:FavoriteIcon" style="height: 24px; width: 24px;">
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="width: 100px; color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">
+                                                    ${userFavorites[i].name}</div>
+                                                <div
+                                                    style="width: 150px; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 20px; color: #8D8D8D;">
+                                                    ${userFavorites[i].location}
+                                                </div>
+                                            </td>
+                                            <td
+                                                style="text-align: center; padding: 10px; display: grid; place-items: center;">
+                                                <div
+                                                    style="width: 80px;  background: #145DFF; border-radius: 6.09px; display: grid; align-content: center; justify-content: center; color: white; font-size: 14px; padding-top: 9.13px; padding-bottom: 9.13px;">
+                                                    View now
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table> <br/>`;
+            favoritesContent += locationContent + calendarContent;
+        }
+
+        return `<!DOCTYPE html>
+        <html>
+
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+
+            <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+                <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+                    <!-- Email content container with white background -->
+                    <table
+                        style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;border-top-left-radius: 30px;border-top-right-radius: 30px;">
+                        <tr>
+                            <td>
+                                <table
+                                    style="width: 100%; background-color: #145DFF; border-top-left-radius: 30.46px;
+                                                                                                                                                                                                                                                                                                    border-top-right-radius: 30.46px;">
+                                    <tr>
+                                        <td
+                                            style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
+                                            <!-- Logo goes here -->
+                                            <img src="cid:AirQoEmailLogoAlternate" alt="logo" style="height: 100px; margin-right: 10px;">
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 24px;">
+                                <!-- Email content section -->
+                                <table style="width: 100%;">
+                                    <tr>
+                                        <td>
+                                            <table style="width: 100%; text-align: center; background-color: #fff;">
+                                                <tr>
+                                                    <td>
+                                                        <br />
+                                                        <div
+                                                            style="text-align: center; color: #121723; font-size: 36.75px; font-family: Inter; font-weight: 500; line-height: 50px; word-wrap: break-word">
+                                                            Peek Into Your Favorites' Air Quality This Week</div>
+                                                        
+                                                        <br />
+                                                    </td>
+                                                </tr>
+                                               
+                                            </table>
+
+                                            ${favoritesContent}
+                                            <br />
+                                            <br />
                                     <tr>
                                         <td style=" height: 8px; background: #EBF1FF;"></td>
                                     </tr>
