@@ -357,34 +357,50 @@ UserSchema.statics = {
         .group({
           _id: null,
           users: { $sum: 1 },
-          user_emails: { $push: "$email" },
+          user_details: {
+            $push: {
+              userName: "$userName",
+              email: "$email",
+              _id: "$_id",
+            },
+          },
           active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
-          active_user_emails: {
+          active_user_details: {
             $addToSet: {
               $cond: {
                 if: "$isActive",
-                then: "$email",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  _id: "$_id",
+                },
                 else: "$nothing",
               },
             },
           },
-          // number_of_api_users: {},
-          // api_user_emails: {},
+          client_users: { $addToSet: "$clients.user_id" },
+          api_user_details: {
+            $addToSet: {
+              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
+              email: { $arrayElemAt: ["$api_clients.email", 0] },
+              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+            },
+          },
         })
         .project({
           _id: 0,
           users: {
             number: "$users",
-            emails: "$user_emails",
+            details: "$user_details",
           },
           active_users: {
             number: "$active_users",
-            emails: "$active_user_emails",
+            details: "$active_user_details",
           },
-          // api_users: {
-          //   number: "$number_of_api_users",
-          //   emails: "$api_user_emails",
-          // },
+          api_users: {
+            number: { $size: { $ifNull: ["$client_users", []] } },
+            details: "$api_user_details",
+          },
         })
         .allowDiskUse(true);
 
