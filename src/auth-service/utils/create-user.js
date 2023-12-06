@@ -1,11 +1,8 @@
 const UserModel = require("@models/User");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
-const AccessRequestModel = require("@models/AccessRequest");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
-const RoleModel = require("@models/Role");
-const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
@@ -23,8 +20,7 @@ const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
-const { client1 } = require("@config/redis");
-const redis = client1;
+const { ioredis, redis } = require("@config/redis");
 const log4js = require("log4js");
 const GroupModel = require("../models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -46,7 +42,6 @@ function generateNumericToken(length) {
 
   return token;
 }
-
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -88,7 +83,6 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
     })
     .catch(reject);
 }
-
 const cascadeUserDeletion = async (userId, tenant) => {
   try {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
@@ -299,7 +293,6 @@ const createUserModule = {
       };
     }
   },
-
   list: async (request) => {
     try {
       const { query } = request;
@@ -732,7 +725,12 @@ const createUserModule = {
   setCache: async (data, cacheID) => {
     try {
       logObject("cacheID supplied to setCache", cacheID);
-      const result = await redis.set(cacheID, JSON.stringify(data), "EX", 3600);
+      const result = await ioredis.set(
+        cacheID,
+        JSON.stringify(data),
+        "EX",
+        3600
+      );
       return result;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -749,7 +747,7 @@ const createUserModule = {
       logText("we are getting the cache......");
       logObject("cacheID supplied", cacheID);
 
-      const result = await redis.get(cacheID);
+      const result = await ioredis.get(cacheID);
       logObject("ze result....", result);
       if (isEmpty(result)) {
         return {
@@ -775,7 +773,7 @@ const createUserModule = {
   },
   deleteCachedItem: async (cacheID) => {
     try {
-      const result = await redis.del(cacheID);
+      const result = await ioredis.del(cacheID);
       return {
         success: true,
         data: { numberOfDeletedKeys: result },
@@ -1128,7 +1126,6 @@ const createUserModule = {
       };
     }
   },
-
   delete: async (request) => {
     try {
       const { tenant } = request.query;
@@ -1836,7 +1833,6 @@ const createUserModule = {
       };
     }
   },
-
   emailReport: async (request) => {
     try {
       const { body, files } = request;
