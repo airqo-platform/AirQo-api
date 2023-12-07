@@ -353,8 +353,8 @@ module.exports = {
             <tr style="border: 1px #EBF1FF solid;">
                 <td style="text-align: center; padding: 10px;"><img src="cid:FavoriteIcon" style="height: 24px; width: 24px;"></td>
                 <td>
-                    <div style="width: 100px; color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">${favorite.name}</div>
-                    <div style="width: 150px; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 20px; color: #8D8D8D;">${favorite.location}</div>
+                    <div style="text-align: start; width: 200px; color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">${favorite.name}</div>
+                    <div style="text-align: start; width: 200px; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 20px; color: #8D8D8D;">${favorite.location}</div>
                 </td>
                 <td style="text-align: center; padding: 10px; display: grid; place-items: center;">
                     <div style="width: 80px; background: #145DFF; border-radius: 6.09px; display: grid; align-content: center; justify-content: center; color: white; font-size: 14px; padding-top: 9.13px; padding-bottom: 9.13px;">View now</div>
@@ -368,6 +368,8 @@ module.exports = {
                 <tr>${airQualityLevels.map((level) => `<td><div style="height: 22.30px; position: relative; place-content: center; display: flex; padding-right: 5px;"><img src="cid:${level}Emoji" style="height: 24px; width: 24px;"></div></td>`).join('')}</tr>
             </table>
         </div>
+        <br/>
+        <br/>
       `;
         }
 
