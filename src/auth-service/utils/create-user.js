@@ -1,6 +1,7 @@
 const UserModel = require("@models/User");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const VerifyTokenModel = require("@models/VerifyToken");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const { logObject, logElement, logText, logError } = require("./log");
@@ -1399,6 +1400,79 @@ const createUserModule = {
       };
     }
   },
+  verificationReminder: async (request) => {
+    try {
+      const { tenant, email } = request;
+
+      const user = await UserModel(tenant)
+        .findOne({ email })
+        .select("_id email firstName lastName verified")
+        .lean();
+      logObject("user", user);
+      if (isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User not provided or does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const user_id = user._id;
+
+      const token = accessCodeGenerator
+        .generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+        )
+        .toUpperCase();
+
+      const tokenCreationBody = {
+        token,
+        name: user.firstName,
+      };
+      const responseFromCreateToken = await VerifyTokenModel(
+        tenant.toLowerCase()
+      ).register(tokenCreationBody);
+
+      if (responseFromCreateToken.success === false) {
+        return responseFromCreateToken;
+      } else {
+        const responseFromSendEmail = await mailer.verifyEmail({
+          user_id,
+          token,
+          email,
+        });
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        if (responseFromSendEmail.success === true) {
+          const userDetails = {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            verified: user.verified,
+          };
+
+          return {
+            success: true,
+            message: "An Email sent to your account please verify",
+            data: userDetails,
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "",
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      }
+    } catch (e) {
+      logObject("e", e);
+      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   create: async (request) => {
     try {
       const { tenant, firstName, email, password, category } = request;
@@ -1428,67 +1502,49 @@ const createUserModule = {
         logObject("created user in util", createdUser._doc);
         const user_id = createdUser._doc._id;
 
-        const clientCreationBody = {
-          user_id: createdUser._doc._id,
+        const token = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          )
+          .toUpperCase();
+
+        const tokenCreationBody = {
+          token,
           name: createdUser._doc.firstName,
         };
+        const responseFromCreateToken = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody);
 
-        logObject("clientCreationBody", clientCreationBody);
-
-        const responseFromCreateClient = await ClientModel(tenant).register(
-          clientCreationBody
-        );
-
-        if (responseFromCreateClient.success === false) {
-          return responseFromCreateClient;
+        if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
         } else {
-          const token = accessCodeGenerator
-            .generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-            )
-            .toUpperCase();
-
-          const client_id = responseFromCreateClient.data._id;
-
-          const tokenCreationBody = {
+          const responseFromSendEmail = await mailer.verifyEmail({
+            user_id,
             token,
-            name: createdUser._doc.firstName,
-            client_id: ObjectId(client_id),
-          };
-          const responseFromCreateToken = await AccessTokenModel(
-            tenant.toLowerCase()
-          ).register(tokenCreationBody);
+            email,
+            firstName,
+            category,
+          });
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === true) {
+            const userDetails = {
+              firstName: createdUser._doc.firstName,
+              lastName: createdUser._doc.lastName,
+              email: createdUser._doc.email,
+              verified: createdUser._doc.verified,
+            };
 
-          if (responseFromCreateToken.success === false) {
-            return responseFromCreateToken;
-          } else {
-            const responseFromSendEmail = await mailer.verifyEmail({
-              user_id,
-              token,
-              email,
-              firstName,
-              category,
-            });
-            logObject("responseFromSendEmail", responseFromSendEmail);
-            if (responseFromSendEmail.success === true) {
-              const userDetails = {
-                firstName: createdUser._doc.firstName,
-                lastName: createdUser._doc.lastName,
-                email: createdUser._doc.email,
-                verified: createdUser._doc.verified,
-              };
-
-              return {
-                success: true,
-                message: "An Email sent to your account please verify",
-                data: userDetails,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : "",
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
+            return {
+              success: true,
+              message: "An Email sent to your account please verify",
+              data: userDetails,
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
           }
         }
       } else if (responseFromCreateUser.success === false) {

@@ -6,6 +6,7 @@ const WhitelistedIPModel = require("@models/WhitelistedIP");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const DepartmentModel = require("@models/Department");
@@ -357,7 +358,7 @@ const controlAccess = {
         };
       }
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
+      const responseFromListAccessToken = await VerifyTokenModel(tenant).list({
         skip,
         limit,
         filter,
@@ -397,7 +398,7 @@ const controlAccess = {
 
             filter = { token };
             logObject("the deletion of the token filter", filter);
-            const responseFromDeleteToken = await AccessTokenModel(
+            const responseFromDeleteToken = await VerifyTokenModel(
               tenant
             ).remove({ filter });
 
