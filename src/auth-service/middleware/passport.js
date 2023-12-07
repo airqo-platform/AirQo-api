@@ -123,29 +123,31 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           next();
-        } else if (isEmpty(user.verified) || user.verified === false) {
-          const verificationRequest = {
-            tenant: "airqo",
-            email: user.email,
-          };
-          try {
-            const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
-              logger.error(
-                `Internal Server Error --- ${JSON.stringify(
-                  verificationEmailResponse
-                )}`
-              );
-            }
-          } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-          }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          next();
         }
+
+        // else if (isEmpty(user.verified) || user.verified === false) {
+        //   const verificationRequest = {
+        //     tenant: "airqo",
+        //     email: user.email,
+        //   };
+        //   try {
+        //     const verificationEmailResponse =
+        //       await createUserUtil.verificationReminder(verificationRequest);
+        //     if (verificationEmailResponse.success === false) {
+        //       logger.error(
+        //         `Internal Server Error --- ${JSON.stringify(
+        //           verificationEmailResponse
+        //         )}`
+        //       );
+        //     }
+        //   } catch (error) {
+        //     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+        //   }
+        //   req.auth.success = false;
+        //   req.auth.message =
+        //     "account not verified, verification email has been sent to your email";
+        //   next();
+        // }
         req.auth.success = true;
         req.auth.message = "successful login";
         winstonLogger.info(
@@ -186,25 +188,27 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           next();
-        } else if (isEmpty(user.verified) || user.verified === false) {
-          try {
-            const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
-              logger.error(
-                `Internal Server Error --- ${JSON.stringify(
-                  verificationEmailResponse
-                )}`
-              );
-            }
-          } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-          }
-          req.auth.success = false;
-          req.auth.message =
-            "account not verified, verification email has been sent to your email";
-          next();
         }
+
+        // else if (isEmpty(user.verified) || user.verified === false) {
+        //   try {
+        //     const verificationEmailResponse =
+        //       await createUserUtil.verificationReminder(verificationRequest);
+        //     if (verificationEmailResponse.success === false) {
+        //       logger.error(
+        //         `Internal Server Error --- ${JSON.stringify(
+        //           verificationEmailResponse
+        //         )}`
+        //       );
+        //     }
+        //   } catch (error) {
+        //     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+        //   }
+        //   req.auth.success = false;
+        //   req.auth.message =
+        //     "account not verified, verification email has been sent to your email";
+        //   next();
+        // }
         req.auth.success = true;
         req.auth.message = "successful login";
 
