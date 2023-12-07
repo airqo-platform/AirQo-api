@@ -928,14 +928,18 @@ class AirQoDataUtils:
 
     ### Fault detection job
 
-
     @staticmethod
     def resample_raw_data(df):
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            raise ValueError("Please provide a valid dataframe")
+
+        if not all(column in df.columns for column in ["timestamp", "device_name"]):
+            raise ValueError("Columns 'timestamp' and 'device_name" " not in df")
+
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
         df = df.groupby("device_name").resample("H", on="timestamp").mean()
         df.reset_index(inplace=True)
         return df
-
 
     @staticmethod
     def flag_faults(df):
@@ -958,7 +962,7 @@ class AirQoDataUtils:
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
                 null_series = device_df[col].isna()
-                if (null_series.rolling(window=6).sum() >= 6).any():
+                if (null_series.rolling(window=10).sum() >= 10).any():
                     missing_data_fault = 1
                     break
 

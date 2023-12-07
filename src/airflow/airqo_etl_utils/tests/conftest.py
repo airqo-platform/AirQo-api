@@ -1,4 +1,7 @@
+import random
+import string
 from datetime import datetime
+from unittest import mock
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -108,9 +111,12 @@ class FaultDetectionFixtures:
     def df_valid(cls):
         return pd.DataFrame(
             {
-                "device_name": ["A", "A", "A", "A", "B", "B", "B", "B"],
-                "s1_pm2_5": [10, 11, 12, 13, 20, 21, 22, 23],
-                "s2_pm2_5": [9, 10, 11, 12, 19, 20, 21, 22],
+                "device_name": [
+                    "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                    for _ in range(100)
+                ],
+                "s1_pm2_5": np.random.uniform(0, 100, 100),
+                "s2_pm2_5": np.random.uniform(0, 100, 1000),
             }
         )
 
@@ -168,3 +174,53 @@ class FaultDetectionFixtures:
                 "created_at": [datetime.now().isoformat(timespec="seconds")],
             }
         )
+
+
+class BigQueryFixtures:
+    @staticmethod
+    @pytest.fixture
+    def mock_bigquery_client():
+        """A fixture that mocks the bigquery.Client object."""
+
+        fake_client = mock.Mock()
+
+        sample_df = pd.DataFrame(
+            {
+                "device_id": ["A", "A", "B", "B"],
+                "timestamp": [
+                    "2023-01-01 00:00:00",
+                    "2023-01-01 01:00:00",
+                    "2023-01-01 00:00:00",
+                    "2023-01-01 01:00:00",
+                ],
+                "site_id": [1, 1, 2, 2],
+                "pm2_5": [10.0, 12.0, 15.0, 18.0],
+                "latitude": [10.0, 10.0, 20.0, 20.0],
+                "longitude": [10.0, 10.0, 20.0, 20.0],
+                "device_category": ["A", "A", "B", "B"],
+            }
+        )
+
+        fake_data_empty_result = pd.DataFrame()
+
+        fake_error = "Fake error"
+
+        def fake_query(query, job_config):
+            fake_job = mock.Mock()
+
+            if "2023-01-01" in query:
+                fake_job.result.return_value.to_dataframe.return_value = sample_df
+            elif "2023-01-02" in query:
+                fake_job.result.return_value.to_dataframe.return_value = (
+                    fake_data_empty_result
+                )
+            elif "2023-01-03" in query:
+                fake_job.result.side_effect = fake_error
+            else:
+                raise ValueError("Invalid date")
+
+            return fake_job
+
+        fake_client.query.side_effect = fake_query
+
+        return fake_client

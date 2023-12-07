@@ -668,6 +668,13 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def fetch_raw_readings(self) -> pd.DataFrame:
+        """
+        Fetches the raw readings from the bigquery table for the fault detection job
+
+        Returns:
+            pd.DataFrame: The dataframe containing the raw readings for past 7 days
+        """
+
         query = f"""
         SELECT DISTINCT raw_device_data_table.timestamp
            AS
@@ -692,26 +699,28 @@ class BigQueryApi:
             print(f"Error when fetching data from bigquery, {e}")
 
     def add_device_metadata(self, df):
-        query = (f"SELECT distinct latitude, longitude, device_id   "
-                 f"FROM `{self.sites_meta_data_table}` "
-                 f"where device_category = 'lowcost' "
-                 f"and latitude is not null "
-                 f"and longitude is not null")
+        query = (
+            f"SELECT distinct latitude, longitude, device_id   "
+            f"FROM `{self.sites_meta_data_table}` "
+            f"where device_category = 'lowcost' "
+            f"and latitude is not null "
+            f"and longitude is not null"
+        )
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
         try:
             sites = self.client.query(query, job_config).result().to_dataframe()
-            df = df.merge(sites, on='device_id', how='left')
+            df = df.merge(sites, on="device_id", how="left")
             return df
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
 
     def fetch_data(
-            self,
-            start_date_time: str,
-            job_type: str,
+        self,
+        start_date_time: str,
+        job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)

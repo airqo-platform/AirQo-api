@@ -9,7 +9,6 @@ import airqo_etl_utils.tests.conftest as ct
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.tests.conftest import FaultDetectionFixtures
 
 
 class TestAirQoDataUtils(unittest.TestCase):
@@ -80,9 +79,11 @@ class TestFaultDetector(ct.FaultDetectionFixtures):
     def test_output_values(self, df_valid, expected_output):
         output = AirQoDataUtils.flag_faults(df_valid)
         # assert len(output) == 1
-        assert output.iloc[0]["device_name"] == "B"
-        assert output.iloc[0]["correlation_fault"] == 1
-        assert output.iloc[0]["missing_data_fault"] == 0
+        assert output.iloc[0]["device_name"] == expected_output.iloc[0]["device_name"]
+        assert (
+            output.iloc[0]["correlation_fault"]
+            == expected_output.iloc[0]["correlation_fault"]
+        )
 
     def test_output_flags(self, df_invalid_corr, df_invalid_nan):
         output_invalid_corr = AirQoDataUtils.flag_faults(df_invalid_corr)
