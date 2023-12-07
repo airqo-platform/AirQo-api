@@ -279,14 +279,17 @@ const isIPBlacklisted = async ({
   }
 
   try {
-    const UnknownIPDetails = await UnknownIPModel("airqo")
-      .findOne({ ip })
-      .select("_id")
-      .lean();
+    await UnknownIPModel("airqo").deleteMany({ _id: null });
+  } catch (error) {
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+  }
 
+  try {
+    // const UnknownIPDetails = await UnknownIPModel("airqo")
+    //   .findOne({ ip })
+    //   .select("_id")
+    //   .lean();
     const options = { upsert: true, new: true };
-    const filter = UnknownIPDetails;
-
     const update = {
       $addToSet: {
         endpoints: endpoint,
@@ -297,7 +300,7 @@ const isIPBlacklisted = async ({
       },
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
   } catch (error) {
     // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
