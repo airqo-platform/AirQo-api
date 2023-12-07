@@ -104,6 +104,7 @@ const UserSchema = new Schema(
             default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
           },
           userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -132,6 +133,7 @@ const UserSchema = new Schema(
             default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
           userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -243,6 +245,7 @@ UserSchema.pre("save", function (next) {
       {
         network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
         userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
       },
     ];
@@ -269,6 +272,7 @@ UserSchema.pre("save", function (next) {
       {
         group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
         userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];

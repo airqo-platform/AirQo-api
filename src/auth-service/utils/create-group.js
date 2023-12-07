@@ -233,6 +233,7 @@ const createGroup = {
                   group_roles: {
                     group: grp_id,
                     role: role_id,
+                    userType: "user",
                   },
                 },
               },
