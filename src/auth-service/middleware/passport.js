@@ -1,5 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const createUserUtil = require("@utils/create-user");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
@@ -7,6 +8,7 @@ const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
 const winstonLogger = require("@utils/log-winston");
+const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
@@ -17,7 +19,9 @@ const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- passport-middleware`
+);
 
 const setLocalOptions = (req) => {
   try {
@@ -120,6 +124,30 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.message = "incorrect username or password";
           next();
         }
+
+        // else if (isEmpty(user.verified) || user.verified === false) {
+        //   const verificationRequest = {
+        //     tenant: "airqo",
+        //     email: user.email,
+        //   };
+        //   try {
+        //     const verificationEmailResponse =
+        //       await createUserUtil.verificationReminder(verificationRequest);
+        //     if (verificationEmailResponse.success === false) {
+        //       logger.error(
+        //         `Internal Server Error --- ${JSON.stringify(
+        //           verificationEmailResponse
+        //         )}`
+        //       );
+        //     }
+        //   } catch (error) {
+        //     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+        //   }
+        //   req.auth.success = false;
+        //   req.auth.message =
+        //     "account not verified, verification email has been sent to your email";
+        //   next();
+        // }
         req.auth.success = true;
         req.auth.message = "successful login";
         winstonLogger.info(
@@ -161,6 +189,26 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.message = "incorrect username or password";
           next();
         }
+
+        // else if (isEmpty(user.verified) || user.verified === false) {
+        //   try {
+        //     const verificationEmailResponse =
+        //       await createUserUtil.verificationReminder(verificationRequest);
+        //     if (verificationEmailResponse.success === false) {
+        //       logger.error(
+        //         `Internal Server Error --- ${JSON.stringify(
+        //           verificationEmailResponse
+        //         )}`
+        //       );
+        //     }
+        //   } catch (error) {
+        //     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+        //   }
+        //   req.auth.success = false;
+        //   req.auth.message =
+        //     "account not verified, verification email has been sent to your email";
+        //   next();
+        // }
         req.auth.success = true;
         req.auth.message = "successful login";
 

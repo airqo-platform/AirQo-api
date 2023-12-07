@@ -346,6 +346,7 @@ const createNetwork = {
                   network_roles: {
                     network: net_id,
                     role: role_id,
+                    userType: "user",
                   },
                 },
               },
