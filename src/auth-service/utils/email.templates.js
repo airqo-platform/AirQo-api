@@ -159,7 +159,7 @@ module.exports = {
                                 <br />
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
