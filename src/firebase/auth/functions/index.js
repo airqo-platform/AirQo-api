@@ -689,8 +689,6 @@ async function sendForecastEmails(groupedFavorites) {
       } catch (error) {
         functions.logger.log("Transporter failed to send email", error);
       }
-      // remove
-      break;
     }
   } catch (error) {
     functions.logger.log("Forecast Favorites Email sending failed", error);
