@@ -1100,6 +1100,9 @@ const createEvent = {
           const status = result.status ? result.status : httpStatus.OK;
           const measurementsForDeployedDevices = result.data[0].data.filter(
             (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
               const { pm2_5 } = obj;
               if (pm2_5 && pm2_5.value === null) {
                 logger.error(
