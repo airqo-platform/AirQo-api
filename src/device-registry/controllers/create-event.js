@@ -675,12 +675,33 @@ const createEvent = {
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
+        const measurementsForDeployedDevices = result.data[0].data.filter(
+          (obj) => {
+            const { pm2_5 } = obj;
+            if (pm2_5 && pm2_5.value === null) {
+              logger.error(
+                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                  obj.device ? obj.device : ""
+                } -- the timestamp is ${
+                  obj.time ? obj.time : ""
+                } -- the frequency is ${
+                  obj.frequency ? obj.frequency : ""
+                } -- the site_name is ${
+                  obj.siteDetails ? obj.siteDetails.name : ""
+                }`
+              );
+              return false; // Exclude if either value is null
+            }
+
+            return true; // Include for other cases
+          }
+        );
         res.status(status).json({
           success: true,
           isCache: result.isCache,
           message: result.message,
           meta: result.data[0].meta,
-          measurements: result.data[0].data,
+          measurements: measurementsForDeployedDevices,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
@@ -845,12 +866,34 @@ const createEvent = {
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
+
+        const measurementsForDeployedDevices = result.data[0].data.filter(
+          (obj) => {
+            const { pm2_5 } = obj;
+            if (pm2_5 && pm2_5.value === null) {
+              logger.error(
+                `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                  obj.device ? obj.device : ""
+                } -- the timestamp is ${
+                  obj.time ? obj.time : ""
+                } -- the frequency is ${
+                  obj.frequency ? obj.frequency : ""
+                } -- the site_name is ${
+                  obj.siteDetails ? obj.siteDetails.name : ""
+                }`
+              );
+              return false; // Exclude if either value is null
+            }
+
+            return true; // Include for other cases
+          }
+        );
         res.status(status).json({
           success: true,
           isCache: result.isCache,
           message: result.message,
           meta: result.data[0].meta,
-          measurements: result.data[0].data,
+          measurements: measurementsForDeployedDevices,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -1055,12 +1098,33 @@ const createEvent = {
         logObject("the result for listing events", result);
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => {
+              const { pm2_5 } = obj;
+              if (pm2_5 && pm2_5.value === null) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
+            }
+          );
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
             meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            measurements: measurementsForDeployedDevices,
           });
         } else if (result.success === false) {
           const status = result.status
