@@ -885,7 +885,7 @@ const createEvent = {
                 return false; // Exclude if siteDetails is null
               }
 
-              const { pm2_5 } = obj;
+              const { pm2_5, time } = obj;
               if (pm2_5 && pm2_5.value === null) {
                 logger.error(
                   `A deployed Device is returning null values for pm2_5 -- the device_name is ${
@@ -899,6 +899,27 @@ const createEvent = {
                   }`
                 );
                 return false; // Exclude if either value is null
+              }
+
+              const deviceTime = new Date(time);
+              const currentTime = new Date();
+
+              // Calculate the time difference in milliseconds
+              const timeDifference = currentTime - deviceTime;
+
+              // Convert milliseconds to hours
+              const timeDifferenceInHours = timeDifference / (1000 * 60 * 60);
+
+              if (timeDifferenceInHours > 3) {
+                logger.error(
+                  `Time difference exceeds 3 hours for device ${
+                    obj.device ? obj.device : ""
+                  } -- timestamp: ${time} -- frequency: ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- site_name: ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
+                );
               }
 
               return true; // Include for other cases
