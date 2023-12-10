@@ -660,19 +660,7 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
-    }
     let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
     setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
@@ -712,19 +700,7 @@ function setGoogleAuth(req, res, next) {
 }
 function setJWTAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
-    }
     let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
     logElement("the tenant for the job", tenant);
     setJWTStrategy(tenant, req, res, next);
     next();
