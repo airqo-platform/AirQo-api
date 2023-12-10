@@ -61,6 +61,7 @@ const UserSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    analyticsVersion: { type: Number, default: 2 },
     firstName: {
       type: String,
       required: [true, "FirstName is required!"],
@@ -276,6 +277,14 @@ UserSchema.pre("save", function (next) {
         role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];
+  }
+
+  if (!this.verified) {
+    this.verified = false;
+  }
+
+  if (!this.analyticsVersion) {
+    this.analyticsVersion = 2;
   }
 
   return next();
@@ -533,6 +542,7 @@ UserSchema.statics = {
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
+          analyticsVersion: { $first: "$analyticsVersion" },
           country: { $first: "$country" },
           privilege: { $first: "$privilege" },
           website: { $first: "$website" },
@@ -641,6 +651,7 @@ UserSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
+      logText("the user modification function........");
       let options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
@@ -799,6 +810,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      analyticsVersion: this.analyticsVersion,
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
       isActive: this.isActive,
