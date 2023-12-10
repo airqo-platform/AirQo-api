@@ -107,6 +107,26 @@ router.post(
   createUserController.login
 );
 
+router.get(
+  "/logout",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.logout
+);
+
 router.post(
   "/guest",
   oneOf([

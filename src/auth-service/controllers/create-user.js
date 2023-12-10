@@ -1173,6 +1173,38 @@ const createUser = {
       });
     }
   },
+  logout: async (req, res) => {
+    logText("..................................");
+    logText("user logout......");
+    try {
+      res
+        .status(httpStatus.NOT_IMPLEMENTED)
+        .json({ success: false, message: "not yet implemented" });
+      req.logout((err) => {
+        if (err) {
+          logObject("err,err");
+          logger.error(`Error during logout: ${JSON.stringify(err)}`);
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Internal Server Error",
+            errors: { message: "Error during logout" },
+            success: false,
+          });
+        }
+        return res
+          .status(httpStatus.OK)
+          .json({ message: "logout successful", success: true });
+        // res.redirect("https://analytics.airqo.net/account/login");
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        success: false,
+      });
+    }
+  },
+
   guest: (req, res) => {
     logText("..................................");
     logText("user guest login......");
