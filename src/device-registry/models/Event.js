@@ -469,6 +469,7 @@ const getConfiguredProjection = (metadata, brief) => {
     projection["average_pm2_5"] = 0;
     projection["device_number"] = 0;
     projection["pm2_5.uncertaintyValue"] = 0;
+    projection["pm2_5.calibratedValue"] = 0;
     projection["pm2_5.standardDeviationValue"] = 0;
     projection["site"] = 0;
     projection["deviceDetails"] = 0;
@@ -1424,6 +1425,7 @@ eventSchema.statics = {
         projection["satellites"] = 0;
         projection["speed"] = 0;
         projection["altitude"] = 0;
+        projection["site_image"] = 0;
         projection["location"] = 0;
         projection["network"] = 0;
         projection["battery"] = 0;
@@ -1431,11 +1433,14 @@ eventSchema.statics = {
         projection["average_pm2_5"] = 0;
         projection["device_number"] = 0;
         projection["pm2_5.uncertaintyValue"] = 0;
+        projection["pm2_5.calibratedValue"] = 0;
         projection["pm2_5.standardDeviationValue"] = 0;
         projection["pm10.uncertaintyValue"] = 0;
+        projection["pm10.calibratedValue"] = 0;
         projection["pm10.standardDeviationValue"] = 0;
         projection["no2.uncertaintyValue"] = 0;
         projection["no2.standardDeviationValue"] = 0;
+        projection["no2.calibratedValue"] = 0;
         projection["site"] = 0;
         projection[as] = 0;
       }
@@ -1488,6 +1493,7 @@ eventSchema.statics = {
       if (running === "yes") {
         delete projection["pm2_5.uncertaintyValue"];
         delete projection["pm2_5.standardDeviationValue"];
+        delete projection["pm2_5.calibratedValue"];
 
         Object.assign(projection, {
           site_image: 0,
@@ -1640,7 +1646,14 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
-
+          .addFields({
+            timeDifferenceHours: {
+              $divide: [
+                { $subtract: [new Date(), "$time"] },
+                1000 * 60 * 60, // milliseconds to hours
+              ],
+            },
+          })
           .project({
             "health_tips.aqi_category": 0,
             "health_tips.value": 0,
@@ -1864,6 +1877,49 @@ eventSchema.statics = {
             },
           })
           .allowDiskUse(true);
+
+        data[0].data.forEach((record) => {
+          if (record.timeDifferenceHours > 14) {
+            logObject(
+              `Time difference exceeds 14 hours for device: ${
+                record.device ? record.device : ""
+              }, frequency ${record.frequency ? record.frequency : ""}, time ${
+                record.time ? record.time : ""
+              } and site ${record.siteDetails ? record.siteDetails.name : ""}`
+            );
+            logger.info(
+              `Time difference exceeds 14 hours for device: ${
+                record.device ? record.device : ""
+              }, Frequency: ${
+                record.frequency ? record.frequency : ""
+              }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                record.siteDetails ? record.siteDetails.name : ""
+              } has measurements that`
+            );
+          }
+
+          if (record.pm2_5 === null) {
+            logObject(
+              `Null pm2_5 value for device: ${
+                record.device ? record.device : ""
+              }, frequency ${record.frequency ? record.frequency : ""}, time ${
+                record.time ? record.time : ""
+              } and site ${record.siteDetails ? record.siteDetails.name : ""}`
+            );
+            logger.info(
+              `Null pm2_5 value for device: ${
+                record.device ? record.device : ""
+              }, Frequency: ${
+                record.frequency ? record.frequency : ""
+              }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                record.siteDetails ? record.siteDetails.name : ""
+              }`
+            );
+          }
+        });
+
+        data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
+
         return {
           success: true,
           data,
