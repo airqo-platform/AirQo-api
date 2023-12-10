@@ -347,7 +347,7 @@ const createUser = {
   verify: (req, res) => {
     logText("..................................");
     logText("user verify......");
-    return res.status(httpStatus.OK).send("this token is valid");
+    res.status(httpStatus.OK).send("this token is valid");
   },
   verifyEmail: async (req, res) => {
     try {
