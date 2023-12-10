@@ -26,7 +26,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/server script`
 );
 const { logText, logObject } = require("@utils/log");
-const fileUpload = require('express-fileupload');
+const fileUpload = require("express-fileupload");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -77,7 +77,6 @@ app.use("/api/v2/users", require("@routes/v2"));
 app.use(function (req, res, next) {
   const err = new Error("Not Found");
   err.status = 404;
-  next(err);
 });
 
 app.use(function (err, req, res, next) {
