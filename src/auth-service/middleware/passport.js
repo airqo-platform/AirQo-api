@@ -675,8 +675,8 @@ function setLocalAuth(req, res, next) {
     setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
 
@@ -705,8 +705,8 @@ function setGoogleAuth(req, res, next) {
     next();
   } catch (e) {
     logObject("e", e);
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
 function setJWTAuth(req, res, next) {
@@ -728,10 +728,8 @@ function setJWTAuth(req, res, next) {
     setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res
-      .status(httpStatus.BAD_GATEWAY)
-      .json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
 const setGuestToken = (req, res) => {
