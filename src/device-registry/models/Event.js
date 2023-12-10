@@ -1879,23 +1879,30 @@ eventSchema.statics = {
           .allowDiskUse(true);
 
         data[0].data.forEach((record) => {
-          if (record.timeDifferenceHours > 14) {
-            logObject(
-              `Time difference exceeds 14 hours for device: ${
-                record.device ? record.device : ""
-              }, frequency ${record.frequency ? record.frequency : ""}, time ${
-                record.time ? record.time : ""
-              } and site ${record.siteDetails ? record.siteDetails.name : ""}`
-            );
-            logger.info(
-              `Time difference exceeds 14 hours for device: ${
-                record.device ? record.device : ""
-              }, Frequency: ${
-                record.frequency ? record.frequency : ""
-              }, Time: ${record.time ? record.time : ""}, Site Name: ${
-                record.siteDetails ? record.siteDetails.name : ""
-              } has measurements that`
-            );
+          if (
+            constants.ENVIRONMENT &&
+            constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
+          ) {
+            if (record.timeDifferenceHours > 14) {
+              logObject(
+                `Time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, frequency ${
+                  record.frequency ? record.frequency : ""
+                }, time ${record.time ? record.time : ""} and site ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+              logger.info(
+                `Time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, Frequency: ${
+                  record.frequency ? record.frequency : ""
+                }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                } has measurements that`
+              );
+            }
           }
 
           if (record.pm2_5 === null) {
