@@ -553,7 +553,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
         {
           lastLogin: currentDate,
           isActive: true,
-          $set: { verified: user.analyticsVersion !== 3 },
+          ...(user.analyticsVersion !== 3 && user.verified === false
+            ? { $set: { verified: true } }
+            : {}),
         },
         { new: true }
       );
