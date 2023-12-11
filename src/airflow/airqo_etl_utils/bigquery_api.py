@@ -5,6 +5,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
+from models.ml_models import Job
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
@@ -698,7 +699,7 @@ class BigQueryApi:
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
 
-    def add_device_metadata(self, df):
+    def add_device_metadata(self, df: pd.DataFrame) -> pd.DataFrame:
         query = (
             f"SELECT distinct latitude, longitude, device_id   "
             f"FROM `{self.sites_meta_data_table}` "
@@ -720,7 +721,7 @@ class BigQueryApi:
     def fetch_data(
         self,
         start_date_time: str,
-        job_type: str,
+        job_type: Job,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
@@ -735,7 +736,7 @@ class BigQueryApi:
             t2.latitude, 
             t2.longitude,"""
 
-        if job_type != "train":
+        if job_type != Job.TRAIN:
             query += """
             t1.site_id,
             """

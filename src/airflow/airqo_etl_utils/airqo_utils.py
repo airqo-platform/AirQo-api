@@ -575,7 +575,6 @@ class AirQoDataUtils:
                     "site_id": row["site_id"],
                     "device_number": device_number,
                     "tenant": str(Tenant.AIRQO),
-                    "tenant": str(Tenant.AIRQO),
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},
@@ -926,10 +925,15 @@ class AirQoDataUtils:
 
         return data
 
-    ### Fault detection job
-
     @staticmethod
     def resample_raw_data(df):
+        """
+        Resample raw data to hourly data for fault detection job
+        Args:
+            df (pd.DataFrame): raw data
+        Returns:
+            pd.DataFrame: resampled data
+        """
         if not isinstance(df, pd.DataFrame) or df.empty:
             raise ValueError("Please provide a valid dataframe")
 

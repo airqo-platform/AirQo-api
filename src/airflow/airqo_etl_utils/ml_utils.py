@@ -9,6 +9,7 @@ import pandas as pd
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
+from models.ml_models import Frequency, Job
 from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
@@ -50,10 +51,9 @@ class GCSUtils:
 
 
 class MlPipelineUtils:
-
     # forecast model utils
     @staticmethod
-    def preprocess_data(data, data_frequency, job_type):
+    def preprocess_data(data: pd.DataFrame, data_frequency: Frequency, job_type: Job):
         required_columns = {
             "device_id",
             "pm2_5",
@@ -70,11 +70,15 @@ class MlPipelineUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        group_columns = ["device_id"] + additional_columns if job_type == 'prediction' else ["device_id"]
+        group_columns = (
+            ["device_id"] + additional_columns
+            if job_type == "prediction"
+            else ["device_id"]
+        )
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
-        if data_frequency == "daily":
+        if data_frequency == Frequency.HOURLY:
             data = (
                 data.groupby(group_columns)
                 .resample("D", on="timestamp")
@@ -82,13 +86,13 @@ class MlPipelineUtils:
             )
             data.reset_index(inplace=True)
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
-                lambda x: x.interpolate(method="linear", limit_direction="both")
-            )
+            lambda x: x.interpolate(method="linear", limit_direction="both")
+        )
         data = data.dropna(subset=["pm2_5"])
         return data
 
     @staticmethod
-    def get_lag_and_roll_features(df, target_col, freq):
+    def get_lag_and_roll_features(df: pd.DataFrame, target_col, frequency: Frequency):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -102,7 +106,7 @@ class MlPipelineUtils:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
         df1 = df.copy()  # use copy to prevent terminal warning
-        if freq == "daily":
+        if frequency == Frequency.DAILY:
             shifts = [1, 2, 3, 7]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
@@ -118,7 +122,7 @@ class MlPipelineUtils:
                         .rolling(s)
                         .agg(f)
                     )
-        elif freq == "hourly":
+        elif frequency == Frequency.HOURLY:
             shifts = [1, 2, 6, 12]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
@@ -135,11 +139,11 @@ class MlPipelineUtils:
                         .agg(f)
                     )
         else:
-            raise ValueError("Invalid frequency")
+            raise ValueError("Invalid frequency specified")
         return df1
 
     @staticmethod
-    def get_time_and_cyclic_features(df, freq):
+    def get_time_and_cyclic_features(df: pd.DataFrame, frequency: Frequency):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -148,13 +152,13 @@ class MlPipelineUtils:
 
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-        if freq not in ["daily", "hourly"]:
+        if frequency not in list(Frequency.__members__):
             raise ValueError("Invalid frequency")
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df1 = df.copy()
         attributes = ["year", "month", "day", "dayofweek"]
         max_vals = [2023, 12, 30, 7]
-        if freq == "hourly":
+        if frequency == Frequency.HOURLY:
             attributes.append("hour")
             max_vals.append(23)
         for a, m in zip(attributes, max_vals):
@@ -169,7 +173,7 @@ class MlPipelineUtils:
         return df1
 
     @staticmethod
-    def get_location_features(df):
+    def get_location_features(df: pd.DataFrame):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -207,7 +211,9 @@ class MlPipelineUtils:
     #     return df_tmp
 
     @staticmethod
-    def train_and_save_forecast_models(training_data, frequency):
+    def train_and_save_forecast_models(
+        training_data: pd.DataFrame, frequency: Frequency
+    ):
         """
         Perform the actual training for hourly data
         """
@@ -291,8 +297,8 @@ class MlPipelineUtils:
         study.optimize(objective, n_trials=15)
 
         mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(f"{frequency}_forecast_model_{environment}")
-        registered_model_name = f"{frequency}_forecast_model_{environment}"
+        mlflow.set_experiment(f"{frequency.value}_forecast_model_{environment}")
+        registered_model_name = f"{frequency.value}_forecast_model_{environment}"
 
         mlflow.lightgbm.autolog(
             registered_model_name=registered_model_name, log_datasets=False
@@ -320,7 +326,7 @@ class MlPipelineUtils:
             )
 
             GCSUtils.upload_trained_model_to_gcs(
-                clf, project_id, bucket, f"{frequency}_forecast_model.pkl"
+                clf, project_id, bucket, f"{frequency.value}_forecast_model.pkl"
             )
 
         # def create_error_df(data, target, preds):
@@ -407,7 +413,9 @@ class MlPipelineUtils:
     #     upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
 
     @staticmethod
-    def generate_forecasts(data, project_name, bucket_name, frequency):
+    def generate_forecasts(
+        data: pd.DataFrame, project_name: str, bucket_name: str, frequency: Frequency
+    ):
         data = data.dropna(subset=["device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
@@ -420,6 +428,7 @@ class MlPipelineUtils:
             horizon,
         ):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
+            # TODO, before end of Q4: Need to optimize this method URGENTLY
             for i in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
                 df_tmp_no_ts = df_tmp.drop(
@@ -518,7 +527,7 @@ class MlPipelineUtils:
 
         forecasts = pd.DataFrame()
         forecast_model = GCSUtils.get_trained_model_from_gcs(
-            project_name, bucket_name, f"{frequency}_forecast_model.pkl"
+            project_name, bucket_name, f"{frequency.value}_forecast_model.pkl"
         )
         # error_model = GCSUtils.get_trained_model_from_gcs(
         #     project_name, bucket_name, f"{frequency}_error_model.pkl"
@@ -529,7 +538,7 @@ class MlPipelineUtils:
             test_copy = df_tmp[df_tmp["device_id"] == device]
             horizon = (
                 configuration.HOURLY_FORECAST_HORIZON
-                if frequency == "hourly"
+                if frequency == Frequency.HOURLY
                 else configuration.DAILY_FORECAST_HORIZON
             )
             device_forecasts = get_forecasts(
@@ -556,7 +565,7 @@ class MlPipelineUtils:
         ]
 
     @staticmethod
-    def save_forecasts_to_mongo(data, frequency):
+    def save_forecasts_to_mongo(data: pd.DataFrame, frequency: Frequency):
         device_ids = data["device_id"].unique()
         created_at = pd.to_datetime(datetime.now()).isoformat()
 
@@ -580,7 +589,10 @@ class MlPipelineUtils:
 
         for doc in forecast_results:
             try:
-                filter_query = {"device_id": doc["device_id"], "site_id": doc["site_id"]}
+                filter_query = {
+                    "device_id": doc["device_id"],
+                    "site_id": doc["site_id"],
+                }
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],
@@ -595,20 +607,32 @@ class MlPipelineUtils:
                 )
 
     @staticmethod
-    def detect_faults(data):
+    def detect_faults(data: pd.DataFrame):
         from sklearn.preprocessing import MinMaxScaler
         from sklearn.ensemble import IsolationForest
 
+        # scale data
         scaler = MinMaxScaler()
-        scaled_df = data.drop(['timestamp', 'device_id', 'latitude', 'longitude'], axis=1)
+        scaled_df = data.drop(
+            ["timestamp", "device_id", "latitude", "longitude"], axis=1
+        )
         scaled_df = scaler.fit_transform(scaled_df)
+
+        # fit model
         clf = IsolationForest(contamination=0.001)
         clf.fit(pd.DataFrame(scaled_df, columns=data.columns))
-        scaled_df['anomaly_value'] = clf.predict(pd.DataFrame(scaled_df, columns=data.columns))
+        scaled_df["anomaly_value"] = clf.predict(
+            pd.DataFrame(scaled_df, columns=data.columns)
+        )
 
-        anomalies = scaled_df[scaled_df['anomaly_value'] == -1].copy().drop(['anomaly_value'], axis=1)
+        # get anomalies
+        anomalies = (
+            scaled_df[scaled_df["anomaly_value"] == -1]
+            .copy()
+            .drop(["anomaly_value"], axis=1)
+        )
         anomalies = scaler.inverse_transform(anomalies)
         anomalies = pd.DataFrame(anomalies, columns=data.columns)
-        device_details = data[['device_id', 'latitude', 'longitude']].drop_duplicates()
-        anomalies = anomalies.merge(device_details, on='device_id', how='left')
+        device_details = data[["device_id", "latitude", "longitude"]].drop_duplicates()
+        anomalies = anomalies.merge(device_details, on="device_id", how="left")
         return anomalies
