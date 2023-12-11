@@ -28,10 +28,10 @@ spec:
               nodePort: 30201
               advertisedHost: $(STAGE_BROKER0_IP)
             - broker: 1
-              nodePort: 30201
+              nodePort: 30202
               advertisedHost: $(STAGE_BROKER1_IP)
             - broker: 2
-              nodePort: 30201
+              nodePort: 30203
               advertisedHost: $(STAGE_BROKER2_IP)
     config:
       auto.create.topics.enable: "false"
