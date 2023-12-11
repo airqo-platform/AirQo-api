@@ -585,8 +585,12 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          export CLUSTER_CONTROLLER_IP=${{ secrets.STAGE_CLUSTER_CONTROLLER_IP}}
-          sed -i 's/CLUSTER_CONTROLLER_IP/'"$CLUSTER_CONTROLLER_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          export STAGE_BROKER0_IP=${{ secrets.STAGE_BROKER0_IP }}
+          export STAGE_BROKER1_IP=${{ secrets.STAGE_BROKER1_IP }}
+          export STAGE_BROKER2_IP=${{ secrets.STAGE_BROKER2_IP }}
+          sed -i 's/$(STAGE_BROKER0_IP)/'"$STAGE_BROKER0_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/$(STAGE_BROKER1_IP)/'"$STAGE_BROKER1_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/$(STAGE_BROKER2_IP)/'"$STAGE_BROKER2_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
           kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
           kubectl rollout restart deployment strimzi-cluster-operator -n message-broker

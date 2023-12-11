@@ -26,7 +26,13 @@ spec:
           brokers:
             - broker: 0
               nodePort: 30201
-              advertisedHost: CLUSTER_CONTROLLER_IP
+              advertisedHost: $(STAGE_BROKER0_IP)
+            - broker: 1
+              nodePort: 30201
+              advertisedHost: $(STAGE_BROKER1_IP)
+            - broker: 2
+              nodePort: 30201
+              advertisedHost: $(STAGE_BROKER2_IP)
     config:
       auto.create.topics.enable: "false"
       offsets.topic.replication.factor: 3
