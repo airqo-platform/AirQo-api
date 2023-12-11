@@ -25,6 +25,67 @@ const kafka = new Kafka({
 });
 
 const createDevice = {
+  getVisibleDevices: async (request) => {
+    try {
+      const { deviceIds, userId } = request;
+      const user = await UserModel.findById(userId);
+      const userGroup = user ? user.group : null;
+
+      const aggregationPipeline = [
+        {
+          $match: {
+            _id: {
+              $in: deviceIds.map((deviceId) => ObjectId(deviceId)),
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "cohorts",
+            localField: "cohorts",
+            foreignField: "_id",
+            as: "cohortDetails",
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { "cohortDetails.visibility": { $exists: false } }, // Include devices not in any cohort
+              { "cohortDetails.visibility": true }, // Include devices in cohorts with visibility true
+              {
+                $and: [
+                  // Include devices in PRIVATE Cohort if the user belongs to the owning group
+                  { "cohortDetails.name": "PRIVATE" },
+                  { "cohortDetails.group": userGroup },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+          },
+        },
+      ];
+
+      const result = await DeviceModel.aggregate(aggregationPipeline);
+
+      const visibleDeviceIds = result.map((device) => device._id.toString());
+      return {
+        success: true,
+        data: { visibleDeviceIds },
+        message: "performed device ID preprocessing",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   doesDeviceSearchExist: async (request) => {
     try {
       const { filter, tenant } = request;
@@ -866,7 +927,6 @@ const createDevice = {
       };
     }
   },
-
   refresh: async (request) => {
     try {
       return {
