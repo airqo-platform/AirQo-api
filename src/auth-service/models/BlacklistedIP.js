@@ -81,7 +81,6 @@ BlacklistedIPSchema.statics = {
         });
       }
       return {
-        error: response,
         errors: response,
         message: "validation errors for some of the provided fields",
         success: false,
