@@ -109,13 +109,13 @@ const consumeHourlyMeasurements = async (messageData) => {
             site_latitude,
             site_longitude,
           } = value[detail.path[0]];
-          return {
-            message: detail.message,
-            key: detail.context.key,
-            value: detail.context.value,
-            device_number: device_number ? device_number : undefined,
-            timestamp: timestamp ? timestamp : undefined,
-          };
+          // return {
+          //   message: detail.message,
+          //   key: detail.context.key,
+          //   value: detail.context.value,
+          //   device_number: device_number ? device_number : undefined,
+          //   timestamp: timestamp ? timestamp : undefined,
+          // };
         });
         // logger.error(
         //   `KAFKA: Input validation formatted errors -- ${JSON.stringify(
@@ -130,7 +130,7 @@ const consumeHourlyMeasurements = async (messageData) => {
         // logger.info(
         //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
         // );
-      } else {
+      }
         logObject("value", value);
         logObject("cleanedMeasurements", cleanedMeasurements);
         const request = {
@@ -146,11 +146,11 @@ const consumeHourlyMeasurements = async (messageData) => {
         );
 
         if (responseFromInsertMeasurements.success === false) {
-          //         logger.error(
-          //             `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
-          //   responseFromInsertMeasurements
-          // )}`
-          //         );
+          logger.error(
+            `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+              responseFromInsertMeasurements
+            )}`
+          );
         } else if (responseFromInsertMeasurements.success === true) {
           // logger.info(
           //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
@@ -158,7 +158,7 @@ const consumeHourlyMeasurements = async (messageData) => {
           //     "")}`
           // );
         }
-      }
+
     }
   } catch (error) {
     logObject("KAFKA error for consumeHourlyMeasurements()", error);
