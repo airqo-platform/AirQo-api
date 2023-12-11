@@ -1885,7 +1885,7 @@ eventSchema.statics = {
           ) {
             if (record.timeDifferenceHours > 14) {
               logObject(
-                `Time difference exceeds 14 hours for device: ${
+                `Last refreshed time difference exceeds 14 hours for device: ${
                   record.device ? record.device : ""
                 }, frequency ${
                   record.frequency ? record.frequency : ""
@@ -1894,13 +1894,13 @@ eventSchema.statics = {
                 }`
               );
               logger.info(
-                `Time difference exceeds 14 hours for device: ${
+                `Last refreshed time difference exceeds 14 hours for device: ${
                   record.device ? record.device : ""
                 }, Frequency: ${
                   record.frequency ? record.frequency : ""
                 }, Time: ${record.time ? record.time : ""}, Site Name: ${
                   record.siteDetails ? record.siteDetails.name : ""
-                } has measurements that`
+                }`
               );
             }
           }
