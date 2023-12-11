@@ -258,26 +258,6 @@ const isIPBlacklisted = async ({
   token_name = "",
   endpoint = "",
 } = {}) => {
-  const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
-  if (blacklistedIP) {
-    return true; // IP is blacklisted
-  }
-
-  const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
-  if (whitelistedIP) {
-    return false; // IP is whitelisted
-  }
-
-  // Check if the IP falls within any blacklisted range
-  const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
-  const isInRange = blacklistedRanges.some((range) =>
-    rangeCheck(ip, range.range)
-  );
-
-  if (isInRange) {
-    return true; // IP is within a blacklisted range
-  }
-
   try {
     const filter = { ip };
     const update = {
@@ -298,6 +278,26 @@ const isIPBlacklisted = async ({
     } else {
       logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
     }
+  }
+
+  const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
+  if (blacklistedIP) {
+    return true; // IP is blacklisted
+  }
+
+  const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
+  if (whitelistedIP) {
+    return false; // IP is whitelisted
+  }
+
+  // Check if the IP falls within any blacklisted range
+  const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
+  const isInRange = blacklistedRanges.some((range) =>
+    rangeCheck(ip, range.range)
+  );
+
+  if (isInRange) {
+    return true; // IP is within a blacklisted range
   }
 
   return false;
