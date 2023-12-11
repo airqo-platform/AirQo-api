@@ -278,11 +278,11 @@ const isIPBlacklisted = async ({
     return true; // IP is within a blacklisted range
   }
 
-  try {
-    await UnknownIPModel("airqo").deleteMany({ _id: null });
-  } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-  }
+  // try {
+  //   await UnknownIPModel("airqo").deleteMany({ _id: null });
+  // } catch (error) {
+  //   logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+  // }
 
   try {
     // const UnknownIPDetails = await UnknownIPModel("airqo")
@@ -302,7 +302,7 @@ const isIPBlacklisted = async ({
 
     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
   } catch (error) {
-    // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
   return false;
 };
