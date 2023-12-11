@@ -278,11 +278,11 @@ const isIPBlacklisted = async ({
     return true; // IP is within a blacklisted range
   }
 
-  try {
-    await UnknownIPModel("airqo").deleteMany({ _id: null });
-  } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-  }
+  // try {
+  //   await UnknownIPModel("airqo").deleteMany({ _id: null });
+  // } catch (error) {
+  //   logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+  // }
 
   try {
     // const UnknownIPDetails = await UnknownIPModel("airqo")
@@ -302,7 +302,7 @@ const isIPBlacklisted = async ({
 
     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
   } catch (error) {
-    // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
   }
   return false;
 };
@@ -671,16 +671,16 @@ const controlAccess = {
           logObject("service", service);
           logObject("userAction", userAction);
 
+          const {
+            name = "",
+            token = "",
+            user: { email = "", userName = "", _id = "" } = {},
+          } = responseFromListAccessToken.data[0];
+
+          logObject("email", email);
+          logObject("userName", userName);
+
           if (service && userAction) {
-            const {
-              name = "",
-              token = "",
-              user: { email = "", userName = "", _id = "" } = {},
-            } = responseFromListAccessToken.data[0];
-
-            logObject("email", email);
-            logObject("userName", userName);
-
             if (!isEmpty(clientIp)) {
               const ip = clientIp;
               const token_name = name;
@@ -697,6 +697,11 @@ const controlAccess = {
                 );
                 return createUnauthorizedResponse();
               }
+            } else {
+              logger.info(
+                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
+              );
+              return createUnauthorizedResponse();
             }
 
             if (!isEmpty(_id)) {
@@ -718,6 +723,11 @@ const controlAccess = {
             });
 
             return createValidTokenResponse();
+          } else {
+            logger.info(
+              `🚨🚨 An AirQo Analytics Access Token is being used without known service -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} -- ENDPOINT: ${endpoint}`
+            );
+            // return createUnauthorizedResponse();
           }
         }
       } else if (responseFromListAccessToken.success === false) {
