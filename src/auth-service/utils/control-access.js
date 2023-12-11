@@ -282,10 +282,10 @@ const isIPBlacklisted = async ({
     const filter = { ip };
     const update = {
       $addToSet: {
-        emails: { $each: emails }, // Use $each to add multiple elements
-        tokens: { $each: tokens },
-        token_names: { $each: token_names },
-        endpoints: { $each: endpoints },
+        emails: email,
+        tokens: token,
+        token_names: token_name,
+        endpoints: endpoint,
       },
     };
     const options = { upsert: true, new: true, runValidators: true };
