@@ -671,16 +671,16 @@ const controlAccess = {
           logObject("service", service);
           logObject("userAction", userAction);
 
+          const {
+            name = "",
+            token = "",
+            user: { email = "", userName = "", _id = "" } = {},
+          } = responseFromListAccessToken.data[0];
+
+          logObject("email", email);
+          logObject("userName", userName);
+
           if (service && userAction) {
-            const {
-              name = "",
-              token = "",
-              user: { email = "", userName = "", _id = "" } = {},
-            } = responseFromListAccessToken.data[0];
-
-            logObject("email", email);
-            logObject("userName", userName);
-
             if (!isEmpty(clientIp)) {
               const ip = clientIp;
               const token_name = name;
@@ -724,6 +724,9 @@ const controlAccess = {
 
             return createValidTokenResponse();
           } else {
+            logger.info(
+              `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp}`
+            );
             return createUnauthorizedResponse();
           }
         }
