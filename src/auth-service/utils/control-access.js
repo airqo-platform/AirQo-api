@@ -697,6 +697,11 @@ const controlAccess = {
                 );
                 return createUnauthorizedResponse();
               }
+            } else {
+              logger.info(
+                `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
+              );
+              return createUnauthorizedResponse();
             }
 
             if (!isEmpty(_id)) {
@@ -718,6 +723,8 @@ const controlAccess = {
             });
 
             return createValidTokenResponse();
+          } else {
+            return createUnauthorizedResponse();
           }
         }
       } else if (responseFromListAccessToken.success === false) {
