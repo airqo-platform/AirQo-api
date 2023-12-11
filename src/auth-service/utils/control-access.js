@@ -278,32 +278,28 @@ const isIPBlacklisted = async ({
     return true; // IP is within a blacklisted range
   }
 
-  // try {
-  //   await UnknownIPModel("airqo").deleteMany({ _id: null });
-  // } catch (error) {
-  //   logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-  // }
-
   try {
-    // const UnknownIPDetails = await UnknownIPModel("airqo")
-    //   .findOne({ ip })
-    //   .select("_id")
-    //   .lean();
-    const options = { upsert: true, new: true };
+    const filter = { ip };
     const update = {
       $addToSet: {
-        endpoints: endpoint,
         emails: email,
         tokens: token,
         token_names: token_name,
-        ip,
+        endpoints: endpoint,
       },
     };
+    const options = { upsert: true, new: true, runValidators: true };
 
-    await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
+    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    if (error.name === "MongoError" && error.code === 11000) {
+      // Handle duplicate key error (IP address already exists)
+      logger.error(`IP address ${ip} already exists in the database.`);
+    } else {
+      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    }
   }
+
   return false;
 };
 
