@@ -699,7 +699,7 @@ const controlAccess = {
               }
             } else {
               logger.info(
-                `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
+                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
               );
               return createUnauthorizedResponse();
             }
@@ -725,9 +725,9 @@ const controlAccess = {
             return createValidTokenResponse();
           } else {
             logger.info(
-              `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp}`
+              `🚨🚨 An AirQo Analytics Access Token is being used without known service -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} -- ENDPOINT: ${endpoint}`
             );
-            return createUnauthorizedResponse();
+            // return createUnauthorizedResponse();
           }
         }
       } else if (responseFromListAccessToken.success === false) {
