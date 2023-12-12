@@ -392,6 +392,62 @@ const createAccessToken = {
       });
     }
   },
+  blackListIps: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = req;
+      if (isEmpty(req.query.tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      const responseFromBlackListIps = await controlAccessUtil.blackListIps(
+        request
+      );
+
+      if (responseFromBlackListIps.success === true) {
+        const status = responseFromBlackListIps.status
+          ? responseFromBlackListIps.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          message: responseFromBlackListIps.message
+            ? responseFromBlackListIps.message
+            : "",
+          blacklisted_ips: responseFromBlackListIps.data
+            ? responseFromBlackListIps.data
+            : [],
+        });
+      } else if (responseFromBlackListIps.success === false) {
+        const status = responseFromBlackListIps.status
+          ? responseFromBlackListIps.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromBlackListIps.message
+            ? responseFromBlackListIps.message
+            : "",
+          errors: responseFromBlackListIps.errors
+            ? responseFromBlackListIps.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   removeBlacklistedIp: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

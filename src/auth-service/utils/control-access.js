@@ -3669,6 +3669,77 @@ const controlAccess = {
       };
     }
   },
+  blackListIps: async (request) => {
+    try {
+      const { ips, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ips || !Array.isArray(ips) || ips.length === 0) {
+        return {
+          success: false,
+          message: "Invalid input. Please provide an array of IP addresses.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "Invalid input. Please provide an array of IP addresses.",
+          },
+        };
+      }
+
+      const responses = await Promise.all(
+        ips.map(async (ip) => {
+          const result = await BlacklistedIPModel(tenant).register({ ip });
+          return { ip, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.ip);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.ip);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IPs have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IPs provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   removeBlacklistedIp: async (request) => {
     try {
       const { ip, tenant } = {
