@@ -736,9 +736,17 @@ const controlAccess = {
   listAccessToken: async (request) => {
     try {
       const { query, params } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip } = query;
+      const { token } = params;
+      if (isEmpty(token)) {
+        return {
+          success: false,
+          status: httpStatus.NOT_IMPLEMENTED,
+          message: "service is temporarily disabled",
+          errors: { message: "service is temporarily disabled" },
+        };
+      }
+
       let filter = {};
       const responseFromGenerateFilter = generateFilter.tokens(request);
       if (responseFromGenerateFilter.success === false) {

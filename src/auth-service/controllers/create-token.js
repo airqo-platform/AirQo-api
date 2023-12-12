@@ -84,7 +84,7 @@ const createAccessToken = {
       logText("we are in baby");
       let { tenant, id } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       logElement("tenant", tenant);
       let request = req;
