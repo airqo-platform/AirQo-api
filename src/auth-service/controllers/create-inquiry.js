@@ -1,11 +1,10 @@
 const httpStatus = require("http-status");
 const createInquiryUtil = require("../utils/create-inquiry");
-const generateFilter = require("../utils/generate-filter");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const generateFilter = require("@utils/generate-filter");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -15,16 +14,13 @@ const logger = log4js.getLogger(
 const inquire = {
   create: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        const errorResponse = badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
-        return errorResponse;
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
@@ -74,13 +70,12 @@ const inquire = {
 
   list: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -145,13 +140,12 @@ const inquire = {
 
   delete: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -212,13 +206,12 @@ const inquire = {
   },
   update: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;

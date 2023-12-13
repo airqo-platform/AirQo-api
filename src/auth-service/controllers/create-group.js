@@ -1,8 +1,7 @@
 const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createGroupUtil = require("@utils/create-group");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { logText, logElement, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -17,14 +16,12 @@ const createGroup = {
     try {
       const { query, params } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -71,14 +68,12 @@ const createGroup = {
     try {
       const { query, params } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -133,14 +128,12 @@ const createGroup = {
       logText("unAssignPermissionFromRole....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -189,14 +182,12 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -247,14 +238,12 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -304,14 +293,12 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let request = req;
@@ -359,13 +346,12 @@ const createGroup = {
   assignUsers: async (req, res) => {
     try {
       logText("assign many users....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -417,13 +403,12 @@ const createGroup = {
   assignOneUser: async (req, res) => {
     try {
       logText("assign one user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -474,13 +459,12 @@ const createGroup = {
   unAssignUser: async (req, res) => {
     try {
       logText("unAssign user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -532,13 +516,12 @@ const createGroup = {
   unAssignManyUsers: async (req, res) => {
     try {
       logText("unAssign user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -590,14 +573,12 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -650,16 +631,15 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
+
       let request = req;
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
@@ -708,14 +688,12 @@ const createGroup = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -767,14 +745,12 @@ const createGroup = {
   listSummary: async (req, res) => {
     try {
       logText("listing summary of group....");
-
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 

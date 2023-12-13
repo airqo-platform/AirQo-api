@@ -1,8 +1,7 @@
 const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const controlAccessUtil = require("@utils/control-access");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -15,14 +14,12 @@ const createRole = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -72,14 +69,12 @@ const createRole = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -132,14 +127,12 @@ const createRole = {
       const { query, body } = req;
       let { tenant } = query;
 
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -186,14 +179,12 @@ const createRole = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -240,14 +231,12 @@ const createRole = {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -295,14 +284,12 @@ const createRole = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -355,14 +342,12 @@ const createRole = {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       if (isEmpty(tenant)) {
@@ -411,14 +396,12 @@ const createRole = {
       logText("assignUserToRole...");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -467,14 +450,12 @@ const createRole = {
       logText("assignManyUsersToRole...");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -524,14 +505,12 @@ const createRole = {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       /**
@@ -589,14 +568,12 @@ const createRole = {
       logText("assignManyUsersToRole...");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -646,14 +623,12 @@ const createRole = {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -701,14 +676,12 @@ const createRole = {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       if (isEmpty(tenant)) {
@@ -755,14 +728,12 @@ const createRole = {
       logText("assignPermissionToRole....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -812,14 +783,12 @@ const createRole = {
       logText("unAssignPermissionFromRole....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -869,14 +838,12 @@ const createRole = {
       logText("unAssign Many Permissions From Role....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -928,14 +895,12 @@ const createRole = {
       logText("  updateRolePermissions....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 

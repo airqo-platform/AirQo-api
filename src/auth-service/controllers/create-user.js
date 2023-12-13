@@ -1,8 +1,7 @@
 const httpStatus = require("http-status");
 const { logText, logObject } = require("@utils/log");
 const createUserUtil = require("@utils/create-user");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const controlAccessUtil = require("@utils/control-access");
 const constants = require("@config/constants");
@@ -15,18 +14,12 @@ const logger = log4js.getLogger(
 const createUser = {
   listStatistics: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       logText(".....................................");
@@ -74,18 +67,12 @@ const createUser = {
   },
   listLogs: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       logText(".....................................");
@@ -131,18 +118,12 @@ const createUser = {
   },
   listCache: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       logText(".....................................");
@@ -191,18 +172,12 @@ const createUser = {
   },
   list: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       logText(".....................................");
@@ -251,18 +226,12 @@ const createUser = {
   },
   listUsersAndAccessRequests: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       logText(".....................................");
@@ -344,23 +313,29 @@ const createUser = {
       });
     }
   },
-  verify: (req, res) => {
-    logText("..................................");
-    logText("user verify......");
-    res.status(httpStatus.OK).send("this token is valid");
+  verify: async (req, res) => {
+    try {
+      logText("..................................");
+      logText("user verify......");
+      res.status(httpStatus.OK).send("this token is valid");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      res
+        .status(httpStatus.INTERNAL_SERVER_ERROR)
+        .send("Internal Server Error");
+    }
   },
   verifyEmail: async (req, res) => {
     try {
       const { query, body } = req;
       let { tenant } = query;
       logText("we are verifying the email.....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let request = req;
@@ -461,21 +436,12 @@ const createUser = {
         return res.status(400).json({ errors: [{ msg: "Invalid CSV file" }] });
       }
 
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Bad Request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -519,21 +485,12 @@ const createUser = {
   },
   lookUpFirebaseUser: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "User does not exist",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -579,21 +536,12 @@ const createUser = {
   },
   syncAnalyticsAndMobile: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Unable to sync Analytics and Mobile Accounts",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -631,21 +579,12 @@ const createUser = {
   },
   signUpWithFirebase: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Unable to signup with Firebase",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -689,22 +628,12 @@ const createUser = {
   },
   loginWithFirebase: async (req, res) => {
     try {
-      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Unable to signup with Firebase",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -750,21 +679,12 @@ const createUser = {
   },
   verifyFirebaseCustomToken: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Unable to signup with Firebase",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -806,21 +726,12 @@ const createUser = {
   },
   createFirebaseUser: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "Unable to create user on firebase",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -865,19 +776,12 @@ const createUser = {
   },
   sendFeedback: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -923,18 +827,12 @@ const createUser = {
     logText("...........................................");
     logText("forgot password...");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -986,18 +884,12 @@ const createUser = {
     logText("..................................................");
     logText("register user.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -1052,13 +944,12 @@ const createUser = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       if (isEmpty(tenant)) {
@@ -1107,18 +998,12 @@ const createUser = {
     logText("user login......");
     try {
       let { tenant } = req.query;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -1140,6 +1025,8 @@ const createUser = {
         });
       }
 
+      logObject("req,auth", req.auth);
+
       if (req.auth.success === true) {
         // logObject("req.user", req.user);
         logObject("req.user.toAuthJSON()", await req.user.toAuthJSON());
@@ -1150,22 +1037,29 @@ const createUser = {
           isActive: true,
         });
 
-        return res.status(httpStatus.OK).json(await req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(user);
       } else {
         if (req.auth.error) {
-          return res.status(httpStatus.BAD_REQUEST).json({
-            success: req.auth.success,
-            error: req.auth.error,
-            message: req.auth.message,
-          });
+          throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+          // throw new Error(req.auth.message);
+          // return res.status(httpStatus.BAD_REQUEST).json({
+          //   success: req.auth.success,
+          //   error: req.auth.error,
+          //   message: req.auth.message,
+          // });
         }
-        return res.status(httpStatus.BAD_REQUEST).json({
-          success: req.auth.success,
-          message: req.auth.message,
-        });
+        throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+        // throw new Error(req.auth.message);
+        // return res.status(httpStatus.BAD_REQUEST).json({
+        //   success: req.auth.success,
+        //   message: req.auth.message,
+        // });
       }
     } catch (error) {
+      logObject("theeee error", error);
       logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      throw new HttpError(error.message, httpStatus.BAD_REQUEST);
+      throw new Error(error.message);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1209,18 +1103,12 @@ const createUser = {
     logText("..................................");
     logText("user guest login......");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       req.session.guest = true;
@@ -1254,13 +1142,12 @@ const createUser = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -1311,18 +1198,12 @@ const createUser = {
     try {
       logText(".................................................");
       logText("inside user update................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -1365,18 +1246,12 @@ const createUser = {
   },
   loginInViaEmail: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -1422,18 +1297,12 @@ const createUser = {
   },
   emailAuth: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       const { body, query, params } = req;
@@ -1483,18 +1352,12 @@ const createUser = {
   },
   updateForgottenPassword: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let { tenant } = req.query;
@@ -1541,18 +1404,12 @@ const createUser = {
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -1600,18 +1457,12 @@ const createUser = {
   },
   subscribeToNewsLetter: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let request = {};

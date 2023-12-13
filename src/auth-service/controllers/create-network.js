@@ -1,8 +1,7 @@
 const { logElement, logText, logObject } = require("@utils/log");
 const httpStatus = require("http-status");
 const createNetworkUtil = require("@utils/create-network");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -67,13 +66,12 @@ const createNetwork = {
       logText("we are creating the network....");
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -127,13 +125,12 @@ const createNetwork = {
   assignUsers: async (req, res) => {
     try {
       logText("assign many users....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -185,13 +182,12 @@ const createNetwork = {
   assignOneUser: async (req, res) => {
     try {
       logText("assign one user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -242,13 +238,12 @@ const createNetwork = {
   unAssignUser: async (req, res) => {
     try {
       logText("unAssign user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -300,13 +295,12 @@ const createNetwork = {
   unAssignManyUsers: async (req, res) => {
     try {
       logText("unAssign user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -357,13 +351,12 @@ const createNetwork = {
   setManager: async (req, res) => {
     try {
       logText("set the manager....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -413,13 +406,12 @@ const createNetwork = {
   update: async (req, res) => {
     try {
       logText("update user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -471,13 +463,12 @@ const createNetwork = {
   refresh: async (req, res) => {
     try {
       logText("update user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -531,13 +522,12 @@ const createNetwork = {
   delete: async (req, res) => {
     try {
       logText("delete user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -599,13 +589,12 @@ const createNetwork = {
     try {
       logText("listing users....");
 
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -660,13 +649,12 @@ const createNetwork = {
     try {
       logText("listing summary of network....");
 
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -723,14 +711,12 @@ const createNetwork = {
       logText("unAssignPermissionFromRole....");
       const { query, body } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -778,13 +764,12 @@ const createNetwork = {
   listAssignedUsers: async (req, res) => {
     try {
       logText("listing assigned users....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -847,13 +832,12 @@ const createNetwork = {
   listAvailableUsers: async (req, res) => {
     try {
       logText("listing available users....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
