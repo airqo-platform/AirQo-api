@@ -1,6 +1,5 @@
-const { validationResult } = require("express-validator");
 const createFavoriteUtil = require("@utils/create-favorite");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const { logText, logObject } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
@@ -12,67 +11,64 @@ const logger = log4js.getLogger(
 
 const createFavorite = {
   syncFavorites: async (req, res) => {
-     try {
+    try {
       logText("Syncing Favorites.....");
-       const { query } = req;
-       let { tenant } = query;
-       const hasErrors = !validationResult(req).isEmpty();
-       logObject("hasErrors", hasErrors);
-       if (hasErrors) {
-         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-         return badRequest(
-           res,
-           "bad request errors",
-           convertErrorArrayToObject(nestedErrors)
-         );
-       }
-     
+      const { query } = req;
+      let { tenant } = query;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
+          "bad request errors",
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
+        );
+      }
+
       let request = Object.assign({}, req);
-       if (isEmpty(tenant)) {
-         request["query"]["tenant"] = constants.DEFAULT_TENANT;
-       }
-     
+      if (isEmpty(tenant)) {
+        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+      }
+
       const responseFromSyncFavorites = await createFavoriteUtil.syncFavorites(
-         request
-       );
- 
+        request
+      );
+
       if (responseFromSyncFavorites.success === true) {
-         const status = responseFromSyncFavorites.status
-           ? responseFromSyncFavorites.status
-           : httpStatus.OK;
-         return res.status(status).json({
-           success: true,
-           message: responseFromSyncFavorites.message
-             ? responseFromSyncFavorites.message
-             : "",
-           favorites: responseFromSyncFavorites.data
-             ? responseFromSyncFavorites.data
-             : [],
-         });
-       } else if (responseFromSyncFavorites.success === false) {
-         const status = responseFromSyncFavorites.status
-           ? responseFromSyncFavorites.status
-           : httpStatus.INTERNAL_SERVER_ERROR;
-         return res.status(status).json({
-           success: false,
-           message: responseFromSyncFavorites.message
-             ? responseFromSyncFavorites.message
-             : "",
-           errors: responseFromSyncFavorites.errors
-             ? responseFromSyncFavorites.errors
-             : { message: "Internal Server Error" },
-         });
-       }
-     } catch (err) {
+        const status = responseFromSyncFavorites.status
+          ? responseFromSyncFavorites.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromSyncFavorites.message
+            ? responseFromSyncFavorites.message
+            : "",
+          favorites: responseFromSyncFavorites.data
+            ? responseFromSyncFavorites.data
+            : [],
+        });
+      } else if (responseFromSyncFavorites.success === false) {
+        const status = responseFromSyncFavorites.status
+          ? responseFromSyncFavorites.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromSyncFavorites.message
+            ? responseFromSyncFavorites.message
+            : "",
+          errors: responseFromSyncFavorites.errors
+            ? responseFromSyncFavorites.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (err) {
       logObject("error", error);
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-         success: false,
-         message: "Internal Server Error",
-         errors: { message: error.message },
-       });
-     }
-
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
   },
 
   create: async (req, res) => {
@@ -80,14 +76,12 @@ const createFavorite = {
       logText("creating Favorite.....");
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -142,14 +136,12 @@ const createFavorite = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
       let request = Object.assign({}, req);
@@ -199,14 +191,12 @@ const createFavorite = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -259,14 +249,12 @@ const createFavorite = {
     try {
       const { query } = req;
       let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 

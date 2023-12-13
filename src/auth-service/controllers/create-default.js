@@ -1,26 +1,24 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("@utils/log");
+const { logText, logObject } = require("@utils/log");
 const createDefaultUtil = require("../utils/create-default");
-const generateFilter = require("../utils/generate-filter");
-const { validationResult } = require("express-validator");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- defaults-controller`
 );
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 
 const defaults = {
   update: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -66,14 +64,12 @@ const defaults = {
 
   create: async (req, res) => {
     try {
-      let { body, query } = req;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -122,13 +118,12 @@ const defaults = {
     try {
       logText(".....................................");
       logText("list all defaults by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
@@ -175,13 +170,12 @@ const defaults = {
   delete: async (req, res) => {
     try {
       logText("deleting default..........");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        throw new HttpError(
           "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+          httpStatus.BAD_REQUEST,
+          extractErrorsFromRequest(req)
         );
       }
 
