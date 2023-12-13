@@ -250,7 +250,7 @@ class WeatherDataUtils:
     @staticmethod
     def fetch_openweathermap_data_for_sites(sites):
         def process_batch(batch_of_coordinates):
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
                     batch_of_coordinates,
@@ -269,13 +269,13 @@ class WeatherDataUtils:
                     "pressure": result["main"]["pressure"],
                     "wind_speed": result["wind"]["speed"],
                     "wind_direction": result["wind"]["deg"],
-                    "wind_gust": result["wind"]["gust"],
+                    # "wind_gust": result["wind"]["gust"],
                     "weather_description": result["weather"][0]["description"],
                     "sea_level": result["main"]["sea_level"],
                     "ground_level": result["main"]["grnd_level"],
                     "visibility": result["visibility"],
                     "cloudiness": result["clouds"]["all"],
-                    "rain": result["rain"]["1h"],
+                    # "rain": result["rain"]["1h"],
                 }
                 for result in results
                 if "main" in result
@@ -287,13 +287,13 @@ class WeatherDataUtils:
 
         weather_data = []
         for i in range(
-            0, len(coordinates_tuples), int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE)
+            0, len(coordinates_tuples), int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
         ):
             batch = coordinates_tuples[
-                i : i + int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE)
+                i : i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
             ]
             weather_data.extend(process_batch(batch))
-            if i + int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE) < len(
+            if i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE) < len(
                 coordinates_tuples
             ):
                 time.sleep(60)

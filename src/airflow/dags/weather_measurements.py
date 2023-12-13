@@ -255,7 +255,10 @@ def openweathermap_data():
     @task()
     def save_weather_data(data):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        BigQueryApi.save_data_to_bigquery(data=data, table=BigQueryApi().openweathermap_table)
+
+        BigQueryApi.save_data_to_bigquery(
+            data=data, table=BigQueryApi().openweathermap_table
+        )
 
     sites = retrieve_sites()
     weather_data = retrieve_weather_data(sites=sites)

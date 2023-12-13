@@ -53,7 +53,9 @@ def make_forecasts():
 
     @task()
     def save_hourly_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(data, configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE)
+        BigQueryApi().save_data_to_bigquery(
+            data, configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
+        )
 
     @task()
     def save_hourly_forecasts_to_mongo(data):
@@ -95,7 +97,9 @@ def make_forecasts():
 
     @task()
     def save_daily_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(data, configuration.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE)
+        BigQueryApi().save_data_to_bigquery(
+            data, configuration.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE
+        )
 
     @task()
     def save_daily_forecasts_to_mongo(data):

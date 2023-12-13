@@ -737,7 +737,7 @@ class BigQueryApi:
             print("Error fetching data from bigquery", {e})
 
     @staticmethod
-    def save_data_to_bigquery(data: pd.DataFrame, table):
+    def save_data_to_bigquery(data: pd.DataFrame, table: str):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS
