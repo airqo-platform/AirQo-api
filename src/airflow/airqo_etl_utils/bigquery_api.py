@@ -50,7 +50,7 @@ class BigQueryApi:
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
-
+        self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
@@ -698,9 +698,9 @@ class BigQueryApi:
 
     #
     def fetch_data(
-            self,
-            start_date_time: str,
-            job_type: str,
+        self,
+        start_date_time: str,
+        job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
@@ -737,12 +737,12 @@ class BigQueryApi:
             print("Error fetching data from bigquery", {e})
 
     @staticmethod
-    def save_forecasts_to_bigquery(df, table):
+    def save_data_to_bigquery(data: pd.DataFrame, table):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS
         )
-        df.to_gbq(
+        data.to_gbq(
             destination_table=f"{table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
             if_exists="append",

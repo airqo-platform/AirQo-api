@@ -1,9 +1,15 @@
+import concurrent.futures
+import time
+from datetime import datetime
+
 import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
+from .config import configuration
 from .constants import DataSource, Tenant
 from .data_validator import DataValidationUtils
+from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
 
@@ -240,3 +246,56 @@ class WeatherDataUtils:
         cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
 
         return Utils.populate_missing_columns(data=data, cols=cols)
+
+    @staticmethod
+    def fetch_openweathermap_data_for_sites(sites):
+        def process_batch(batch_of_coordinates):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                results = executor.map(
+                    OpenWeatherApi.get_current_weather_for_each_site,
+                    batch_of_coordinates,
+                )
+
+            return [
+                {
+                    # add a key for current timestamp in utc
+                    "timestamp": datetime.utcfromtimestamp(result["dt"]).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "latitude": result["coord"]["lat"],
+                    "longitude": result["coord"]["lon"],
+                    "temperature": result["main"]["temp"],
+                    "humidity": result["main"]["humidity"],
+                    "pressure": result["main"]["pressure"],
+                    "wind_speed": result["wind"]["speed"],
+                    "wind_direction": result["wind"]["deg"],
+                    "wind_gust": result["wind"]["gust"],
+                    "weather_description": result["weather"][0]["description"],
+                    "sea_level": result["main"]["sea_level"],
+                    "ground_level": result["main"]["grnd_level"],
+                    "visibility": result["visibility"],
+                    "cloudiness": result["clouds"]["all"],
+                    "rain": result["rain"]["1h"],
+                }
+                for result in results
+                if "main" in result
+            ]
+
+        coordinates_tuples = []
+        for site in sites:
+            coordinates_tuples.append((site.get("latitude"), site.get("longitude")))
+
+        weather_data = []
+        for i in range(
+            0, len(coordinates_tuples), int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE)
+        ):
+            batch = coordinates_tuples[
+                i : i + int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE)
+            ]
+            weather_data.extend(process_batch(batch))
+            if i + int(configuration.OPEN_WEATHER_DATA_BATCH_SIZE) < len(
+                coordinates_tuples
+            ):
+                time.sleep(60)
+
+        return pd.DataFrame(weather_data)
