@@ -67,7 +67,6 @@ class GCSUtils:
 
 
 class ForecastUtils:
-
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
         required_columns = {
@@ -86,7 +85,11 @@ class ForecastUtils:
             raise ValueError(
                 "datetime conversion error, please provide timestamp in valid format"
             )
-        group_columns = ["device_id"] + additional_columns if job_type == 'prediction' else ["device_id"]
+        group_columns = (
+            ["device_id"] + additional_columns
+            if job_type == "prediction"
+            else ["device_id"]
+        )
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
@@ -98,8 +101,8 @@ class ForecastUtils:
             )
             data.reset_index(inplace=True)
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
-                lambda x: x.interpolate(method="linear", limit_direction="both")
-            )
+            lambda x: x.interpolate(method="linear", limit_direction="both")
+        )
         data = data.dropna(subset=["pm2_5"])
         return data
 
@@ -596,7 +599,10 @@ class ForecastUtils:
 
         for doc in forecast_results:
             try:
-                filter_query = {"device_id": doc["device_id"], "site_id": doc["site_id"]}
+                filter_query = {
+                    "device_id": doc["device_id"],
+                    "site_id": doc["site_id"],
+                }
                 update_query = {
                     "$set": {
                         "pm2_5": doc["pm2_5"],

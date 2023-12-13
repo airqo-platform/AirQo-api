@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.constants import Tenant
 
 
 @dag(
@@ -231,7 +232,41 @@ def weather_data_realtime():
     save_hourly_data_to_bigquery(averaged_data)
 
 
+@dag(
+    "OpenWeatherMap-Weather-Measurements",
+    schedule="hourly",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["weather", "openweathermap"],
+)
+def openweathermap_data():
+    @task()
+    def retrieve_sites():
+        from airqo_etl_utils.airqo_api import AirQoApi
+
+        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
+
+    @task()
+    def retrieve_weather_data(sites):
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.fetch_openweathermap_data_for_sites(sites=sites)
+
+    @task()
+    def save_weather_data(data):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        BigQueryApi.save_data_to_bigquery(
+            data=data, table=BigQueryApi().openweathermap_table
+        )
+
+    sites = retrieve_sites()
+    weather_data = retrieve_weather_data(sites=sites)
+    save_weather_data(data=weather_data)
+
+
 weather_data_historical_raw_measurements()
 weather_data_historical_hourly_measurements()
 weather_data_realtime()
 weather_data_cleanup_measurements()
+openweathermap_data()
