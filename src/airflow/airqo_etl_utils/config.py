@@ -81,6 +81,11 @@ class Config:
     TAHMO_API_KEY = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
     TAHMO_API_SECRET = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
 
+
+    # OpenWeather
+    OPEN_WEATHER_API_KEY = os.getenv("OPEN_WEATHER_API_KEY")
+    OPEN_WEATHER_BASE_URL = os.getenv("OPEN_WEATHER_BASE_URL")
+    OPEN_WEATHER_DATA_BATCH_SIZE = os.getenv("OPEN_WEATHER_DATA_BATCH_SIZE")
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092").split(",")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "1,2,3,4").split(",")
