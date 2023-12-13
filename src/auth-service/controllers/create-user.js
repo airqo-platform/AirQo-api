@@ -344,10 +344,17 @@ const createUser = {
       });
     }
   },
-  verify: (req, res) => {
-    logText("..................................");
-    logText("user verify......");
-    res.status(httpStatus.OK).send("this token is valid");
+  verify: async (req, res) => {
+    try {
+      logText("..................................");
+      logText("user verify......");
+      res.status(httpStatus.OK).send("this token is valid");
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      res
+        .status(httpStatus.INTERNAL_SERVER_ERROR)
+        .send("Internal Server Error");
+    }
   },
   verifyEmail: async (req, res) => {
     try {
