@@ -9,6 +9,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const SearchHistorySchema = new mongoose.Schema(
   {
@@ -84,20 +85,19 @@ SearchHistorySchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        success: false,
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "validation errors for some of the provided input",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 
@@ -139,13 +139,12 @@ SearchHistorySchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -177,13 +176,12 @@ SearchHistorySchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -223,13 +221,12 @@ SearchHistorySchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

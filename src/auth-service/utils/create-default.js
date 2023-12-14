@@ -7,6 +7,7 @@ const constants = require("../config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
+const { HttpError } = require("@utils/errors");
 
 const defaults = {
   list: async (request) => {
@@ -26,14 +27,13 @@ const defaults = {
         limit,
         skip,
       });
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   create: async (request) => {
@@ -61,14 +61,13 @@ const defaults = {
       logObject("responseFromRegisterDefault", responseFromRegisterDefault);
 
       return responseFromRegisterDefault;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (request) => {
@@ -95,14 +94,13 @@ const defaults = {
       logObject("modifyResponse", modifyResponse);
 
       return modifyResponse;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -121,13 +119,12 @@ const defaults = {
       });
       return responseFromRemoveDefault;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

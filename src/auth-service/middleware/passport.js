@@ -126,8 +126,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.status = httpStatus.BAD_REQUEST;
           const error = new HttpError(
             "incorrect username or password",
-            httpStatus.BAD_REQUEST,
-            { winning: "alright" }
+            httpStatus.BAD_REQUEST
           );
           next(error);
         } else if (user.analyticsVersion === 3 && user.verified === false) {

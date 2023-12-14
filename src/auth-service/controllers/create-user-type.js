@@ -60,12 +60,12 @@ const createUserType = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAvailableUsersForUserType: async (req, res) => {
@@ -115,13 +115,12 @@ const createUserType = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignUserType: async (req, res) => {
@@ -166,13 +165,12 @@ const createUserType = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignManyUsersToUserType: async (req, res) => {
@@ -218,13 +216,12 @@ const createUserType = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

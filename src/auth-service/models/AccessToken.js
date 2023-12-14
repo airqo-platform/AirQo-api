@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 
 const toMilliseconds = (hrs, min, sec) => {
@@ -104,8 +105,12 @@ AccessTokenSchema.statics = {
       }
       return { user: null, currentAccessToken: null };
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("an error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async register(args) {
@@ -151,20 +156,18 @@ AccessTokenSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
+      logger.error(`Internal Server Error ${err.message}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 
@@ -229,13 +232,12 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -271,14 +273,12 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -313,13 +313,12 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

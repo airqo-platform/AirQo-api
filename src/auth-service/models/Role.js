@@ -8,6 +8,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- role-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const RoleSchema = new mongoose.Schema(
   {
@@ -113,13 +114,8 @@ RoleSchema.statics = {
           "the role_name and role_code must be unique for every role";
       }
 
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error -- ${message}`);
+      throw new HttpError(message, status, response);
     }
   },
 
@@ -193,13 +189,12 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -242,14 +237,12 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Errors",
-        error: error.message,
-        errors: { message: "internal server errors" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -277,13 +270,12 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

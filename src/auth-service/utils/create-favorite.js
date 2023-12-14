@@ -1,6 +1,6 @@
 const FavoriteModel = require("@models/Favorite");
 const httpStatus = require("http-status");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -9,18 +9,18 @@ const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const favorites = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -40,15 +40,12 @@ const favorites = {
       const responseFromListFavorites = await responseFromListFavoritesPromise;
       return responseFromListFavorites;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -67,13 +64,12 @@ const favorites = {
       });
       return responseFromDeleteFavorite;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -91,13 +87,12 @@ const favorites = {
       ).modify({ filter, update });
       return responseFromUpdateFavorite;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -114,14 +109,12 @@ const favorites = {
       ).register(body);
       return responseFromCreateFavorite;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -181,11 +174,13 @@ const favorites = {
       }
 
       for (let favorite in missing_favorite_places) {
-        const existingFavorite = await FavoriteModel(tenant.toLowerCase()).findOne({
+        const existingFavorite = await FavoriteModel(
+          tenant.toLowerCase()
+        ).findOne({
           firebase_user_id: favorite.firebase_user_id,
           place_id: favorite.place_id,
         });
-        if (!existingFavorite) {        
+        if (!existingFavorite) {
           responseFromCreateFavorite = await FavoriteModel(
             tenant.toLowerCase()
           ).register(missing_favorite_places[favorite]);
@@ -249,14 +244,12 @@ const favorites = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

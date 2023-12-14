@@ -60,14 +60,13 @@ const createFavorite = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (err) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -122,13 +121,12 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -178,12 +176,12 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -236,12 +234,12 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -294,12 +292,12 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

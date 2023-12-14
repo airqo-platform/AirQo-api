@@ -4,6 +4,10 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-model`);
 
 const PermissionSchema = new mongoose.Schema(
   {
@@ -81,13 +85,13 @@ PermissionSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        success: false,
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "validation errors for some of the provided fields",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 

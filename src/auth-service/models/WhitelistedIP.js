@@ -8,6 +8,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- whitelist-ip-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const WhitelistedIPSchema = new mongoose.Schema(
   {
@@ -80,13 +81,13 @@ WhitelistedIPSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "input validation errors",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -126,13 +127,12 @@ WhitelistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -161,14 +161,12 @@ WhitelistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -200,13 +198,12 @@ WhitelistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

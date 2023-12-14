@@ -8,6 +8,7 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const ClientSchema = new Schema(
   {
@@ -76,7 +77,7 @@ ClientSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
+      logger.error(`Internal Server Error ${err.message}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -89,13 +90,12 @@ ClientSchema.statics = {
       } else if (err.code === 11000) {
         response["message"] = "the Client must be unique for every client";
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+
+      throw new HttpError(
+        "validation errors for some of the provided fields",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -139,14 +139,12 @@ ClientSchema.statics = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -175,15 +173,12 @@ ClientSchema.statics = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "INTERNAL SERVER ERROR",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -209,15 +204,12 @@ ClientSchema.statics = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: "internal server errors", error: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

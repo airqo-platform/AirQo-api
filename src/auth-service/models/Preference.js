@@ -6,12 +6,13 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { addWeeksToProvideDateTime } = require("@utils/date");
-const currentDate = new Date();
 const constants = require("@config/constants");
+const currentDate = new Date();
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- preferences-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const periodSchema = new mongoose.Schema(
   {
@@ -349,12 +350,9 @@ PreferenceSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
@@ -389,13 +387,12 @@ PreferenceSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -483,12 +480,8 @@ PreferenceSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-      return {
-        success: false,
-        message,
-        errors,
-        status,
-      };
+
+      throw new HttpError(message, status, errors);
     }
   },
   async remove({ filter = {} } = {}) {
@@ -527,12 +520,9 @@ PreferenceSchema.statics = {
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
+        message: error.message,
+      });
     }
   },
 };

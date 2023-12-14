@@ -31,6 +31,7 @@ const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
 const GroupModel = require("../models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
+const { HttpError } = require("@utils/errors");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -206,13 +207,12 @@ const setCache = async (data, request) => {
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    logger.error(`Internal Server Error ${error.message}`);
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: error.message }
+    );
   }
 };
 const getCache = async (request) => {
@@ -242,14 +242,12 @@ const getCache = async (request) => {
       };
     }
   } catch (error) {
-    logObject("error in the util", error);
-    logger.error(`Internal server error -- ${error.message}`);
-    return {
-      success: false,
-      errors: { message: error.message },
-      message: "Internal Server Error",
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    logger.error(`Internal Server Error ${error.message}`);
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: error.message }
+    );
   }
 };
 
@@ -291,14 +289,13 @@ const createUserModule = {
             : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
-    } catch (e) {
-      logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listStatistics: async (tenant) => {
@@ -307,14 +304,13 @@ const createUserModule = {
         tenant
       );
       return responseFromListStatistics;
-    } catch (e) {
-      logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listUsersAndAccessRequests: async (request) => {
@@ -384,13 +380,12 @@ const createUserModule = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listCache: async (request) => {
@@ -491,15 +486,12 @@ const createUserModule = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal server error -- ${error.message}`);
-
-      return {
-        success: false,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   list: async (request) => {
@@ -519,15 +511,13 @@ const createUserModule = {
       });
 
       return responseFromListUser;
-    } catch (e) {
-      logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (request) => {
@@ -606,15 +596,13 @@ const createUserModule = {
       } else if (responseFromModifyUser.success === false) {
         return responseFromModifyUser;
       }
-    } catch (e) {
-      logObject("e", e);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   lookUpFirebaseUser: async (request) => {
@@ -839,13 +827,12 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      console.error("Internal Server Error:", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   signUpWithFirebase: async (request) => {
@@ -920,13 +907,12 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      console.error("Internal Server Error:", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   generateMobileUserCacheID: (request) => {
@@ -956,13 +942,12 @@ const createUserModule = {
       );
       return result;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   getMobileUserCache: async (cacheID) => {
@@ -985,13 +970,12 @@ const createUserModule = {
       }
       return JSON.parse(result);
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteCachedItem: async (cacheID) => {
@@ -1004,13 +988,12 @@ const createUserModule = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: JSON.stringify(error) },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   loginWithFirebase: async (request) => {
@@ -1095,13 +1078,12 @@ const createUserModule = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   verifyFirebaseCustomToken: async (request) => {
@@ -1257,13 +1239,12 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   generateSignInWithEmailLink: async (request) => {
@@ -1323,14 +1304,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (request) => {
@@ -1361,12 +1339,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   sendFeedback: async (request) => {
@@ -1392,12 +1369,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   verificationReminder: async (request) => {
@@ -1462,15 +1438,13 @@ const createUserModule = {
           return responseFromSendEmail;
         }
       }
-    } catch (e) {
-      logObject("e", e);
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   create: async (request) => {
@@ -1553,15 +1527,13 @@ const createUserModule = {
       } else if (responseFromCreateUser.success === false) {
         return responseFromCreateUser;
       }
-    } catch (e) {
-      logObject("e", e);
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   register: async (request) => {
@@ -1625,15 +1597,13 @@ const createUserModule = {
       } else if (responseFromCreateUser.success === false) {
         return responseFromCreateUser;
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   forgotPassword: async (request) => {
@@ -1703,16 +1673,13 @@ const createUserModule = {
       } else if (responseFromGenerateResetToken.success === false) {
         return responseFromGenerateResetToken;
       }
-    } catch (e) {
-      logElement("forgot password util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateForgottenPassword: async (request) => {
@@ -1774,14 +1741,12 @@ const createUserModule = {
         return responseFromCheckTokenValidity;
       }
     } catch (error) {
-      logObject("error updateForgottenPassword UTIL", error);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "util server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateKnownPassword: async (request) => {
@@ -1874,16 +1839,13 @@ const createUserModule = {
       } else if (responseFromUpdateUser.success === false) {
         return responseFromUpdateUser;
       }
-    } catch (e) {
-      logObject("the error when updating known password", e);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   generateResetToken: () => {
@@ -1895,13 +1857,12 @@ const createUserModule = {
         data: token,
       };
     } catch (error) {
-      logElement("generate reset token util", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "util server error",
-        error: error.message,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
@@ -1936,12 +1897,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   subscribeToNewsLetter: async (request) => {
@@ -1997,17 +1957,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      const errorResponse = error.response ? error.response : {};
-      const text = errorResponse ? errorResponse.text : "";
-      const status = errorResponse
-        ? errorResponse.status
-        : httpStatus.INTERNAL_SERVER_ERROR;
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message, more: text },
-        status,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteMobileUserData: async (request) => {
@@ -2080,22 +2034,20 @@ const createUserModule = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        logError("Error deleting user:", error);
-        logger.error(`Internal Server Error -- ${error.message}`);
-        return {
-          success: false,
-          message: "Error deleting user",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: error.message },
-        };
+        logger.error(`Internal Server Error ${error.message}`);
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   emailReport: async (request) => {
@@ -2135,14 +2087,11 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

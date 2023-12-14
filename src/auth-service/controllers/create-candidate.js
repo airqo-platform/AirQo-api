@@ -50,11 +50,11 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -103,14 +103,13 @@ const createCandidate = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   confirm: async (req, res) => {
@@ -177,14 +176,13 @@ const createCandidate = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (req, res) => {
@@ -235,12 +233,11 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      });
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (req, res) => {
@@ -291,12 +288,11 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      });
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

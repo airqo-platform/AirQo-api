@@ -59,14 +59,13 @@ const createLocationHistory = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (err) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -86,7 +85,7 @@ const createLocationHistory = {
 
       let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
       }
 
       const responseFromCreatelocationHistory =
@@ -120,13 +119,12 @@ const createLocationHistory = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -145,7 +143,7 @@ const createLocationHistory = {
       }
       let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
       }
       const responseFromListLocationHistories =
         await createLocationHistoryUtil.list(request);
@@ -178,12 +176,12 @@ const createLocationHistory = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -202,7 +200,7 @@ const createLocationHistory = {
 
       let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
       }
       const responseFromDeleteLocationHistories =
         await createLocationHistoryUtil.delete(request);
@@ -235,12 +233,12 @@ const createLocationHistory = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -259,7 +257,7 @@ const createLocationHistory = {
 
       let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
       }
       const responseFromUpdateLocationHistories =
         await createLocationHistoryUtil.update(request);
@@ -292,12 +290,12 @@ const createLocationHistory = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

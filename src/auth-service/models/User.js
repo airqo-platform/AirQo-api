@@ -15,6 +15,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
 const validUserTypes = ["user", "guest"];
+const { HttpError } = require("@utils/errors");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -322,7 +323,6 @@ UserSchema.statics = {
         };
       }
     } catch (err) {
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -341,13 +341,9 @@ UserSchema.statics = {
         response["message"] =
           "the email and userName must be unique for every user";
       }
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async listStatistics() {
@@ -433,14 +429,12 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
@@ -639,14 +633,12 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -714,14 +706,12 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "INTERNAL SERVER ERROR",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -753,13 +743,12 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };
@@ -870,7 +859,7 @@ UserSchema.methods.createToken = async function () {
       );
     }
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`Internal Server Error --- ${error.message}`);
   }
 };
 

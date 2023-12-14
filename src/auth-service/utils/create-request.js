@@ -2,7 +2,7 @@ const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -16,6 +16,7 @@ const logger = require("log4js").getLogger(
 const accessCodeGenerator = require("generate-password");
 const createNetworkUtil = require("@utils/create-network");
 const createGroupUtil = require("@utils/create-group");
+const { HttpError } = require("@utils/errors");
 
 const createAccessRequest = {
   requestAccessToGroup: async (request) => {
@@ -104,14 +105,13 @@ const createAccessRequest = {
         logger.error(`${responseFromCreateAccessRequest.message}`);
         return responseFromCreateAccessRequest;
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   requestAccessToGroupByEmail: async (request) => {
@@ -243,14 +243,13 @@ const createAccessRequest = {
       if (successResponses.length > 0) {
         return successResponses[0];
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   acceptInvitation: async (request) => {
@@ -389,14 +388,12 @@ const createAccessRequest = {
         return responseFromCreateNewUser;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   requestAccessToNetwork: async (request) => {
@@ -483,14 +480,13 @@ const createAccessRequest = {
         logger.error(`${responseFromCreateAccessRequest.message}`);
         return responseFromCreateAccessRequest;
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   approveAccessRequest: async (request) => {
@@ -614,14 +610,12 @@ const createAccessRequest = {
         return responseFromUpdateAccessRequest;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   list: async (request) => {
@@ -646,14 +640,13 @@ const createAccessRequest = {
         skip,
       });
       return responseFromListAccessRequest;
-    } catch (e) {
-      logger.error(`${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (request) => {
@@ -682,14 +675,13 @@ const createAccessRequest = {
         responseFromModifyAccessRequest
       );
       return responseFromModifyAccessRequest;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (request) => {
@@ -709,15 +701,13 @@ const createAccessRequest = {
         filter,
       });
       return responseFromRemoveAccessRequest;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

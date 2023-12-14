@@ -8,6 +8,7 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const {
   addMonthsToProvideDateTime,
@@ -76,14 +77,13 @@ const filter = {
         message: "successfully created the filter",
         data: filter,
       };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   networks: (req) => {
@@ -138,14 +138,13 @@ const filter = {
         message: "successfully created the filter",
         data: filter,
       };
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   candidates: (req) => {
@@ -177,15 +176,13 @@ const filter = {
         data: filter,
         status: httpStatus.OK,
       };
-    } catch (e) {
-      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -245,14 +242,13 @@ const filter = {
         data: filter,
         status: httpStatus.OK,
       };
-    } catch (e) {
-      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -315,15 +311,13 @@ const filter = {
         data: filter,
         status: httpStatus.OK,
       };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -373,14 +367,13 @@ const filter = {
       // }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   checklists: (req) => {
@@ -400,14 +393,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -431,15 +423,13 @@ const filter = {
         data: filter,
         status: httpStatus.OK,
       };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -483,14 +473,13 @@ const filter = {
         filter["role_status"] = role_status;
       }
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -522,14 +511,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -557,14 +545,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -589,14 +576,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -620,14 +606,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -654,14 +639,13 @@ const filter = {
         filter["network_id"] = ObjectId(network_id);
       }
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -699,14 +683,13 @@ const filter = {
         filter["dep_children"] = dep_children;
       }
       return filter;
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -733,14 +716,13 @@ const filter = {
       }
       logObject("the filter we are sending", filter);
       return filter;
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   logs: (req) => {
@@ -805,14 +787,12 @@ const filter = {
 
       return filter;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error`, error.message);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -834,14 +814,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -863,14 +842,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -892,14 +870,13 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

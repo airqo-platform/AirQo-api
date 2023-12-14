@@ -4,6 +4,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const ScopeSchema = new mongoose.Schema(
   {
@@ -80,13 +81,13 @@ ScopeSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "validation errors for some of the provided inputs",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 
@@ -138,13 +139,12 @@ ScopeSchema.statics = {
         errors: { message: "unable to retrieve Scopes" },
       };
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -175,13 +175,12 @@ ScopeSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: "internal server errors" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -208,13 +207,12 @@ ScopeSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

@@ -9,18 +9,18 @@ const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const searchHistories = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -41,15 +41,12 @@ const searchHistories = {
         await responseFromListSearchHistoriesPromise;
       return responseFromListSearchHistories;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -68,13 +65,12 @@ const searchHistories = {
       });
       return responseFromDeleteSearchHistories;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -92,13 +88,12 @@ const searchHistories = {
       ).modify({ filter, update });
       return responseFromUpdateSearchHistories;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -115,14 +110,12 @@ const searchHistories = {
       ).register(body);
       return responseFromCreateSearchHistory;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -173,7 +166,9 @@ const searchHistories = {
         const update = {
           ...missing_search_histories[search_history],
         };
-        responseFromCreateSearchHistories = await SearchHistoryModel(tenant.toLowerCase())
+        responseFromCreateSearchHistories = await SearchHistoryModel(
+          tenant.toLowerCase()
+        )
           .findOneAndUpdate(updateFilter, update, {
             new: true,
             upsert: true,
@@ -203,14 +198,12 @@ const searchHistories = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

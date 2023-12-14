@@ -29,6 +29,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const convertToUpperCaseWithUnderscore = (inputString) => {
   try {
@@ -36,7 +37,12 @@ const convertToUpperCaseWithUnderscore = (inputString) => {
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+    logger.error(`Internal Server Error ${error.message}`);
+    // throw new HttpError(
+    //   "Internal Server Error",
+    //   httpStatus.INTERNAL_SERVER_ERROR,
+    //   { message: error.message }
+    // );
   }
 };
 
@@ -307,25 +313,38 @@ const controlAccess = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   /******* hashing ******************************************/
   hash: (string) => {
     try {
       crypto.createHash("sha256").update(string).digest("base64");
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
   },
   hash_compare: (first_item, second_item) => {
     try {
       Object.is(first_item, second_item);
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
   },
   /******** access tokens ******************************************/
   verifyEmail: async (request) => {
@@ -450,14 +469,12 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("erroring in util", error);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateAccessToken: async (request) => {
@@ -509,14 +526,12 @@ const controlAccess = {
         }
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   regenerateAccessToken: async (request) => {
@@ -553,13 +568,12 @@ const controlAccess = {
       ).modify({ filter, update });
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteAccessToken: async (request) => {
@@ -583,13 +597,12 @@ const controlAccess = {
         return responseFromDeleteToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   verifyToken: async (request) => {
@@ -730,7 +743,12 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      return handleServerError(error);
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAccessToken: async (request) => {
@@ -759,13 +777,12 @@ const controlAccess = {
       ).list({ skip, limit, filter });
       return responseFromListToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   createAccessToken: async (request) => {
@@ -813,13 +830,12 @@ const controlAccess = {
 
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   generateVerificationToken: async (request) => {
@@ -919,12 +935,12 @@ const controlAccess = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   verifyVerificationToken: async (request) => {
@@ -1037,12 +1053,12 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1068,13 +1084,12 @@ const controlAccess = {
       ).modify({ filter, update });
       return responseFromUpdateClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteClient: async (request) => {
@@ -1093,13 +1108,12 @@ const controlAccess = {
       ).remove({ filter });
       return responseFromDeleteClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listClient: async (request) => {
@@ -1122,13 +1136,12 @@ const controlAccess = {
       logObject("responseFromListClient", responseFromListClient);
       return responseFromListClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   createClient: async (request) => {
@@ -1163,13 +1176,12 @@ const controlAccess = {
       ).register(modifiedBody);
       return responseFromCreateClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateClientSecret: async (request) => {
@@ -1211,13 +1223,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Error updating client secret: ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: `Error updating client secret: ${error.message}` },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1246,13 +1257,12 @@ const controlAccess = {
         return responseFromUpdateToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteScope: async (request) => {
@@ -1276,13 +1286,12 @@ const controlAccess = {
         return responseFromDeleteToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listScope: async (request) => {
@@ -1307,13 +1316,12 @@ const controlAccess = {
         return responseFromListToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   createScope: async (request) => {
@@ -1330,13 +1338,12 @@ const controlAccess = {
         return responseFromCreateToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1354,12 +1361,12 @@ const controlAccess = {
       });
       return responseFromListRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listRolesForNetwork: async (request) => {
@@ -1428,13 +1435,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listRolesForGroup: async (request) => {
@@ -1503,13 +1509,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteRole: async (request) => {
@@ -1560,12 +1565,12 @@ const controlAccess = {
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateRole: async (request) => {
@@ -1584,12 +1589,12 @@ const controlAccess = {
       ).modify({ filter, update });
       return responseFromUpdateRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   createRole: async (request) => {
@@ -1655,15 +1660,12 @@ const controlAccess = {
 
       return responseFromCreateRole;
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAvailableUsersForRole: async (request) => {
@@ -1729,14 +1731,12 @@ const controlAccess = {
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignUserToRole: async (request) => {
@@ -1883,14 +1883,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignManyUsersToRole: async (request) => {
@@ -2060,14 +2058,12 @@ const controlAccess = {
 
       return response;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listUsersWithRole: async (request) => {
@@ -2126,14 +2122,12 @@ const controlAccess = {
         data: responseFromListAssignedUsers,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignUserFromRole: async (request) => {
@@ -2279,14 +2273,12 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignManyUsersFromRole: async (request) => {
@@ -2477,14 +2469,12 @@ const controlAccess = {
       }
       return response;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -2587,13 +2577,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignManyUsersToUserType: async (request) => {
@@ -2715,14 +2704,12 @@ const controlAccess = {
 
       return response;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listUsersWithUserType: async (request) => {
@@ -2827,14 +2814,12 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAvailableUsersForUserType: async (request) => {
@@ -2945,14 +2930,12 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -2990,12 +2973,12 @@ const controlAccess = {
         return responseFromlistPermissionsForRole;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAvailablePermissionsForRole: async (request) => {
@@ -3055,14 +3038,12 @@ const controlAccess = {
         return responseFromListAvailablePermissionsForRole;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignPermissionsToRole: async (request) => {
@@ -3142,13 +3123,12 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignPermissionFromRole: async (request) => {
@@ -3221,13 +3201,12 @@ const controlAccess = {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignManyPermissionsFromRole: async (request) => {
@@ -3316,14 +3295,12 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateRolePermissions: async (request) => {
@@ -3394,14 +3371,12 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3425,15 +3400,12 @@ const controlAccess = {
         return responseFromListPermissions;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deletePermission: async (request) => {
@@ -3455,13 +3427,12 @@ const controlAccess = {
         return responseFromDeletePermission;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updatePermission: async (request) => {
@@ -3482,13 +3453,12 @@ const controlAccess = {
         return responseFromUpdatePermission;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   createPermission: async (request) => {
@@ -3504,14 +3474,12 @@ const controlAccess = {
         return responseFromCreatePermission;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3535,14 +3503,13 @@ const controlAccess = {
       } else if (responseFromRegisterNetwork.success === false) {
         return responseFromRegisterDepartment;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "network util server errors",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   updateDepartment: async (request) => {
@@ -3571,14 +3538,12 @@ const controlAccess = {
         return responseFromModifyDepartment;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   deleteDepartment: async (request) => {
@@ -3602,19 +3567,14 @@ const controlAccess = {
 
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
 
-      if (responseFromRemoveNetwork.success === true) {
-        return responseFromRemoveNetwork;
-      } else if (responseFromRemoveNetwork.success === false) {
-        return responseFromRemoveNetwork;
-      }
+      return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listDepartment: async (request) => {
@@ -3642,14 +3602,12 @@ const controlAccess = {
         return responseFromListDepartments;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logElement("internal server error", error.message);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3668,13 +3626,12 @@ const controlAccess = {
       );
       return responseFromBlacklistIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   blackListIps: async (request) => {
@@ -3738,13 +3695,12 @@ const controlAccess = {
         message: finalMessage,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3766,13 +3722,12 @@ const controlAccess = {
       ).remove({ filter });
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   blackListIpRange: async (request) => {
@@ -3789,13 +3744,12 @@ const controlAccess = {
       });
       return responseFromBlacklistIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   removeBlacklistedIpRange: async (request) => {
@@ -3815,13 +3769,12 @@ const controlAccess = {
         await BlacklistedIPRangeModel(tenant).remove({ filter });
       return responseFromRemoveBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listBlacklistedIpRange: async (request) => {
@@ -3844,13 +3797,12 @@ const controlAccess = {
       });
       return responseFromListBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3869,13 +3821,12 @@ const controlAccess = {
       );
       return responseFromWhitelistIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   removeWhitelistedIp: async (request) => {
@@ -3896,13 +3847,12 @@ const controlAccess = {
       ).remove({ filter });
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -3925,13 +3875,12 @@ const controlAccess = {
       });
       return responseFromListUnkownIP;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };
