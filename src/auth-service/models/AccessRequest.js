@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
-
+const { HttpError } = require("@utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- access-request-model`
@@ -73,13 +73,12 @@ AccessRequestSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
-      return {
-        errors: { message: error.message },
-        message: "unable to create access request",
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -124,13 +123,12 @@ AccessRequestSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "unable to list the access_requests",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -160,15 +158,12 @@ AccessRequestSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -205,13 +200,12 @@ AccessRequestSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

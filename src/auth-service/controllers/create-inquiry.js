@@ -22,21 +22,12 @@ const inquire = {
           extractErrorsFromRequest(req)
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      const { fullName, email, message, category, firstName, lastName } =
-        req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["fullName"] = fullName;
-      request["email"] = email;
-      request["message"] = message;
-      request["category"] = category;
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
+      let request = { ...req.body };
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const value = await createInquiryUtil.create(request);
 
@@ -60,11 +51,12 @@ const inquire = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -78,14 +70,12 @@ const inquire = {
           extractErrorsFromRequest(req)
         );
       }
-      let { tenant } = req.query;
+      let { tenant, limit, skip } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
       let responseFromFilter = generateFilter.inquiry(req);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         const responseFromListInquiry = await createInquiryUtil.list({
           tenant,
@@ -93,13 +83,13 @@ const inquire = {
           limit,
           skip,
         });
-        if (responseFromListInquiry.success == true) {
+        if (responseFromListInquiry.success === true) {
           return res.status(httpStatus.OK).json({
             success: true,
             message: responseFromListInquiry.message,
             inquiries: responseFromListInquiry.data,
           });
-        } else if (responseFromListInquiry.success == false) {
+        } else if (responseFromListInquiry.success === false) {
           if (responseFromListInquiry.error) {
             return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
@@ -113,7 +103,7 @@ const inquire = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
             return res.status(httpStatus.BAD_GATEWAY).json({
@@ -129,12 +119,13 @@ const inquire = {
           }
         }
       }
-    } catch (e) {
-      return res.status(httpStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: e.message,
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -150,23 +141,23 @@ const inquire = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       const responseFromFilter = generateFilter.inquiry(req);
 
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let responseFromDeleteInquiry = await createInquiryUtil.delete(
           tenant,
           responseFromFilter.data
         );
 
-        if (responseFromDeleteInquiry.success == true) {
+        if (responseFromDeleteInquiry.success === true) {
           res.status(httpStatus.OK).json({
             success: true,
             message: responseFromDeleteInquiry.message,
             inquiry: responseFromDeleteInquiry.data,
           });
-        } else if (responseFromDeleteInquiry.success == false) {
+        } else if (responseFromDeleteInquiry.success === false) {
           if (responseFromDeleteInquiry.error) {
             res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
@@ -182,7 +173,7 @@ const inquire = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
@@ -197,11 +188,12 @@ const inquire = {
         }
       }
     } catch (error) {
-      return res.status(httpStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: error.message,
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (req, res) => {
@@ -216,12 +208,12 @@ const inquire = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       const responseFromFilter = generateFilter.inquiry(req);
       logObject("responseFromFilter", responseFromFilter);
 
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         let requestBody = req.body;
         delete requestBody._id;
@@ -231,13 +223,13 @@ const inquire = {
           requestBody
         );
         logObject("responseFromUpdateInquiry", responseFromUpdateInquiry);
-        if (responseFromUpdateInquiry.success == true) {
+        if (responseFromUpdateInquiry.success === true) {
           res.status(httpStatus.OK).json({
             success: true,
             message: responseFromUpdateInquiry.message,
             inquiry: responseFromUpdateInquiry.data,
           });
-        } else if (responseFromUpdateInquiry.success == false) {
+        } else if (responseFromUpdateInquiry.success === false) {
           if (responseFromUpdateInquiry.error) {
             res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
@@ -253,7 +245,7 @@ const inquire = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
@@ -268,11 +260,12 @@ const inquire = {
         }
       }
     } catch (error) {
-      return res.status(httpStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: error.message,
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

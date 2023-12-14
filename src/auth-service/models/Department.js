@@ -5,7 +5,11 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- department-model`);
+const { HttpError } = require("@utils/errors");
 
 const DepartmentSchema = new Schema(
   {
@@ -131,12 +135,8 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -244,12 +244,8 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
 
@@ -318,12 +314,8 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async remove({ filter = {} } = {}) {
@@ -375,12 +367,9 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
 };

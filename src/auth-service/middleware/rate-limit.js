@@ -12,6 +12,8 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- middleware/rate-limit`
 );
 
+const { HttpError } = require("@utils/errors");
+
 const getClientLimit = (client) => {
   return client.rateLimit || 100;
 };
@@ -68,13 +70,12 @@ const rateLimitMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    logger.error(
-      `Error in rate limiting middleware: -- ${JSON.stringify(error)}`
+    logger.error(`Internal Server Error -- ${error.message}`);
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: error.message }
     );
-
-    return res
-      .status(httpStatus.INTERNAL_SERVER_ERROR)
-      .send(`Internal Server Error -- ${error.message}`);
   }
 };
 

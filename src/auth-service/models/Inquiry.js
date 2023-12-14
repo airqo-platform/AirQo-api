@@ -4,7 +4,11 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-model`);
+const { HttpError } = require("@utils/errors");
 
 const InquirySchema = new mongoose.Schema(
   {
@@ -90,13 +94,9 @@ InquirySchema.statics = {
       } else if (err.code === 11000) {
         response["message"] = "some duplicate records observed";
       }
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -123,12 +123,12 @@ InquirySchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "unable to list the inquiries",
-        error: error.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -155,11 +155,12 @@ InquirySchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "model server error",
-        error: error.message,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -182,11 +183,12 @@ InquirySchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "model server error",
-        error: error.message,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

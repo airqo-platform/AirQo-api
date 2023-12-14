@@ -1,21 +1,20 @@
 const UserModel = require("@models/User");
 const CandidateModel = require("@models/Candidate");
 const NetworkModel = require("@models/Network");
-const { getModelByTenant } = require("@config/database");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("@utils/log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-constants = require("../config/constants");
+constants = require("@config/constants");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-candidate-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const createCandidate = {
   create: async (req) => {
@@ -96,14 +95,13 @@ const createCandidate = {
           return responseFromCreateCandidate;
         }
       }
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -129,15 +127,13 @@ const createCandidate = {
         skip,
       });
       return responseFromListCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -164,14 +160,13 @@ const createCandidate = {
       });
       logObject("responseFromModifyCandidate", responseFromModifyCandidate);
       return responseFromModifyCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -307,24 +302,19 @@ const createCandidate = {
           return responseFromCreateUser;
         }
       }
-    } catch (e) {
-      logger.error(`${JSON.stringify(e)}`);
-      if (e.code === 11000) {
-        return {
-          success: false,
-          message: "Duplicate Entry",
-          error: e.keyValue,
-          errors: { message: `duplicate entry ${e.keyValue}` },
-          status: httpStatus.BAD_REQUEST,
-        };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      if (error.code === 11000) {
+        logger.error(`Duplicate Entry ${error.message}`);
+        throw new HttpError("Duplicate Entry", httpStatus.BAD_REQUEST, {
+          message: `duplicate entry ${error.keyValue}`,
+        });
       }
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -345,15 +335,12 @@ const createCandidate = {
         filter,
       });
       return responseFromRemoveCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

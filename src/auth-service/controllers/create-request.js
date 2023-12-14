@@ -59,14 +59,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   requestAccessToGroupByEmail: async (req, res) => {
@@ -115,14 +114,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   acceptInvitation: async (req, res) => {
@@ -171,13 +169,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   requestAccessToNetwork: async (req, res) => {
@@ -229,14 +227,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   approveAccessRequest: async (req, res) => {
@@ -288,14 +285,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   rejectAccessRequest: async (req, res) => {
@@ -348,14 +344,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listPendingAccessRequests: async (req, res) => {
@@ -406,14 +401,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAccessRequestsForGroup: async (req, res) => {
@@ -465,14 +459,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAccessRequestsForNetwork: async (req, res) => {
@@ -524,14 +517,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   list: async (req, res) => {
@@ -581,13 +573,13 @@ const createAccessRequest = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (req, res) => {
@@ -637,11 +629,11 @@ const createAccessRequest = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (req, res) => {
@@ -694,11 +686,11 @@ const createAccessRequest = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

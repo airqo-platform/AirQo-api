@@ -11,6 +11,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- network-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const NetworkSchema = new Schema(
   {
@@ -198,12 +199,9 @@ NetworkSchema.statics = {
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -330,12 +328,9 @@ NetworkSchema.statics = {
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
 
@@ -433,12 +428,8 @@ NetworkSchema.statics = {
       }
       logObject("err", err);
 
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async remove({ filter = {} } = {}) {

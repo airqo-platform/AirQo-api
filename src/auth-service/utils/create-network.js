@@ -12,6 +12,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
+const { HttpError } = require("@utils/errors");
 
 const isUserAssignedToNetwork = (user, networkId) => {
   if (user && user.network_roles && user.network_roles.length > 0) {
@@ -90,11 +91,11 @@ const createNetwork = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   extractOneAcronym: (request) => {
@@ -129,14 +130,11 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -370,14 +368,13 @@ const createNetwork = {
       } else if (responseFromRegisterNetwork.success === false) {
         return responseFromRegisterNetwork;
       }
-    } catch (err) {
-      logObject("error here is big", err);
-      return {
-        success: false,
-        message: "network util server errors",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignUsersHybrid: async (request) => {
@@ -489,13 +486,12 @@ const createNetwork = {
         data: assignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignOneUser: async (request) => {
@@ -548,14 +544,12 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -616,14 +610,12 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignManyUsers: async (request) => {
@@ -715,12 +707,11 @@ const createNetwork = {
         }
       } catch (error) {
         logger.error(`Internal Server Error ${error.message}`);
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: error.message },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        );
       }
 
       return {
@@ -731,12 +722,11 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   setManager: async (request) => {
@@ -814,14 +804,12 @@ const createNetwork = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -849,14 +837,12 @@ const createNetwork = {
       });
       return responseFromModifyNetwork;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (request) => {
@@ -918,13 +904,12 @@ const createNetwork = {
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
       return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return {
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-        success: false,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   list: async (request) => {
@@ -953,15 +938,12 @@ const createNetwork = {
         return responseFromListNetworks;
       }
     } catch (error) {
-      logElement("internal server error", error.message);
-      logObject("error here again", error);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1035,11 +1017,11 @@ const createNetwork = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Bad Request Errors",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1080,14 +1062,12 @@ const createNetwork = {
       }
       return responseFromListAvailableUsers;
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -1125,14 +1105,12 @@ const createNetwork = {
       }
       return responseFromListAssignedUsers;
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

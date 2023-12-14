@@ -7,6 +7,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklists-util`);
+const { HttpError } = require("@utils/errors");
 
 const checklists = {
   list: async (request) => {
@@ -30,14 +31,13 @@ const checklists = {
       });
 
       return responseFromListChecklist;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   create: async (request) => {
@@ -65,14 +65,13 @@ const checklists = {
       logObject("responseFromRegisterDefault", responseFromRegisterDefault);
 
       return responseFromRegisterDefault;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (request) => {
@@ -99,14 +98,13 @@ const checklists = {
       logObject("modifyResponse", modifyResponse);
 
       return modifyResponse;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   upsert: async (request) => {
@@ -149,14 +147,13 @@ const checklists = {
           errors: { message: "unable to create or update a preference" },
         };
       }
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (request) => {
@@ -174,13 +171,12 @@ const checklists = {
       });
       return responseFromRemoveDefault;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

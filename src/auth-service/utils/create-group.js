@@ -4,7 +4,7 @@ const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -13,6 +13,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
 );
 const controlAccessUtil = require("@utils/control-access");
+const { HttpError } = require("@utils/errors");
 
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
@@ -56,12 +57,12 @@ const createGroup = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error -- Migration failed",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   create: async (request) => {
@@ -257,14 +258,13 @@ const createGroup = {
       } else if (responseFromRegisterGroup.success === false) {
         return responseFromRegisterGroup;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Errors",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   update: async (request) => {
@@ -296,14 +296,12 @@ const createGroup = {
       logObject("responseFromModifyGroup", responseFromModifyGroup);
       return responseFromModifyGroup;
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   delete: async (request) => {
@@ -345,13 +343,12 @@ const createGroup = {
 
       return responseFromRemoveGroup;
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-        success: false,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   list: async (request) => {
@@ -373,14 +370,12 @@ const createGroup = {
       ).list({ filter, limit, skip });
       return responseFromListGroups;
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logElement("internal server error", error.message);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignUsersHybrid: async (request) => {
@@ -492,13 +487,12 @@ const createGroup = {
         data: assignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   assignOneUser: async (request) => {
@@ -553,14 +547,12 @@ const createGroup = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignUser: async (request) => {
@@ -618,14 +610,12 @@ const createGroup = {
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   unAssignManyUsers: async (request) => {
@@ -729,12 +719,11 @@ const createGroup = {
         }
       } catch (error) {
         logger.error(`Internal Server Error ${error.message}`);
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: error.message },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        );
       }
 
       const unassignedUserIds = user_ids.map((user_id) => user_id);
@@ -747,12 +736,11 @@ const createGroup = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -816,14 +804,12 @@ const createGroup = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAssignedUsers: async (request) => {
@@ -911,14 +897,12 @@ const createGroup = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   listAllGroupUsers: async (request) => {
@@ -1123,14 +1107,12 @@ const createGroup = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

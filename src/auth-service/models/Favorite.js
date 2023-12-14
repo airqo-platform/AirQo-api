@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-model`
 );
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 const FavoriteSchema = new mongoose.Schema(
   {
@@ -86,13 +87,12 @@ FavoriteSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        success: false,
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "validation errors for some of the provided fields",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 
@@ -133,13 +133,12 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -169,13 +168,12 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -212,13 +210,12 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

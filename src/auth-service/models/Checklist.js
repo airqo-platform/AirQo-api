@@ -10,6 +10,7 @@ const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklist-model`);
+const { HttpError } = require("@utils/errors");
 
 const checklistItemSchema = new mongoose.Schema({
   title: {
@@ -93,7 +94,7 @@ ChecklistSchema.statics = {
         };
       }
     } catch (err) {
-      logger.error(`Data conflicts detected -- ${err.message}`);
+      logger.error(`Internal Server Error ${err.message}`);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -113,12 +114,7 @@ ChecklistSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
@@ -145,13 +141,12 @@ ChecklistSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
@@ -194,12 +189,8 @@ ChecklistSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-      return {
-        success: false,
-        message,
-        errors,
-        status,
-      };
+
+      throw new HttpError(message, status, errors);
     }
   },
   async remove({ filter = {} } = {}) {
@@ -234,13 +225,12 @@ ChecklistSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

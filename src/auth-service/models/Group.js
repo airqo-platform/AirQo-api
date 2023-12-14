@@ -4,9 +4,13 @@ const { Schema } = mongoose;
 const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
+const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- group-model`);
 
 const GroupSchema = new Schema(
   {
@@ -122,12 +126,8 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        success: false,
-        errors: response,
-        message,
-        status,
-      };
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
@@ -199,12 +199,9 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
 
@@ -265,12 +262,8 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
   async remove({ filter = {} } = {}) {
@@ -323,12 +316,8 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(message, status, response);
     }
   },
 };

@@ -8,6 +8,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- middleware/check-scope`
 );
+const { HttpError } = require("@utils/errors");
 
 const checkScope = (requiredScope) => {
   return async (req, res, next) => {
@@ -43,13 +44,12 @@ const checkScope = (requiredScope) => {
 
       next();
     } catch (error) {
-      logger.error(
-        `Error in access control middleware: -- ${JSON.stringify(error)}`
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
-
-      return res
-        .status(httpStatus.INTERNAL_SERVER_ERROR)
-        .send(`Internal Server Error -- ${error.message}`);
     }
   };
 };

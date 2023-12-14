@@ -7,6 +7,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const toMilliseconds = (hrs, min, sec) => {
   return (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -95,8 +96,12 @@ VerifyTokenSchema.statics = {
       }
       return { user: null, currentVerifyToken: null };
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("an error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
+      // throw new HttpError(
+      //   "Internal Server Error",
+      //   httpStatus.INTERNAL_SERVER_ERROR,
+      //   { message: error.message }
+      // );
     }
   },
   async register(args) {
@@ -149,13 +154,13 @@ VerifyTokenSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      throw new HttpError(
+        "input validation errors",
+        httpStatus.CONFLICT,
+        response
+      );
     }
   },
 
@@ -196,13 +201,12 @@ VerifyTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 
@@ -238,14 +242,12 @@ VerifyTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
   async remove({ filter = {} } = {}) {
@@ -279,13 +281,12 @@ VerifyTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
     }
   },
 };

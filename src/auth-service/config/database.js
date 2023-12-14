@@ -9,6 +9,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- dbConnection-config`
 );
+const { HttpError } = require("@utils/errors");
 
 const options = {
   useCreateIndex: true,
@@ -51,7 +52,14 @@ const connectToMongoDB = () => {
     });
 
     return db;
-  } catch (error) {}
+  } catch (error) {
+    // logger.error(`Internal Server Error -- ${error.message}`);
+    // throw new HttpError(
+    //   "Internal Server Error",
+    //   httpStatus.INTERNAL_SERVER_ERROR,
+    //   { message: error.message }
+    // );
+  }
 };
 
 const mongodb = connectToMongoDB();
