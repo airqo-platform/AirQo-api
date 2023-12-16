@@ -1160,6 +1160,8 @@ const defaultConfig = {
     tokens: 1,
     token_names: 1,
     endpoints: 1,
+    createdAt: 1,
+    updatedAt: 1,
   },
   IPS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };

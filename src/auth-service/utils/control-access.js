@@ -247,16 +247,6 @@ const createValidTokenResponse = () => {
   };
 };
 
-const handleServerError = (error) => {
-  const errorMessage = error.message || "Internal server error";
-  return {
-    success: false,
-    message: errorMessage,
-    status: httpStatus.INTERNAL_SERVER_ERROR,
-    errors: { message: errorMessage },
-  };
-};
-
 const isIPBlacklisted = async ({
   ip = "",
   email = "",
