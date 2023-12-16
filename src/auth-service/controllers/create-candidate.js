@@ -1,6 +1,5 @@
 const httpStatus = require("http-status");
 const createCandidateUtil = require("@utils/create-candidate");
-const generateFilter = require("@utils/generate-filter");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -18,33 +17,37 @@ const createCandidate = {
         throw new HttpError(
           "bad request errors",
           httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+          errors
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req.body);
-      request["tenant"] = tenant.toLowerCase();
 
-      const value = await createCandidateUtil.create(request);
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (value.success === true) {
-        const status = value.status ? value.status : httpStatus.OK;
+      const candidateResponse = await createCandidateUtil.create(request);
+
+      if (candidateResponse.success === true) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: value.message,
-          candidate: value.data,
+          message: candidateResponse.message,
+          candidate: candidateResponse.data,
         });
-      } else if (value.success === false) {
-        const status = value.status
-          ? value.status
+      } else if (candidateResponse.success === false) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = value.errors ? value.errors : { message: "" };
+        const errors = candidateResponse.errors
+          ? candidateResponse.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: value.message,
+          message: candidateResponse.message,
           errors,
         });
       }
@@ -57,7 +60,6 @@ const createCandidate = {
       );
     }
   },
-
   list: async (req, res) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -65,41 +67,37 @@ const createCandidate = {
         throw new HttpError(
           "bad request errors",
           httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+          errors
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-
-      const responseFromListCandidate = await createCandidateUtil.list(request);
-      logObject("responseFromListCandidate", responseFromListCandidate);
-      if (responseFromListCandidate.success === true) {
-        const status = responseFromListCandidate.status
-          ? responseFromListCandidate.status
+      const candidateResponse = await createCandidateUtil.list(request);
+      logObject("candidateResponse", candidateResponse);
+      if (candidateResponse.success === true) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListCandidate.message,
-          candidates: responseFromListCandidate.data,
+          message: candidateResponse.message,
+          candidates: candidateResponse.data,
         });
-      } else if (responseFromListCandidate.success === false) {
-        const status = responseFromListCandidate.status
-          ? responseFromListCandidate.status
+      } else if (candidateResponse.success === false) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListCandidate.message,
-          error: responseFromListCandidate.error
-            ? responseFromListCandidate.error
-            : "",
-          errors: responseFromListCandidate.errors
-            ? responseFromListCandidate.errors
+          message: candidateResponse.message,
+          error: candidateResponse.error ? candidateResponse.error : "",
+          errors: candidateResponse.errors
+            ? candidateResponse.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -120,59 +118,37 @@ const createCandidate = {
         throw new HttpError(
           "bad request errors",
           httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+          errors
         );
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      const responseFromFilter = generateFilter.candidates(req);
-      logObject("responseFromFilter", responseFromFilter);
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (responseFromFilter.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: responseFromFilter.message,
-          error: responseFromFilter.error ? responseFromFilter.error : "",
-          errors: responseFromFilter.errors
-            ? responseFromFilter.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      const candidateResponse = await createCandidateUtil.confirm(request);
 
-      const filter = responseFromFilter.data;
-      logObject("the filter in controller", filter);
-      let request = Object.assign({}, req.body);
-      request["tenant"] = tenant.toLowerCase();
-      request["filter"] = filter;
-      const responseFromConfirmCandidate = await createCandidateUtil.confirm(
-        request
-      );
-
-      logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
-      if (responseFromConfirmCandidate.success === true) {
-        const status = responseFromConfirmCandidate.status
-          ? responseFromConfirmCandidate.status
+      logObject("candidateResponse", candidateResponse);
+      if (candidateResponse.success === true) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromConfirmCandidate.message,
-          user: responseFromConfirmCandidate.data,
+          message: candidateResponse.message,
+          user: candidateResponse.data,
         });
-      } else if (responseFromConfirmCandidate.success === false) {
-        const status = responseFromConfirmCandidate.status
-          ? responseFromConfirmCandidate.status
+      } else if (candidateResponse.success === false) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromConfirmCandidate.message,
-          error: responseFromConfirmCandidate.error
-            ? responseFromConfirmCandidate.error
-            : "",
-          errors: responseFromConfirmCandidate.errors
-            ? responseFromConfirmCandidate.errors
+          message: candidateResponse.message,
+          errors: candidateResponse.errors
+            ? candidateResponse.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -192,42 +168,37 @@ const createCandidate = {
         throw new HttpError(
           "bad request errors",
           httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+          errors
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+
       const request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromDeleteCandidate = await createCandidateUtil.delete(
-        request
-      );
+      const candidateResponse = await createCandidateUtil.delete(request);
 
-      if (responseFromDeleteCandidate.success === true) {
-        const status = responseFromDeleteCandidate.status
-          ? responseFromDeleteCandidate.status
+      if (candidateResponse.success === true) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteCandidate.message,
-          candidate: responseFromDeleteCandidate.data,
+          message: candidateResponse.message,
+          candidate: candidateResponse.data,
         });
-      } else if (responseFromDeleteCandidate.success === false) {
-        const status = responseFromDeleteCandidate.status
-          ? responseFromDeleteCandidate.status
+      } else if (candidateResponse.success === false) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteCandidate.message,
-          candidate: responseFromDeleteCandidate.data,
-          error: responseFromDeleteCandidate.error
-            ? responseFromDeleteCandidate.error
-            : "",
-          errors: responseFromDeleteCandidate.errors
-            ? responseFromDeleteCandidate.errors
+          message: candidateResponse.message,
+          candidate: candidateResponse.data,
+          errors: candidateResponse.errors
+            ? candidateResponse.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -247,42 +218,39 @@ const createCandidate = {
         throw new HttpError(
           "bad request errors",
           httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+          errors
         );
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromUpdateCandidate = await createCandidateUtil.update(
-        request
-      );
+      const candidateResponse = await createCandidateUtil.update(request);
 
-      logObject("responseFromUpdateCandidate", responseFromUpdateCandidate);
-      if (responseFromUpdateCandidate.success === true) {
-        return res.status(httpStatus.OK).json({
+      logObject("candidateResponse", candidateResponse);
+      if (candidateResponse.success === true) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
+          : httpStatus.OK;
+        return res.status(status).json({
           success: true,
-          message: responseFromUpdateCandidate.message,
-          candidate: responseFromUpdateCandidate.data,
+          message: candidateResponse.message,
+          candidate: candidateResponse.data,
         });
-      } else if (responseFromUpdateCandidate.success === false) {
-        const status = responseFromUpdateCandidate.status
-          ? responseFromUpdateCandidate.status
+      } else if (candidateResponse.success === false) {
+        const status = candidateResponse.status
+          ? candidateResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateCandidate.message,
-          candidate: responseFromUpdateCandidate.data,
-          error: responseFromUpdateCandidate.error
-            ? responseFromUpdateCandidate.error
-            : "",
-          errors: responseFromUpdateCandidate.errors
-            ? responseFromUpdateCandidate.errors
+          message: candidateResponse.message,
+          candidate: candidateResponse.data,
+          errors: candidateResponse.errors
+            ? candidateResponse.errors
             : { message: "Internal Server Error" },
         });
       }

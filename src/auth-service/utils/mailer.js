@@ -81,12 +81,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -133,12 +135,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -191,12 +195,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -259,12 +265,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -319,12 +327,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -405,12 +415,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -488,12 +500,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -534,12 +548,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -586,12 +602,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -626,12 +644,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -666,11 +686,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -704,12 +727,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -743,12 +768,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -787,12 +814,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -826,12 +855,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -865,12 +896,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -904,12 +937,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -950,12 +985,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1002,12 +1039,14 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email not sent",
+            emailResults: data,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1089,12 +1128,14 @@ const mailer = {
       const hasFailedEmail = emailResults.some((result) => !result.success);
 
       if (hasFailedEmail) {
-        return {
-          success: false,
-          message: "One or more emails failed to send",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { messages: emailResults },
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "One or more emails failed to send",
+            emailResults,
+          }
+        );
       } else {
         return {
           success: true,

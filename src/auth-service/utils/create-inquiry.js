@@ -1,15 +1,15 @@
 const InquiryModel = require("@models/Inquiry");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const generatFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
-const isEmpty = require("is-empty");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-util`);
 const { HttpError } = require("@utils/errors");
 
-const inquire = {
-  create: async (inquire) => {
+const inquiry = {
+  create: async (request) => {
     try {
       const {
         fullName,
@@ -19,16 +19,15 @@ const inquire = {
         tenant,
         firstName,
         lastName,
-      } = inquire;
+      } = { ...request.body, ...request.query, ...request.params };
 
-      let name = fullName;
-
-      if (isEmpty(fullName)) {
-        name = firstName;
-      }
+      const name = fullName || firstName || lastName;
+      const inquiry = {
+        ...request.body,
+      };
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
-        inquire
+        inquiry
       );
 
       if (responseFromCreateInquiry.success === true) {
@@ -64,42 +63,22 @@ const inquire = {
       );
     }
   },
-
-  list: async ({ tenant, filter, limit, skip }) => {
+  list: async (request) => {
     try {
-      logElement("the tenant", tenant);
-      logObject("the filter", filter);
-      logElement("limit", limit);
-      logElement("the skip", skip);
+      const { tenant, filter, limit, skip } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
-      let responseFromListInquiry = await InquiryModel(
+      const responseFromListInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).list({
         filter,
         limit,
         skip,
       });
-
-      if (responseFromListInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromListInquiry.message,
-          data: responseFromListInquiry.data,
-        };
-      } else if (responseFromListInquiry.success == false) {
-        if (responseFromListInquiry.error) {
-          return {
-            success: false,
-            message: responseFromListInquiry.message,
-            error: responseFromListInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListInquiry.message,
-          };
-        }
-      }
+      return responseFromListInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
@@ -109,36 +88,23 @@ const inquire = {
       );
     }
   },
-
-  update: async (tenant, filter, update) => {
+  update: async (request) => {
     try {
-      let responseFromModifyInquiry = await InquiryModel(
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const update = request.body;
+      const filter = await generatFilter.inquiry(request);
+      const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).modify({
         filter,
         update,
       });
       logObject("responseFromModifyInquiry", responseFromModifyInquiry);
-      if (responseFromModifyInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromModifyInquiry.message,
-          data: responseFromModifyInquiry.data,
-        };
-      } else if (responseFromModifyInquiry.success == false) {
-        if (responseFromModifyInquiry.error) {
-          return {
-            success: false,
-            message: responseFromModifyInquiry.message,
-            error: responseFromModifyInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyInquiry.message,
-          };
-        }
-      }
+      return responseFromModifyInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
@@ -148,35 +114,21 @@ const inquire = {
       );
     }
   },
-
-  delete: async (tenant, filter) => {
+  delete: async (request) => {
     try {
-      let responseFromRemoveInquiry = await InquiryModel(
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = await generatFilter.inquiry(request);
+
+      const responseFromRemoveInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).remove({
         filter,
       });
-
-      if (responseFromRemoveInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveInquiry.message,
-          data: responseFromRemoveInquiry.data,
-        };
-      } else if (responseFromRemoveInquiry.success == false) {
-        if (responseFromRemoveInquiry.error) {
-          return {
-            success: false,
-            message: responseFromRemoveInquiry.message,
-            error: responseFromRemoveInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveInquiry.message,
-          };
-        }
-      }
+      return responseFromRemoveInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
@@ -188,4 +140,4 @@ const inquire = {
   },
 };
 
-module.exports = inquire;
+module.exports = inquiry;
