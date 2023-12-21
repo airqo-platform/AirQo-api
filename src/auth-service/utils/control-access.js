@@ -31,6 +31,14 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 
+const getDay = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const convertToUpperCaseWithUnderscore = (inputString) => {
   try {
     const uppercaseString = inputString.toUpperCase();
@@ -255,13 +263,17 @@ const isIPBlacklisted = async ({
   endpoint = "",
 } = {}) => {
   try {
-    const filter = { ip };
+    const filter = { ip, "ipCounts.day": day };
+    const day = getDay();
     const update = {
       $addToSet: {
         emails: email,
         tokens: token,
         token_names: token_name,
         endpoints: endpoint,
+      },
+      $inc: {
+        "ipCounts.$.count": 1,
       },
     };
     const options = { upsert: true, new: true, runValidators: true };
