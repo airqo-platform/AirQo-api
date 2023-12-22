@@ -263,8 +263,8 @@ const isIPBlacklisted = async ({
   endpoint = "",
 } = {}) => {
   try {
-    const filter = { ip, "ipCounts.day": day };
     const day = getDay();
+    const filter = { ip };
     const update = {
       $addToSet: {
         emails: email,
@@ -272,11 +272,21 @@ const isIPBlacklisted = async ({
         token_names: token_name,
         endpoints: endpoint,
       },
+      $setOnInsert: {
+        ipCounts: {
+          $each: [{ day, count: 1 }],
+        },
+      },
       $inc: {
-        "ipCounts.$.count": 1,
+        "ipCounts.$[elem].count": 1,
       },
     };
-    const options = { upsert: true, new: true, runValidators: true };
+    const options = {
+      upsert: true,
+      new: true,
+      arrayFilters: [{ "elem.day": { $eq: day } }],
+      runValidators: true,
+    };
 
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
