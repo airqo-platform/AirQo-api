@@ -232,15 +232,14 @@ UserSchema.pre("save", function (next) {
       !constants.DEFAULT_NETWORK ||
       !constants.DEFAULT_NETWORK_ROLE
     ) {
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
           message:
             "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
-        },
-      };
+        }
+      );
     }
 
     this.network_roles = [
@@ -259,15 +258,14 @@ UserSchema.pre("save", function (next) {
       !constants.DEFAULT_GROUP ||
       !constants.DEFAULT_GROUP_ROLE
     ) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
           message:
             "Contact support@airqo.net -- unable to retrieve the default Group or Role to which the User will belong",
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        }
+      );
     }
 
     this.group_roles = [
@@ -697,13 +695,9 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedUser)) {
-        return {
-          success: false,
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "user does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          data: [],
-          errors: { message: "user does not exist, please crosscheck" },
-        };
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -735,12 +729,9 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        return {
-          success: false,
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "Provided User does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Provide User does not exist, please crosscheck" },
-        };
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
