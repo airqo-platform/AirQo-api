@@ -265,27 +265,36 @@ const isIPBlacklisted = async ({
   try {
     const day = getDay();
     const filter = { ip };
-
     const update = {
       $addToSet: {
         emails: email,
         tokens: token,
         token_names: token_name,
         endpoints: endpoint,
-        ipCounts: {
-          $each: [{ day, count: 1 }],
-        },
       },
     };
-
     const options = {
       upsert: true,
       new: true,
-      arrayFilters: [{ "elem.day": { $eq: day } }],
+      arrayFilters: [{ "ipCounts.day": day }],
       runValidators: true,
     };
 
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+
+    const document = await UnknownIPModel("airqo").findOne(filter);
+    if (document) {
+      let matchingDayEntry = document.ipCounts.find(
+        (entry) => entry.day === day
+      );
+      if (matchingDayEntry) {
+        matchingDayEntry.count += 1;
+        await document.save();
+      } else {
+        document.ipCounts.push({ day, count: 1 });
+        await document.save();
+      }
+    }
   } catch (error) {
     if (error.name === "MongoError" && error.code === 11000) {
       logger.error(`IP address ${ip} already exists in the database.`);
@@ -296,22 +305,21 @@ const isIPBlacklisted = async ({
 
   const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
   if (blacklistedIP) {
-    return true; // IP is blacklisted
+    return true;
   }
 
   const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
   if (whitelistedIP) {
-    return false; // IP is whitelisted
+    return false;
   }
 
-  // Check if the IP falls within any blacklisted range
   const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
   const isInRange = blacklistedRanges.some((range) =>
     rangeCheck(ip, range.range)
   );
 
   if (isInRange) {
-    return true; // IP is within a blacklisted range
+    return true;
   }
 
   return false;
