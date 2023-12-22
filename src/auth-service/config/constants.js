@@ -1160,6 +1160,7 @@ const defaultConfig = {
     tokens: 1,
     token_names: 1,
     endpoints: 1,
+    ipCounts: 1,
     createdAt: 1,
     updatedAt: 1,
   },

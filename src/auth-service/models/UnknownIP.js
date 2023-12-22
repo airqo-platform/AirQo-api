@@ -255,6 +255,7 @@ UnknownIPSchema.methods = {
       tokens: this.tokens,
       token_names: this.token_names,
       endpoints: this.endpoints,
+      ipCounts: this.ipCounts,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
