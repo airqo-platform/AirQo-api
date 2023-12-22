@@ -266,30 +266,17 @@ const isIPBlacklisted = async ({
     const day = getDay();
     const filter = { ip };
 
-    const addToSetUpdate = {
+    const update = {
       $addToSet: {
         emails: email,
         tokens: token,
         token_names: token_name,
         endpoints: endpoint,
-      },
-    };
-
-    const setOnInsertUpdate = {
-      $setOnInsert: {
         ipCounts: {
           $each: [{ day, count: 1 }],
         },
       },
     };
-
-    const incUpdate = {
-      $inc: {
-        "ipCounts.$[elem].count": 1,
-      },
-    };
-
-    const updates = [addToSetUpdate, setOnInsertUpdate, incUpdate];
 
     const options = {
       upsert: true,
@@ -298,10 +285,9 @@ const isIPBlacklisted = async ({
       runValidators: true,
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, updates, options);
+    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {
     if (error.name === "MongoError" && error.code === 11000) {
-      // Handle duplicate key error (IP address already exists)
       logger.error(`IP address ${ip} already exists in the database.`);
     } else {
       logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
@@ -729,6 +715,9 @@ const controlAccess = {
                 return createUnauthorizedResponse();
               }
             } else {
+              logText(
+                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
+              );
               logger.info(
                 `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
               );
