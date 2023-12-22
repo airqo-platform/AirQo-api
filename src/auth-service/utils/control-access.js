@@ -265,22 +265,32 @@ const isIPBlacklisted = async ({
   try {
     const day = getDay();
     const filter = { ip };
-    const update = {
+
+    const addToSetUpdate = {
       $addToSet: {
         emails: email,
         tokens: token,
         token_names: token_name,
         endpoints: endpoint,
       },
+    };
+
+    const setOnInsertUpdate = {
       $setOnInsert: {
         ipCounts: {
           $each: [{ day, count: 1 }],
         },
       },
+    };
+
+    const incUpdate = {
       $inc: {
         "ipCounts.$[elem].count": 1,
       },
     };
+
+    const updates = [addToSetUpdate, setOnInsertUpdate, incUpdate];
+
     const options = {
       upsert: true,
       new: true,
@@ -288,7 +298,7 @@ const isIPBlacklisted = async ({
       runValidators: true,
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    await UnknownIPModel("airqo").findOneAndUpdate(filter, updates, options);
   } catch (error) {
     if (error.name === "MongoError" && error.code === 11000) {
       // Handle duplicate key error (IP address already exists)
