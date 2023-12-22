@@ -96,12 +96,9 @@ const cascadeUserDeletion = async (userId, tenant) => {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
 
     if (isEmpty(user)) {
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: { message: `User ${userId} not found in the system` },
-        status: httpStatus.BAD_REQUEST,
-      };
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: `User ${userId} not found in the system`,
+      });
     }
 
     const updatedGroup = await GroupModel(tenant).updateMany(
@@ -152,12 +149,13 @@ const cascadeUserDeletion = async (userId, tenant) => {
     };
   } catch (error) {
     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      {
+        message: error.message,
+      }
+    );
   }
 };
 
@@ -234,12 +232,13 @@ const getCache = async (request) => {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "No cache present",
-        errors: { message: "No cache present" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message: "No cache present",
+        }
+      );
     }
   } catch (error) {
     logger.error(`Internal Server Error ${error.message}`);
@@ -278,16 +277,17 @@ const createUserModule = {
             : httpStatus.OK,
         };
       } else if (responseFromListLogs.success === false) {
-        return {
-          success: false,
-          message: responseFromListLogs.message,
-          errors: responseFromListLogs.errors
-            ? responseFromListLogs.errors
-            : { message: "Internal Server Error" },
-          status: responseFromListLogs.status
-            ? responseFromListLogs.status
-            : httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        const errorObject = responseFromListLogs.errors
+          ? responseFromListLogs.errors
+          : { message: "Internal Server Error" };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: responseFromListLogs.message,
+            ...errorObject,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -477,13 +477,15 @@ const createUserModule = {
           )}`
         );
 
-        return {
-          success: false,
-          message: responseFromListUser.message,
-          errors: responseFromListUser.errors || { message: "" },
-          status: responseFromListUser.status || "",
-          isCache: false,
-        };
+        const errorObject = responseFromListUser.errors || { message: "" };
+        throw new HttpError(
+          "Internal Server Error",
+          responseFromListUser.status || httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: responseFromListUser.message,
+            ...errorObject,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -547,14 +549,9 @@ const createUserModule = {
       logObject("the user details with lean(", user);
       if (isEmpty(user)) {
         logger.error(`the provided User does not exist in the System`);
-        return {
-          message: "Bad Request Error",
-          success: false,
-          errors: {
-            message: "the provided User does not exist in the System",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "the provided User does not exist in the System",
+        });
       }
 
       const responseFromModifyUser = await UserModel(
@@ -641,14 +638,21 @@ const createUserModule = {
       return [...successResponses, ...errorResponses];
     } catch (error) {
       logObject("Internal Server Error", error);
-      return [
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
         {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: error.message },
-        },
-      ];
+          message: error.message,
+        }
+      );
+      // return [
+      //   {
+      //     success: false,
+      //     message: "Internal Server Error",
+      //     status: httpStatus.INTERNAL_SERVER_ERROR,
+      //     errors: { message: error.message },
+      //   },
+      // ];
     }
   },
   createFirebaseUser: async (request) => {
@@ -659,24 +663,30 @@ const createUserModule = {
 
       // Check if either email or phoneNumber is provided
       if (isEmpty(email) && isEmpty(phoneNumber)) {
-        return [
-          {
-            success: false,
-            message: "Please provide either email or phoneNumber",
-            status: httpStatus.BAD_REQUEST,
-          },
-        ];
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "Please provide either email or phoneNumber",
+        });
+        // return [
+        //   {
+        //     success: false,
+        //     message: "Please provide either email or phoneNumber",
+        //     status: httpStatus.BAD_REQUEST,
+        //   },
+        // ];
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        return [
-          {
-            success: false,
-            message: "Bad Request",
-            errors: { message: "password must be provided when using email" },
-            status: httpStatus.BAD_REQUEST,
-          },
-        ];
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "password must be provided when using email",
+        });
+        // return [
+        //   {
+        //     success: false,
+        //     message: "Bad Request",
+        //     errors: { message: "password must be provided when using email" },
+        //     status: httpStatus.BAD_REQUEST,
+        //   },
+        // ];
       }
 
       // Create the user object with either email or phoneNumber
@@ -714,23 +724,34 @@ const createUserModule = {
       logObject("Internal Server Error:", error);
       logObject("error.code", error.code);
       if (error.code && error.code === "auth/email-already-exists") {
-        return [
-          {
-            success: false,
-            message: "Bad Request Error",
-            errors: { message: error.message },
-            status: httpStatus.BAD_REQUEST,
-          },
-        ];
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: error.message,
+        });
+        // return [
+        //   {
+        //     success: false,
+        //     message: "Bad Request Error",
+        //     errors: { message: error.message },
+        //     status: httpStatus.BAD_REQUEST,
+        //   },
+        // ];
       }
-      return [
+
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
         {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        },
-      ];
+          message: error.message,
+        }
+      );
+      // return [
+      //   {
+      //     success: false,
+      //     message: "Internal Server Error",
+      //     errors: { message: error.message },
+      //     status: httpStatus.INTERNAL_SERVER_ERROR,
+      //   },
+      // ];
     }
   },
   syncAnalyticsAndMobile: async (request) => {
@@ -853,16 +874,11 @@ const createUserModule = {
         firebaseUserResponse[0].data.length > 0
       ) {
         // Step 2: User exists on Firebase, send error message
-        return {
-          success: false,
+
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message:
             "User already exists on Firebase. Please login using Firebase.",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message:
-              "User already exists on Firebase. Please login using Firebase.",
-          },
-        };
+        });
       } else {
         // Step 3: User does not exist on Firebase, create user on Firebase first
         // Create the user on Firebase using createFirebaseUser function
@@ -920,14 +936,10 @@ const createUserModule = {
     const { context } = request;
     if (isEmpty(context) || isEmpty(tenant)) {
       logger.error(`the request is either missing the context or the tenant`);
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: {
-          message: "the request is either missing the context or tenant",
-        },
-        status: httpStatus.BAD_REQUEST,
-      };
+
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: "the request is either missing the context or tenant",
+      });
     }
     return `${context}_${tenant}`;
   },
@@ -958,15 +970,10 @@ const createUserModule = {
       const result = await ioredis.get(cacheID);
       logObject("ze result....", result);
       if (isEmpty(result)) {
-        return {
-          success: false,
-          message: "Invalid Request",
-          errors: {
-            message:
-              "Invalid Request -- Either Token or Email provided is invalid",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message:
+            "Invalid Request -- Either Token or Email provided is invalid",
+        });
       }
       return JSON.parse(result);
     } catch (error) {
@@ -1070,12 +1077,9 @@ const createUserModule = {
           }
         }
       } else {
-        return {
-          success: false,
-          message: "Unable to Login using Firebase, crosscheck details.",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "User does not exist on Firebase" },
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "Unable to Login, User does not exist on Firebase",
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1113,23 +1117,17 @@ const createUserModule = {
         logObject("the cachedData", cachedData);
 
         if (!isEmpty(cachedData.token) && cachedData.token !== token) {
-          return {
-            success: false,
-            message: "Invalid Request",
-            errors: { message: "Either Token or Email are Incorrect" },
-            status: httpStatus.BAD_REQUEST,
-          };
+          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Either Token or Email are Incorrect",
+          });
         }
 
         const firebaseUser = cachedData;
 
         if (!firebaseUser.email && !firebaseUser.phoneNumber) {
-          return {
-            success: false,
-            message: "Invalid request.",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: "Email or phoneNumber is required." },
-          };
+          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Email or phoneNumber is required.",
+          });
         }
 
         let filter = {};
@@ -1177,15 +1175,14 @@ const createUserModule = {
               data: userExistsLocally.toAuthJSON(),
             };
           } else {
-            return {
-              success: false,
-              message: "Internal Sever Error",
-              errors: {
+            throw new HttpError(
+              "Internal Sever Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
                 message:
                   "Unable to delete the token after successful operation",
-              },
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            };
+              }
+            );
           }
         } else {
           // User does not exist locally, perform create operation
@@ -1226,15 +1223,14 @@ const createUserModule = {
               data: newUser.toAuthJSON(),
             };
           } else {
-            return {
-              success: false,
-              message: "Internal Sever Error",
-              errors: {
+            throw new HttpError(
+              "Internal Sever Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
                 message:
                   "Unable to delete the token after successful operation",
-              },
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            };
+              }
+            );
           }
         }
       }
@@ -1295,12 +1291,17 @@ const createUserModule = {
         };
       } else if (responseFromSendEmail.success === false) {
         logger.error(`email sending process unsuccessful`);
-        return {
-          success: false,
-          message: "email sending process unsuccessful",
-          errors: responseFromSendEmail.errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        const errorObject = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : {};
+        throw new HttpError(
+          "Internal Sever Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "email sending process unsuccessful",
+            ...errorObject,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1386,12 +1387,9 @@ const createUserModule = {
         .lean();
       logObject("user", user);
       if (isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User not provided or does not exist" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "User not provided or does not exist",
+        });
       }
       const user_id = user._id;
 
@@ -1453,12 +1451,9 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User is already part of the AirQo platform" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "User is already part of the AirQo platform",
+        });
       }
 
       const newRequest = Object.assign(
@@ -1621,15 +1616,10 @@ const createUserModule = {
       const userExists = await UserModel(tenant).exists(filter);
 
       if (!userExists) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message:
-              "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message:
+            "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+        });
       }
 
       const responseFromGenerateResetToken =
@@ -1772,25 +1762,21 @@ const createUserModule = {
         logger.error(
           ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
         );
-        return {
-          message: "Bad Request Error",
-          success: false,
-          errors: {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message:
+            "either your old password is incorrect or the provided user does not exist",
+        });
       }
 
       if (isEmpty(user[0].password)) {
         logger.error(` ${user[0].email} --- unable to do password lookup`);
-        return {
-          success: false,
-          errors: { message: "unable to do password lookup" },
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "unable to do password lookup",
+          }
+        );
       }
 
       const responseFromBcrypt = await bcrypt.compare(
@@ -1802,15 +1788,10 @@ const createUserModule = {
         logger.error(
           ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
         );
-        return {
-          message: "Bad Request Error",
-          success: false,
-          errors: {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message:
+            "either your old password is incorrect or the provided user does not exist",
+        });
       }
 
       const update = {
@@ -1876,14 +1857,9 @@ const createUserModule = {
           isEmpty(responseFromListUser.data) ||
           responseFromListUser.data.length > 1
         ) {
-          return {
-            status: httpStatus.BAD_REQUEST,
-            success: false,
+          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "password reset link is invalid or has expired",
-            errors: {
-              message: "password reset link is invalid or has expired",
-            },
-          };
+          });
         } else if (responseFromListUser.data.length === 1) {
           return {
             success: true,
@@ -1945,15 +1921,14 @@ const createUserModule = {
             "successfully subscribed the email address to the AirQo newsletter",
         };
       } else {
-        return {
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "unable to subscribe user to the AirQo newsletter",
-          errors: {
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
             message:
               "unable to Update Subsriber Tags for the newsletter subscription",
-          },
-        };
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1981,12 +1956,9 @@ const createUserModule = {
         .digest("hex");
 
       if (token !== verificationToken) {
-        return {
-          success: false,
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "Invalid token",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Invalid token" },
-        };
+        });
       }
 
       try {
@@ -2018,14 +1990,15 @@ const createUserModule = {
             logText("Document successfully deleted!");
           })
           .catch((error) => {
-            logError("Error deleting document:", error);
             logger.error(`Internal Server Error -- ${error.message}`);
-            return {
-              success: false,
-              message: "Error deleting Firestore documents",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: error.message },
-            };
+
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: error.message,
+              }
+            );
           });
 
         return {
@@ -2078,12 +2051,17 @@ const createUserModule = {
         };
       } else if (responseFromSendEmail.success === false) {
         logger.error(`Failed to send Report`);
-        return {
-          success: false,
-          message: "Failed to send Report",
-          errors: responseFromSendEmail.errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        const errorObject = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : {};
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "Failed to send Report",
+            ...errorObject,
+          }
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

@@ -8,6 +8,14 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
 const { HttpError } = require("@utils/errors");
 
+function getDay() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const UnknownIPSchema = new mongoose.Schema(
   {
     ip: {
@@ -31,6 +39,22 @@ const UnknownIPSchema = new mongoose.Schema(
       type: [{ type: String }],
       default: [],
     },
+    ipCounts: [
+      {
+        timestamp: {
+          type: Date,
+          default: Date.now,
+        },
+        day: {
+          type: String,
+          default: getDay(),
+        },
+        count: {
+          type: Number,
+          default: 1,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -231,6 +255,8 @@ UnknownIPSchema.methods = {
       tokens: this.tokens,
       token_names: this.token_names,
       endpoints: this.endpoints,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };

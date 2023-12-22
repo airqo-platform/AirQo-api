@@ -5,7 +5,7 @@ const { logObject } = require("@utils/log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-constants = require("@config/constants");
+const constants = require("@config/constants");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
@@ -17,9 +17,13 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 
 const createCandidate = {
-  create: async (req) => {
+  create: async (request) => {
     try {
-      const { firstName, lastName, email, tenant, network_id } = req;
+      const { firstName, lastName, email, tenant, network_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(network_id)) {
         const networkExists = await NetworkModel(tenant).exists({
@@ -29,12 +33,10 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          return {
-            success: false,
-            message: "the provided network does not exist",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Network ${network_id} not found` },
-          };
+          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "The provided network does not exist",
+            [network_id]: `Network ID not found`,
+          });
         }
       }
 
@@ -52,21 +54,16 @@ const createCandidate = {
         };
       } else if (userExists) {
         logger.error(
-          `candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
+          `Candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
         );
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message:
-              "Candidate already exists as a User, you can use the FORGOT PASSWORD feature",
-          },
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message:
+            "You already exist as an AirQo User, please use the FORGOT PASSWORD feature",
+        });
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
-        ).register(req);
+        ).register(request.body);
 
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
@@ -104,21 +101,14 @@ const createCandidate = {
       );
     }
   },
-
   list: async (request) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-
-      const responseFromFilter = generateFilter.candidates(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-
+      const { tenant, limit, skip } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.candidates(request);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).list({
@@ -136,19 +126,10 @@ const createCandidate = {
       );
     }
   },
-
   update: async (request) => {
     try {
       const { query, body } = request;
-
-      const responseFromFilter = generateFilter.candidates(request);
-      logObject("responseFromFilter", responseFromFilter);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.candidates(request);
       const update = body;
       const tenant = query.tenant;
 
@@ -169,11 +150,13 @@ const createCandidate = {
       );
     }
   },
-
-  confirm: async (req) => {
+  confirm: async (request) => {
     try {
-      logObject("req", req);
-      const { tenant, firstName, lastName, email, network_id } = req;
+      const { tenant, firstName, lastName, email, network_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(network_id)) {
         const networkExists = await NetworkModel(tenant).exists({
@@ -183,12 +166,10 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          return {
-            success: false,
-            message: "the provided network does not exist",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Network ${network_id} not found` },
-          };
+          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Network ${network_id} not found`,
+            [network_id]: "the provided network does not exist",
+          });
         }
       }
       const candidateExists = await CandidateModel(tenant).exists({
@@ -201,24 +182,19 @@ const createCandidate = {
         logger.error(
           `Candidate ${email} not found in System, crosscheck or make another request`
         );
-        return {
-          success: false,
-          message: "the candidate does not exist",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Candidate ${email} not found` },
-        };
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `Candidate ${email} not found`,
+          [email]: `Candidate ${email} not found`,
+        });
       } else if (userExists) {
         logger.error(
           `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
         );
-        return {
-          success: false,
-          message: "the User already exists",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
-          },
-        };
+
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+          [email]: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+        });
       } else {
         const candidateDetails = await CandidateModel(tenant)
           .find({ email })
@@ -228,7 +204,7 @@ const createCandidate = {
           constants.RANDOM_PASSWORD_CONFIGURATION(10)
         );
 
-        let requestBodyForUserCreation = Object.assign({}, req);
+        let requestBodyForUserCreation = Object.assign({}, request);
         requestBodyForUserCreation.privilege = "user";
         requestBodyForUserCreation.userName = email;
         requestBodyForUserCreation.password = password;
@@ -317,18 +293,10 @@ const createCandidate = {
       );
     }
   },
-
   delete: async (request) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-
-      const responseFromFilter = generateFilter.candidates(request);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
+      const { tenant } = { ...request.query };
+      const filter = generateFilter.candidates(request);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove({

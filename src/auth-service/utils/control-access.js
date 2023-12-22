@@ -31,6 +31,14 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 
+const getDay = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const convertToUpperCaseWithUnderscore = (inputString) => {
   try {
     const uppercaseString = inputString.toUpperCase();
@@ -247,16 +255,6 @@ const createValidTokenResponse = () => {
   };
 };
 
-const handleServerError = (error) => {
-  const errorMessage = error.message || "Internal server error";
-  return {
-    success: false,
-    message: errorMessage,
-    status: httpStatus.INTERNAL_SERVER_ERROR,
-    errors: { message: errorMessage },
-  };
-};
-
 const isIPBlacklisted = async ({
   ip = "",
   email = "",
@@ -265,6 +263,7 @@ const isIPBlacklisted = async ({
   endpoint = "",
 } = {}) => {
   try {
+    const day = getDay();
     const filter = { ip };
     const update = {
       $addToSet: {
@@ -273,8 +272,21 @@ const isIPBlacklisted = async ({
         token_names: token_name,
         endpoints: endpoint,
       },
+      $setOnInsert: {
+        ipCounts: {
+          $each: [{ day, count: 1 }],
+        },
+      },
+      $inc: {
+        "ipCounts.$[elem].count": 1,
+      },
     };
-    const options = { upsert: true, new: true, runValidators: true };
+    const options = {
+      upsert: true,
+      new: true,
+      arrayFilters: [{ "elem.day": { $eq: day } }],
+      runValidators: true,
+    };
 
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
   } catch (error) {

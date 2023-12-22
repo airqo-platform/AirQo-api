@@ -3,7 +3,6 @@ const router = express.Router();
 const createInquiryController = require("@controllers/create-inquiry");
 const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const validatePagination = (req, res, next) => {
@@ -103,7 +102,6 @@ router.get(
   authJWT,
   createInquiryController.list
 );
-
 router.delete(
   "/",
   oneOf([

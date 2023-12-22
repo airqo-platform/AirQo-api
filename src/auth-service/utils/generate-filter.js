@@ -16,7 +16,7 @@ const {
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
-} = require("./date");
+} = require("@utils/date");
 
 const filter = {
   users: (req) => {
@@ -170,12 +170,7 @@ const filter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
+      return filter;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
@@ -185,7 +180,6 @@ const filter = {
       );
     }
   },
-
   requests: (req) => {
     try {
       const {
@@ -251,7 +245,6 @@ const filter = {
       );
     }
   },
-
   defaults: (req) => {
     try {
       let {
@@ -320,7 +313,6 @@ const filter = {
       );
     }
   },
-
   preferences: (req) => {
     try {
       let {
@@ -402,11 +394,14 @@ const filter = {
       );
     }
   },
-
   inquiry: (req) => {
     try {
-      let { category, id } = req.query;
-      let { email } = req.body;
+      let { category, id, email } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+
       let filter = {};
       if (email) {
         filter["email"] = email;
@@ -417,12 +412,8 @@ const filter = {
       if (id) {
         filter["_id"] = id;
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
+
+      return filter;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
@@ -432,7 +423,6 @@ const filter = {
       );
     }
   },
-
   roles: (req) => {
     try {
       const { query, params } = req;
@@ -482,7 +472,6 @@ const filter = {
       );
     }
   },
-
   permissions: (req) => {
     try {
       const { query, params } = req;
@@ -520,7 +509,6 @@ const filter = {
       );
     }
   },
-
   tokens: (req) => {
     try {
       const { query, params } = req;
@@ -554,7 +542,6 @@ const filter = {
       );
     }
   },
-
   ips: (req) => {
     try {
       const { id, ip, range } = {
@@ -585,7 +572,6 @@ const filter = {
       );
     }
   },
-
   clients: (req) => {
     try {
       const { query, params } = req;
@@ -615,7 +601,6 @@ const filter = {
       );
     }
   },
-
   scopes: (req) => {
     try {
       const { query, params } = req;
@@ -648,7 +633,6 @@ const filter = {
       );
     }
   },
-
   departments: (req) => {
     try {
       const {
@@ -692,7 +676,6 @@ const filter = {
       );
     }
   },
-
   groups: (req) => {
     try {
       const { grp_title, grp_status, category, grp_id } = {
@@ -795,7 +778,6 @@ const filter = {
       );
     }
   },
-
   favorites: (req) => {
     try {
       const { query, params } = req;
@@ -823,7 +805,6 @@ const filter = {
       );
     }
   },
-
   location_histories: (req) => {
     try {
       const { query, params } = req;
@@ -851,7 +832,6 @@ const filter = {
       );
     }
   },
-
   search_histories: (req) => {
     try {
       const { query, params } = req;

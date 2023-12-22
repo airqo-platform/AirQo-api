@@ -149,10 +149,9 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        return {
-          success: false,
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "inquiry does not exist, please crosscheck",
-        };
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -177,10 +176,9 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        return {
-          success: false,
+        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "inquiry does not exist, please crosscheck",
-        };
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);

@@ -1023,19 +1023,8 @@ const createUser = {
       } else {
         if (req.auth.error) {
           throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
-          // throw new Error(req.auth.message);
-          // return res.status(httpStatus.BAD_REQUEST).json({
-          //   success: req.auth.success,
-          //   error: req.auth.error,
-          //   message: req.auth.message,
-          // });
         }
         throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
-        // throw new Error(req.auth.message);
-        // return res.status(httpStatus.BAD_REQUEST).json({
-        //   success: req.auth.success,
-        //   message: req.auth.message,
-        // });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1057,11 +1046,11 @@ const createUser = {
         if (err) {
           logObject("err,err");
           logger.error(`Error during logout: ${JSON.stringify(err)}`);
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            message: "Internal Server Error",
-            errors: { message: "Error during logout" },
-            success: false,
-          });
+          throw new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: err.message }
+          );
         }
         return res
           .status(httpStatus.OK)
