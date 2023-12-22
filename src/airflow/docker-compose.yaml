@@ -10,7 +10,7 @@ x-common-data: &common-data
     POSTGRES_PASSWORD: postgres
     ADMIN_USERNAME: airflow
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:2024/postgres
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
     AIRFLOW__WEBSERVER__SECRET_KEY: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
