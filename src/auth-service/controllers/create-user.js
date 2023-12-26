@@ -975,7 +975,7 @@ const createUser = {
       );
     }
   },
-  login: async (req, res) => {
+  login: async (req, res, next) => {
     logText("..................................");
     logText("user login......");
     try {
@@ -1006,7 +1006,6 @@ const createUser = {
           },
         });
       }
-
       logObject("req,auth", req.auth);
 
       if (req.auth.success === true) {
@@ -1027,12 +1026,14 @@ const createUser = {
         throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
       }
     } catch (error) {
+      logObject("the error in the controller", error);
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
+      const errors = new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
         { message: error.message }
       );
+      next(errors);
     }
   },
   logout: async (req, res) => {
@@ -1159,7 +1160,7 @@ const createUser = {
       );
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside user update................");
@@ -1175,9 +1176,10 @@ const createUser = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
+
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      let responseFromUpdateUser = await createUserUtil.update(request);
+      let responseFromUpdateUser = await createUserUtil.update(request, next);
       logObject("responseFromUpdateUser", responseFromUpdateUser);
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
@@ -1202,11 +1204,12 @@ const createUser = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
+      const errors = new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
         { message: error.message }
       );
+      next(errors);
     }
   },
   loginInViaEmail: async (req, res) => {

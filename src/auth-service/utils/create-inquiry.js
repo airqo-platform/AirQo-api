@@ -1,6 +1,6 @@
 const InquiryModel = require("@models/Inquiry");
-const { logObject } = require("./log");
-const mailer = require("./mailer");
+const { logObject } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generatFilter = require("@utils/generate-filter");
@@ -9,7 +9,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-util`);
 const { HttpError } = require("@utils/errors");
 
 const inquiry = {
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const {
         fullName,
@@ -56,21 +56,22 @@ const inquiry = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, filter, limit, skip } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
       const responseFromListInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).list({
@@ -81,14 +82,16 @@ const inquiry = {
       return responseFromListInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
@@ -107,14 +110,16 @@ const inquiry = {
       return responseFromModifyInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
@@ -131,10 +136,12 @@ const inquiry = {
       return responseFromRemoveInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

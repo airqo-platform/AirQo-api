@@ -602,6 +602,11 @@ const createAccessRequest = {
       const responseFromDeleteAccessRequest =
         await createAccessRequestUtil.delete(request);
 
+      logObject(
+        "responseFromDeleteAccessRequest in CONTROLLER",
+        responseFromDeleteAccessRequest
+      );
+
       if (responseFromDeleteAccessRequest.success === true) {
         const status = responseFromDeleteAccessRequest.status
           ? responseFromDeleteAccessRequest.status
@@ -628,6 +633,7 @@ const createAccessRequest = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error ${error.message}`);
       throw new HttpError(
         "Internal Server Error",

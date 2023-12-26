@@ -10,7 +10,7 @@ const logger = log4js.getLogger(
 );
 
 const createClient = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       const { query } = req;
       let { tenant } = query;
@@ -29,7 +29,8 @@ const createClient = {
       }
 
       const responseFromCreateClient = await controlAccessUtil.createClient(
-        request
+        request,
+        next
       );
 
       logObject("responseFromCreateClient", responseFromCreateClient);
@@ -63,10 +64,12 @@ const createClient = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

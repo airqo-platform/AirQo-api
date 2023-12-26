@@ -1,7 +1,7 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const constants = require("@config/constants");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -31,31 +31,12 @@ ClientSchema.pre("save", function (next) {
   return next();
 });
 
-ClientSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 ClientSchema.pre("update", function (next) {
   return next();
 });
 
 ClientSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -91,14 +72,16 @@ ClientSchema.statics = {
         response["message"] = "the Client must be unique for every client";
       }
 
-      throw new HttpError(
-        "validation errors for some of the provided fields",
-        httpStatus.CONFLICT,
-        response
+      next(
+        new HttpError(
+          "validation errors for some of the provided fields",
+          httpStatus.CONFLICT,
+          response
+        )
       );
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.CLIENTS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.CLIENTS_EXCLUSION_PROJECTION(
@@ -140,17 +123,18 @@ ClientSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
-
       const updatedClient = await this.findOneAndUpdate(
         filter,
         update,
@@ -165,29 +149,29 @@ ClientSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedClient)) {
-        return {
-          success: true,
-          message: "client does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "client does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 1, client_secret: 1 },
       };
-      let removedClient = await this.findOneAndRemove(filter, options).exec();
-
+      const removedClient = await this.findOneAndRemove(filter, options).exec();
       if (!isEmpty(removedClient)) {
         return {
           success: true,
@@ -196,19 +180,20 @@ ClientSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedClient)) {
-        return {
-          success: true,
-          message: "client does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "client does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

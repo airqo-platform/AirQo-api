@@ -1,6 +1,5 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logElement, logText } = require("@utils/log");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -40,25 +39,6 @@ VerifyTokenSchema.pre("save", function (next) {
   return next();
 });
 
-VerifyTokenSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 VerifyTokenSchema.pre("update", function (next) {
   return next();
 });
@@ -66,7 +46,7 @@ VerifyTokenSchema.pre("update", function (next) {
 VerifyTokenSchema.index({ token: 1 }, { unique: true });
 
 VerifyTokenSchema.statics = {
-  async findToken(authorizationToken) {
+  async findToken(authorizationToken, next) {
     try {
       if (authorizationToken) {
         let verifyToken;
@@ -97,14 +77,16 @@ VerifyTokenSchema.statics = {
       return { user: null, currentVerifyToken: null };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      // throw new HttpError(
-      //   "Internal Server Error",
-      //   httpStatus.INTERNAL_SERVER_ERROR,
-      //   { message: error.message }
-      // );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       if (isEmpty(modifiedArgs.expires)) {
@@ -156,15 +138,12 @@ VerifyTokenSchema.statics = {
       }
 
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(
-        "input validation errors",
-        httpStatus.CONFLICT,
-        response
+      next(
+        new HttpError("input validation errors", httpStatus.CONFLICT, response)
       );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
@@ -202,15 +181,16 @@ VerifyTokenSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -234,23 +214,24 @@ VerifyTokenSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedToken)) {
-        return {
-          success: false,
-          message: "Token does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Token does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Token does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -261,9 +242,7 @@ VerifyTokenSchema.statics = {
         },
       };
 
-      let removedToken = await this.findOneAndRemove(filter, options).exec();
-
-      logObject("removedToken", removedToken);
+      const removedToken = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedToken)) {
         return {
@@ -273,19 +252,20 @@ VerifyTokenSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedToken)) {
-        return {
-          success: false,
-          message: "Token does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Token does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Token does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -1,7 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -135,7 +134,7 @@ DefaultsSchema.methods = {
 };
 
 DefaultsSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let body = args;
       if (body._id) {
@@ -190,10 +189,10 @@ DefaultsSchema.statics = {
         });
       }
 
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const defaults = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -218,14 +217,16 @@ DefaultsSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       if (update._id) {
@@ -245,15 +246,12 @@ DefaultsSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedDefault)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "the User Default  you are trying to UPDATE does not exist, please crosscheck",
-          },
-        };
+              "The User Default you are trying to UPDATE does not exist, please crosscheck",
+          })
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
@@ -265,11 +263,10 @@ DefaultsSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-
-      throw new HttpError(message, status, errors);
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -280,7 +277,10 @@ DefaultsSchema.statics = {
           airqloud: 1,
         },
       };
-      let removedDefault = await this.findOneAndRemove(filter, options).exec();
+      const removedDefault = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
       if (!isEmpty(removedDefault)) {
         return {
@@ -290,22 +290,21 @@ DefaultsSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedDefault)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Default  you are trying to DELETE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -60,7 +60,7 @@ const CandidateSchema = new mongoose.Schema(
 );
 
 CandidateSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let newArgs = Object.assign({}, args);
       if (isEmpty(newArgs.network_id)) {
@@ -68,13 +68,15 @@ CandidateSchema.statics = {
           logger.error(
             `Unable to determine the Network to which User will belong`
           );
-          throw new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Contact support@airqo.net -- unable to determine the Network to which User will belong",
-            }
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message:
+                  "Contact support@airqo.net -- unable to determine the Network to which User will belong",
+              }
+            )
           );
         }
         newArgs.network_id = constants.DEFAULT_NETWORK;
@@ -94,25 +96,29 @@ CandidateSchema.statics = {
         logger.error(
           "Operation successful but candidate NOT successfully created"
         );
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message:
-              "Operation not successful, please try again or contact support",
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Operation not successful, please try again or contact support",
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.CANDIDATES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.CANDIDATES_EXCLUSION_PROJECTION(
@@ -161,14 +167,16 @@ CandidateSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updatedCandidate = await this.findOneAndUpdate(
@@ -185,20 +193,24 @@ CandidateSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedCandidate)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "candidate does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "candidate does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
@@ -215,16 +227,20 @@ CandidateSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedCandidate)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "candidate does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "candidate does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -115,8 +115,9 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 500) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
-    logger.error(`Stack Trace: ${err.stack}`);
+    // logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    // logger.error(`Stack Trace: ${err.stack}`);
+    logObject("the error", err);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",

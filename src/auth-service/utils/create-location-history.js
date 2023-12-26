@@ -1,6 +1,5 @@
 const LocationHistoryModel = require("@models/LocationHistory");
 const httpStatus = require("http-status");
-const { logObject } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -11,52 +10,45 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 
 const locationHistories = {
-  sample: async (request) => {
+  sample: async (request, next) => {
     try {
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
   /******* location Histories *******************************************/
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.location_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
-
-      const responseFromListLocationHistoriesPromise = LocationHistoryModel(
+      const responseFromListLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).list({ filter });
-      const responseFromListLocationHistories =
-        await responseFromListLocationHistoriesPromise;
       return responseFromListLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.location_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
       const responseFromDeleteLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).remove({
@@ -65,60 +57,56 @@ const locationHistories = {
       return responseFromDeleteLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
       const filter = generateFilter.location_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
       const responseFromUpdateLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
       return responseFromUpdateLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      /**
-       * check for edge cases?
-       */
-
       const responseFromCreateLocationHistory = await LocationHistoryModel(
         tenant.toLowerCase()
       ).register(body);
       return responseFromCreateLocationHistory;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  syncLocationHistories: async (request) => {
+  syncLocationHistories: async (request, next) => {
     try {
       const { query, body, params } = request;
       const { tenant } = query;
@@ -180,14 +168,15 @@ const locationHistories = {
       ).data;
 
       if (responseFromCreateLocationHistories.success === false) {
-        return {
-          success: false,
-          message: "Error Synchronizing Location Histories",
-          errors: {
-            message: `Response from Create Location History: ${responseFromCreateLocationHistories.errors.message}`,
-          },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Error Synchronizing Location Histories",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Response from Create Location History: ${responseFromCreateLocationHistories.errors.message}`,
+            }
+          )
+        );
       }
 
       return {
@@ -198,10 +187,12 @@ const locationHistories = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -1,12 +1,8 @@
 const mongoose = require("mongoose").set("debug", true);
-const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-const { addWeeksToProvideDateTime } = require("@utils/date");
-const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklist-model`);
@@ -68,7 +64,7 @@ ChecklistSchema.methods = {
 };
 
 ChecklistSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let body = args;
       if (body._id) {
@@ -114,10 +110,10 @@ ChecklistSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const checklists = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -142,14 +138,16 @@ ChecklistSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       if (update._id) {
@@ -169,15 +167,12 @@ ChecklistSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedChecklist)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "the User Checklist  you are trying to UPDATE does not exist, please crosscheck",
-          },
-        };
+              "the User Checklist you are trying to UPDATE does not exist, please crosscheck",
+          })
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
@@ -189,11 +184,10 @@ ChecklistSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-
-      throw new HttpError(message, status, errors);
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -201,7 +195,7 @@ ChecklistSchema.statics = {
           user_id: 1,
         },
       };
-      let removedChecklist = await this.findOneAndRemove(
+      const removedChecklist = await this.findOneAndRemove(
         filter,
         options
       ).exec();
@@ -214,22 +208,21 @@ ChecklistSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedChecklist)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Checklist  you are trying to DELETE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

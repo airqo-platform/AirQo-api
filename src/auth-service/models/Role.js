@@ -53,7 +53,6 @@ RoleSchema.pre("save", async function (next) {
   try {
     return next();
   } catch (err) {
-    // Handle errors
     next(err);
   }
 });
@@ -71,7 +70,7 @@ RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
 RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       logText("we are in the role model creating things");
       const newRole = await this.create({
@@ -115,11 +114,10 @@ RoleSchema.statics = {
       }
 
       logger.error(`Internal Server Error -- ${message}`);
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.ROLES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.ROLES_EXCLUSION_PROJECTION(
@@ -190,14 +188,16 @@ RoleSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -229,23 +229,24 @@ RoleSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedRole)) {
-        return {
-          success: true,
-          message: "role not found",
-          data: [],
-          status: httpStatus.OK,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "role not foun, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, role_name: 1, role_code: 1, role_status: 1 },
@@ -262,19 +263,20 @@ RoleSchema.statics = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Role does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Role does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
