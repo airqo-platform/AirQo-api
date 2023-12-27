@@ -79,13 +79,16 @@ const createAccessRequest = {
             )
           );
         }
-        const responseFromSendEmail = await mailer.request({
-          firstName,
-          lastName,
-          email: user.email,
-          tenant,
-          entity_title: group.grp_title,
-        });
+        const responseFromSendEmail = await mailer.request(
+          {
+            firstName,
+            lastName,
+            email: user.email,
+            tenant,
+            entity_title: group.grp_title,
+          },
+          next
+        );
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -380,7 +383,8 @@ const createAccessRequest = {
                 username: email,
                 email,
                 entity_title,
-              }
+              },
+              next
             );
             if (responseFromSendEmail.success === true) {
               return {

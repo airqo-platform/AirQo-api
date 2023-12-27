@@ -725,8 +725,8 @@ const filter = {
   logs: (req, next) => {
     try {
       const { service, startTime, endTime, email } = req.query;
-      const today = monthsInfront(0);
-      const oneWeekBack = addDays(-7);
+      const today = monthsInfront(0, next);
+      const oneWeekBack = addDays(-7, next);
 
       let filter = {
         timestamp: {
@@ -745,7 +745,8 @@ const filter = {
         if (isTimeEmpty(startTime) === false) {
           filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
             startTime,
-            1
+            1,
+            next
           );
         } else {
           delete filter["timestamp"];
@@ -755,7 +756,11 @@ const filter = {
       if (endTime && isEmpty(startTime)) {
         logText("startTime absent and endTime is present");
         if (isTimeEmpty(endTime) === false) {
-          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(endTime, -1);
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+            endTime,
+            -1,
+            next
+          );
         } else {
           delete filter["timestamp"];
         }
@@ -769,7 +774,8 @@ const filter = {
           if (isTimeEmpty(endTime) === false) {
             filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
               endTime,
-              -1
+              -1,
+              next
             );
           } else {
             delete filter["timestamp"];

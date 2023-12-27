@@ -452,7 +452,8 @@ const controlAccess = {
                   firstName: userDetails[0].firstName,
                   username: userDetails[0].userName,
                   email: userDetails[0].email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {
@@ -916,12 +917,15 @@ const controlAccess = {
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          const responseFromSendEmail = await mailer.verifyEmail({
-            user_id,
-            token,
-            email,
-            firstName,
-          });
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email,
+              firstName,
+            },
+            next
+          );
 
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === true) {
@@ -1019,7 +1023,8 @@ const controlAccess = {
                   username: user.userName,
                   password,
                   email: user.email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {

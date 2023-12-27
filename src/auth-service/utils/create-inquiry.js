@@ -34,11 +34,14 @@ const inquiry = {
       if (responseFromCreateInquiry.success === true) {
         const createdInquiry = await responseFromCreateInquiry.data;
         const responseFromSendEmail = await mailer.inquiry(
-          name,
-          email,
-          category,
-          message,
-          tenant
+          {
+            name,
+            email,
+            category,
+            message,
+            tenant,
+          },
+          next
         );
 
         if (responseFromSendEmail.success === true) {

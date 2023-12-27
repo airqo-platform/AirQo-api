@@ -154,7 +154,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     );
   }
 };
-const generateCacheID = (request) => {
+const generateCacheID = (request, next) => {
   const {
     privilege,
     id,
@@ -168,7 +168,7 @@ const generateCacheID = (request) => {
     user_id,
   } = { ...request.body, ...request.query, ...request.params };
   const currentTime = new Date().toISOString();
-  const day = generateDateFormatWithoutHrs(currentTime);
+  const day = generateDateFormatWithoutHrs(currentTime, next);
   return `list_users_${privilege ? privilege : "no_privilege"}_${
     id ? id : "no_id"
   }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${
@@ -181,7 +181,7 @@ const generateCacheID = (request) => {
 };
 const setCache = async ({ data, request } = {}, next) => {
   try {
-    const cacheID = generateCacheID(request);
+    const cacheID = generateCacheID(request, next);
     await redisSetAsync(
       cacheID,
       JSON.stringify({
@@ -210,7 +210,7 @@ const setCache = async ({ data, request } = {}, next) => {
 };
 const getCache = async (request, next) => {
   try {
-    const cacheID = generateCacheID(request);
+    const cacheID = generateCacheID(request, next);
     logObject("cacheID", cacheID);
 
     const result = await redisGetAsync(cacheID);
@@ -799,12 +799,15 @@ const createUserModule = {
           }
 
           const responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "user"
+            {
+              firstName,
+              lastName,
+              email,
+              password,
+              tenant,
+              type: "user",
+            },
+            next
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === false) {
@@ -1080,11 +1083,14 @@ const createUserModule = {
             logObject("Cache set successfully", responseFromSettingCache);
             logObject("token", token);
 
-            const responseFromSendEmail = await mailer.verifyMobileEmail({
-              token,
-              email,
-              firebase_uid,
-            });
+            const responseFromSendEmail = await mailer.verifyMobileEmail(
+              {
+                token,
+                email,
+                firebase_uid,
+              },
+              next
+            );
 
             logObject("responseFromSendEmail", responseFromSendEmail);
             if (responseFromSendEmail.success === true) {
@@ -1301,15 +1307,24 @@ const createUserModule = {
       }
       if (purpose === "mobileAccountDelete") {
         responseFromSendEmail = await mailer.deleteMobileAccountEmail(
-          email,
-          token
+          {
+            email,
+            token,
+          },
+          next
         );
       }
       if (purpose === "auth") {
-        responseFromSendEmail = await mailer.authenticateEmail(email, token);
+        responseFromSendEmail = await mailer.authenticateEmail(
+          { email, token },
+          next
+        );
       }
       if (purpose === "login") {
-        responseFromSendEmail = await mailer.signInWithEmailLink(email, token);
+        responseFromSendEmail = await mailer.signInWithEmailLink(
+          { email, token },
+          next
+        );
       }
 
       if (responseFromSendEmail.success === true) {
@@ -1389,11 +1404,14 @@ const createUserModule = {
     try {
       const { body } = request;
       const { email, message, subject } = body;
-      const responseFromSendEmail = await mailer.feedback({
-        email,
-        message,
-        subject,
-      });
+      const responseFromSendEmail = await mailer.feedback(
+        {
+          email,
+          message,
+          subject,
+        },
+        next
+      );
 
       logObject("responseFromSendEmail ....", responseFromSendEmail);
 
@@ -1450,11 +1468,14 @@ const createUserModule = {
       if (responseFromCreateToken.success === false) {
         return responseFromCreateToken;
       } else {
-        const responseFromSendEmail = await mailer.verifyEmail({
-          user_id,
-          token,
-          email,
-        });
+        const responseFromSendEmail = await mailer.verifyEmail(
+          {
+            user_id,
+            token,
+            email,
+          },
+          next
+        );
         logObject("responseFromSendEmail", responseFromSendEmail);
         if (responseFromSendEmail.success === true) {
           const userDetails = {
@@ -1538,13 +1559,16 @@ const createUserModule = {
         if (responseFromCreateToken.success === false) {
           return responseFromCreateToken;
         } else {
-          const responseFromSendEmail = await mailer.verifyEmail({
-            user_id,
-            token,
-            email,
-            firstName,
-            category,
-          });
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email,
+              firstName,
+              category,
+            },
+            next
+          );
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === true) {
             const userDetails = {
@@ -1619,12 +1643,15 @@ const createUserModule = {
         const createdUser = await responseFromCreateUser.data;
         logObject("created user in util", createdUser._doc);
         const responseFromSendEmail = await mailer.user(
-          firstName,
-          lastName,
-          email,
-          password,
-          tenant,
-          "user"
+          {
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            type: "user",
+          },
+          next
         );
         logObject("responseFromSendEmail", responseFromSendEmail);
         if (responseFromSendEmail.success === true) {
@@ -1695,9 +1722,12 @@ const createUserModule = {
         );
         if (responseFromModifyUser.success === true) {
           const responseFromSendEmail = await mailer.forgot(
-            filter.email,
-            token,
-            tenant
+            {
+              email: filter.email,
+              token,
+              tenant,
+            },
+            next
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === true) {
@@ -1771,9 +1801,12 @@ const createUserModule = {
         if (responseFromModifyUser.success === true) {
           const { email, firstName, lastName } = userDetails;
           const responseFromSendEmail = await mailer.updateForgottenPassword(
-            email,
-            firstName,
-            lastName
+            {
+              email,
+              firstName,
+              lastName,
+            },
+            next
           );
 
           if (responseFromSendEmail.success === true) {
@@ -1864,9 +1897,12 @@ const createUserModule = {
       if (responseFromUpdateUser.success === true) {
         const { email, firstName, lastName } = user[0];
         const responseFromSendEmail = await mailer.updateKnownPassword(
-          email,
-          firstName,
-          lastName
+          {
+            email,
+            firstName,
+            lastName,
+          },
+          next
         );
 
         if (responseFromSendEmail.success === true) {
@@ -2118,10 +2154,13 @@ const createUserModule = {
       let responseFromSendEmail = {};
 
       responseFromSendEmail = await mailer.sendReport(
-        senderEmail,
-        normalizedRecepientEmails,
-        pdfFile,
-        csvFile
+        {
+          senderEmail,
+          normalizedRecepientEmails,
+          pdfFile,
+          csvFile,
+        },
+        next
       );
 
       if (responseFromSendEmail.success === true) {

@@ -72,10 +72,13 @@ const createCandidate = {
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
           const responseFromSendEmail = await mailer.candidate(
-            firstName,
-            lastName,
-            email,
-            tenant
+            {
+              firstName,
+              lastName,
+              email,
+              tenant,
+            },
+            next
           );
           if (responseFromSendEmail.success === true) {
             const status = responseFromSendEmail.status
@@ -233,12 +236,15 @@ const createCandidate = {
 
         if (responseFromCreateUser.success === true) {
           const responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "confirm"
+            {
+              firstName,
+              lastName,
+              email,
+              password,
+              tenant,
+              type: "confirm",
+            },
+            next
           );
           logObject(
             "responseFromSendEmail during confirmation",
