@@ -117,7 +117,7 @@ const createCandidate = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).list(
@@ -143,7 +143,7 @@ const createCandidate = {
   update: async (request, next) => {
     try {
       const { query, body } = request;
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const update = body;
       const tenant = query.tenant;
       const responseFromModifyCandidate = await CandidateModel(
@@ -316,7 +316,7 @@ const createCandidate = {
   delete: async (request, next) => {
     try {
       const { tenant } = { ...request.query };
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove(

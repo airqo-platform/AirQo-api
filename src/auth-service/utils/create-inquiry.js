@@ -106,7 +106,7 @@ const inquiry = {
         ...request.params,
       };
       const update = request.body;
-      const filter = await generatFilter.inquiry(request);
+      const filter = await generatFilter.inquiry(request, next);
       const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
       ).modify(
@@ -136,7 +136,7 @@ const inquiry = {
         ...request.query,
         ...request.params,
       };
-      const filter = await generatFilter.inquiry(request);
+      const filter = await generatFilter.inquiry(request, next);
 
       const responseFromRemoveInquiry = await InquiryModel(
         tenant.toLowerCase()

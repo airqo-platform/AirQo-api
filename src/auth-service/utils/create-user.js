@@ -251,7 +251,7 @@ const createUserModule = {
   listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
-      const filter = generateFilter.logs(request);
+      const filter = generateFilter.logs(request, next);
       const responseFromListLogs = await LogModel(tenant).list(
         {
           filter,

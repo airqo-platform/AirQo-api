@@ -15,7 +15,7 @@ const defaults = {
       const {
         query: { tenant },
       } = request;
-      const filter = generateFilter.defaults(request);
+      const filter = generateFilter.defaults(request, next);
       const { limit, skip } = request.query;
       return await DefaultsModel(tenant).list(
         {
@@ -74,7 +74,7 @@ const defaults = {
         body,
       } = request;
 
-      const filter = generateFilter.defaults(request);
+      const filter = generateFilter.defaults(request, next);
       const update = body;
 
       const modifyResponse = await DefaultsModel(tenant).modify(
@@ -99,7 +99,7 @@ const defaults = {
   },
   delete: async (request, next) => {
     try {
-      const filter = generateFilter.defaults(request);
+      const filter = generateFilter.defaults(request, next);
       const { tenant } = request.query;
       const responseFromRemoveDefault = await DefaultsModel(tenant).remove(
         {
