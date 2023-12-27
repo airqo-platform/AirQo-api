@@ -180,7 +180,7 @@ const defaultConfig = {
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
   CHAMPIONS_FORM: "https://forms.gle/hnf8TzfYWJkdDfX47",
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
-  RANDOM_PASSWORD_CONFIGURATION: (length) => {
+  RANDOM_PASSWORD_CONFIGURATION: function (length) {
     return {
       length: length,
       numbers: true,
@@ -197,7 +197,7 @@ const defaultConfig = {
   MAILCHIMP_API_KEY: process.env.MAILCHIMP_API_KEY,
   MAILCHIMP_SERVER_PREFIX: process.env.MAILCHIMP_SERVER_PREFIX,
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
-  EMAIL_GREETINGS: (name) => {
+  EMAIL_GREETINGS: function (name) {
     return `<tr>
                                 <td
                                     style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
@@ -205,7 +205,7 @@ const defaultConfig = {
                                 </td>
                             </tr>`;
   },
-  EMAIL_HEADER_TEMPLATE: () => {
+  EMAIL_HEADER_TEMPLATE: function () {
     return `
 <table style="width: 100%; padding-bottom: 24px;">
                             <tr>
@@ -218,7 +218,7 @@ const defaultConfig = {
                         </table>
                         `;
   },
-  EMAIL_FOOTER_TEMPLATE: (email) => {
+  EMAIL_FOOTER_TEMPLATE: function (email) {
     return `
 <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                             <tr>
@@ -271,10 +271,10 @@ const defaultConfig = {
 `;
   },
 
-  EMAIL_BODY: (email, content, name) => {
-    const footerTemplate = constants.EMAIL_FOOTER_TEMPLATE(email);
-    const headerTemplate = constants.EMAIL_HEADER_TEMPLATE();
-    let greetings = constants.EMAIL_GREETINGS(name);
+  EMAIL_BODY: function (email, content, name) {
+    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email);
+    const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
+    let greetings = this.EMAIL_GREETINGS(name);
     if (!name) {
       greetings = ``;
     }
@@ -341,7 +341,7 @@ const defaultConfig = {
     net_groups: "$net_groups",
     net_departments: "$net_departments",
   },
-  NETWORKS_EXCLUSION_PROJECTION: (category) => {
+  NETWORKS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "net_users.__v": 0,
       "net_users.notifications": 0,
@@ -360,6 +360,7 @@ const defaultConfig = {
       "net_users.resetPasswordExpires": 0,
       "net_users.resetPasswordToken": 0,
       "net_users.verified": 0,
+      "net_users.analyticsVersion": 0,
       "net_users.groups": 0,
       "net_users.permissions": 0,
       "net_users.long_organization": 0,
@@ -476,7 +477,7 @@ const defaultConfig = {
     createdAt: 1,
     updatedAt: 1,
   },
-  ROLES_EXCLUSION_PROJECTION: (category) => {
+  ROLES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "role_users.notifications": 0,
       "role_users.emailConfirmed": 0,
@@ -516,6 +517,7 @@ const defaultConfig = {
       "role_users.permissions": 0,
       "role_users.network_roles": 0,
       "role_users.verified": 0,
+      "role_users.analyticsVersion": 0,
       "role_users.email": 0,
       "role_users.country": 0,
       "role_users.createdAt": 0,
@@ -580,6 +582,7 @@ const defaultConfig = {
     userName: 1,
     email: 1,
     verified: 1,
+    analyticsVersion: 1,
     country: 1,
     privilege: 1,
     long_organization: 1,
@@ -696,7 +699,7 @@ const defaultConfig = {
     my_groups: "$my_groups",
     firebase_uid: 1,
   },
-  USERS_EXCLUSION_PROJECTION: (category) => {
+  USERS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "networks.__v": 0,
       "networks.net_status": 0,
@@ -788,6 +791,7 @@ const defaultConfig = {
       projection = Object.assign(
         {
           verified: 0,
+          analyticsVersion: 0,
           privilege: 0,
           profilePicture: 0,
           phoneNumber: 0,
@@ -823,7 +827,7 @@ const defaultConfig = {
     user: { $arrayElemAt: ["$user", 0] },
   },
 
-  ACCESS_REQUESTS_EXCLUSION_PROJECTION: (category) => {
+  ACCESS_REQUESTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       nothing: 0,
       "user.notifications": 0,
@@ -864,6 +868,7 @@ const defaultConfig = {
       "user.network_roles": 0,
       "user.group_roles": 0,
       "user.verified": 0,
+      "users.analyticsVersion": 0,
       "user.email": 0,
       "user.country": 0,
       "user.is_email_verified": 0,
@@ -899,7 +904,7 @@ const defaultConfig = {
     network: { $arrayElemAt: ["$network", 0] },
   },
 
-  CANDIDATES_EXCLUSION_PROJECTION: (category) => {
+  CANDIDATES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "existing_user.locationCount": 0,
       "existing_user.privilege": 0,
@@ -919,6 +924,7 @@ const defaultConfig = {
       "existing_user.__v": 0,
       "existing_user.duration": 0,
       "existing_user.verified": 0,
+      "existing_user.analyticsVersion": 0,
       "existing_user.networks": 0,
       "existing_user.groups": 0,
       "existing_user.role": 0,
@@ -946,7 +952,7 @@ const defaultConfig = {
     firebase_user_id: 1,
   },
 
-  FAVORITES_EXCLUSION_PROJECTION: (category) => {
+  FAVORITES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -979,7 +985,7 @@ const defaultConfig = {
     grp_manager: { $arrayElemAt: ["$grp_manager", 0] },
   },
 
-  GROUPS_EXCLUSION_PROJECTION: (category) => {
+  GROUPS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "grp_users.__v": 0,
       "grp_users.notifications": 0,
@@ -1062,7 +1068,7 @@ const defaultConfig = {
     date_time: 1,
   },
 
-  LOCATION_HISTORIES_EXCLUSION_PROJECTION: (category) => {
+  LOCATION_HISTORIES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1083,7 +1089,7 @@ const defaultConfig = {
     date_time: 1,
   },
 
-  SEARCH_HISTORIES_EXCLUSION_PROJECTION: (category) => {
+  SEARCH_HISTORIES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1108,11 +1114,12 @@ const defaultConfig = {
     user: { $arrayElemAt: ["$user", 0] },
   },
 
-  TOKENS_EXCLUSION_PROJECTION: (category) => {
+  TOKENS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "user._id": 0,
       "user.notifications": 0,
       "user.verified": 0,
+      "user.analyticsVersion": 0,
       "user.networks": 0,
       "user.groups": 0,
       "user.emailConfirmed": 0,
@@ -1153,8 +1160,11 @@ const defaultConfig = {
     tokens: 1,
     token_names: 1,
     endpoints: 1,
+    ipCounts: 1,
+    createdAt: 1,
+    updatedAt: 1,
   },
-  IPS_EXCLUSION_PROJECTION: (category) => {
+  IPS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1168,7 +1178,7 @@ const defaultConfig = {
     _id: 1,
     range: 1,
   },
-  IP_RANGES_EXCLUSION_PROJECTION: (category) => {
+  IP_RANGES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1189,7 +1199,7 @@ const defaultConfig = {
     networks: "$networks",
     access_token: { $arrayElemAt: ["$access_token", 0] },
   },
-  CLIENTS_EXCLUSION_PROJECTION: (category) => {
+  CLIENTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "networks.__v": 0,
       "networks.net_status": 0,

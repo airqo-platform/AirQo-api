@@ -4,7 +4,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/kafka-consumer script`
 );
-const { logText, logObject } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const emailTemplates = require("@utils/email.templates");
 const Joi = require("joi");

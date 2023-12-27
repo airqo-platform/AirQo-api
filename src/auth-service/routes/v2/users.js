@@ -82,6 +82,52 @@ router.post(
 );
 
 router.post(
+  "/login",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
+  ]),
+  setLocalAuth,
+  authLocal,
+  createUserController.login
+);
+
+router.get(
+  "/logout",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.logout
+);
+
+router.post(
   "/guest",
   oneOf([
     [

@@ -1,33 +1,31 @@
 const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const controlAccessUtil = require("@utils/control-access");
-const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- department-controller`
+);
 
 const createDepartment = {
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListDepartment = await controlAccessUtil.listDepartment(
-        request
+        request,
+        next
       );
 
       if (responseFromListDepartment.success === true) {
@@ -52,38 +50,36 @@ const createDepartment = {
             : "",
           errors: responseFromListDepartment.errors
             ? responseFromListDepartment.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromCreateDepartment =
-        await controlAccessUtil.createDepartment(request);
+        await controlAccessUtil.createDepartment(request, next);
 
       if (responseFromCreateDepartment.success === true) {
         const status = responseFromCreateDepartment.status
@@ -113,34 +109,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromUpdateDepartment =
-        await controlAccessUtil.updateDepartment(request);
+        await controlAccessUtil.updateDepartment(request, next);
       if (responseFromUpdateDepartment.success === true) {
         const status = responseFromUpdateDepartment.status
           ? responseFromUpdateDepartment.status
@@ -169,34 +163,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromDeleteDepartment =
-        await controlAccessUtil.deleteDepartment(request);
+        await controlAccessUtil.deleteDepartment(request, next);
       if (responseFromDeleteDepartment.success === true) {
         const status = responseFromDeleteDepartment.status
           ? responseFromDeleteDepartment.status
@@ -225,36 +217,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listUsersWithDepartment: async (req, res) => {
+  listUsersWithDepartment: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListUsersWithDepartment =
-        await controlAccessUtil.listUsersWithDepartment(request);
+        await controlAccessUtil.listUsersWithDepartment(request, next);
 
       if (responseFromListUsersWithDepartment.success === true) {
         const status = responseFromListUsersWithDepartment.status
@@ -284,36 +272,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAvailableUsersForDepartment: async (req, res) => {
+  listAvailableUsersForDepartment: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListAvailableUsersForDepartment =
-        await controlAccessUtil.listAvailableUsersForDepartment(request);
+        await controlAccessUtil.listAvailableUsersForDepartment(request, next);
 
       if (responseFromListAvailableUsersForDepartment.success === true) {
         const status = responseFromListAvailableUsersForDepartment.status
@@ -346,36 +330,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  assignUserToDepartment: async (req, res) => {
+  assignUserToDepartment: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromAssignUserToDepartment =
-        await controlAccessUtil.assignUserToDepartment(request);
+        await controlAccessUtil.assignUserToDepartment(request, next);
       if (responseFromAssignUserToDepartment.success === true) {
         const status = responseFromAssignUserToDepartment.status
           ? responseFromAssignUserToDepartment.status
@@ -404,35 +384,32 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  unAssignUserFromDepartment: async (req, res) => {
+  unAssignUserFromDepartment: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
       const responseFromUnAssignUserFromDepartment =
-        await controlAccessUtil.unAssignUserFromDepartment(request);
+        await controlAccessUtil.unAssignUserFromDepartment(request, next);
       if (responseFromUnAssignUserFromDepartment.success === true) {
         const status = responseFromUnAssignUserFromDepartment.status
           ? responseFromUnAssignUserFromDepartment.status
@@ -462,11 +439,14 @@ const createDepartment = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
