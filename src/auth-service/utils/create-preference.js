@@ -15,7 +15,7 @@ const preferences = {
       const {
         query: { tenant },
       } = request;
-      const filter = generateFilter.preferences(request);
+      const filter = generateFilter.preferences(request, next);
       const { limit, skip } = request.query;
       const listResponse = await PreferenceModel(tenant).list(
         {
@@ -80,7 +80,7 @@ const preferences = {
         body,
       } = request;
 
-      const filterResponse = generateFilter.preferences(request);
+      const filterResponse = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         next(
           new HttpError(
@@ -155,7 +155,7 @@ const preferences = {
         "group_ids",
       ];
 
-      const filterResponse = generateFilter.preferences(request);
+      const filterResponse = generateFilter.preferences(request, next);
       logObject("filterResponse", filterResponse);
 
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
@@ -248,7 +248,7 @@ const preferences = {
 
       logText("Replace the existing selected_ids....");
 
-      const filterResponse = generateFilter.preferences(request);
+      const filterResponse = generateFilter.preferences(request, next);
       logObject("filterResponse", filterResponse);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         next(
@@ -313,7 +313,7 @@ const preferences = {
         body,
       } = request;
 
-      const filterResponse = generateFilter.preferences(request);
+      const filterResponse = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         next(
           new HttpError(

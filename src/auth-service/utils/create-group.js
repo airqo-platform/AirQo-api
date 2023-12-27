@@ -290,7 +290,7 @@ const createGroup = {
         );
       }
 
-      const filter = generateFilter.groups(request);
+      const filter = generateFilter.groups(request, next);
       const responseFromModifyGroup = await GroupModel(
         tenant.toLowerCase()
       ).modify({ update, filter }, next);
@@ -318,7 +318,7 @@ const createGroup = {
       const { query, params } = request;
       const { tenant } = query;
       const { grp_id } = params;
-      const filter = generateFilter.groups(request);
+      const filter = generateFilter.groups(request, next);
 
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
@@ -349,7 +349,7 @@ const createGroup = {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.groups(request);
+      const filter = generateFilter.groups(request, next);
       const responseFromListGroups = await GroupModel(
         tenant.toLowerCase()
       ).list({ filter, limit, skip }, next);

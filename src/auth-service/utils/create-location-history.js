@@ -28,7 +28,7 @@ const locationHistories = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.location_histories(request);
+      const filter = generateFilter.location_histories(request, next);
       const responseFromListLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).list({ filter }, next);
@@ -48,7 +48,7 @@ const locationHistories = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.location_histories(request);
+      const filter = generateFilter.location_histories(request, next);
       const responseFromDeleteLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).remove(
@@ -74,7 +74,7 @@ const locationHistories = {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
-      const filter = generateFilter.location_histories(request);
+      const filter = generateFilter.location_histories(request, next);
       const responseFromUpdateLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);

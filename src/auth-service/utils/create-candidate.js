@@ -72,10 +72,13 @@ const createCandidate = {
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
           const responseFromSendEmail = await mailer.candidate(
-            firstName,
-            lastName,
-            email,
-            tenant
+            {
+              firstName,
+              lastName,
+              email,
+              tenant,
+            },
+            next
           );
           if (responseFromSendEmail.success === true) {
             const status = responseFromSendEmail.status
@@ -114,7 +117,7 @@ const createCandidate = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).list(
@@ -140,7 +143,7 @@ const createCandidate = {
   update: async (request, next) => {
     try {
       const { query, body } = request;
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const update = body;
       const tenant = query.tenant;
       const responseFromModifyCandidate = await CandidateModel(
@@ -233,12 +236,15 @@ const createCandidate = {
 
         if (responseFromCreateUser.success === true) {
           const responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "confirm"
+            {
+              firstName,
+              lastName,
+              email,
+              password,
+              tenant,
+              type: "confirm",
+            },
+            next
           );
           logObject(
             "responseFromSendEmail during confirmation",
@@ -310,7 +316,7 @@ const createCandidate = {
   delete: async (request, next) => {
     try {
       const { tenant } = { ...request.query };
-      const filter = generateFilter.candidates(request);
+      const filter = generateFilter.candidates(request, next);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove(

@@ -15,7 +15,7 @@ const checklists = {
       const {
         query: { tenant },
       } = request;
-      const filter = generateFilter.checklists(request);
+      const filter = generateFilter.checklists(request, next);
       const { limit, skip } = request.query;
       const responseFromListChecklist = await ChecklistModel(tenant).list(
         {
@@ -75,7 +75,7 @@ const checklists = {
         body,
       } = request;
 
-      const filter = generateFilter.checklists(request);
+      const filter = generateFilter.checklists(request, next);
       const update = body;
       const modifyResponse = await ChecklistModel(tenant).modify(
         {
@@ -103,7 +103,7 @@ const checklists = {
         body,
       } = request;
 
-      const filter = generateFilter.checklists(request);
+      const filter = generateFilter.checklists(request, next);
       const update = body;
       const options = { upsert: true, new: true };
 
@@ -142,7 +142,7 @@ const checklists = {
   },
   delete: async (request, next) => {
     try {
-      const filter = generateFilter.checklists(request);
+      const filter = generateFilter.checklists(request, next);
       const { tenant } = request.query;
       const responseFromRemoveDefault = await ChecklistModel(tenant).remove(
         {

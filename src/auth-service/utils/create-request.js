@@ -79,13 +79,16 @@ const createAccessRequest = {
             )
           );
         }
-        const responseFromSendEmail = await mailer.request({
-          firstName,
-          lastName,
-          email: user.email,
-          tenant,
-          entity_title: group.grp_title,
-        });
+        const responseFromSendEmail = await mailer.request(
+          {
+            firstName,
+            lastName,
+            email: user.email,
+            tenant,
+            entity_title: group.grp_title,
+          },
+          next
+        );
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -380,7 +383,8 @@ const createAccessRequest = {
                 username: email,
                 email,
                 entity_title,
-              }
+              },
+              next
             );
             if (responseFromSendEmail.success === true) {
               return {
@@ -645,7 +649,7 @@ const createAccessRequest = {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.requests(request);
+      const filter = generateFilter.requests(request, next);
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
       ).list(
@@ -671,7 +675,7 @@ const createAccessRequest = {
   update: async (request, next) => {
     try {
       const { query, body } = request;
-      const filter = generateFilter.requests(request);
+      const filter = generateFilter.requests(request, next);
       const update = body;
       const tenant = query.tenant;
 
@@ -705,7 +709,7 @@ const createAccessRequest = {
       const { query } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.requests(request);
+      const filter = generateFilter.requests(request, next);
 
       const responseFromRemoveAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()

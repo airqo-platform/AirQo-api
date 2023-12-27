@@ -30,7 +30,7 @@ const favorites = {
   list: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const filter = generateFilter.favorites(request);
+      const filter = generateFilter.favorites(request, next);
       const responseFromListFavorites = await FavoriteModel(
         tenant.toLowerCase()
       ).list({ filter }, next);
@@ -49,7 +49,7 @@ const favorites = {
   delete: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const filter = generateFilter.favorites(request);
+      const filter = generateFilter.favorites(request, next);
       const responseFromDeleteFavorite = await FavoriteModel(
         tenant.toLowerCase()
       ).remove(
@@ -75,7 +75,7 @@ const favorites = {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
-      const filter = generateFilter.favorites(request);
+      const filter = generateFilter.favorites(request, next);
       const responseFromUpdateFavorite = await FavoriteModel(
         tenant.toLowerCase()
       ).modify({ filter, update });

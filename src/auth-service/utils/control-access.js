@@ -452,7 +452,8 @@ const controlAccess = {
                   firstName: userDetails[0].firstName,
                   username: userDetails[0].userName,
                   email: userDetails[0].email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {
@@ -574,7 +575,7 @@ const controlAccess = {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.tokens(request);
+      const filter = generateFilter.tokens(request, next);
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -603,7 +604,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.tokens(request);
+      const filter = generateFilter.tokens(request, next);
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
@@ -622,7 +623,7 @@ const controlAccess = {
   verifyToken: async (request, next) => {
     try {
       const { tenant, limit, skip } = { ...request.query };
-      let filter = generateFilter.tokens(request);
+      let filter = generateFilter.tokens(request, next);
       const timeZone = moment.tz.guess();
       filter.expires = {
         $gt: moment().tz(timeZone).toDate(),
@@ -916,12 +917,15 @@ const controlAccess = {
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          const responseFromSendEmail = await mailer.verifyEmail({
-            user_id,
-            token,
-            email,
-            firstName,
-          });
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email,
+              firstName,
+            },
+            next
+          );
 
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === true) {
@@ -1019,7 +1023,8 @@ const controlAccess = {
                   username: user.userName,
                   password,
                   email: user.email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {
@@ -1078,7 +1083,7 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.clients(request);
+      const filter = generateFilter.clients(request, next);
       let update = Object.assign({}, body);
       if (update.client_secret) {
         delete update.client_secret;
@@ -1102,7 +1107,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.clients(request);
+      const filter = generateFilter.clients(request, next);
       const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
@@ -1121,7 +1126,7 @@ const controlAccess = {
   listClient: async (request, next) => {
     try {
       const { tenant, limit, skip } = { ...request.query };
-      const filter = generateFilter.clients(request);
+      const filter = generateFilter.clients(request, next);
       const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter }, next);
@@ -1230,7 +1235,7 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.scopes(request);
+      const filter = generateFilter.scopes(request, next);
       const update = Object.assign({}, body);
       const responseFromUpdateToken = await ScopeModel(
         tenant.toLowerCase()
@@ -1251,7 +1256,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.scopes(request);
+      const filter = generateFilter.scopes(request, next);
       const responseFromDeleteToken = await ScopeModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
@@ -1271,7 +1276,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.scopes(request);
+      const filter = generateFilter.scopes(request, next);
       const responseFromListToken = await ScopeModel(tenant.toLowerCase()).list(
         { skip, limit, filter },
         next
@@ -1313,7 +1318,7 @@ const controlAccess = {
     try {
       const { query, params } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
+      const filter = generateFilter.roles(request, next);
       const responseFromListRole = await RoleModel(tenant.toLowerCase()).list(
         {
           filter,
@@ -1480,7 +1485,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
+      const filter = generateFilter.roles(request, next);
 
       if (isEmpty(filter._id)) {
         next(
@@ -1532,7 +1537,7 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
+      const filter = generateFilter.roles(request, next);
       const update = Object.assign({}, body);
 
       const responseFromUpdateRole = await RoleModel(
@@ -2785,7 +2790,7 @@ const controlAccess = {
       const { role_id, tenant, limit, skip } = { ...query, ...params };
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
-      const filter = generateFilter.roles(newRequest);
+      const filter = generateFilter.roles(newRequest, next);
       const listRoleResponse = await RoleModel(tenant).list(
         {
           skip,
@@ -2836,7 +2841,7 @@ const controlAccess = {
       const { role_id, tenant, limit, skip } = { ...query, ...params };
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
-      const filter = generateFilter.roles(newRequest);
+      const filter = generateFilter.roles(newRequest, next);
       const listRoleResponse = await RoleModel(tenant).list(
         {
           skip,
@@ -3205,7 +3210,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.permissions(request);
+      const filter = generateFilter.permissions(request, next);
       const responseFromListPermissions = await PermissionModel(
         tenant.toLowerCase()
       ).list(
@@ -3230,7 +3235,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.permissions(request);
+      const filter = generateFilter.permissions(request, next);
       const responseFromDeletePermission = await PermissionModel(
         tenant.toLowerCase()
       ).remove(
@@ -3256,7 +3261,7 @@ const controlAccess = {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
-      const filter = generateFilter.permissions(request);
+      const filter = generateFilter.permissions(request, next);
       const responseFromUpdatePermission = await PermissionModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
@@ -3321,7 +3326,7 @@ const controlAccess = {
         ...params,
       };
       const update = Object.assign({}, body);
-      const filter = generateFilter.departments(request);
+      const filter = generateFilter.departments(request, next);
       const responseFromModifyDepartment = await DepartmentModel(
         tenant.toLowerCase()
       ).modify({ update, filter }, next);
@@ -3342,7 +3347,7 @@ const controlAccess = {
       logText("the delete operation.....");
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.departments(request);
+      const filter = generateFilter.departments(request, next);
       const responseFromRemoveNetwork = await DepartmentModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
@@ -3362,7 +3367,7 @@ const controlAccess = {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.departments(request);
+      const filter = generateFilter.departments(request, next);
       const responseFromListDepartments = await DepartmentModel(
         tenant.toLowerCase()
       ).list({ filter, limit, skip }, next);
@@ -3483,7 +3488,7 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.ips(request);
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
         tenant
       ).remove({ filter }, next);
@@ -3533,7 +3538,7 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.ips(request);
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveBlacklistedIpRange =
         await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
       return responseFromRemoveBlacklistedIpRange;
@@ -3555,7 +3560,7 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.ips(request);
+      const filter = generateFilter.ips(request, next);
       const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
         tenant
       ).list(
@@ -3610,7 +3615,7 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.ips(request);
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
         tenant
       ).remove({ filter }, next);
@@ -3635,7 +3640,7 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const filter = generateFilter.ips(request);
+      const filter = generateFilter.ips(request, next);
       const responseFromListUnkownIP = await UnknownIPModel(tenant).list(
         {
           filter,

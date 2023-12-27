@@ -145,7 +145,7 @@ function addMonthsToProvideDateTime(dateTime, number, next) {
     );
   }
 }
-function addWeeksToProvideDateTime(dateTime, number, next) {
+function addWeeksToProvideDateTime(dateTime, number) {
   try {
     if (isTimeEmpty(dateTime) === false) {
       const originalDate = new Date(dateTime);
@@ -159,11 +159,6 @@ function addWeeksToProvideDateTime(dateTime, number, next) {
     }
   } catch (error) {
     logger.error(`Internal Server Error ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
-    );
   }
 }
 function addDaysToProvideDateTime(dateTime, number, next) {

@@ -50,7 +50,7 @@ const createNetwork = {
         modifiedRequest["query"]["net_acronym"] =
           responseFromExtractOneNetwork.data;
 
-        const filter = generateFilter.networks(modifiedRequest);
+        const filter = generateFilter.networks(modifiedRequest, next);
         const responseFromListNetworks = await NetworkModel(tenant).list(
           {
             filter,
@@ -798,7 +798,7 @@ const createNetwork = {
       logElement("action", action);
       update["action"] = action;
 
-      const filter = generateFilter.networks(request);
+      const filter = generateFilter.networks(request, next);
 
       const responseFromModifyNetwork = await NetworkModel(tenant).modify(
         {
@@ -831,7 +831,7 @@ const createNetwork = {
       const { query } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.networks(request);
+      const filter = generateFilter.networks(request, next);
 
       if (isEmpty(filter._id)) {
         next(
@@ -880,7 +880,7 @@ const createNetwork = {
   list: async (request, next) => {
     try {
       let { skip, limit, tenant } = request.query;
-      const filter = generateFilter.networks(request);
+      const filter = generateFilter.networks(request, next);
       const responseFromListNetworks = await NetworkModel(tenant).list(
         {
           filter,
