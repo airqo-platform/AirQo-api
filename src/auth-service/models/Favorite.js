@@ -1,5 +1,5 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("../utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
@@ -58,7 +58,7 @@ FavoriteSchema.pre("update", function (next) {
 });
 
 FavoriteSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -88,15 +88,16 @@ FavoriteSchema.statics = {
         });
       }
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(
-        "validation errors for some of the provided fields",
-        httpStatus.CONFLICT,
-        response
+      next(
+        new HttpError(
+          "validation errors for some of the provided fields",
+          httpStatus.CONFLICT,
+          response
+        )
       );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.FAVORITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.FAVORITES_EXCLUSION_PROJECTION(
@@ -134,14 +135,16 @@ FavoriteSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
@@ -160,23 +163,24 @@ FavoriteSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedFavorite)) {
-        return {
-          success: false,
-          message: "Favorite does not exist, please crosscheck",
-          errors: { message: "Favorite does not exist, please crosscheck" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Favorite does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -202,19 +206,20 @@ FavoriteSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedFavorite)) {
-        return {
-          success: false,
-          message: "Favorite does not exist, please crosscheck",
-          errors: { message: "Favorite does not exist, please crosscheck" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Favorite does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

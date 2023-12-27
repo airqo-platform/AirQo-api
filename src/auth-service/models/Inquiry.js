@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
-const ObjectId = mongoose.Schema.Types.ObjectId;
-const { logObject, logElement } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -50,7 +49,7 @@ const InquirySchema = new mongoose.Schema(
 );
 
 InquirySchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = Object.assign({}, args);
       const eitherFirstOrLastName = args.firstName
@@ -96,10 +95,10 @@ InquirySchema.statics = {
       }
 
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inquiries = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -124,14 +123,16 @@ InquirySchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let updatedInquiry = await this.findOneAndUpdate(
@@ -149,20 +150,24 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "inquiry does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "inquiry does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
@@ -176,16 +181,20 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "inquiry does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "inquiry does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

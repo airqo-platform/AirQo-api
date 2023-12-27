@@ -218,7 +218,12 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-  user_updated: (firstName, lastName, updatedData, email) => {
+  user_updated: ({
+    firstName = "",
+    lastName = "",
+    updatedData = {},
+    email = "",
+  } = {}) => {
     const updatedFields = Object.keys(updatedData)
       .map((field) => `• ${field}`)
       .join("\n");

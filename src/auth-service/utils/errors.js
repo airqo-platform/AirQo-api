@@ -1,4 +1,4 @@
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- errors-util`);
 const { logObject } = require("@utils/log");
@@ -6,6 +6,8 @@ const { validationResult } = require("express-validator");
 
 class HttpError extends Error {
   constructor(message, statusCode, errors = null) {
+    logObject("the error message we are getting", message);
+    logObject("the errors we are getting", errors);
     super(message);
     this.statusCode = statusCode;
     this.errors = errors;

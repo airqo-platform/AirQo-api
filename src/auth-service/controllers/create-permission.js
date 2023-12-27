@@ -1,6 +1,6 @@
 const controlAccessUtil = require("@utils/control-access");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const { logText } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -10,27 +10,23 @@ const logger = log4js.getLogger(
 );
 
 const createPermission = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       logText("creating permission.....");
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromCreatePermission =
-        await controlAccessUtil.createPermission(request);
+        await controlAccessUtil.createPermission(request, next);
 
       if (responseFromCreatePermission.success === true) {
         const status = responseFromCreatePermission.status
@@ -61,32 +57,30 @@ const createPermission = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
       const responseFromListPermissions =
-        await controlAccessUtil.listPermission(request);
+        await controlAccessUtil.listPermission(request, next);
 
       if (responseFromListPermissions.success === true) {
         const status = responseFromListPermissions.status
@@ -117,33 +111,31 @@ const createPermission = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
       const responseFromDeletePermission =
-        await controlAccessUtil.deletePermission(request);
+        await controlAccessUtil.deletePermission(request, next);
 
       if (responseFromDeletePermission.success === true) {
         const status = responseFromDeletePermission.status
@@ -174,33 +166,31 @@ const createPermission = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
       const responseFromUpdatePermission =
-        await controlAccessUtil.updatePermission(request);
+        await controlAccessUtil.updatePermission(request, next);
 
       if (responseFromUpdatePermission.success === true) {
         const status = responseFromUpdatePermission.status
@@ -231,10 +221,12 @@ const createPermission = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

@@ -1,11 +1,9 @@
 const UserModel = require("@models/User");
-const ClientModel = require("@models/Client");
-const AccessTokenModel = require("@models/AccessToken");
 const VerifyTokenModel = require("@models/VerifyToken");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText, logError } = require("./log");
-const mailer = require("./mailer");
+const { logObject, logElement, logText, logError } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const { generateDateFormatWithoutHrs } = require("@utils/date");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose").set("debug", true);
@@ -18,7 +16,7 @@ const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
@@ -29,7 +27,7 @@ const redisGetAsync = util.promisify(redis.get).bind(redis);
 const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
-const GroupModel = require("../models/Group");
+const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 const { HttpError } = require("@utils/errors");
 
@@ -50,15 +48,15 @@ function generateNumericToken(length) {
 
   return token;
 }
-async function deleteCollection(db, collectionPath, batchSize) {
+async function deleteCollection({ db, collectionPath, batchSize } = {}) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
 
   return new Promise((resolve, reject) => {
-    deleteQueryBatch(db, query, batchSize, resolve, reject);
+    deleteQueryBatch({ db, query, batchSize, resolve, reject });
   });
 }
-function deleteQueryBatch(db, query, batchSize, resolve, reject) {
+function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
   query
     .get()
     .then((snapshot) => {
@@ -86,12 +84,12 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
       // Recurse on the next process tick, to avoid
       // exploding the stack.
       process.nextTick(() => {
-        deleteQueryBatch(db, query, batchSize, resolve, reject);
+        deleteQueryBatch({ db, query, batchSize, resolve, reject });
       });
     })
     .catch(reject);
 }
-const cascadeUserDeletion = async (userId, tenant) => {
+const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
   try {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
 
@@ -149,16 +147,13 @@ const cascadeUserDeletion = async (userId, tenant) => {
     };
   } catch (error) {
     logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-    throw new HttpError(
-      "Internal Server Error",
-      httpStatus.INTERNAL_SERVER_ERROR,
-      {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
-      }
+      })
     );
   }
 };
-
 const generateCacheID = (request) => {
   const {
     privilege,
@@ -184,7 +179,7 @@ const generateCacheID = (request) => {
     day ? day : "noDay"
   }`;
 };
-const setCache = async (data, request) => {
+const setCache = async ({ data, request } = {}, next) => {
   try {
     const cacheID = generateCacheID(request);
     await redisSetAsync(
@@ -206,14 +201,14 @@ const setCache = async (data, request) => {
     };
   } catch (error) {
     logger.error(`Internal Server Error ${error.message}`);
-    throw new HttpError(
-      "Internal Server Error",
-      httpStatus.INTERNAL_SERVER_ERROR,
-      { message: error.message }
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
     );
   }
 };
-const getCache = async (request) => {
+const getCache = async (request, next) => {
   try {
     const cacheID = generateCacheID(request);
     logObject("cacheID", cacheID);
@@ -232,41 +227,39 @@ const getCache = async (request) => {
         status: httpStatus.OK,
       };
     } else {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message: "No cache present",
-        }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "No cache present",
+          }
+        )
       );
     }
   } catch (error) {
     logger.error(`Internal Server Error ${error.message}`);
-    throw new HttpError(
-      "Internal Server Error",
-      httpStatus.INTERNAL_SERVER_ERROR,
-      { message: error.message }
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
     );
   }
 };
 
 const createUserModule = {
-  listLogs: async (request) => {
+  listLogs: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
-      let filter = {};
-      const responseFromFilter = generateFilter.logs(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
-      logObject("filter", filter);
-      const responseFromListLogs = await LogModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.logs(request);
+      const responseFromListLogs = await LogModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       if (responseFromListLogs.success === true) {
         return {
           success: true,
@@ -280,25 +273,29 @@ const createUserModule = {
         const errorObject = responseFromListLogs.errors
           ? responseFromListLogs.errors
           : { message: "Internal Server Error" };
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: responseFromListLogs.message,
-            ...errorObject,
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: responseFromListLogs.message,
+              ...errorObject,
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  listStatistics: async (tenant) => {
+  listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(
         tenant
@@ -306,21 +303,19 @@ const createUserModule = {
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  listUsersAndAccessRequests: async (request) => {
+  listUsersAndAccessRequests: async (request, next) => {
     try {
       const { tenant } = request.query;
-
-      const filter = generateFilter.users(request).success
-        ? generateFilter.users(request).data
-        : {};
-
+      const filter = generateFilter.users(request, next);
       const combinedData = await UserModel(tenant)
         .aggregate([
           {
@@ -381,14 +376,16 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  listCache: async (request) => {
+  listCache: async (request, next) => {
     try {
       let missingDataMessage = "";
       const { query } = request;
@@ -417,16 +414,15 @@ const createUserModule = {
         logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
       }
 
-      const responseFromFilter = generateFilter.users(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-      const responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.users(request, next);
+      const responseFromListUser = await UserModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       if (responseFromListUser.success === true) {
         const data = responseFromListUser.data;
@@ -478,55 +474,64 @@ const createUserModule = {
         );
 
         const errorObject = responseFromListUser.errors || { message: "" };
-        throw new HttpError(
-          "Internal Server Error",
-          responseFromListUser.status || httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: responseFromListUser.message,
-            ...errorObject,
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            responseFromListUser.status || httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: responseFromListUser.message,
+              ...errorObject,
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const responseFromFilter = generateFilter.users(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-      const responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.users(request, next);
+      const responseFromListUser = await UserModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       return responseFromListUser;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
-      let filter = {};
-      const { query, body } = request;
-      let update = body;
+      const { query, body, params } = request;
+      const { tenant } = {
+        ...body,
+        ...query,
+        ...params,
+      };
+      const update = body;
 
       if (!isEmpty(update.password)) {
         delete update.password;
@@ -535,37 +540,27 @@ const createUserModule = {
         delete update._id;
       }
 
-      const { tenant } = query;
-
-      const responseFromGenerateFilter = generateFilter.users(request);
-
-      if (responseFromGenerateFilter.success === true) {
-        filter = responseFromGenerateFilter.data;
-      } else if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      }
-
-      const user = await UserModel(tenant).find(filter).lean();
-      logObject("the user details with lean(", user);
-      if (isEmpty(user)) {
-        logger.error(`the provided User does not exist in the System`);
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "the provided User does not exist in the System",
-        });
-      }
-
+      const filter = generateFilter.users(request, next);
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+
+      logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
         const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
         logObject("updatedUserDetails", updatedUserDetails);
 
-        if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
+        if (
+          constants.ENVIRONMENT &&
+          constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
+        ) {
           return {
             success: true,
             message: responseFromModifyUser.message,
@@ -573,11 +568,13 @@ const createUserModule = {
           };
         } else {
           logObject("user Object", user);
+          const email = user[0].email;
+          const firstName = user[0].firstName;
+          const lastName = user[0].lastName;
+
           const responseFromSendEmail = await mailer.update(
-            user[0].email,
-            user[0].firstName,
-            user[0].lastName,
-            updatedUserDetails
+            { email, firstName, lastName, updatedUserDetails },
+            next
           );
 
           if (responseFromSendEmail.success === true) {
@@ -594,15 +591,18 @@ const createUserModule = {
         return responseFromModifyUser;
       }
     } catch (error) {
+      logObject("the util error", error);
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  lookUpFirebaseUser: async (request) => {
+  lookUpFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
       const { email, phoneNumber, providerId, providerUid } = body;
@@ -638,12 +638,14 @@ const createUserModule = {
       return [...successResponses, ...errorResponses];
     } catch (error) {
       logObject("Internal Server Error", error);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message: error.message,
-        }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
       // return [
       //   {
@@ -655,7 +657,7 @@ const createUserModule = {
       // ];
     }
   },
-  createFirebaseUser: async (request) => {
+  createFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
       const { email, password, phoneNumber } = body;
@@ -663,9 +665,11 @@ const createUserModule = {
 
       // Check if either email or phoneNumber is provided
       if (isEmpty(email) && isEmpty(phoneNumber)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "Please provide either email or phoneNumber",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Please provide either email or phoneNumber",
+          })
+        );
         // return [
         //   {
         //     success: false,
@@ -754,7 +758,7 @@ const createUserModule = {
       // ];
     }
   },
-  syncAnalyticsAndMobile: async (request) => {
+  syncAnalyticsAndMobile: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -781,7 +785,8 @@ const createUserModule = {
         logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
 
         const responseFromCreateUser = await UserModel(tenant).register(
-          newAnalyticsUserDetails
+          newAnalyticsUserDetails,
+          next
         );
         if (responseFromCreateUser.success === true) {
           const createdUser = await responseFromCreateUser.data;
@@ -828,13 +833,19 @@ const createUserModule = {
           updatedAnalyticsUserDetails.lastName = lastName || "Unknown";
         }
 
-        const responseFromUpdateUser = await UserModel(tenant).modify({
-          filter: { _id: userExistsLocally._id },
-          update: updatedAnalyticsUserDetails,
-        });
-        const updatedUser = await UserModel(tenant).list({
-          filter: { _id: userExistsLocally._id },
-        });
+        const responseFromUpdateUser = await UserModel(tenant).modify(
+          {
+            filter: { _id: userExistsLocally._id },
+            update: updatedAnalyticsUserDetails,
+          },
+          next
+        );
+        const updatedUser = await UserModel(tenant).list(
+          {
+            filter: { _id: userExistsLocally._id },
+          },
+          next
+        );
 
         if (responseFromUpdateUser.success === true) {
           logObject("updated user in util", updatedUser);
@@ -849,14 +860,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  signUpWithFirebase: async (request) => {
+  signUpWithFirebase: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -875,10 +888,12 @@ const createUserModule = {
       ) {
         // Step 2: User exists on Firebase, send error message
 
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "User already exists on Firebase. Please login using Firebase.",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "User already exists on Firebase. Please login using Firebase.",
+          })
+        );
       } else {
         // Step 3: User does not exist on Firebase, create user on Firebase first
         // Create the user on Firebase using createFirebaseUser function
@@ -924,10 +939,12 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
@@ -943,7 +960,7 @@ const createUserModule = {
     }
     return `${context}_${tenant}`;
   },
-  setMobileUserCache: async (data, cacheID) => {
+  setMobileUserCache: async ({ data, cacheID } = {}, next) => {
     try {
       logObject("cacheID supplied to setMobileUserCache", cacheID);
       const result = await ioredis.set(
@@ -955,14 +972,16 @@ const createUserModule = {
       return result;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  getMobileUserCache: async (cacheID) => {
+  getMobileUserCache: async (cacheID, next) => {
     try {
       logText("we are getting the cache......");
       logObject("cacheID supplied", cacheID);
@@ -970,22 +989,26 @@ const createUserModule = {
       const result = await ioredis.get(cacheID);
       logObject("ze result....", result);
       if (isEmpty(result)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "Invalid Request -- Either Token or Email provided is invalid",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid Request -- Either Token or Email provided is invalid",
+          })
+        );
       }
       return JSON.parse(result);
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  deleteCachedItem: async (cacheID) => {
+  deleteCachedItem: async (cacheID, next) => {
     try {
       const result = await ioredis.del(cacheID);
       return {
@@ -996,14 +1019,16 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  loginWithFirebase: async (request) => {
+  loginWithFirebase: async (request, next) => {
     try {
       const { body } = request;
       const { email } = body;
@@ -1077,20 +1102,24 @@ const createUserModule = {
           }
         }
       } else {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "Unable to Login, User does not exist on Firebase",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Unable to Login, User does not exist on Firebase",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  verifyFirebaseCustomToken: async (request) => {
+  verifyFirebaseCustomToken: async (request, next) => {
     try {
       logText("we are in verifying things");
       const { tenant } = request.query;
@@ -1175,13 +1204,15 @@ const createUserModule = {
               data: userExistsLocally.toAuthJSON(),
             };
           } else {
-            throw new HttpError(
-              "Internal Sever Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message:
-                  "Unable to delete the token after successful operation",
-              }
+            next(
+              new HttpError(
+                "Internal Sever Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message:
+                    "Unable to delete the token after successful operation",
+                }
+              )
             );
           }
         } else {
@@ -1223,27 +1254,31 @@ const createUserModule = {
               data: newUser.toAuthJSON(),
             };
           } else {
-            throw new HttpError(
-              "Internal Sever Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message:
-                  "Unable to delete the token after successful operation",
-              }
+            next(
+              new HttpError(
+                "Internal Sever Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message:
+                    "Unable to delete the token after successful operation",
+                }
+              )
             );
           }
         }
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  generateSignInWithEmailLink: async (request) => {
+  generateSignInWithEmailLink: async (request, next) => {
     try {
       const { body, query } = request;
       const { email } = body;
@@ -1294,35 +1329,33 @@ const createUserModule = {
         const errorObject = responseFromSendEmail.errors
           ? responseFromSendEmail.errors
           : {};
-        throw new HttpError(
-          "Internal Sever Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: "email sending process unsuccessful",
-            ...errorObject,
-          }
+        next(
+          new HttpError(
+            "Internal Sever Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email sending process unsuccessful",
+              ...errorObject,
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const responseFromFilter = generateFilter.users(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.users(request, next);
       const userId = filter._id;
-
       const responseFromCascadeDeletion = await cascadeUserDeletion(
         userId,
         tenant
@@ -1331,23 +1364,28 @@ const createUserModule = {
       if (responseFromCascadeDeletion.success === true) {
         const responseFromRemoveUser = await UserModel(
           tenant.toLowerCase()
-        ).remove({
-          filter,
-        });
+        ).remove(
+          {
+            filter,
+          },
+          next
+        );
         return responseFromRemoveUser;
       } else {
         return responseFromCascadeDeletion;
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  sendFeedback: async (request) => {
+  sendFeedback: async (request, next) => {
     try {
       const { body } = request;
       const { email, message, subject } = body;
@@ -1370,14 +1408,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  verificationReminder: async (request) => {
+  verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
 
@@ -1405,7 +1445,7 @@ const createUserModule = {
       };
       const responseFromCreateToken = await VerifyTokenModel(
         tenant.toLowerCase()
-      ).register(tokenCreationBody);
+      ).register(tokenCreationBody, next);
 
       if (responseFromCreateToken.success === false) {
         return responseFromCreateToken;
@@ -1438,16 +1478,22 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
-      const { tenant, firstName, email, password, category } = request;
+      const { tenant, firstName, email, password, category } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
@@ -1462,7 +1508,8 @@ const createUserModule = {
       );
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest
+        newRequest,
+        next
       );
 
       if (responseFromCreateUser.success === true) {
@@ -1486,7 +1533,7 @@ const createUserModule = {
         };
         const responseFromCreateToken = await VerifyTokenModel(
           tenant.toLowerCase()
-        ).register(tokenCreationBody);
+        ).register(tokenCreationBody, next);
 
         if (responseFromCreateToken.success === false) {
           return responseFromCreateToken;
@@ -1524,14 +1571,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  register: async (request) => {
+  register: async (request, next) => {
     try {
       const {
         firstName,
@@ -1562,7 +1611,8 @@ const createUserModule = {
       };
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody
+        requestBody,
+        next
       );
 
       if (responseFromCreateUser.success === true) {
@@ -1594,32 +1644,31 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  forgotPassword: async (request) => {
+  forgotPassword: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
 
-      const responseFromFilter = generateFilter.users(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.users(request, next);
 
       const userExists = await UserModel(tenant).exists(filter);
 
       if (!userExists) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+          })
+        );
       }
 
       const responseFromGenerateResetToken =
@@ -1637,10 +1686,13 @@ const createUserModule = {
         };
         const responseFromModifyUser = await UserModel(
           tenant.toLowerCase()
-        ).modify({
-          filter,
-          update,
-        });
+        ).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
         if (responseFromModifyUser.success === true) {
           const responseFromSendEmail = await mailer.forgot(
             filter.email,
@@ -1665,14 +1717,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  updateForgottenPassword: async (request) => {
+  updateForgottenPassword: async (request, next) => {
     try {
       const { resetPasswordToken, password } = request.body;
       const { tenant } = request.query;
@@ -1706,10 +1760,13 @@ const createUserModule = {
         logObject("userDetails", userDetails);
         filter = { _id: ObjectId(userDetails._id) };
         logObject("updateForgottenPassword FILTER", filter);
-        const responseFromModifyUser = await UserModel(tenant).modify({
-          filter,
-          update,
-        });
+        const responseFromModifyUser = await UserModel(tenant).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
 
         if (responseFromModifyUser.success === true) {
           const { email, firstName, lastName } = userDetails;
@@ -1732,50 +1789,45 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  updateKnownPassword: async (request) => {
+  updateKnownPassword: async (request, next) => {
     try {
       const { query, body } = request;
-      const { tenant } = query;
-      const { password, old_password } = body;
-
-      const responseFromFilter = generateFilter.users(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-
-      logObject("the found filter", filter);
-
+      const { password, old_password, tenant } = { ...body, ...query };
+      const filter = generateFilter.users(request, next);
       const user = await UserModel(tenant).find(filter).lean();
-
       logObject("the user details with lean(", user);
 
       if (isEmpty(user)) {
         logger.error(
           ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
         );
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "either your old password is incorrect or the provided user does not exist",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "either your old password is incorrect or the provided user does not exist",
+          })
+        );
       }
 
       if (isEmpty(user[0].password)) {
         logger.error(` ${user[0].email} --- unable to do password lookup`);
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: "unable to do password lookup",
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "unable to do password lookup",
+            }
+          )
         );
       }
 
@@ -1788,10 +1840,12 @@ const createUserModule = {
         logger.error(
           ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
         );
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "either your old password is incorrect or the provided user does not exist",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "either your old password is incorrect or the provided user does not exist",
+          })
+        );
       }
 
       const update = {
@@ -1799,10 +1853,13 @@ const createUserModule = {
       };
       const responseFromUpdateUser = await UserModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUpdateUser.success === true) {
         const { email, firstName, lastName } = user[0];
@@ -1822,14 +1879,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  generateResetToken: () => {
+  generateResetToken: (next) => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
       return {
@@ -1839,18 +1898,26 @@ const createUserModule = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
+  isPasswordTokenValid: async (
+    { tenant = "airqo", filter = {} } = {},
+    next
+  ) => {
     try {
-      const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
-        filter,
-      });
+      const responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromListUser", responseFromListUser);
       if (responseFromListUser.success === true) {
         if (
@@ -1873,14 +1940,16 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  subscribeToNewsLetter: async (request) => {
+  subscribeToNewsLetter: async (request, next) => {
     try {
       const { email, tags } = request.body;
 
@@ -1921,25 +1990,29 @@ const createUserModule = {
             "successfully subscribed the email address to the AirQo newsletter",
         };
       } else {
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message:
-              "unable to Update Subsriber Tags for the newsletter subscription",
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "unable to Update Subsriber Tags for the newsletter subscription",
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  deleteMobileUserData: async (request) => {
+  deleteMobileUserData: async (request, next) => {
     try {
       const { userId, token } = request.params;
 
@@ -1956,9 +2029,11 @@ const createUserModule = {
         .digest("hex");
 
       if (token !== verificationToken) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "Invalid token",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid token",
+          })
+        );
       }
 
       try {
@@ -1992,12 +2067,14 @@ const createUserModule = {
           .catch((error) => {
             logger.error(`Internal Server Error -- ${error.message}`);
 
-            throw new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: error.message,
-              }
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message: error.message,
+                }
+              )
             );
           });
 
@@ -2008,22 +2085,26 @@ const createUserModule = {
         };
       } catch (error) {
         logger.error(`Internal Server Error ${error.message}`);
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  emailReport: async (request) => {
+  emailReport: async (request, next) => {
     try {
       const { body, files } = request;
       const { senderEmail, recepientEmails } = body;
@@ -2054,21 +2135,25 @@ const createUserModule = {
         const errorObject = responseFromSendEmail.errors
           ? responseFromSendEmail.errors
           : {};
-        throw new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: "Failed to send Report",
-            ...errorObject,
-          }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to send Report",
+              ...errorObject,
+            }
+          )
         );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

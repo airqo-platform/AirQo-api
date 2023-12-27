@@ -50,7 +50,7 @@ const AccessRequestSchema = new Schema(
 );
 
 AccessRequestSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let newArgs = Object.assign({}, args);
       const data = await this.create({
@@ -68,20 +68,22 @@ AccessRequestSchema.statics = {
           success: true,
           data: [],
           message:
-            "operation successful but access request NOT successfully created",
+            "operation successful but Access Request NOT successfully created",
           status: httpStatus.OK,
         };
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
         constants.ACCESS_REQUESTS_INCLUSION_PROJECTION;
@@ -124,14 +126,16 @@ AccessRequestSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updatedAccessRequest = await this.findOneAndUpdate(
@@ -148,25 +152,24 @@ AccessRequestSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedAccessRequest)) {
-        return {
-          success: false,
-          message: "access request does not exist, please crosscheck",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "access request does not exist, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -189,22 +192,22 @@ AccessRequestSchema.statics = {
           data: removedAccessRequest._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedAccessRequest)) {
-        return {
-          success: false,
-          message: "access request does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+      } else {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "access request does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
+      logObject("the model error", error);
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

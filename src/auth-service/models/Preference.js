@@ -1,7 +1,7 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -291,7 +291,7 @@ PreferenceSchema.methods = {
 };
 
 PreferenceSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let createBody = args;
       logObject("args", args);
@@ -352,10 +352,10 @@ PreferenceSchema.statics = {
       }
 
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const preferences = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -388,14 +388,16 @@ PreferenceSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updateBody = update;
@@ -460,15 +462,12 @@ PreferenceSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedPreference)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Preference  you are trying to UPDATE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
@@ -480,11 +479,10 @@ PreferenceSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-
-      throw new HttpError(message, status, errors);
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -508,21 +506,20 @@ PreferenceSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedPreference)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Preference  you are trying to DELETE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
-      throw new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-        message: error.message,
-      });
+      next(
+        new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
+          message: error.message,
+        })
+      );
     }
   },
 };

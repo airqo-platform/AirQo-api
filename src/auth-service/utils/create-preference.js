@@ -10,41 +10,34 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- preferences-util`);
 const { HttpError } = require("@utils/errors");
 
 const preferences = {
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const {
         query: { tenant },
       } = request;
-      const filterResponse = generateFilter.preferences(request);
-      logObject("filterResponse", filterResponse);
-      if (filterResponse.success === false) {
-        return filterResponse;
-      }
-
+      const filter = generateFilter.preferences(request);
       const { limit, skip } = request.query;
-      logObject("limit", limit);
-      logObject("skip", skip);
-
-      const filter = filterResponse;
-
-      const listResponse = await PreferenceModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-
-      logObject("listResponse", listResponse);
+      const listResponse = await PreferenceModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return listResponse;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -52,20 +45,17 @@ const preferences = {
       const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The provided User does not exist",
             value: user_id,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const responseFromRegisterPreference = await PreferenceModel(
         tenant
-      ).register(body);
+      ).register(body, next);
       logObject(
         "responseFromRegisterPreference in UTILS",
         responseFromRegisterPreference
@@ -74,14 +64,16 @@ const preferences = {
       return responseFromRegisterPreference;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const {
         query: { tenant },
@@ -89,20 +81,17 @@ const preferences = {
       } = request;
 
       const filterResponse = generateFilter.preferences(request);
-      logObject("filterResponse", filterResponse);
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message:
-              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-          },
-        };
+      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+            }
+          )
+        );
       }
 
       const PreferenceDetails = await PreferenceModel(tenant)
@@ -111,36 +100,37 @@ const preferences = {
         .lean();
 
       if (isEmpty(PreferenceDetails)) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
+        next(
+          new HttpError("Bad Request Errors", httpStatus.BAD_REQUEST, {
             message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const filter = PreferenceDetails;
       const update = body;
 
-      const modifyResponse = await PreferenceModel(tenant).modify({
-        filter,
-        update,
-      });
-      logObject("modifyResponse", modifyResponse);
+      const modifyResponse = await PreferenceModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return modifyResponse;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  upsert: async (request) => {
+  upsert: async (request, next) => {
     try {
       const {
         query: { tenant },
@@ -168,26 +158,23 @@ const preferences = {
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
 
-      if (filterResponse.success === false) {
-        return filterResponse;
-      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message:
-              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-          },
-        };
+      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+            }
+          )
+        );
       }
 
       const PreferenceDetails = await PreferenceModel(tenant)
         .findOne(filterResponse)
         .select("_id")
         .lean();
-
-      logObject("PreferenceDetails", PreferenceDetails);
 
       const update = body;
 
@@ -224,7 +211,6 @@ const preferences = {
         update,
         options
       );
-      logObject("modifyResponse", modifyResponse);
 
       if (!isEmpty(modifyResponse)) {
         return {
@@ -234,23 +220,26 @@ const preferences = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "unable to create or update a preference",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "unable to create or update a preference" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "unable to create or update a preference" }
+          )
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  replace: async (request) => {
+  replace: async (request, next) => {
     try {
       const {
         query: { tenant },
@@ -261,19 +250,17 @@ const preferences = {
 
       const filterResponse = generateFilter.preferences(request);
       logObject("filterResponse", filterResponse);
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message:
-              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-          },
-        };
+      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+            }
+          )
+        );
       }
 
       const PreferenceDetails = await PreferenceModel(tenant)
@@ -300,23 +287,26 @@ const preferences = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "unable to create or update a preference",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "unable to create or update a preference" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "unable to create or update a preference" }
+          )
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const {
         query: { tenant },
@@ -324,21 +314,17 @@ const preferences = {
       } = request;
 
       const filterResponse = generateFilter.preferences(request);
-      logObject("filterResponse", filterResponse);
-      logObject("the user_id", filterResponse.user_id.toString());
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      } else if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message:
-              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-          },
-        };
+      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+            }
+          )
+        );
       }
 
       const PreferenceDetails = await PreferenceModel(tenant)
@@ -347,31 +333,29 @@ const preferences = {
         .lean();
 
       if (isEmpty(PreferenceDetails)) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
+        next(
+          new HttpError("Bad Request Errors", httpStatus.BAD_REQUEST, {
             message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
-
-      logObject("PreferenceDetails", PreferenceDetails);
 
       const filter = PreferenceDetails;
       const responseFromRemovePreference = await PreferenceModel(tenant).remove(
         {
           filter,
-        }
+        },
+        next
       );
       return responseFromRemovePreference;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

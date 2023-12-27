@@ -17,7 +17,7 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 
 const createCandidate = {
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { firstName, lastName, email, tenant, network_id } = {
         ...request.body,
@@ -33,10 +33,12 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "The provided network does not exist",
-            [network_id]: `Network ID not found`,
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "The provided network does not exist",
+              [network_id]: `Network ID not found`,
+            })
+          );
         }
       }
 
@@ -56,14 +58,16 @@ const createCandidate = {
         logger.error(
           `Candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
         );
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "You already exist as an AirQo User, please use the FORGOT PASSWORD feature",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "You already exist as an AirQo User, please use the FORGOT PASSWORD feature",
+          })
+        );
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
-        ).register(request.body);
+        ).register(request.body, next);
 
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
@@ -94,14 +98,16 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, limit, skip } = {
         ...request.body,
@@ -111,46 +117,54 @@ const createCandidate = {
       const filter = generateFilter.candidates(request);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListCandidate;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const filter = generateFilter.candidates(request);
       const update = body;
       const tenant = query.tenant;
-
       const responseFromModifyCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
-      logObject("responseFromModifyCandidate", responseFromModifyCandidate);
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       return responseFromModifyCandidate;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  confirm: async (request) => {
+  confirm: async (request, next) => {
     try {
       const { tenant, firstName, lastName, email, network_id } = {
         ...request.body,
@@ -166,35 +180,38 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Network ${network_id} not found`,
-            [network_id]: "the provided network does not exist",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `Network ${network_id} not found`,
+              [network_id]: "the provided network does not exist",
+            })
+          );
         }
       }
       const candidateExists = await CandidateModel(tenant).exists({
         email,
       });
       const userExists = await UserModel(tenant).exists({ email });
-      logObject("candidateExists", candidateExists);
-      logObject("userExists", userExists);
       if (!candidateExists) {
         logger.error(
           `Candidate ${email} not found in System, crosscheck or make another request`
         );
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: `Candidate ${email} not found`,
-          [email]: `Candidate ${email} not found`,
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Candidate ${email} not found`,
+            [email]: `Candidate ${email} not found`,
+          })
+        );
       } else if (userExists) {
         logger.error(
           `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
         );
-
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
-          [email]: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+            [email]: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+          })
+        );
       } else {
         const candidateDetails = await CandidateModel(tenant)
           .find({ email })
@@ -209,17 +226,9 @@ const createCandidate = {
         requestBodyForUserCreation.userName = email;
         requestBodyForUserCreation.password = password;
 
-        logObject(
-          "requestBody during confirmation",
-          requestBodyForUserCreation
-        );
-
         const responseFromCreateUser = await UserModel(tenant).register(
-          requestBodyForUserCreation
-        );
-        logObject(
-          "responseFromCreateUser during confirmation",
-          responseFromCreateUser
+          requestBodyForUserCreation,
+          next
         );
 
         if (responseFromCreateUser.success === true) {
@@ -242,19 +251,20 @@ const createCandidate = {
               candidateDetails.length === 0 ||
               isEmpty(candidateDetails)
             ) {
-              return {
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: "unable to find the candidate details" },
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-              };
+              next(
+                new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  { message: "unable to find the candidate details" }
+                )
+              );
             }
             const filter = {
               _id: ObjectId(candidateDetails[0]._id),
             };
             const responseFromDeleteCandidate = await CandidateModel(
               tenant.toLowerCase()
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             if (responseFromDeleteCandidate.success === true) {
               return {
@@ -282,32 +292,41 @@ const createCandidate = {
       logger.error(`Internal Server Error ${error.message}`);
       if (error.code === 11000) {
         logger.error(`Duplicate Entry ${error.message}`);
-        throw new HttpError("Duplicate Entry", httpStatus.BAD_REQUEST, {
-          message: `duplicate entry ${error.keyValue}`,
-        });
+        next(
+          new HttpError("Duplicate Entry", httpStatus.BAD_REQUEST, {
+            message: `duplicate entry ${error.keyValue}`,
+          })
+        );
       }
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { tenant } = { ...request.query };
       const filter = generateFilter.candidates(request);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveCandidate;
     } catch (error) {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

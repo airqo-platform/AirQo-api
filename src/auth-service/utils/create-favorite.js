@@ -12,126 +12,119 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 
 const favorites = {
-  sample: async (request) => {
+  sample: async (request, next) => {
     try {
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
 
   /******* favorites *******************************************/
-  list: async (request) => {
+  list: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
+      const { tenant } = request.query;
       const filter = generateFilter.favorites(request);
-      if (filter.success === false) {
-        return filter;
-      }
-
-      const responseFromListFavoritesPromise = FavoriteModel(
+      const responseFromListFavorites = await FavoriteModel(
         tenant.toLowerCase()
-      ).list({ filter });
-      const responseFromListFavorites = await responseFromListFavoritesPromise;
+      ).list({ filter }, next);
       return responseFromListFavorites;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
+      const { tenant } = request.query;
       const filter = generateFilter.favorites(request);
-      if (filter.success === false) {
-        return filter;
-      }
       const responseFromDeleteFavorite = await FavoriteModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeleteFavorite;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
       const filter = generateFilter.favorites(request);
-      if (filter.success === false) {
-        return filter;
-      }
       const responseFromUpdateFavorite = await FavoriteModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
       return responseFromUpdateFavorite;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      /**
-       * check for edge cases?
-       */
-
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreateFavorite;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  syncFavorites: async (request) => {
+  syncFavorites: async (request, next) => {
     try {
       const { query, body, params } = request;
-      const { tenant } = query;
-      const { favorite_places } = body;
-      const { firebase_user_id } = params;
-
+      const { tenant, favorite_places, firebase_user_id } = {
+        ...body,
+        ...query,
+        ...params,
+      };
       let responseFromCreateFavorite, responseFromDeleteFavorite;
       let filter = {
         firebase_user_id: firebase_user_id,
       };
 
       let unsynced_favorite_places = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       unsynced_favorite_places = unsynced_favorite_places.map((item) => {
@@ -143,9 +136,12 @@ const favorites = {
         for (let favorite in unsynced_favorite_places) {
           responseFromDeleteFavorite = await FavoriteModel(
             tenant.toLowerCase()
-          ).remove({
-            filter: unsynced_favorite_places[favorite],
-          });
+          ).remove(
+            {
+              filter: unsynced_favorite_places[favorite],
+            },
+            next
+          );
         }
 
         return {
@@ -183,7 +179,7 @@ const favorites = {
         if (!existingFavorite) {
           responseFromCreateFavorite = await FavoriteModel(
             tenant.toLowerCase()
-          ).register(missing_favorite_places[favorite]);
+          ).register(missing_favorite_places[favorite], next);
           logObject("responseFromCreateFavorite", responseFromCreateFavorite);
         }
       }
@@ -213,28 +209,32 @@ const favorites = {
         };
         responseFromDeleteFavorite = await FavoriteModel(
           tenant.toLowerCase()
-        ).remove({
-          filter,
-        });
+        ).remove(
+          {
+            filter,
+          },
+          next
+        );
       }
 
       let synchronizedFavorites = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       if (
         responseFromCreateFavorite.success === false &&
         responseFromDeleteFavorite.success === false
       ) {
-        return {
-          success: false,
-          message: "Error Synchronizing favorites",
-          errors: {
-            message: `Response from Create Favorite: ${responseFromCreateFavorite.errors.message}
-           + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`,
-          },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Error Synchronizing favorites",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Response from Create Favorite: ${responseFromCreateFavorite.errors.message}
+             + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`,
+            }
+          )
+        );
       }
 
       return {
@@ -245,10 +245,12 @@ const favorites = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

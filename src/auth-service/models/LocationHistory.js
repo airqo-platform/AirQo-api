@@ -66,7 +66,7 @@ LocationHistorySchema.pre("update", function (next) {
 });
 
 LocationHistorySchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -97,15 +97,16 @@ LocationHistorySchema.statics = {
         });
       }
 
-      throw new HttpError(
-        "validation errors for some of the provided fields",
-        httpStatus.CONFLICT,
-        response
+      next(
+        new HttpError(
+          "validation errors for some of the provided fields",
+          httpStatus.CONFLICT,
+          response
+        )
       );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
         constants.LOCATION_HISTORIES_INCLUSION_PROJECTION;
@@ -145,14 +146,16 @@ LocationHistorySchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
@@ -171,25 +174,24 @@ LocationHistorySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedLocationHistory)) {
-        return {
-          success: false,
-          message: "Location History does not exist, please crosscheck",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Location History does not exist, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -216,21 +218,20 @@ LocationHistorySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedLocationHistory)) {
-        return {
-          success: false,
-          message: "Location History does not exist, please crosscheck",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Location History does not exist, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

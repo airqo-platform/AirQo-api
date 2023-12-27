@@ -10,14 +10,12 @@ const logger = log4js.getLogger(
 const { logText, logObject } = require("@utils/log");
 
 const createCandidate = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          errors
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
 
@@ -27,7 +25,7 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.create(request);
+      const candidateResponse = await createCandidateUtil.create(request, next);
 
       if (candidateResponse.success === true) {
         const status = candidateResponse.status
@@ -53,21 +51,21 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          errors
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
       const request = Object.assign({}, req);
@@ -76,7 +74,7 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.list(request);
+      const candidateResponse = await createCandidateUtil.list(request, next);
       logObject("candidateResponse", candidateResponse);
       if (candidateResponse.success === true) {
         const status = candidateResponse.status
@@ -103,22 +101,22 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  confirm: async (req, res) => {
+  confirm: async (req, res, next) => {
     logText("inside the confirm candidate......");
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          errors
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
 
@@ -128,9 +126,11 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.confirm(request);
+      const candidateResponse = await createCandidateUtil.confirm(
+        request,
+        next
+      );
 
-      logObject("candidateResponse", candidateResponse);
       if (candidateResponse.success === true) {
         const status = candidateResponse.status
           ? candidateResponse.status
@@ -154,31 +154,30 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          errors
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
       const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.delete(request);
+      const candidateResponse = await createCandidateUtil.delete(request, next);
 
       if (candidateResponse.success === true) {
         const status = candidateResponse.status
@@ -204,21 +203,21 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          errors
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
 
@@ -228,7 +227,7 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.update(request);
+      const candidateResponse = await createCandidateUtil.update(request, next);
 
       logObject("candidateResponse", candidateResponse);
       if (candidateResponse.success === true) {
@@ -256,10 +255,12 @@ const createCandidate = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

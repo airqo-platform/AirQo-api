@@ -19,7 +19,7 @@ const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
-require("@bin/cronJob");
+require("@bin/active-status-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
@@ -115,8 +115,9 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 500) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
-    logger.error(`Stack Trace: ${err.stack}`);
+    // logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    // logger.error(`Stack Trace: ${err.stack}`);
+    logObject("the error", err);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",

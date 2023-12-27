@@ -29,25 +29,6 @@ PermissionSchema.pre("save", function (next) {
   return next();
 });
 
-PermissionSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 PermissionSchema.pre("update", function (next) {
   return next();
 });
@@ -56,7 +37,7 @@ PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -85,17 +66,17 @@ PermissionSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(
-        "validation errors for some of the provided fields",
-        httpStatus.CONFLICT,
-        response
+      next(
+        new HttpError(
+          "validation errors for some of the provided fields",
+          httpStatus.CONFLICT,
+          response
+        )
       );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       let permissions = await this.aggregate()
         .match(filter)
@@ -137,16 +118,16 @@ PermissionSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "internal server error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
@@ -177,16 +158,16 @@ PermissionSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error", error: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "internal server error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, permission: 1, description: 1 },
@@ -212,13 +193,13 @@ PermissionSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error", error: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "internal server error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

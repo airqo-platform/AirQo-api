@@ -1,6 +1,6 @@
 const InquiryModel = require("@models/Inquiry");
-const { logObject } = require("./log");
-const mailer = require("./mailer");
+const { logObject } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generatFilter = require("@utils/generate-filter");
@@ -9,7 +9,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-util`);
 const { HttpError } = require("@utils/errors");
 
 const inquiry = {
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const {
         fullName,
@@ -27,7 +27,8 @@ const inquiry = {
       };
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
-        inquiry
+        inquiry,
+        next
       );
 
       if (responseFromCreateInquiry.success === true) {
@@ -56,39 +57,45 @@ const inquiry = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, filter, limit, skip } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
       const responseFromListInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
@@ -99,22 +106,27 @@ const inquiry = {
       const filter = await generatFilter.inquiry(request);
       const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject("responseFromModifyInquiry", responseFromModifyInquiry);
       return responseFromModifyInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
@@ -125,16 +137,21 @@ const inquiry = {
 
       const responseFromRemoveInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

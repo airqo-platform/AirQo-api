@@ -8,7 +8,6 @@ const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
 const winstonLogger = require("@utils/log-winston");
-const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
@@ -21,12 +20,11 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
 );
 
-const setLocalOptions = (req) => {
+const setLocalOptions = (req, res, next) => {
   try {
     if (Validator.isEmpty(req.body.userName)) {
-      throw new HttpError(
-        "the userName field is missing",
-        httpStatus.BAD_REQUEST
+      next(
+        new HttpError("the userName field is missing", httpStatus.BAD_REQUEST)
       );
     }
 
@@ -53,8 +51,7 @@ const setLocalOptions = (req) => {
       authenticationFields,
     };
   } catch (e) {
-    logObject("theeeee e", e);
-    throw new HttpError(e.message, httpStatus.BAD_REQUEST);
+    next(new HttpError(e.message, httpStatus.BAD_REQUEST));
   }
 };
 
@@ -82,7 +79,7 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req);
+  let localOptions = setLocalOptions(req, res, next);
   logObject("the localOptions", localOptions);
   if (localOptions.success === true) {
     logText("success state is true");
@@ -115,20 +112,22 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
           req.auth.status = httpStatus.BAD_REQUEST;
-          const error = new HttpError(
-            `username or password does not exist in this organisation (${tenant})`,
-            httpStatus.BAD_REQUEST
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
           );
-          next(error);
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           req.auth.status = httpStatus.BAD_REQUEST;
-          const error = new HttpError(
-            "incorrect username or password",
-            httpStatus.BAD_REQUEST
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
           );
-          next(error);
         } else if (user.analyticsVersion === 3 && user.verified === false) {
           const verificationRequest = {
             tenant: "airqo",
@@ -151,11 +150,12 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.message =
             "account not verified, verification email has been sent to your email";
           req.auth.status = httpStatus.FORBIDDEN;
-          const error = new HttpError(
-            "account not verified, verification email has been sent to your email",
-            httpStatus.FORBIDDEN
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
           );
-          next(error);
         }
         req.auth.success = true;
         req.auth.message = "successful login";
@@ -176,11 +176,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.message = "Server Error";
         req.auth.error = e.message;
         req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
-        const error = new HttpError(
-          e.message,
-          httpStatus.INTERNAL_SERVER_ERROR
-        );
-        next(error);
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
       }
     }
   );
@@ -199,20 +195,23 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
           req.auth.status = httpStatus.BAD_REQUEST;
-          const error = new HttpError(
-            `username or password does not exist in this organisation (${tenant})`,
-            httpStatus.BAD_REQUEST
+
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
           );
-          next(error);
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           req.auth.status = httpStatus.BAD_REQUEST;
-          const error = new HttpError(
-            "incorrect username or password",
-            httpStatus.BAD_REQUEST
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
           );
-          next(error);
         } else if (user.analyticsVersion === 3 && user.verified === false) {
           try {
             const verificationEmailResponse =
@@ -231,11 +230,12 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.message =
             "account not verified, verification email has been sent to your email";
           req.auth.status = httpStatus.FORBIDDEN;
-          const error = new HttpError(
-            "account not verified, verification email has been sent to your email",
-            httpStatus.FORBIDDEN
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
           );
-          next(error);
         }
         req.auth.success = true;
         req.auth.message = "successful login";
@@ -255,11 +255,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.message = "Internal Server Error";
         req.auth.error = e.message;
         req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
-        const error = new HttpError(
-          e.message,
-          httpStatus.INTERNAL_SERVER_ERROR
-        );
-        next(error);
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
       }
     }
   );
@@ -316,12 +312,14 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               responseFromRegisterUser.status ||
               httpStatus.INTERNAL_SERVER_ERROR;
             cb(responseFromRegisterUser.errors, false);
-            const error = new HttpError(
-              "unable to create user",
-              responseFromRegisterUser.status ||
-                httpStatus.INTERNAL_SERVER_ERROR
+
+            next(
+              new HttpError(
+                "unable to create user",
+                responseFromRegisterUser.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR
+              )
             );
-            next(error);
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
@@ -337,11 +335,8 @@ const useGoogleStrategy = (tenant, req, res, next) =>
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = error.message;
-        const err = new HttpError(
-          error.message,
-          httpStatus.INTERNAL_SERVER_ERROR
-        );
-        next(err);
+
+        next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
       }
     }
   );
@@ -712,12 +707,7 @@ function setLocalAuth(req, res, next) {
   try {
     const errors = extractErrorsFromRequest(req);
     if (errors) {
-      const error = new HttpError(
-        "bad request errors",
-        httpStatus.BAD_REQUEST,
-        extractErrorsFromRequest(req)
-      );
-      next(error);
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
     }
     setLocalStrategy("airqo", req, res, next);
     next();
@@ -731,12 +721,7 @@ function setGoogleAuth(req, res, next) {
     logText("we are setting the Google Auth");
     const errors = extractErrorsFromRequest(req);
     if (errors) {
-      const error = new HttpError(
-        "bad request errors",
-        httpStatus.BAD_REQUEST,
-        extractErrorsFromRequest(req)
-      );
-      next(error);
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
     }
     let tenant = "airqo";
     if (req.query.tenant) {
@@ -754,19 +739,20 @@ function setJWTAuth(req, res, next) {
   try {
     const errors = extractErrorsFromRequest(req);
     if (errors) {
-      const error = new HttpError(
-        "bad request errors",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        extractErrorsFromRequest(req)
+      next(
+        new HttpError(
+          "bad request errors",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          errors
+        )
       );
-      next(error);
     }
     setJWTStrategy("airqo", req, res, next);
     next();
   } catch (e) {
     logger.error(`the error in setLocalAuth is: ${e.message}`);
     logObject("the error in setLocalAuth is", e);
-    throw new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
   }
 }
 const setGuestToken = (req, res) => {

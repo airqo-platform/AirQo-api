@@ -8,30 +8,25 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`
 );
-
 const controlAccessUtil = require("@utils/control-access");
 
 const createGroup = {
-  removeUniqueConstraint: async (req, res) => {
+  removeUniqueConstraint: async (req, res, next) => {
     try {
-      const { query, params } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromRemoveUniqueConstraint =
-        await createGroupUtil.removeUniqueConstraint(request);
+        await createGroupUtil.removeUniqueConstraint(request, next);
 
       if (responseFromRemoveUniqueConstraint.success === true) {
         const status = responseFromRemoveUniqueConstraint.status
@@ -57,32 +52,30 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query, params } = req;
-      let { tenant } = query;
+      const { params } = req;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-
-      const responseFromListGroup = await createGroupUtil.list(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const responseFromListGroup = await createGroupUtil.list(request, next);
 
       if (responseFromListGroup.success === true) {
         const status = responseFromListGroup.status
@@ -115,36 +108,32 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listRolesForGroup: async (req, res) => {
+  listRolesForGroup: async (req, res, next) => {
     try {
       logText("unAssignPermissionFromRole....");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListRolesForGroup =
-        await controlAccessUtil.listRolesForGroup(request);
+        await controlAccessUtil.listRolesForGroup(request, next);
 
       if (responseFromListRolesForGroup.success === true) {
         const status = responseFromListRolesForGroup.status
@@ -170,32 +159,32 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromCreateGroup = await createGroupUtil.create(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const responseFromCreateGroup = await createGroupUtil.create(
+        request,
+        next
+      );
 
       if (responseFromCreateGroup.success === true) {
         const status = responseFromCreateGroup.status
@@ -226,32 +215,32 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromUpdateGroup = await createGroupUtil.update(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const responseFromUpdateGroup = await createGroupUtil.update(
+        request,
+        next
+      );
       if (responseFromUpdateGroup.success === true) {
         const status = responseFromUpdateGroup.status
           ? responseFromUpdateGroup.status
@@ -281,31 +270,32 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromDeleteGroup = await createGroupUtil.delete(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const responseFromDeleteGroup = await createGroupUtil.delete(
+        request,
+        next
+      );
       if (responseFromDeleteGroup.success === true) {
         const status = responseFromDeleteGroup.status
           ? responseFromDeleteGroup.status
@@ -335,43 +325,39 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  assignUsers: async (req, res) => {
+  assignUsers: async (req, res, next) => {
     try {
       logText("assign many users....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromAssignUsers = await createGroupUtil.assignUsersHybrid(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignUsers.success === true) {
         const status = responseFromAssignUsers.status
           ? responseFromAssignUsers.status
           : httpStatus.OK;
-
         return res.status(status).json({
           success: true,
           message: responseFromAssignUsers.message,
@@ -391,43 +377,39 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  assignOneUser: async (req, res) => {
+  assignOneUser: async (req, res, next) => {
     try {
       logText("assign one user....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromUpdateGroup = await createGroupUtil.assignOneUser(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateGroup.success === true) {
         const status = responseFromUpdateGroup.status
           ? responseFromUpdateGroup.status
           : httpStatus.OK;
-
         return res.status(status).json({
           success: true,
           message: responseFromUpdateGroup.message,
@@ -447,44 +429,39 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignUser: async (req, res) => {
+  unAssignUser: async (req, res, next) => {
     try {
       logText("unAssign user....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromUnassignUser = await createGroupUtil.unAssignUser(
-        request
+        request,
+        next
       );
-
-      logObject("responseFromUnassignUser", responseFromUnassignUser);
 
       if (responseFromUnassignUser.success === true) {
         const status = responseFromUnassignUser.status
           ? responseFromUnassignUser.status
           : httpStatus.OK;
-
         return res.status(status).json({
           message: "user successully unassigned",
           updated_records: responseFromUnassignUser.data,
@@ -504,43 +481,37 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignManyUsers: async (req, res) => {
+  unAssignManyUsers: async (req, res, next) => {
     try {
       logText("unAssign user....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromUnassignManyUsers =
-        await createGroupUtil.unAssignManyUsers(request);
-
-      logObject("responseFromUnassignManyUsers", responseFromUnassignManyUsers);
+        await createGroupUtil.unAssignManyUsers(request, next);
 
       if (responseFromUnassignManyUsers.success === true) {
         const status = responseFromUnassignManyUsers.status
           ? responseFromUnassignManyUsers.status
           : httpStatus.OK;
-
         return res.status(status).json({
           success: true,
           message: responseFromUnassignManyUsers.message,
@@ -560,34 +531,31 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listAssignedUsers: async (req, res) => {
+  listAssignedUsers: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListUserWithGroup =
-        await createGroupUtil.listAssignedUsers(request);
+        await createGroupUtil.listAssignedUsers(request, next);
 
       if (responseFromListUserWithGroup.success === true) {
         const status = responseFromListUserWithGroup.status
@@ -618,33 +586,30 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listAvailableUsers: async (req, res) => {
+  listAvailableUsers: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
       const responseFromListAvailableUsersForGroup =
-        await createGroupUtil.listAvailableUsers(request);
+        await createGroupUtil.listAvailableUsers(request, next);
 
       if (responseFromListAvailableUsersForGroup.success === true) {
         const status = responseFromListAvailableUsersForGroup.status
@@ -675,34 +640,31 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listAllGroupUsers: async (req, res) => {
+  listAllGroupUsers: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListAllGroupUsers =
-        await createGroupUtil.listAllGroupUsers(request);
+        await createGroupUtil.listAllGroupUsers(request, next);
 
       if (responseFromListAllGroupUsers.success === true) {
         const status = responseFromListAllGroupUsers.status
@@ -733,44 +695,37 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listSummary: async (req, res) => {
+  listSummary: async (req, res, next) => {
     try {
       logText("listing summary of group....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let { tenant } = req.query;
-      logElement("tenant", tenant);
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListGroups = await createGroupUtil.list(request);
-
-      logObject("responseFromListGroups in controller", responseFromListGroups);
+      const responseFromListGroups = await createGroupUtil.list(request, next);
 
       if (responseFromListGroups.success === true) {
         const status = responseFromListGroups.status
           ? responseFromListGroups.status
           : httpStatus.OK;
-
         return res.status(status).json({
           success: true,
           message: responseFromListGroups.message,
@@ -780,7 +735,6 @@ const createGroup = {
         const status = responseFromListGroups.status
           ? responseFromListGroups.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           message: responseFromListGroups.message,
           errors: responseFromListGroups.errors
@@ -790,10 +744,12 @@ const createGroup = {
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

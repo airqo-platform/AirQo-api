@@ -12,114 +12,107 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 
 const searchHistories = {
-  sample: async (request) => {
+  sample: async (request, next) => {
     try {
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
   /******* search Histories *******************************************/
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.search_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
-
-      const responseFromListSearchHistoriesPromise = SearchHistoryModel(
+      const filter = generateFilter.search_histories(request, next);
+      const responseFromListSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).list({ filter });
-      const responseFromListSearchHistories =
-        await responseFromListSearchHistoriesPromise;
+      ).list({ filter }, next);
       return responseFromListSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.search_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.search_histories(request, next);
+
       const responseFromDeleteSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeleteSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
-      const filter = generateFilter.search_histories(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.search_histories(request, next);
       const responseFromUpdateSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      /**
-       * check for edge cases?
-       */
-
       const responseFromCreateSearchHistory = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreateSearchHistory;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  syncSearchHistories: async (request) => {
+  syncSearchHistories: async (request, next) => {
     try {
       const { query, body, params } = request;
       const { tenant } = query;
@@ -132,7 +125,7 @@ const searchHistories = {
       };
 
       let unsynced_search_histories = (
-        await SearchHistoryModel(tenant.toLowerCase()).list({ filter })
+        await SearchHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       unsynced_search_histories = unsynced_search_histories.map((item) => {
@@ -177,18 +170,19 @@ const searchHistories = {
       }
 
       let synchronizedSearchHistories = (
-        await SearchHistoryModel(tenant.toLowerCase()).list({ filter })
+        await SearchHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       if (responseFromCreateSearchHistories.success === false) {
-        return {
-          success: false,
-          message: "Error Synchronizing Search Histories",
-          errors: {
-            message: `Response from Create Search History: ${responseFromCreateSearchHistories.errors.message}`,
-          },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Response from Create Search History: ${responseFromCreateSearchHistories.errors.message}`,
+            }
+          )
+        );
       }
 
       return {
@@ -199,10 +193,12 @@ const searchHistories = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

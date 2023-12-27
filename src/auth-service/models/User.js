@@ -300,7 +300,7 @@ UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       const data = await this.create({
         ...args,
@@ -316,8 +316,8 @@ UserSchema.statics = {
         return {
           success: true,
           data,
-          message: "operation successful but user NOT successfully created",
-          status: httpStatus.BAD_REQUEST,
+          message: "Operation successful but user NOT successfully created",
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -341,10 +341,10 @@ UserSchema.statics = {
       }
 
       logger.error(`Internal Server Error -- ${err.message}`);
-      throw new HttpError(message, status, response);
+      next(new HttpError(message, status, response));
     }
   },
-  async listStatistics() {
+  async listStatistics(next) {
     try {
       const response = await this.aggregate()
         .match({ email: { $ne: null } })
@@ -428,14 +428,16 @@ UserSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
@@ -632,14 +634,16 @@ UserSchema.statics = {
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
       let options = { new: true };
@@ -695,20 +699,24 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedUser)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "user does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "user does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -729,16 +737,21 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "Provided User does not exist, please crosscheck",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Provided User does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
+      logObject("the models error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
@@ -808,7 +821,6 @@ const UserModel = (tenant) => {
     return users;
   }
 };
-
 UserSchema.methods.createToken = async function () {
   try {
     const filter = { _id: this._id };
