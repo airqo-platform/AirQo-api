@@ -198,14 +198,24 @@ const createAccessRequest = {
               );
             }
 
+            const userExists = await UserModel(tenant).exists({ email });
+
+            logObject("userExists", userExists);
+
             const responseFromSendEmail =
-              await mailer.requestToJoinGroupByEmail({
-                email,
-                tenant,
-                entity_title: group.grp_title,
-                targetId: grp_id,
-                inviterEmail,
-              });
+              await mailer.requestToJoinGroupByEmail(
+                {
+                  email,
+                  tenant,
+                  entity_title: group.grp_title,
+                  targetId: grp_id,
+                  inviterEmail,
+                  userExists,
+                },
+                next
+              );
+
+            logObject("responseFromSendEmail", responseFromSendEmail);
 
             if (responseFromSendEmail.success === true) {
               successResponses.push({

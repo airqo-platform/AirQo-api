@@ -14,7 +14,7 @@ const processString = (inputString) => {
   const uppercasedString = stringWithSpaces.toUpperCase();
   return uppercasedString;
 };
-const imagePath = path.join(__dirname, "@config/images");
+const imagePath = path.join(__dirname, "../config/images");
 let attachments = [
   {
     filename: "airqoLogo.png",
@@ -165,6 +165,7 @@ const mailer = {
       tenant = "airqo",
       entity_title = "",
       inviterEmail = "",
+      userExists,
     } = {},
     next
   ) => {
@@ -187,6 +188,7 @@ const mailer = {
           entity_title,
           targetId,
           inviterEmail,
+          userExists,
         }),
         bcc,
         attachments: attachments,
@@ -202,6 +204,15 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
+        // return {
+        //   success: false,
+        //   message: "Internal Server Error",
+        //   status: httpStatus.INTERNAL_SERVER_ERROR,
+        //   errors: {
+        //     message: "email not sent",
+        //     emailResults: data,
+        //   },
+        // };
         next(
           new HttpError(
             "Internal Server Error",
@@ -214,6 +225,7 @@ const mailer = {
         );
       }
     } catch (error) {
+      logObject("the error in the mailer", error);
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
