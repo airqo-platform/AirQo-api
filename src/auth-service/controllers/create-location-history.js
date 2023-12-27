@@ -1,6 +1,6 @@
 const createLocationHistoryUtil = require("@utils/create-location-history");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const { logText } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -10,291 +10,284 @@ const logger = log4js.getLogger(
 );
 
 const createLocationHistory = {
-  syncLocationHistory: async (req, res) => {
+  syncLocationHistory: async (req, res, next) => {
     try {
       logText("Syncing Location History.....");
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const syncLocationHistoriesResponse =
+        await createLocationHistoryUtil.syncLocationHistories(request, next);
 
-      const responseFromSyncLocationHistories =
-        await createLocationHistoryUtil.syncLocationHistories(request);
-
-      if (responseFromSyncLocationHistories.success === true) {
-        const status = responseFromSyncLocationHistories.status
-          ? responseFromSyncLocationHistories.status
+      if (syncLocationHistoriesResponse.success === true) {
+        const status = syncLocationHistoriesResponse.status
+          ? syncLocationHistoriesResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSyncLocationHistories.message
-            ? responseFromSyncLocationHistories.message
+          message: syncLocationHistoriesResponse.message
+            ? syncLocationHistoriesResponse.message
             : "",
-          location_histories: responseFromSyncLocationHistories.data
-            ? responseFromSyncLocationHistories.data
+          location_histories: syncLocationHistoriesResponse.data
+            ? syncLocationHistoriesResponse.data
             : [],
         });
-      } else if (responseFromSyncLocationHistories.success === false) {
-        const status = responseFromSyncLocationHistories.status
-          ? responseFromSyncLocationHistories.status
+      } else if (syncLocationHistoriesResponse.success === false) {
+        const status = syncLocationHistoriesResponse.status
+          ? syncLocationHistoriesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSyncLocationHistories.message
-            ? responseFromSyncLocationHistories.message
+          message: syncLocationHistoriesResponse.message
+            ? syncLocationHistoriesResponse.message
             : "",
-          errors: responseFromSyncLocationHistories.errors
-            ? responseFromSyncLocationHistories.errors
+          errors: syncLocationHistoriesResponse.errors
+            ? syncLocationHistoriesResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       logText("creating Location History.....");
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
+      const locationHistoryResponse = await createLocationHistoryUtil.create(
+        request,
+        next
+      );
 
-      const responseFromCreatelocationHistory =
-        await createLocationHistoryUtil.create(request);
-
-      if (responseFromCreatelocationHistory.success === true) {
-        const status = responseFromCreatelocationHistory.status
-          ? responseFromCreatelocationHistory.status
+      if (locationHistoryResponse.success === true) {
+        const status = locationHistoryResponse.status
+          ? locationHistoryResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreatelocationHistory.message
-            ? responseFromCreatelocationHistory.message
+          message: locationHistoryResponse.message
+            ? locationHistoryResponse.message
             : "",
-          created_location_history: responseFromCreatelocationHistory.data
-            ? responseFromCreatelocationHistory.data
+          created_location_history: locationHistoryResponse.data
+            ? locationHistoryResponse.data
             : [],
         });
-      } else if (responseFromCreatelocationHistory.success === false) {
-        const status = responseFromCreatelocationHistory.status
-          ? responseFromCreatelocationHistory.status
+      } else if (locationHistoryResponse.success === false) {
+        const status = locationHistoryResponse.status
+          ? locationHistoryResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreatelocationHistory.message
-            ? responseFromCreatelocationHistory.message
+          message: locationHistoryResponse.message
+            ? locationHistoryResponse.message
             : "",
-          errors: responseFromCreatelocationHistory.errors
-            ? responseFromCreatelocationHistory.errors
+          errors: locationHistoryResponse.errors
+            ? locationHistoryResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  list: async (req, res) => {
-    console.log("In controller");
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-      const responseFromListLocationHistories =
-        await createLocationHistoryUtil.list(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (responseFromListLocationHistories.success === true) {
-        const status = responseFromListLocationHistories.status
-          ? responseFromListLocationHistories.status
+      const locationHistoriesResponse = await createLocationHistoryUtil.list(
+        request,
+        next
+      );
+
+      if (locationHistoriesResponse.success === true) {
+        const status = locationHistoriesResponse.status
+          ? locationHistoriesResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListLocationHistories.message
-            ? responseFromListLocationHistories.message
+          message: locationHistoriesResponse.message
+            ? locationHistoriesResponse.message
             : "",
-          location_histories: responseFromListLocationHistories.data
-            ? responseFromListLocationHistories.data
+          location_histories: locationHistoriesResponse.data
+            ? locationHistoriesResponse.data
             : [],
         });
-      } else if (responseFromListLocationHistories.success === false) {
-        const status = responseFromListLocationHistories.status
-          ? responseFromListLocationHistories.status
+      } else if (locationHistoriesResponse.success === false) {
+        const status = locationHistoriesResponse.status
+          ? locationHistoriesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListLocationHistories.message
-            ? responseFromListLocationHistories.message
+          message: locationHistoriesResponse.message
+            ? locationHistoriesResponse.message
             : "",
-          errors: responseFromListLocationHistories.errors
-            ? responseFromListLocationHistories.errors
+          errors: locationHistoriesResponse.errors
+            ? locationHistoriesResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-      const responseFromDeleteLocationHistories =
-        await createLocationHistoryUtil.delete(request);
+      const deleteLocationHistoriesResponse =
+        await createLocationHistoryUtil.delete(request, next);
 
-      if (responseFromDeleteLocationHistories.success === true) {
-        const status = responseFromDeleteLocationHistories.status
-          ? responseFromDeleteLocationHistories.status
+      if (deleteLocationHistoriesResponse.success === true) {
+        const status = deleteLocationHistoriesResponse.status
+          ? deleteLocationHistoriesResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteLocationHistories.message
-            ? responseFromDeleteLocationHistories.message
+          message: deleteLocationHistoriesResponse.message
+            ? deleteLocationHistoriesResponse.message
             : "",
-          deleted_location_histories: responseFromDeleteLocationHistories.data
-            ? responseFromDeleteLocationHistories.data
+          deleted_location_histories: deleteLocationHistoriesResponse.data
+            ? deleteLocationHistoriesResponse.data
             : [],
         });
-      } else if (responseFromDeleteLocationHistories.success === false) {
-        const status = responseFromDeleteLocationHistories.status
-          ? responseFromDeleteLocationHistories.status
+      } else if (deleteLocationHistoriesResponse.success === false) {
+        const status = deleteLocationHistoriesResponse.status
+          ? deleteLocationHistoriesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteLocationHistories.message
-            ? responseFromDeleteLocationHistories.message
+          message: deleteLocationHistoriesResponse.message
+            ? deleteLocationHistoriesResponse.message
             : "",
-          errors: responseFromDeleteLocationHistories.errors
-            ? responseFromDeleteLocationHistories.errors
+          errors: deleteLocationHistoriesResponse.errors
+            ? deleteLocationHistoriesResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-      const responseFromUpdateLocationHistories =
-        await createLocationHistoryUtil.update(request);
+      const updateLocationHistoriesResponse =
+        await createLocationHistoryUtil.update(request, next);
 
-      if (responseFromUpdateLocationHistories.success === true) {
-        const status = responseFromUpdateLocationHistories.status
-          ? responseFromUpdateLocationHistories.status
+      if (updateLocationHistoriesResponse.success === true) {
+        const status = updateLocationHistoriesResponse.status
+          ? updateLocationHistoriesResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateLocationHistories.message
-            ? responseFromUpdateLocationHistories.message
+          message: updateLocationHistoriesResponse.message
+            ? updateLocationHistoriesResponse.message
             : "",
-          updated_location_history: responseFromUpdateLocationHistories.data
-            ? responseFromUpdateLocationHistories.data
+          updated_location_history: updateLocationHistoriesResponse.data
+            ? updateLocationHistoriesResponse.data
             : [],
         });
-      } else if (responseFromUpdateLocationHistories.success === false) {
-        const status = responseFromUpdateLocationHistories.status
-          ? responseFromUpdateLocationHistories.status
+      } else if (updateLocationHistoriesResponse.success === false) {
+        const status = updateLocationHistoriesResponse.status
+          ? updateLocationHistoriesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateLocationHistories.message
-            ? responseFromUpdateLocationHistories.message
+          message: updateLocationHistoriesResponse.message
+            ? updateLocationHistoriesResponse.message
             : "",
-          errors: responseFromUpdateLocationHistories.errors
-            ? responseFromUpdateLocationHistories.errors
+          errors: updateLocationHistoriesResponse.errors
+            ? updateLocationHistoriesResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

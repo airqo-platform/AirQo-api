@@ -33,7 +33,7 @@ const searchHistories = {
       const filter = generateFilter.search_histories(request, next);
       const responseFromListSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).list({ filter });
+      ).list({ filter }, next);
       return responseFromListSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -54,9 +54,12 @@ const searchHistories = {
 
       const responseFromDeleteSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeleteSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -77,7 +80,7 @@ const searchHistories = {
       const filter = generateFilter.search_histories(request, next);
       const responseFromUpdateSearchHistories = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateSearchHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -96,7 +99,7 @@ const searchHistories = {
       const { tenant } = query;
       const responseFromCreateSearchHistory = await SearchHistoryModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreateSearchHistory;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -122,7 +125,7 @@ const searchHistories = {
       };
 
       let unsynced_search_histories = (
-        await SearchHistoryModel(tenant.toLowerCase()).list({ filter })
+        await SearchHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       unsynced_search_histories = unsynced_search_histories.map((item) => {
@@ -167,7 +170,7 @@ const searchHistories = {
       }
 
       let synchronizedSearchHistories = (
-        await SearchHistoryModel(tenant.toLowerCase()).list({ filter })
+        await SearchHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       if (responseFromCreateSearchHistories.success === false) {

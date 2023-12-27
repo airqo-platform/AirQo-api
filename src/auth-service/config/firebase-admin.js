@@ -4,7 +4,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { logObject, logText } = require("@utils/log");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- firebase-admin-config`
+  `${constants.ENVIRONMENT} -- config-firebase-admin`
 );
 
 initializeApp({

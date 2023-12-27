@@ -399,11 +399,14 @@ const controlAccess = {
         );
       }
 
-      const responseFromListAccessToken = await VerifyTokenModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
+      const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
@@ -418,10 +421,13 @@ const controlAccess = {
           };
           filter = { _id: user_id };
 
-          const responseFromUpdateUser = await UserModel(tenant).modify({
-            filter,
-            update,
-          });
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
 
           if (responseFromUpdateUser.success === true) {
             /**
@@ -437,7 +443,7 @@ const controlAccess = {
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
               tenant
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             logObject("responseFromDeleteToken", responseFromDeleteToken);
 
@@ -581,7 +587,7 @@ const controlAccess = {
 
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -601,7 +607,7 @@ const controlAccess = {
       const filter = generateFilter.tokens(request);
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromDeleteToken;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -775,7 +781,7 @@ const controlAccess = {
 
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).list({ skip, limit, filter });
+      ).list({ skip, limit, filter }, next);
       return responseFromListToken;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -823,7 +829,7 @@ const controlAccess = {
       tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).register(tokenCreationBody);
+      ).register(tokenCreationBody, next);
 
       return responseFromCreateToken;
     } catch (error) {
@@ -860,7 +866,8 @@ const controlAccess = {
       const newRequest = Object.assign({ userName: email, password }, request);
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest
+        newRequest,
+        next
       );
       if (responseFromCreateUser.success === true) {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
@@ -889,18 +896,21 @@ const controlAccess = {
          * We need to find a client ID associated with this user?
          */
 
-        const responseFromSaveToken = await AccessTokenModel(tenant).register({
-          token,
-          client: {},
-          user_id: responseFromCreateUser.data._id,
-          expires:
-            Date.now() +
-            toMilliseconds(
-              emailVerificationHours,
-              emailVerificationMins,
-              emailVerificationSeconds
-            ),
-        });
+        const responseFromSaveToken = await AccessTokenModel(tenant).register(
+          {
+            token,
+            client: {},
+            user_id: responseFromCreateUser.data._id,
+            expires:
+              Date.now() +
+              toMilliseconds(
+                emailVerificationHours,
+                emailVerificationMins,
+                emailVerificationSeconds
+              ),
+          },
+          next
+        );
 
         if (responseFromSaveToken.success === true) {
           let createdUser = await responseFromCreateUser.data;
@@ -957,11 +967,14 @@ const controlAccess = {
         },
       };
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
+      const responseFromListAccessToken = await AccessTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
@@ -981,10 +994,13 @@ const controlAccess = {
           };
           filter = { _id: user_id };
 
-          const responseFromUpdateUser = await UserModel(tenant).modify({
-            filter,
-            update,
-          });
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
 
           if (responseFromUpdateUser.success === true) {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
@@ -995,7 +1011,7 @@ const controlAccess = {
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await AccessTokenModel(
               tenant
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             if (responseFromDeleteToken.success === true) {
               const responseFromSendEmail = await mailer.afterEmailVerification(
@@ -1070,7 +1086,7 @@ const controlAccess = {
       }
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateClient;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1090,7 +1106,7 @@ const controlAccess = {
       const filter = generateFilter.clients(request);
       const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromDeleteClient;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1109,7 +1125,7 @@ const controlAccess = {
       const filter = generateFilter.clients(request);
       const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
-      ).list({ skip, limit, filter });
+      ).list({ skip, limit, filter }, next);
       return responseFromListClient;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1150,7 +1166,7 @@ const controlAccess = {
 
       const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
+      ).register(modifiedBody, next);
       return responseFromCreateClient;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -1499,7 +1515,7 @@ const controlAccess = {
       }
       const responseFromDeleteRole = await RoleModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
@@ -2771,11 +2787,14 @@ const controlAccess = {
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
       const filter = generateFilter.roles(newRequest);
-      const listRoleResponse = await RoleModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
+      const listRoleResponse = await RoleModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (listRoleResponse.success === true) {
         if (
@@ -2788,11 +2807,14 @@ const controlAccess = {
         const permissions = listRoleResponse.data[0].role_permissions;
         const permissionsArray = permissions.map((obj) => obj.permission);
         filter = { permission: { $in: permissionsArray } };
-        let responseFromListPermissions = await PermissionModel(tenant).list({
-          skip,
-          limit,
-          filter,
-        });
+        let responseFromListPermissions = await PermissionModel(tenant).list(
+          {
+            skip,
+            limit,
+            filter,
+          },
+          next
+        );
         return responseFromListPermissions;
       } else if (listRoleResponse.success === false) {
         return listRoleResponse;
@@ -2816,11 +2838,14 @@ const controlAccess = {
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
       const filter = generateFilter.roles(newRequest);
-      const listRoleResponse = await RoleModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
+      const listRoleResponse = await RoleModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (listRoleResponse.success === true) {
         if (
@@ -2833,11 +2858,14 @@ const controlAccess = {
         const permissions = listRoleResponse.data[0].role_permissions;
         const permissionsArray = permissions.map((obj) => obj.permission);
         filter = { permission: { $nin: permissionsArray } };
-        let responseFromListPermissions = await PermissionModel(tenant).list({
-          skip,
-          limit,
-          filter,
-        });
+        let responseFromListPermissions = await PermissionModel(tenant).list(
+          {
+            skip,
+            limit,
+            filter,
+          },
+          next
+        );
         return responseFromListPermissions;
       } else if (listRoleResponse.success === false) {
         return listRoleResponse;
@@ -2972,10 +3000,13 @@ const controlAccess = {
 
       const responseFromUnAssignPermissionFromRole = await RoleModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUnAssignPermissionFromRole.success === true) {
         let modifiedResponse = Object.assign(
@@ -3178,9 +3209,12 @@ const controlAccess = {
       const filter = generateFilter.permissions(request);
       const responseFromListPermissions = await PermissionModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-      });
+      ).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListPermissions;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3200,9 +3234,12 @@ const controlAccess = {
       const filter = generateFilter.permissions(request);
       const responseFromDeletePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeletePermission;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3223,7 +3260,7 @@ const controlAccess = {
       const filter = generateFilter.permissions(request);
       const responseFromUpdatePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdatePermission;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3242,7 +3279,7 @@ const controlAccess = {
       const { tenant } = query;
       const responseFromCreatePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreatePermission;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3264,7 +3301,7 @@ const controlAccess = {
       let modifiedBody = Object.assign({}, body);
       const responseFromRegisterDepartment = await DepartmentModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
+      ).register(modifiedBody, next);
       return responseFromRegisterDepartment;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3288,7 +3325,7 @@ const controlAccess = {
       const filter = generateFilter.departments(request);
       const responseFromModifyDepartment = await DepartmentModel(
         tenant.toLowerCase()
-      ).modify({ update, filter });
+      ).modify({ update, filter }, next);
       return responseFromModifyDepartment;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3309,7 +3346,7 @@ const controlAccess = {
       const filter = generateFilter.departments(request);
       const responseFromRemoveNetwork = await DepartmentModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveNetwork;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3329,7 +3366,7 @@ const controlAccess = {
       const filter = generateFilter.departments(request);
       const responseFromListDepartments = await DepartmentModel(
         tenant.toLowerCase()
-      ).list({ filter, limit, skip });
+      ).list({ filter, limit, skip }, next);
       return responseFromListDepartments;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3354,7 +3391,8 @@ const controlAccess = {
       const responseFromBlacklistIp = await BlacklistedIPModel(tenant).register(
         {
           ip,
-        }
+        },
+        next
       );
       return responseFromBlacklistIp;
     } catch (error) {
@@ -3385,7 +3423,10 @@ const controlAccess = {
 
       const responses = await Promise.all(
         ips.map(async (ip) => {
-          const result = await BlacklistedIPModel(tenant).register({ ip });
+          const result = await BlacklistedIPModel(tenant).register(
+            { ip },
+            next
+          );
           return { ip, success: result.success };
         })
       );
@@ -3446,7 +3487,7 @@ const controlAccess = {
       const filter = generateFilter.ips(request);
       const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3468,9 +3509,12 @@ const controlAccess = {
       };
       const responseFromBlacklistIpRange = await BlacklistedIPRangeModel(
         tenant
-      ).register({
-        range,
-      });
+      ).register(
+        {
+          range,
+        },
+        next
+      );
       return responseFromBlacklistIpRange;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3492,7 +3536,7 @@ const controlAccess = {
       };
       const filter = generateFilter.ips(request);
       const responseFromRemoveBlacklistedIpRange =
-        await BlacklistedIPRangeModel(tenant).remove({ filter });
+        await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
       return responseFromRemoveBlacklistedIpRange;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3515,9 +3559,12 @@ const controlAccess = {
       const filter = generateFilter.ips(request);
       const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
         tenant
-      ).list({
-        filter,
-      });
+      ).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListBlacklistedIpRange;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3542,7 +3589,8 @@ const controlAccess = {
       const responseFromWhitelistIp = await WhitelistedIPModel(tenant).register(
         {
           ip,
-        }
+        },
+        next
       );
       return responseFromWhitelistIp;
     } catch (error) {
@@ -3566,7 +3614,7 @@ const controlAccess = {
       const filter = generateFilter.ips(request);
       const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -3589,9 +3637,12 @@ const controlAccess = {
         ...request.params,
       };
       const filter = generateFilter.ips(request);
-      const responseFromListUnkownIP = await UnknownIPModel(tenant).list({
-        filter,
-      });
+      const responseFromListUnkownIP = await UnknownIPModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListUnkownIP;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

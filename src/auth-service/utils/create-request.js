@@ -55,13 +55,16 @@ const createAccessRequest = {
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
         tenant
-      ).register({
-        user_id: user._id,
-        email: user.email,
-        targetId: grp_id,
-        status: "pending",
-        requestType: "group",
-      });
+      ).register(
+        {
+          user_id: user._id,
+          email: user.email,
+          targetId: grp_id,
+          status: "pending",
+          requestType: "group",
+        },
+        next
+      );
 
       if (responseFromCreateAccessRequest.success === true) {
         const createdAccessRequest = await responseFromCreateAccessRequest.data;
@@ -165,12 +168,15 @@ const createAccessRequest = {
         } else {
           const responseFromCreateAccessRequest = await AccessRequestModel(
             tenant
-          ).register({
-            email: email,
-            targetId: grp_id,
-            status: "pending",
-            requestType: "group",
-          });
+          ).register(
+            {
+              email: email,
+              targetId: grp_id,
+              status: "pending",
+              requestType: "group",
+            },
+            next
+          );
 
           logObject(
             "responseFromCreateAccessRequest",
@@ -297,7 +303,8 @@ const createAccessRequest = {
       };
 
       const responseFromCreateNewUser = await UserModel(tenant).register(
-        bodyForCreatingNewUser
+        bodyForCreatingNewUser,
+        next
       );
 
       if (
@@ -312,10 +319,13 @@ const createAccessRequest = {
 
         const responseFromUpdateAccessRequest = await AccessRequestModel(
           tenant
-        ).modify({
-          filter,
-          update,
-        });
+        ).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
 
         const requestType = accessRequest[0].requestType;
 
@@ -429,12 +439,15 @@ const createAccessRequest = {
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
         tenant
-      ).register({
-        user_id: user._id,
-        targetId: net_id,
-        status: "pending",
-        requestType: "network",
-      });
+      ).register(
+        {
+          user_id: user._id,
+          targetId: net_id,
+          status: "pending",
+          requestType: "network",
+        },
+        next
+      );
 
       if (responseFromCreateAccessRequest.success === true) {
         const createdAccessRequest = await responseFromCreateAccessRequest.data;
@@ -523,10 +536,13 @@ const createAccessRequest = {
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUpdateAccessRequest.success === true) {
         const { firstName, lastName, email } = user;
@@ -622,11 +638,14 @@ const createAccessRequest = {
       const filter = generateFilter.requests(request);
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListAccessRequest;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -648,10 +667,13 @@ const createAccessRequest = {
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject(
         "responseFromModifyAccessRequest",
         responseFromModifyAccessRequest
@@ -677,9 +699,12 @@ const createAccessRequest = {
 
       const responseFromRemoveAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject(
         "responseFromRemoveAccessRequest",
         responseFromRemoveAccessRequest

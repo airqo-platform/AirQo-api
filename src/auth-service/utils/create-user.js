@@ -252,11 +252,14 @@ const createUserModule = {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
       const filter = generateFilter.logs(request);
-      const responseFromListLogs = await LogModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListLogs = await LogModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       if (responseFromListLogs.success === true) {
         return {
           success: true,
@@ -412,11 +415,14 @@ const createUserModule = {
       }
 
       const filter = generateFilter.users(request, next);
-      const responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListUser = await UserModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       if (responseFromListUser.success === true) {
         const data = responseFromListUser.data;
@@ -496,11 +502,14 @@ const createUserModule = {
       const { tenant, limit, skip } = query;
 
       const filter = generateFilter.users(request, next);
-      const responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListUser = await UserModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       return responseFromListUser;
     } catch (error) {
@@ -776,7 +785,8 @@ const createUserModule = {
         logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
 
         const responseFromCreateUser = await UserModel(tenant).register(
-          newAnalyticsUserDetails
+          newAnalyticsUserDetails,
+          next
         );
         if (responseFromCreateUser.success === true) {
           const createdUser = await responseFromCreateUser.data;
@@ -823,13 +833,19 @@ const createUserModule = {
           updatedAnalyticsUserDetails.lastName = lastName || "Unknown";
         }
 
-        const responseFromUpdateUser = await UserModel(tenant).modify({
-          filter: { _id: userExistsLocally._id },
-          update: updatedAnalyticsUserDetails,
-        });
-        const updatedUser = await UserModel(tenant).list({
-          filter: { _id: userExistsLocally._id },
-        });
+        const responseFromUpdateUser = await UserModel(tenant).modify(
+          {
+            filter: { _id: userExistsLocally._id },
+            update: updatedAnalyticsUserDetails,
+          },
+          next
+        );
+        const updatedUser = await UserModel(tenant).list(
+          {
+            filter: { _id: userExistsLocally._id },
+          },
+          next
+        );
 
         if (responseFromUpdateUser.success === true) {
           logObject("updated user in util", updatedUser);
@@ -1348,9 +1364,12 @@ const createUserModule = {
       if (responseFromCascadeDeletion.success === true) {
         const responseFromRemoveUser = await UserModel(
           tenant.toLowerCase()
-        ).remove({
-          filter,
-        });
+        ).remove(
+          {
+            filter,
+          },
+          next
+        );
         return responseFromRemoveUser;
       } else {
         return responseFromCascadeDeletion;
@@ -1426,7 +1445,7 @@ const createUserModule = {
       };
       const responseFromCreateToken = await VerifyTokenModel(
         tenant.toLowerCase()
-      ).register(tokenCreationBody);
+      ).register(tokenCreationBody, next);
 
       if (responseFromCreateToken.success === false) {
         return responseFromCreateToken;
@@ -1470,7 +1489,11 @@ const createUserModule = {
   },
   create: async (request, next) => {
     try {
-      const { tenant, firstName, email, password, category } = request;
+      const { tenant, firstName, email, password, category } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
@@ -1485,7 +1508,8 @@ const createUserModule = {
       );
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest
+        newRequest,
+        next
       );
 
       if (responseFromCreateUser.success === true) {
@@ -1509,7 +1533,7 @@ const createUserModule = {
         };
         const responseFromCreateToken = await VerifyTokenModel(
           tenant.toLowerCase()
-        ).register(tokenCreationBody);
+        ).register(tokenCreationBody, next);
 
         if (responseFromCreateToken.success === false) {
           return responseFromCreateToken;
@@ -1587,7 +1611,8 @@ const createUserModule = {
       };
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody
+        requestBody,
+        next
       );
 
       if (responseFromCreateUser.success === true) {
@@ -1661,10 +1686,13 @@ const createUserModule = {
         };
         const responseFromModifyUser = await UserModel(
           tenant.toLowerCase()
-        ).modify({
-          filter,
-          update,
-        });
+        ).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
         if (responseFromModifyUser.success === true) {
           const responseFromSendEmail = await mailer.forgot(
             filter.email,
@@ -1732,10 +1760,13 @@ const createUserModule = {
         logObject("userDetails", userDetails);
         filter = { _id: ObjectId(userDetails._id) };
         logObject("updateForgottenPassword FILTER", filter);
-        const responseFromModifyUser = await UserModel(tenant).modify({
-          filter,
-          update,
-        });
+        const responseFromModifyUser = await UserModel(tenant).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
 
         if (responseFromModifyUser.success === true) {
           const { email, firstName, lastName } = userDetails;
@@ -1822,10 +1853,13 @@ const createUserModule = {
       };
       const responseFromUpdateUser = await UserModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUpdateUser.success === true) {
         const { email, firstName, lastName } = user[0];
@@ -1878,9 +1912,12 @@ const createUserModule = {
     next
   ) => {
     try {
-      const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
-        filter,
-      });
+      const responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromListUser", responseFromListUser);
       if (responseFromListUser.success === true) {
         if (

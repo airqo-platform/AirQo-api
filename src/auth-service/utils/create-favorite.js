@@ -33,7 +33,7 @@ const favorites = {
       const filter = generateFilter.favorites(request);
       const responseFromListFavorites = await FavoriteModel(
         tenant.toLowerCase()
-      ).list({ filter });
+      ).list({ filter }, next);
       return responseFromListFavorites;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -52,9 +52,12 @@ const favorites = {
       const filter = generateFilter.favorites(request);
       const responseFromDeleteFavorite = await FavoriteModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeleteFavorite;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -94,7 +97,7 @@ const favorites = {
       const { tenant } = query;
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreateFavorite;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -121,7 +124,7 @@ const favorites = {
       };
 
       let unsynced_favorite_places = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       unsynced_favorite_places = unsynced_favorite_places.map((item) => {
@@ -133,9 +136,12 @@ const favorites = {
         for (let favorite in unsynced_favorite_places) {
           responseFromDeleteFavorite = await FavoriteModel(
             tenant.toLowerCase()
-          ).remove({
-            filter: unsynced_favorite_places[favorite],
-          });
+          ).remove(
+            {
+              filter: unsynced_favorite_places[favorite],
+            },
+            next
+          );
         }
 
         return {
@@ -173,7 +179,7 @@ const favorites = {
         if (!existingFavorite) {
           responseFromCreateFavorite = await FavoriteModel(
             tenant.toLowerCase()
-          ).register(missing_favorite_places[favorite]);
+          ).register(missing_favorite_places[favorite], next);
           logObject("responseFromCreateFavorite", responseFromCreateFavorite);
         }
       }
@@ -203,13 +209,16 @@ const favorites = {
         };
         responseFromDeleteFavorite = await FavoriteModel(
           tenant.toLowerCase()
-        ).remove({
-          filter,
-        });
+        ).remove(
+          {
+            filter,
+          },
+          next
+        );
       }
 
       let synchronizedFavorites = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       if (

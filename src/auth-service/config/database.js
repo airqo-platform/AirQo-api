@@ -6,9 +6,7 @@ mongoose.set("debug", false);
 const constants = require("./constants");
 const URI = constants.MONGO_URI;
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- dbConnection-config`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- confi-database`);
 const { HttpError } = require("@utils/errors");
 
 const options = {
@@ -54,11 +52,6 @@ const connectToMongoDB = () => {
     return db;
   } catch (error) {
     // logger.error(`Internal Server Error -- ${error.message}`);
-    // throw new HttpError(
-    //   "Internal Server Error",
-    //   httpStatus.INTERNAL_SERVER_ERROR,
-    //   { message: error.message }
-    // );
   }
 };
 

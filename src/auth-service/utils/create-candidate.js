@@ -67,7 +67,7 @@ const createCandidate = {
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
-        ).register(request.body);
+        ).register(request.body, next);
 
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
@@ -117,11 +117,14 @@ const createCandidate = {
       const filter = generateFilter.candidates(request);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListCandidate;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -142,10 +145,13 @@ const createCandidate = {
       const tenant = query.tenant;
       const responseFromModifyCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       return responseFromModifyCandidate;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -221,7 +227,8 @@ const createCandidate = {
         requestBodyForUserCreation.password = password;
 
         const responseFromCreateUser = await UserModel(tenant).register(
-          requestBodyForUserCreation
+          requestBodyForUserCreation,
+          next
         );
 
         if (responseFromCreateUser.success === true) {
@@ -257,7 +264,7 @@ const createCandidate = {
             };
             const responseFromDeleteCandidate = await CandidateModel(
               tenant.toLowerCase()
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             if (responseFromDeleteCandidate.success === true) {
               return {
@@ -306,9 +313,12 @@ const createCandidate = {
       const filter = generateFilter.candidates(request);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveCandidate;
     } catch (error) {
       next(

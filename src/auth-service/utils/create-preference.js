@@ -17,11 +17,14 @@ const preferences = {
       } = request;
       const filter = generateFilter.preferences(request);
       const { limit, skip } = request.query;
-      const listResponse = await PreferenceModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const listResponse = await PreferenceModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return listResponse;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -52,7 +55,7 @@ const preferences = {
 
       const responseFromRegisterPreference = await PreferenceModel(
         tenant
-      ).register(body);
+      ).register(body, next);
       logObject(
         "responseFromRegisterPreference in UTILS",
         responseFromRegisterPreference
@@ -107,10 +110,13 @@ const preferences = {
       const filter = PreferenceDetails;
       const update = body;
 
-      const modifyResponse = await PreferenceModel(tenant).modify({
-        filter,
-        update,
-      });
+      const modifyResponse = await PreferenceModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return modifyResponse;
     } catch (error) {
@@ -338,7 +344,8 @@ const preferences = {
       const responseFromRemovePreference = await PreferenceModel(tenant).remove(
         {
           filter,
-        }
+        },
+        next
       );
       return responseFromRemovePreference;
     } catch (error) {

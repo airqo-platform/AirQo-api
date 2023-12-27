@@ -27,7 +27,8 @@ const inquiry = {
       };
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
-        inquiry
+        inquiry,
+        next
       );
 
       if (responseFromCreateInquiry.success === true) {
@@ -74,11 +75,14 @@ const inquiry = {
       };
       const responseFromListInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -102,10 +106,13 @@ const inquiry = {
       const filter = await generatFilter.inquiry(request);
       const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject("responseFromModifyInquiry", responseFromModifyInquiry);
       return responseFromModifyInquiry;
     } catch (error) {
@@ -130,9 +137,12 @@ const inquiry = {
 
       const responseFromRemoveInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveInquiry;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

@@ -10,932 +10,852 @@ const logger = log4js.getLogger(
 );
 
 const createRole = {
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
+      const rolesResponse = await controlAccessUtil.listRole(request, next);
 
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT;
-      }
-
-      const responseFromListRole = await controlAccessUtil.listRole(request);
-
-      logObject("in controller, responseFromListRole", responseFromListRole);
-
-      if (responseFromListRole.success === true) {
-        const status = responseFromListRole.status
-          ? responseFromListRole.status
+      if (rolesResponse.success === true) {
+        const status = rolesResponse.status
+          ? rolesResponse.status
           : httpStatus.OK;
-
         res.status(status).json({
           success: true,
-          message: responseFromListRole.message,
-          roles: responseFromListRole.data,
+          message: rolesResponse.message,
+          roles: rolesResponse.data,
         });
-      } else if (responseFromListRole.success === false) {
-        const status = responseFromListRole.status
-          ? responseFromListRole.status
+      } else if (rolesResponse.success === false) {
+        const status = rolesResponse.status
+          ? rolesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListRole.message,
-          errors: responseFromListRole.errors
-            ? responseFromListRole.errors
-            : { message: "" },
+          message: rolesResponse.message,
+          errors: rolesResponse.errors ? rolesResponse.errors : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listSummary: async (req, res) => {
+  listSummary: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = Object.assign({}, req);
-
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListRole = await controlAccessUtil.listRole(request);
+      const summaryRolesResponse = await controlAccessUtil.listRole(
+        request,
+        next
+      );
 
-      logObject("in controller, responseFromListRole", responseFromListRole);
-
-      if (responseFromListRole.success === true) {
-        const status = responseFromListRole.status
-          ? responseFromListRole.status
+      if (summaryRolesResponse.success === true) {
+        const status = summaryRolesResponse.status
+          ? summaryRolesResponse.status
           : httpStatus.OK;
-
         res.status(status).json({
           success: true,
-          message: responseFromListRole.message,
-          roles: responseFromListRole.data,
+          message: summaryRolesResponse.message,
+          roles: summaryRolesResponse.data,
         });
-      } else if (responseFromListRole.success === false) {
-        const status = responseFromListRole.status
-          ? responseFromListRole.status
+      } else if (summaryRolesResponse.success === false) {
+        const status = summaryRolesResponse.status
+          ? summaryRolesResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListRole.message,
-          errors: responseFromListRole.errors
-            ? responseFromListRole.errors
+          message: summaryRolesResponse.message,
+          errors: summaryRolesResponse.errors
+            ? summaryRolesResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
-
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT;
-      }
-      const responseFromCreateRole = await controlAccessUtil.createRole(
-        request
+      const createRoleResponse = await controlAccessUtil.createRole(
+        request,
+        next
       );
-      logObject("responseFromCreateRole", responseFromCreateRole);
-      if (responseFromCreateRole.success === true) {
-        const status = responseFromCreateRole.status
-          ? responseFromCreateRole.status
+
+      if (createRoleResponse.success === true) {
+        const status = createRoleResponse.status
+          ? createRoleResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateRole.message,
-          created_role: responseFromCreateRole.data,
+          message: createRoleResponse.message,
+          created_role: createRoleResponse.data,
         });
-      } else if (responseFromCreateRole.success === false) {
-        const status = responseFromCreateRole.status
-          ? responseFromCreateRole.status
+      } else if (createRoleResponse.success === false) {
+        const status = createRoleResponse.status
+          ? createRoleResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateRole.message,
-          errors: responseFromCreateRole.errors
-            ? responseFromCreateRole.errors
+          message: createRoleResponse.message,
+          errors: createRoleResponse.errors
+            ? createRoleResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT;
-      }
-
-      const responseFromUpdateRole = await controlAccessUtil.updateRole(
-        request
+      const updateRoleResponse = await controlAccessUtil.updateRole(
+        request,
+        next
       );
-      if (responseFromUpdateRole.success === true) {
-        const status = responseFromUpdateRole.status
-          ? responseFromUpdateRole.status
+      if (updateRoleResponse.success === true) {
+        const status = updateRoleResponse.status
+          ? updateRoleResponse.status
           : httpStatus.OK;
         res.status(status).json({
-          message: responseFromUpdateRole.message,
-          updated_role: responseFromUpdateRole.data,
+          message: updateRoleResponse.message,
+          updated_role: updateRoleResponse.data,
           success: true,
         });
-      } else if (responseFromUpdateRole.success === false) {
-        const status = responseFromUpdateRole.status
-          ? responseFromUpdateRole.status
+      } else if (updateRoleResponse.success === false) {
+        const status = updateRoleResponse.status
+          ? updateRoleResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
-          message: responseFromUpdateRole.message,
-          errors: responseFromUpdateRole.errors
-            ? responseFromUpdateRole.errors
+          message: updateRoleResponse.message,
+          errors: updateRoleResponse.errors
+            ? updateRoleResponse.errors
             : { message: "" },
           success: false,
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT;
-      }
-      const responseFromDeleteRole = await controlAccessUtil.deleteRole(
-        request
+      const deleteRoleResponse = await controlAccessUtil.deleteRole(
+        request,
+        next
       );
-      if (responseFromDeleteRole.success === true) {
-        const status = responseFromDeleteRole.status
-          ? responseFromDeleteRole.status
+      if (deleteRoleResponse.success === true) {
+        const status = deleteRoleResponse.status
+          ? deleteRoleResponse.status
           : httpStatus.OK;
-
         res.status(status).json({
-          message: responseFromDeleteRole.message,
-          deleted_role: responseFromDeleteRole.data,
           success: true,
+          message: deleteRoleResponse.message,
+          deleted_role: deleteRoleResponse.data,
         });
-      } else if (responseFromDeleteRole.success === false) {
-        const status = responseFromDeleteRole.status
-          ? responseFromDeleteRole.status
+      } else if (deleteRoleResponse.success === false) {
+        const status = deleteRoleResponse.status
+          ? deleteRoleResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         res.status(status).json({
-          message: responseFromDeleteRole.message,
           success: false,
-          errors: responseFromDeleteRole.errors
-            ? responseFromDeleteRole.errors
+          message: deleteRoleResponse.message,
+          errors: deleteRoleResponse.errors
+            ? deleteRoleResponse.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listUsersWithRole: async (req, res) => {
+  listUsersWithRole: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
+      const usersWithRoleResponse = await controlAccessUtil.listUsersWithRole(
+        request,
+        next
+      );
 
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-
-      const responseFromListUsersWithRole =
-        await controlAccessUtil.listUsersWithRole(request);
-
-      logObject("responseFromListUsersWithRole", responseFromListUsersWithRole);
-
-      if (responseFromListUsersWithRole.success === true) {
-        const status = responseFromListUsersWithRole.status
-          ? responseFromListUsersWithRole.status
+      if (usersWithRoleResponse.success === true) {
+        const status = usersWithRoleResponse.status
+          ? usersWithRoleResponse.status
           : httpStatus.OK;
-
         return res.status(status).json({
           success: true,
-          message: responseFromListUsersWithRole.message,
-          users_with_role: responseFromListUsersWithRole.data,
+          message: usersWithRoleResponse.message,
+          users_with_role: usersWithRoleResponse.data,
         });
-      } else if (responseFromListUsersWithRole.success === false) {
-        const status = responseFromListUsersWithRole.status
-          ? responseFromListUsersWithRole.status
+      } else if (usersWithRoleResponse.success === false) {
+        const status = usersWithRoleResponse.status
+          ? usersWithRoleResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         res.status(status).json({
           success: false,
-          message: responseFromListUsersWithRole.message,
-          errors: responseFromListUsersWithRole.errors
-            ? responseFromListUsersWithRole.errors
+          message: usersWithRoleResponse.message,
+          errors: usersWithRoleResponse.errors
+            ? usersWithRoleResponse.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listAvailableUsersForRole: async (req, res) => {
+  listAvailableUsersForRole: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromGetUsers =
-        await controlAccessUtil.listAvailableUsersForRole(request);
+      const availableUsersResponse =
+        await controlAccessUtil.listAvailableUsersForRole(request, next);
 
-      if (responseFromGetUsers.success === true) {
-        const status = responseFromGetUsers.status
-          ? responseFromGetUsers.status
+      if (availableUsersResponse.success === true) {
+        const status = availableUsersResponse.status
+          ? availableUsersResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully listed the available users",
-          available_users: responseFromGetUsers.data,
+          available_users: availableUsersResponse.data,
         });
-      } else if (responseFromGetUsers.success === false) {
-        const status = responseFromGetUsers.status
-          ? responseFromGetUsers.status
+      } else if (availableUsersResponse.success === false) {
+        const status = availableUsersResponse.status
+          ? availableUsersResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromGetUsers.message,
-          errors: responseFromGetUsers.errors
-            ? responseFromGetUsers.errors
+          message: availableUsersResponse.message,
+          errors: availableUsersResponse.errors
+            ? availableUsersResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  assignUserToRole: async (req, res) => {
+  assignUserToRole: async (req, res, next) => {
     try {
       logText("assignUserToRole...");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
+      const assignUserResponse = await controlAccessUtil.assignUserToRole(
+        request,
+        next
+      );
 
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-
-      const responseFromAssignUserToRole =
-        await controlAccessUtil.assignUserToRole(request);
-
-      if (responseFromAssignUserToRole.success === true) {
-        const status = responseFromAssignUserToRole.status
-          ? responseFromAssignUserToRole.status
+      if (assignUserResponse.success === true) {
+        const status = assignUserResponse.status
+          ? assignUserResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          updated_records: responseFromAssignUserToRole.data,
+          updated_records: assignUserResponse.data,
         });
-      } else if (responseFromAssignUserToRole.success === false) {
-        const status = responseFromAssignUserToRole.status
-          ? responseFromAssignUserToRole.status
+      } else if (assignUserResponse.success === false) {
+        const status = assignUserResponse.status
+          ? assignUserResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignUserToRole.message,
-          errors: responseFromAssignUserToRole.errors
-            ? responseFromAssignUserToRole.errors
+          message: assignUserResponse.message,
+          errors: assignUserResponse.errors
+            ? assignUserResponse.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-  assignManyUsersToRole: async (req, res) => {
+  assignManyUsersToRole: async (req, res, next) => {
     try {
       logText("assignManyUsersToRole...");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
+      const assignManyUsersResponse =
+        await controlAccessUtil.assignManyUsersToRole(request, next);
 
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-
-      const responseFromAssignManyUsersToRole =
-        await controlAccessUtil.assignManyUsersToRole(request);
-
-      if (responseFromAssignManyUsersToRole.success === true) {
-        const status = responseFromAssignManyUsersToRole.status
-          ? responseFromAssignManyUsersToRole.status
+      if (assignManyUsersResponse.success === true) {
+        const status = assignManyUsersResponse.status
+          ? assignManyUsersResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignManyUsersToRole.message,
-          updated_records: responseFromAssignManyUsersToRole.data,
+          message: assignManyUsersResponse.message,
+          updated_records: assignManyUsersResponse.data,
         });
-      } else if (responseFromAssignManyUsersToRole.success === false) {
-        const status = responseFromAssignManyUsersToRole.status
-          ? responseFromAssignManyUsersToRole.status
+      } else if (assignManyUsersResponse.success === false) {
+        const status = assignManyUsersResponse.status
+          ? assignManyUsersResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignManyUsersToRole.message,
-          errors: responseFromAssignManyUsersToRole.errors
-            ? responseFromAssignManyUsersToRole.errors
+          message: assignManyUsersResponse.message,
+          errors: assignManyUsersResponse.errors
+            ? assignManyUsersResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignUserFromRole: async (req, res) => {
+  unAssignUserFromRole: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      /**
-       * logged in user needs to have the right permission to perform this action
-       * send error message of 400,bad request in case user was not assigned to that role
-       */
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      const responseFromUnAssignUserFromRole =
-        await controlAccessUtil.unAssignUserFromRole(request);
-      logObject(
-        "responseFromUnAssignUserFromRole",
-        responseFromUnAssignUserFromRole
+      const unAssignUserResponse = await controlAccessUtil.unAssignUserFromRole(
+        request,
+        next
       );
 
-      if (responseFromUnAssignUserFromRole.success === true) {
-        const status = responseFromUnAssignUserFromRole.status
-          ? responseFromUnAssignUserFromRole.status
+      if (unAssignUserResponse.success === true) {
+        const status = unAssignUserResponse.status
+          ? unAssignUserResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUnAssignUserFromRole.message,
-          user_unassigned: responseFromUnAssignUserFromRole.data,
+          message: unAssignUserResponse.message,
+          user_unassigned: unAssignUserResponse.data,
         });
-      } else if (responseFromUnAssignUserFromRole.success === false) {
-        const status = responseFromUnAssignUserFromRole.status
-          ? responseFromUnAssignUserFromRole.status
+      } else if (unAssignUserResponse.success === false) {
+        const status = unAssignUserResponse.status
+          ? unAssignUserResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUnAssignUserFromRole.message,
-          errors: responseFromUnAssignUserFromRole.errors
-            ? responseFromUnAssignUserFromRole.errors
+          message: unAssignUserResponse.message,
+          errors: unAssignUserResponse.errors
+            ? unAssignUserResponse.errors
             : { message: "INTERNAL SERVER ERRORS" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignManyUsersFromRole: async (req, res) => {
+  unAssignManyUsersFromRole: async (req, res, next) => {
     try {
       logText("assignManyUsersToRole...");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
+      const unAssignManyUsersResponse =
+        await controlAccessUtil.unAssignManyUsersFromRole(request, next);
 
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-
-      const responseFromUnAssignManyUsersFromRole =
-        await controlAccessUtil.unAssignManyUsersFromRole(request);
-
-      if (responseFromUnAssignManyUsersFromRole.success === true) {
-        const status = responseFromUnAssignManyUsersFromRole.status
-          ? responseFromUnAssignManyUsersFromRole.status
+      if (unAssignManyUsersResponse.success === true) {
+        const status = unAssignManyUsersResponse.status
+          ? unAssignManyUsersResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUnAssignManyUsersFromRole.message,
-          updated_records: responseFromUnAssignManyUsersFromRole.data,
+          message: unAssignManyUsersResponse.message,
+          updated_records: unAssignManyUsersResponse.data,
         });
-      } else if (responseFromUnAssignManyUsersFromRole.success === false) {
-        const status = responseFromUnAssignManyUsersFromRole.status
-          ? responseFromUnAssignManyUsersFromRole.status
+      } else if (unAssignManyUsersResponse.success === false) {
+        const status = unAssignManyUsersResponse.status
+          ? unAssignManyUsersResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUnAssignManyUsersFromRole.message,
-          errors: responseFromUnAssignManyUsersFromRole.errors
-            ? responseFromUnAssignManyUsersFromRole.errors
+          message: unAssignManyUsersResponse.message,
+          errors: unAssignManyUsersResponse.errors
+            ? unAssignManyUsersResponse.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listPermissionsForRole: async (req, res) => {
+  listPermissionsForRole: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      const responseFromListPermissions =
-        await controlAccessUtil.listPermissionsForRole(request);
+      const permissionsForRoleResponse =
+        await controlAccessUtil.listPermissionsForRole(request, next);
 
-      if (responseFromListPermissions.success === true) {
-        const status = responseFromListPermissions.status
-          ? responseFromListPermissions.status
+      if (permissionsForRoleResponse.success === true) {
+        const status = permissionsForRoleResponse.status
+          ? permissionsForRoleResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully listed the permissions for the role",
-          permissions_list: responseFromListPermissions.data,
+          permissions_list: permissionsForRoleResponse.data,
         });
-      } else if (responseFromListPermissions.success === false) {
-        const status = responseFromListPermissions.status
-          ? responseFromListPermissions.status
+      } else if (permissionsForRoleResponse.success === false) {
+        const status = permissionsForRoleResponse.status
+          ? permissionsForRoleResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: false,
-          message: responseFromListPermissions.message,
-          errors: responseFromListPermissions.errors
-            ? responseFromListPermissions.errors
+          message: permissionsForRoleResponse.message,
+          errors: permissionsForRoleResponse.errors
+            ? permissionsForRoleResponse.errors
             : { message: "internal server error" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  listAvailablePermissionsForRole: async (req, res) => {
+  listAvailablePermissionsForRole: async (req, res, next) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
-      const responseForListOfPermissions =
-        await controlAccessUtil.listAvailablePermissionsForRole(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (responseForListOfPermissions.success === true) {
-        const status = responseForListOfPermissions.status
-          ? responseForListOfPermissions.status
+      const availablePermissionsResponse =
+        await controlAccessUtil.listAvailablePermissionsForRole(request, next);
+
+      if (availablePermissionsResponse.success === true) {
+        const status = availablePermissionsResponse.status
+          ? availablePermissionsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseForListOfPermissions.message,
-          available_permissions: responseForListOfPermissions.data,
+          message: availablePermissionsResponse.message,
+          available_permissions: availablePermissionsResponse.data,
         });
-      } else if (responseForListOfPermissions.success === false) {
-        const status = responseForListOfPermissions.status
-          ? responseForListOfPermissions.status
+      } else if (availablePermissionsResponse.success === false) {
+        const status = availablePermissionsResponse.status
+          ? availablePermissionsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: false,
-          message: responseForListOfPermissions.message,
-          errors: responseForListOfPermissions.errors
-            ? responseForListOfPermissions.errors
+          message: availablePermissionsResponse.message,
+          errors: availablePermissionsResponse.errors
+            ? availablePermissionsResponse.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  assignPermissionToRole: async (req, res) => {
+  assignPermissionToRole: async (req, res, next) => {
     try {
       logText("assignPermissionToRole....");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      const assignPermissionsResponse =
+        await controlAccessUtil.assignPermissionsToRole(request, next);
 
-      const responseFromUpdateRole =
-        await controlAccessUtil.assignPermissionsToRole(request);
-
-      if (responseFromUpdateRole.success === true) {
-        const status = responseFromUpdateRole.status
-          ? responseFromUpdateRole.status
+      if (assignPermissionsResponse.success === true) {
+        const status = assignPermissionsResponse.status
+          ? assignPermissionsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateRole.message,
-          updated_role: responseFromUpdateRole.data,
+          message: assignPermissionsResponse.message,
+          updated_role: assignPermissionsResponse.data,
         });
-      } else if (responseFromUpdateRole.success === false) {
-        const status = responseFromUpdateRole.status
-          ? responseFromUpdateRole.status
+      } else if (assignPermissionsResponse.success === false) {
+        const status = assignPermissionsResponse.status
+          ? assignPermissionsResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateRole.message,
-          errors: responseFromUpdateRole.errors
-            ? responseFromUpdateRole.errors
+          message: assignPermissionsResponse.message,
+          errors: assignPermissionsResponse.errors
+            ? assignPermissionsResponse.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignPermissionFromRole: async (req, res) => {
+  unAssignPermissionFromRole: async (req, res, next) => {
     try {
       logText("unAssignPermissionFromRole....");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      const unAssignPermissionResponse =
+        await controlAccessUtil.unAssignPermissionFromRole(request, next);
 
-      const responseFromUnAssignPermissionFromRole =
-        await controlAccessUtil.unAssignPermissionFromRole(request);
-
-      if (responseFromUnAssignPermissionFromRole.success === true) {
-        const status = responseFromUnAssignPermissionFromRole.status
-          ? responseFromUnAssignPermissionFromRole.status
+      if (unAssignPermissionResponse.success === true) {
+        const status = unAssignPermissionResponse.status
+          ? unAssignPermissionResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUnAssignPermissionFromRole.message,
-          modified_role: responseFromUnAssignPermissionFromRole.data,
+          message: unAssignPermissionResponse.message,
+          modified_role: unAssignPermissionResponse.data,
         });
-      } else if (responseFromUnAssignPermissionFromRole.success === false) {
-        const status = responseFromUnAssignPermissionFromRole.status
-          ? responseFromUnAssignPermissionFromRole.status
+      } else if (unAssignPermissionResponse.success === false) {
+        const status = unAssignPermissionResponse.status
+          ? unAssignPermissionResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: false,
-          message: responseFromUnAssignPermissionFromRole.message,
-          errors: responseFromUnAssignPermissionFromRole.errors
-            ? responseFromUnAssignPermissionFromRole.errors
+          message: unAssignPermissionResponse.message,
+          errors: unAssignPermissionResponse.errors
+            ? unAssignPermissionResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  unAssignManyPermissionsFromRole: async (req, res) => {
+  unAssignManyPermissionsFromRole: async (req, res, next) => {
     try {
       logText("unAssign Many Permissions From Role....");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      const unAssignManyPermissionsResponse =
+        await controlAccessUtil.unAssignManyPermissionsFromRole(request, next);
 
-      const responseFromunAssignManyPermissionsFromRole =
-        await controlAccessUtil.unAssignManyPermissionsFromRole(request);
-
-      if (responseFromunAssignManyPermissionsFromRole.success === true) {
-        const status = responseFromunAssignManyPermissionsFromRole.status
-          ? responseFromunAssignManyPermissionsFromRole.status
+      if (unAssignManyPermissionsResponse.success === true) {
+        const status = unAssignManyPermissionsResponse.status
+          ? unAssignManyPermissionsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromunAssignManyPermissionsFromRole.message,
-          modified_role: responseFromunAssignManyPermissionsFromRole.data,
+          message: unAssignManyPermissionsResponse.message,
+          modified_role: unAssignManyPermissionsResponse.data,
         });
-      } else if (
-        responseFromunAssignManyPermissionsFromRole.success === false
-      ) {
-        const status = responseFromunAssignManyPermissionsFromRole.status
-          ? responseFromunAssignManyPermissionsFromRole.status
+      } else if (unAssignManyPermissionsResponse.success === false) {
+        const status = unAssignManyPermissionsResponse.status
+          ? unAssignManyPermissionsResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: true,
-          message: responseFromunAssignManyPermissionsFromRole.message,
-          errors: responseFromunAssignManyPermissionsFromRole.errors
-            ? responseFromunAssignManyPermissionsFromRole.errors
+          message: unAssignManyPermissionsResponse.message,
+          errors: unAssignManyPermissionsResponse.errors
+            ? unAssignManyPermissionsResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },
-
-  updateRolePermissions: async (req, res) => {
+  updateRolePermissions: async (req, res, next) => {
     try {
       logText("  updateRolePermissions....");
-      const { query, body } = req;
-      let { tenant } = query;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request["query"]["tenant"] = tenant;
+      const updateRolePermissionsResponse =
+        await controlAccessUtil.updateRolePermissions(request, next);
 
-      const responseFromUpdateRolePermissions =
-        await controlAccessUtil.updateRolePermissions(request);
-
-      if (responseFromUpdateRolePermissions.success === true) {
-        const status = responseFromUpdateRolePermissions.status
-          ? responseFromUpdateRolePermissions.status
+      if (updateRolePermissionsResponse.success === true) {
+        const status = updateRolePermissionsResponse.status
+          ? updateRolePermissionsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateRolePermissions.message,
-          modified_role: responseFromUpdateRolePermissions.data,
+          message: updateRolePermissionsResponse.message,
+          modified_role: updateRolePermissionsResponse.data,
         });
-      } else if (responseFromUpdateRolePermissions.success === false) {
-        const status = responseFromUpdateRolePermissions.status
-          ? responseFromUpdateRolePermissions.status
+      } else if (updateRolePermissionsResponse.success === false) {
+        const status = updateRolePermissionsResponse.status
+          ? updateRolePermissionsResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateRolePermissions.message,
-          errors: responseFromUpdateRolePermissions.errors
-            ? responseFromUpdateRolePermissions.errors
+          message: updateRolePermissionsResponse.message,
+          errors: updateRolePermissionsResponse.errors
+            ? updateRolePermissionsResponse.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   },

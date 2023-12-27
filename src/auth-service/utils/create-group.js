@@ -105,7 +105,7 @@ const createGroup = {
       logObject("the user making the request", user);
       const responseFromRegisterGroup = await GroupModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
+      ).register(modifiedBody, next);
 
       logObject("responseFromRegisterGroup", responseFromRegisterGroup);
 
@@ -293,7 +293,7 @@ const createGroup = {
       const filter = generateFilter.groups(request);
       const responseFromModifyGroup = await GroupModel(
         tenant.toLowerCase()
-      ).modify({ update, filter });
+      ).modify({ update, filter }, next);
       logObject("responseFromModifyGroup", responseFromModifyGroup);
       return responseFromModifyGroup;
     } catch (error) {
@@ -332,7 +332,7 @@ const createGroup = {
 
       const responseFromRemoveGroup = await GroupModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveGroup;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -352,7 +352,7 @@ const createGroup = {
       const filter = generateFilter.groups(request);
       const responseFromListGroups = await GroupModel(
         tenant.toLowerCase()
-      ).list({ filter, limit, skip });
+      ).list({ filter, limit, skip }, next);
       return responseFromListGroups;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

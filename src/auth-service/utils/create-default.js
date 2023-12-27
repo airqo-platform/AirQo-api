@@ -17,11 +17,14 @@ const defaults = {
       } = request;
       const filter = generateFilter.defaults(request);
       const { limit, skip } = request.query;
-      return await DefaultsModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      return await DefaultsModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
@@ -49,7 +52,8 @@ const defaults = {
       }
 
       const responseFromRegisterDefault = await DefaultsModel(tenant).register(
-        body
+        body,
+        next
       );
       return responseFromRegisterDefault;
     } catch (error) {
@@ -73,10 +77,13 @@ const defaults = {
       const filter = generateFilter.defaults(request);
       const update = body;
 
-      const modifyResponse = await DefaultsModel(tenant).modify({
-        filter,
-        update,
-      });
+      const modifyResponse = await DefaultsModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return modifyResponse;
     } catch (error) {
@@ -94,9 +101,12 @@ const defaults = {
     try {
       const filter = generateFilter.defaults(request);
       const { tenant } = request.query;
-      const responseFromRemoveDefault = await DefaultsModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveDefault = await DefaultsModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveDefault;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

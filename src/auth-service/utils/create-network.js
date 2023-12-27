@@ -51,11 +51,14 @@ const createNetwork = {
           responseFromExtractOneNetwork.data;
 
         const filter = generateFilter.networks(modifiedRequest);
-        const responseFromListNetworks = await NetworkModel(tenant).list({
-          filter,
-          limit,
-          skip,
-        });
+        const responseFromListNetworks = await NetworkModel(tenant).list(
+          {
+            filter,
+            limit,
+            skip,
+          },
+          next
+        );
 
         if (responseFromListNetworks.success === true) {
           const data = responseFromListNetworks.data;
@@ -186,7 +189,8 @@ const createNetwork = {
 
       logObject("modifiedBody", modifiedBody);
       const responseFromRegisterNetwork = await NetworkModel(tenant).register(
-        modifiedBody
+        modifiedBody,
+        next
       );
 
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
@@ -796,10 +800,13 @@ const createNetwork = {
 
       const filter = generateFilter.networks(request);
 
-      const responseFromModifyNetwork = await NetworkModel(tenant).modify({
-        update,
-        filter,
-      });
+      const responseFromModifyNetwork = await NetworkModel(tenant).modify(
+        {
+          update,
+          filter,
+        },
+        next
+      );
       return responseFromModifyNetwork;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -851,9 +858,12 @@ const createNetwork = {
           `Network ${filter._id} was not found in any users' network_roles.`
         );
       }
-      const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveNetwork = await NetworkModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
       return responseFromRemoveNetwork;
     } catch (error) {
@@ -871,11 +881,14 @@ const createNetwork = {
     try {
       let { skip, limit, tenant } = request.query;
       const filter = generateFilter.networks(request);
-      const responseFromListNetworks = await NetworkModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListNetworks = await NetworkModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListNetworks;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -981,9 +994,12 @@ const createNetwork = {
         category: "networks",
       };
 
-      let responseFromListAvailableUsers = await UserModel(tenant).list({
-        filter,
-      });
+      let responseFromListAvailableUsers = await UserModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
 
       if (responseFromListAvailableUsers.success === true) {
         responseFromListAvailableUsers.message = `retrieved all available users for network ${net_id}`;
@@ -1020,9 +1036,12 @@ const createNetwork = {
         category: "networks",
       };
 
-      let responseFromListAssignedUsers = await UserModel(tenant).list({
-        filter,
-      });
+      let responseFromListAssignedUsers = await UserModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
 
       logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
 

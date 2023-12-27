@@ -1,23 +1,28 @@
 const httpStatus = require("http-status");
 const AccessTokenModel = require("@models/AccessToken");
 const mongoose = require("mongoose").set("debug", true);
-const ObjectId = mongoose.Types.ObjectId;
-const { logObject } = require("../utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- middleware/check-scope`
 );
-const { HttpError } = require("@utils/errors");
+const { HttpError, extractErrorsFromRequest } = require("@utils/errors");
 
 const checkScope = (requiredScope) => {
   return async (req, res, next) => {
     try {
-      let { tenant } = req.query;
-
-      if (!tenant) {
-        tenant = "airqo";
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
       }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       if (req.params && req.params.token) {
         const token = req.params.token;
@@ -45,10 +50,12 @@ const checkScope = (requiredScope) => {
       next();
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
   };

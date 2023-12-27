@@ -31,7 +31,7 @@ const locationHistories = {
       const filter = generateFilter.location_histories(request);
       const responseFromListLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
-      ).list({ filter });
+      ).list({ filter }, next);
       return responseFromListLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -51,9 +51,12 @@ const locationHistories = {
       const filter = generateFilter.location_histories(request);
       const responseFromDeleteLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromDeleteLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -74,7 +77,7 @@ const locationHistories = {
       const filter = generateFilter.location_histories(request);
       const responseFromUpdateLocationHistories = await LocationHistoryModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateLocationHistories;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -93,7 +96,7 @@ const locationHistories = {
       const { tenant } = query;
       const responseFromCreateLocationHistory = await LocationHistoryModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(body, next);
       return responseFromCreateLocationHistory;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -119,7 +122,7 @@ const locationHistories = {
       };
 
       let unsynced_location_histories = (
-        await LocationHistoryModel(tenant.toLowerCase()).list({ filter })
+        await LocationHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       unsynced_location_histories = unsynced_location_histories.map((item) => {
@@ -164,7 +167,7 @@ const locationHistories = {
       }
 
       let synchronizedLocationHistories = (
-        await LocationHistoryModel(tenant.toLowerCase()).list({ filter })
+        await LocationHistoryModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
       if (responseFromCreateLocationHistories.success === false) {
