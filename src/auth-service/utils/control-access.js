@@ -286,13 +286,12 @@ const isIPBlacklisted = async ({
       let matchingDayEntry = document.ipCounts.find(
         (entry) => entry.day === day
       );
-      if (matchingDayEntry) {
-        matchingDayEntry.count += 1;
-        await document.save();
-      } else {
+      if (!matchingDayEntry) {
         document.ipCounts.push({ day, count: 1 });
-        await document.save();
+      } else {
+        matchingDayEntry.count += 1;
       }
+      await document.save();
     }
   } catch (error) {
     if (error.name === "MongoError" && error.code === 11000) {
