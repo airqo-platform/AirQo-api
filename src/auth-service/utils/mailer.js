@@ -281,6 +281,15 @@ const mailer = {
         attachments,
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptionsForAirQo);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -347,6 +356,15 @@ const mailer = {
           html: msgs.welcome_general(firstName, lastName, password, email),
           bcc,
           attachments,
+        };
+      }
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
         };
       }
 
@@ -445,6 +463,15 @@ const mailer = {
         ],
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -531,6 +558,15 @@ const mailer = {
           },
         ],
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
 
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -729,6 +765,15 @@ const mailer = {
         html: msgs.join_by_email(email, token),
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -774,6 +819,16 @@ const mailer = {
         html: msgTemplates.deleteMobileAccountEmail(email, token),
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -819,6 +874,16 @@ const mailer = {
         html: `${msgs.authenticate_email(token, email)}`,
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -1061,6 +1126,15 @@ const mailer = {
         to: email,
         bcc,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
 
       const response = await transporter.sendMail(mailOptions);
 
