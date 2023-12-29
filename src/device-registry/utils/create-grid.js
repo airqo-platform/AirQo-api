@@ -740,16 +740,15 @@ const createGrid = {
       // Extract site IDs from the fetched sites
       const site_ids = sites.map((site) => site._id);
 
-      // Fetch devices for each site
-      const device_ids = [];
-      for (const siteId of site_ids) {
+      // Fetch devices for each site concurrently
+      const device_ids_promises = site_ids.map(async (siteId) => {
         const devices = await DeviceModel(tenant).find({ site_id: siteId });
+        return devices.map((device) => device._id);
+      });
 
-        // Extract device IDs from the fetched devices
-        devices.forEach((device) => {
-          device_ids.push(device._id);
-        });
-      }
+      const device_ids = await Promise.all(device_ids_promises).then((ids) =>
+        ids.flat()
+      );
 
       logObject("site_ids:", site_ids);
       logObject("device_ids:", device_ids);

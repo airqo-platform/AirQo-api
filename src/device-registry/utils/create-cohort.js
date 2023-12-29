@@ -1,19 +1,16 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
+const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`
 );
 const mongoose = require("mongoose");
-const { Schema } = require("mongoose");
-
 const ObjectId = mongoose.Types.ObjectId;
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -195,7 +192,6 @@ const createCohort = {
       };
     }
   },
-
   create: async (request) => {
     try {
       const { body, query } = request;
@@ -311,7 +307,6 @@ const createCohort = {
       };
     }
   },
-
   listAvailableDevices: async (request) => {
     try {
       const { tenant } = request.query;
@@ -767,6 +762,52 @@ const createCohort = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  getSiteAndDeviceIds: async (request) => {
+    try {
+      const { cohort_id, tenant } = { ...request.query, ...request.params };
+      const cohortDetails = await CohortModel(tenant).findById(cohort_id);
+      if (isEmpty(cohortDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: "This Cohort does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      // Fetch devices based on the provided Cohort ID
+      const devices = await DeviceModel(tenant).find({ cohorts: cohort_id });
+
+      // Extract device IDs from the fetched devices
+      const device_ids = devices.map((device) => device._id);
+
+      // Fetch sites for each device concurrently
+      const site_ids_promises = device_ids.map(async (deviceId) => {
+        const device = await DeviceModel(tenant).findOne({ _id: deviceId });
+        return device.site_id;
+      });
+
+      const site_ids = await Promise.all(site_ids_promises);
+
+      logObject("device_ids:", device_ids);
+      logObject("device_ids:", site_ids);
+
+      return {
+        success: true,
+        message: "Successfully returned the Site IDs and the Device IDs",
+        status: httpStatus.OK,
+        data: { device_ids, site_ids },
+      };
+    } catch (error) {
+      logElement("Internal Server Error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },
