@@ -255,27 +255,29 @@ class WeatherDataUtils:
                     OpenWeatherApi.get_current_weather_for_each_site,
                     batch_of_coordinates,
                 )
-
             return [
                 {
-                    # add a key for current timestamp in utc
-                    "timestamp": datetime.utcfromtimestamp(result["dt"]).strftime(
-                        "%Y-%m-%d %H:%M:%S"
+                    "timestamp": datetime.utcfromtimestamp(
+                        result.get("dt", 0)
+                    ).strftime("%Y-%m-%d %H:%M:%S"),
+                    "latitude": result.get("coord", {}).get("lat", 0),
+                    "longitude": result.get("coord", {}).get("lon", 0),
+                    "temperature": result.get("main", {}).get("temp", 0),
+                    "humidity": result.get("main", {}).get("humidity", 0),
+                    "pressure": result.get("main", {}).get("pressure", 0),
+                    "wind_speed": result.get("wind", {}).get("speed", 0),
+                    "wind_direction": result.get("wind", {}).get("deg", 0),
+                    "wind_gust": result.get("wind", {}).get(
+                        "gust", 0
+                    ),  # Uncomment if needed
+                    "weather_description": result.get("weather", [{}])[0].get(
+                        "description", ""
                     ),
-                    "latitude": result["coord"]["lat"],
-                    "longitude": result["coord"]["lon"],
-                    "temperature": result["main"]["temp"],
-                    "humidity": result["main"]["humidity"],
-                    "pressure": result["main"]["pressure"],
-                    "wind_speed": result["wind"]["speed"],
-                    "wind_direction": result["wind"]["deg"],
-                    # "wind_gust": result["wind"]["gust"],
-                    "weather_description": result["weather"][0]["description"],
-                    "sea_level": result["main"]["sea_level"],
-                    "ground_level": result["main"]["grnd_level"],
-                    "visibility": result["visibility"],
-                    "cloudiness": result["clouds"]["all"],
-                    # "rain": result["rain"]["1h"],
+                    "sea_level": result.get("main", {}).get("sea_level", 0),
+                    "ground_level": result.get("main", {}).get("grnd_level", 0),
+                    "visibility": result.get("visibility", 0),
+                    "cloudiness": result.get("clouds", {}).get("all", 0),
+                    "rain": result.get("rain", {}).get("1h", 0),  # Uncomment if needed
                 }
                 for result in results
                 if "main" in result
