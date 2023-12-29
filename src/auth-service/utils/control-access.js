@@ -769,6 +769,8 @@ const controlAccess = {
       const { query, params } = request;
       const { tenant, limit, skip, token } = { ...query, ...params };
 
+      const filter = generateFilter.tokens(request, next);
+
       if (isEmpty(token)) {
         next(
           new HttpError(
