@@ -1,45 +1,31 @@
-const constants = require("@config/constants");
-
 const logText = (message) => {
-  if (
-    constants.ENVIRONMENT &&
-    constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-  ) {
+  if (process.env.NODE_ENV !== "production") {
     console.log(message);
   }
-  return;
+  return "log deactivated in prod and stage";
 };
 
 const logElement = (message, body) => {
-  if (
-    constants.ENVIRONMENT &&
-    constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-  ) {
+  if (process.env.NODE_ENV !== "production") {
     console.log(message + ": " + body);
   }
-  return;
+  return "log deactivated in prod and stage";
 };
 
 const logObject = (message, object) => {
-  if (
-    constants.ENVIRONMENT &&
-    constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-  ) {
+  if (process.env.NODE_ENV !== "production") {
     console.log(message + ": ");
     console.dir(object);
   }
-  return;
+  return "log deactivated in prod and stage";
 };
 
 const logError = (error) => {
-  if (
-    constants.ENVIRONMENT &&
-    constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
-  ) {
+  if (process.env.NODE_ENV !== "production") {
     console.log("an unhandled promise rejection" + ": ");
     console.error(error);
   }
-  return;
+  return "log deactivated in prod and stage";
 };
 
 module.exports = { logText, logElement, logObject, logError };

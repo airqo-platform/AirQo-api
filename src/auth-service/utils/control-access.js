@@ -254,6 +254,7 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
+
 const isIPBlacklisted = async ({
   ip = "",
   email = "",
@@ -271,25 +272,27 @@ const isIPBlacklisted = async ({
         token_names: token_name,
         endpoints: endpoint,
       },
+      $inc: { "ipCounts.$[elem].count": 1 },
     };
     const options = {
       upsert: true,
       new: true,
-      arrayFilters: [{ "ipCounts.day": day }],
+      arrayFilters: [{ "elem.day": day }],
       runValidators: true,
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    const document = await UnknownIPModel("airqo").findOneAndUpdate(
+      filter,
+      update,
+      options
+    );
 
-    const document = await UnknownIPModel("airqo").findOne(filter);
     if (document) {
       let matchingDayEntry = document.ipCounts.find(
         (entry) => entry.day === day
       );
       if (!matchingDayEntry) {
         document.ipCounts.push({ day, count: 1 });
-      } else {
-        matchingDayEntry.count += 1;
       }
       await document.save();
     }
@@ -307,19 +310,11 @@ const isIPBlacklisted = async ({
     BlacklistedIPRangeModel("airqo").find(),
   ]);
 
-  if (blacklistedIP) {
-    return true;
-  }
-
-  if (whitelistedIP) {
-    return false;
-  }
-
-  const isInRange = blacklistedRanges.some((range) =>
-    rangeCheck(ip, range.range)
-  );
-
-  if (isInRange) {
+  if (
+    blacklistedIP ||
+    whitelistedIP ||
+    blacklistedRanges.some((range) => rangeCheck(ip, range.range))
+  ) {
     return true;
   }
 
