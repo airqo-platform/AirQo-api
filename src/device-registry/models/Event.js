@@ -7,12 +7,13 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`
 );
@@ -1317,12 +1318,15 @@ eventSchema.statics = {
       ...args,
     });
   },
-  async list({
-    skip = DEFAULT_SKIP,
-    limit = DEFAULT_LIMIT,
-    filter = {},
-    page = DEFAULT_PAGE,
-  } = {}) {
+  async list(
+    {
+      skip = DEFAULT_SKIP,
+      limit = DEFAULT_LIMIT,
+      filter = {},
+      page = DEFAULT_PAGE,
+    } = {},
+    next
+  ) {
     try {
       const {
         metadata,
@@ -1931,7 +1935,7 @@ eventSchema.statics = {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
 
@@ -2049,28 +2053,33 @@ eventSchema.statics = {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`list events -- ${error.message}`);
+      logger.error(
+        `Internal Server Error --- list events --- ${error.message}`
+      );
       logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
-
-eventSchema.statics.view = async ({
-  skip = DEFAULT_SKIP,
-  limit = DEFAULT_LIMIT,
-  filter = {},
-  page = DEFAULT_PAGE,
-} = {}) => {
+eventSchema.statics.view = async (
+  {
+    skip = DEFAULT_SKIP,
+    limit = DEFAULT_LIMIT,
+    filter = {},
+    page = DEFAULT_PAGE,
+  } = {},
+  next
+) => {
   try {
     const { recent } = filter;
     const isRecent = !recent || recent === "yes";
@@ -2114,7 +2123,7 @@ eventSchema.statics.view = async ({
       success: true,
       data,
       message: "Successfully returned the measurements",
-      status: HTTPStatus.OK,
+      status: httpStatus.OK,
       meta: {
         total: totalDevices,
         skip,
@@ -2124,14 +2133,14 @@ eventSchema.statics.view = async ({
       },
     };
   } catch (error) {
-    logger.error(`list events -- ${error.message}`);
+    logger.error(`Internal Server Error -- view events -- ${error.message}`);
     logObject("error", error);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: HTTPStatus.INTERNAL_SERVER_ERROR,
-    };
+
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

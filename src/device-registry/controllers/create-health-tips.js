@@ -1,57 +1,35 @@
-const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("@utils/log");
-const errors = require("@utils/errors");
+const httpStatus = require("http-status");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-health-tip-controller`
 );
-const { validationResult } = require("express-validator");
 const createHealthTipUtil = require("@utils/create-health-tips");
 const isEmpty = require("is-empty");
 
 const createHealthTips = {
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      const { body, query } = req;
-      let { tenant } = query;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
       const responseFromListHealthTip = await createHealthTipUtil.list(request);
-      logObject(
-        "responseFromListHealthTip in controller",
-        responseFromListHealthTip
-      );
 
       if (responseFromListHealthTip.success === true) {
         const status = responseFromListHealthTip.status
           ? responseFromListHealthTip.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromListHealthTip.message,
@@ -60,7 +38,7 @@ const createHealthTips = {
       } else if (responseFromListHealthTip.success === false) {
         const status = responseFromListHealthTip.status
           ? responseFromListHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListHealthTip.message,
@@ -70,55 +48,39 @@ const createHealthTips = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      logElement("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      const { body, query } = req;
-      let { tenant } = query;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
-      }
-
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromCreateHealthTip = await createHealthTipUtil.create(
         request
       );
-      logObject("responseFromCreateHealthTip", responseFromCreateHealthTip);
+
       if (responseFromCreateHealthTip.success === true) {
         const status = responseFromCreateHealthTip.status
           ? responseFromCreateHealthTip.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromCreateHealthTip.message,
@@ -129,7 +91,7 @@ const createHealthTips = {
       } else if (responseFromCreateHealthTip.success === false) {
         const status = responseFromCreateHealthTip.status
           ? responseFromCreateHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreateHealthTip.message,
@@ -139,55 +101,39 @@ const createHealthTips = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      const { body, query } = req;
-      let { tenant } = query;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
       const responseFromDeleteHealthTip = await createHealthTipUtil.delete(
         request
       );
 
-      logObject("responseFromDeleteHealthTip", responseFromDeleteHealthTip);
-
       if (responseFromDeleteHealthTip.success === true) {
         const status = responseFromDeleteHealthTip.status
           ? responseFromDeleteHealthTip.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromDeleteHealthTip.message,
@@ -196,7 +142,7 @@ const createHealthTips = {
       } else if (responseFromDeleteHealthTip.success === false) {
         const status = responseFromDeleteHealthTip.status
           ? responseFromDeleteHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromDeleteHealthTip.message,
@@ -206,56 +152,39 @@ const createHealthTips = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      const { body, query } = req;
-      let { tenant } = query;
 
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
-      }
-
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromUpdateHealthTip = await createHealthTipUtil.update(
         request
       );
 
-      logObject("responseFromUpdateHealthTip", responseFromUpdateHealthTip);
-
       if (responseFromUpdateHealthTip.success === true) {
         const status = responseFromUpdateHealthTip.status
           ? responseFromUpdateHealthTip.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromUpdateHealthTip.message,
@@ -264,7 +193,7 @@ const createHealthTips = {
       } else if (responseFromUpdateHealthTip.success === false) {
         const status = responseFromUpdateHealthTip.status
           ? responseFromUpdateHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromUpdateHealthTip.message,
@@ -274,12 +203,14 @@ const createHealthTips = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
