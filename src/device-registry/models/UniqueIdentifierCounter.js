@@ -1,10 +1,9 @@
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 const uniqueIdentifierCounterSchema = new Schema(
   {
@@ -56,17 +55,14 @@ uniqueIdentifierCounterSchema.methods = {
 };
 
 uniqueIdentifierCounterSchema.statics = {
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      logObject("the filter", filter);
-      logObject("the update", update);
       let options = { writeConcern: "majority" };
       const updatedCounter = await this.findOneAndUpdate(
         filter,
         update,
         options
       );
-      logObject("the data", updatedCounter);
       if (!isEmpty(updatedCounter)) {
         const data = updatedCounter._doc;
         return {
@@ -76,22 +72,22 @@ uniqueIdentifierCounterSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedCounter)) {
-        return {
-          success: false,
-          message: "counter does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "can't locate the relevant counter document -- site_0",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Counter model server error - modify",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
 };

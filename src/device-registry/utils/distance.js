@@ -1,10 +1,10 @@
-const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- distance-util`);
+const { HttpError } = require("@utils/errors");
 
 const distance = {
-  findNearestDevices: (devices, radius, latitude, longitude) => {
+  findNearestDevices: ({ devices, radius, latitude, longitude } = {}, next) => {
     try {
       let nearest_devices = [];
 
@@ -16,10 +16,13 @@ const distance = {
           device["isPrimaryInLocation"] == true
         ) {
           distanceBetweenDevices = distance.calculateDistance(
-            latitude,
-            longitude,
-            device["latitude"],
-            device["longitude"]
+            {
+              latitude1: latitude,
+              longitude1: longitude,
+              latitude2: device["latitude"],
+              longitude2: device["longitude"],
+            },
+            next
           );
 
           if (distanceBetweenDevices < radius) {
@@ -34,8 +37,7 @@ const distance = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
-
-  getDistance(lat1, lon1, lat2, lon2) {
+  getDistance({ lat1, lon1, lat2, lon2 } = {}, next) {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
@@ -50,8 +52,7 @@ const distance = {
     const distance = R * c; // Distance in meters
     return distance;
   },
-
-  filterSitesByRadius({ sites, lat, lon, radius } = {}) {
+  filterSitesByRadius({ sites, lat, lon, radius } = {}, next) {
     // logObject("sites we are using", sites);
     const filteredSites = sites.filter((site) => {
       // logObject("site.latitude", site.latitude);
@@ -59,23 +60,29 @@ const distance = {
       // logObject("site.longitude", site.longitude);
       // logObject("lon", lon);
       const distanceBetween = distance.getDistance(
-        lat,
-        lon,
-        site.latitude,
-        site.longitude
+        {
+          lat1: lat,
+          lon1: lon,
+          lat2: site.latitude,
+          lon2: site.longitude,
+        },
+        next
       );
       return distanceBetween <= radius;
     });
     return filteredSites;
   },
-
-  getDistanceSquared: (lat1, lon1, lat2, lon2) => {
+  getDistanceSquared: ({ lat1, lon1, lat2, lon2 } = {}, next) => {
     const latDiff = lat2 - lat1;
     const lonDiff = lon2 - lon1;
     return latDiff * latDiff + lonDiff * lonDiff;
   },
-
-  calculateDistance: (latitude1, longitude1, latitude2, longitude2) => {
+  calculateDistance: ({
+    latitude1,
+    longitude1,
+    latitude2,
+    longitude2,
+  } = {}) => {
     // getting distance between latitudes and longitudes
     const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
     const longitudeDisatnce = distance.degreesToRadians(
@@ -99,8 +106,10 @@ const distance = {
     const c = 2 * Math.asin(Math.sqrt(haversine));
     return radius * c;
   },
-
-  distanceBtnTwoPoints: (latitude1, longitude1, latitude2, longitude2) => {
+  distanceBtnTwoPoints: (
+    { latitude1, longitude1, latitude2, longitude2 } = {},
+    next
+  ) => {
     try {
       // getting distance between latitudes and longitudes
       const latitudeDisatnce = distance.degreesToRadians(latitude2 - latitude1);
@@ -136,7 +145,6 @@ const distance = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
-
   radiansToDegrees: (radians) => {
     try {
       {
@@ -147,8 +155,10 @@ const distance = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
-
-  generateRandomNumbers: ({ min = 0, max = 6.28319, places = 3 } = {}) => {
+  generateRandomNumbers: (
+    { min = 0, max = 6.28319, places = 3 } = {},
+    next
+  ) => {
     if (Number.isInteger(min) && Number.isInteger(max)) {
       if (places !== undefined) {
         new Error("Cannot specify decimal places with integers.");
@@ -174,15 +184,18 @@ const distance = {
       return Number.parseFloat(value).toFixed(places);
     }
   },
-
-  createApproximateCoordinates: ({
-    latitude = 0,
-    longitude = 0,
-    approximate_distance_in_km = 0.5,
-  } = {}) => {
+  createApproximateCoordinates: (
+    {
+      latitude = 0,
+      longitude = 0,
+      approximate_distance_in_km = 0.5,
+      bearing,
+    } = {},
+    next
+  ) => {
     try {
       const radiusOfEarth = 6378.1;
-      const bearingInRadians = distance.generateRandomNumbers();
+      const bearingInRadians = bearing || distance.generateRandomNumbers();
       const latitudeInRadians = distance.degreesToRadians(latitude);
       const longitudeInRadians = distance.degreesToRadians(longitude);
 
@@ -216,15 +229,15 @@ const distance = {
         provided_latitude: parseFloat(latitude),
         provided_longitude: parseFloat(longitude),
       };
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: "Error in createApproximateCoordinates",
-        },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
