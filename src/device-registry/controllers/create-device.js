@@ -14,7 +14,7 @@ const logger = log4js.getLogger(
 const isEmpty = require("is-empty");
 
 const device = {
-  bulkCreate: async (req, re, next) => {
+  bulkCreate: async (req, res, next) => {
     try {
       return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
@@ -74,7 +74,7 @@ const device = {
       );
     }
   },
-  decryptManyKeys: (req, re, next) => {
+  decryptManyKeys: (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
