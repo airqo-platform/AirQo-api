@@ -1,7 +1,6 @@
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createHostUtil = require("@utils/create-host");
 const log4js = require("log4js");
 const constants = require("@config/constants");
@@ -11,30 +10,24 @@ const logger = log4js.getLogger(
 const isEmpty = require("is-empty");
 
 const createHost = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     logText("registering host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromCreateHost = await createHostUtil.create(request);
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const responseFromCreateHost = await createHostUtil.create(request, next);
       logObject("responseFromCreateHost in controller", responseFromCreateHost);
       if (responseFromCreateHost.success === true) {
         let status = responseFromCreateHost.status
@@ -58,40 +51,36 @@ const createHost = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete host............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
 
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromRemoveHost = await createHostUtil.delete(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const responseFromRemoveHost = await createHostUtil.delete(request, next);
 
       logObject("responseFromRemoveHost", responseFromRemoveHost);
 
@@ -118,37 +107,35 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText("updating host................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromUpdateHost = await createHostUtil.update(request);
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const responseFromUpdateHost = await createHostUtil.update(request, next);
       logObject("responseFromUpdateHost", responseFromUpdateHost);
       if (responseFromUpdateHost.success === true) {
         const status = responseFromUpdateHost.status
@@ -173,38 +160,36 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all hosts by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromListHosts = await createHostUtil.list(request);
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const responseFromListHosts = await createHostUtil.list(request, next);
       logElement(
         "has the response for listing hosts been successful?",
         responseFromListHosts.success
@@ -232,11 +217,15 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

@@ -12,6 +12,7 @@ const logger = log4js.getLogger(
 );
 const axios = require("axios");
 const generateFilter = require("@utils/generate-filter");
+const { HttpError } = require("@utils/errors");
 
 /*********************************** Helper Functions ***********************************/
 const createProductItemForMobileMoneyPayout = (phone_number) => {
@@ -29,7 +30,6 @@ const createProductItemForMobileMoneyPayout = (phone_number) => {
   logObject("paymentProvider", paymentProvider);
   return paymentProvider;
 };
-
 const createPaymentProviderForCollections = (phone_number) => {
   const airtelCodes = ["25675", "25670"];
   const mtnCodes = ["25678", "25677"];
@@ -187,7 +187,7 @@ const getSecondBearerToken = async (firstBearerToken) => {
 
 const createTransaction = {
   /*********************************** HOST PAYMENTS ***********************************/
-  sendMoneyToHost: async (request) => {
+  sendMoneyToHost: async (request, next) => {
     try {
       const {
         amount, //*
@@ -279,7 +279,7 @@ const createTransaction = {
 
             const responseFromSaveTransaction = await TransactionModel(
               tenant
-            ).register(transactionObjectForStorage);
+            ).register(transactionObjectForStorage, next);
             return responseFromSaveTransaction;
           })
           .catch((error) => {
@@ -327,18 +327,18 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- sendMoneyToHost --- ${JSON.stringify(error)}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  addMoneyToOrganisationAccount: async (request) => {
+  addMoneyToOrganisationAccount: async (request, next) => {
     try {
       const {
         amount, //*
@@ -450,24 +450,22 @@ const createTransaction = {
 
       const responseFromSaveTransaction = await TransactionModel(
         tenant
-      ).register(transactionObjectForStorage);
+      ).register(transactionObjectForStorage, next);
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- addMoneyToOrganisationAccount --- ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  receiveMoneyFromHost: async (request) => {
+  receiveMoneyFromHost: async (request, next) => {
     try {
       const {
         amount, //*
@@ -596,25 +594,23 @@ const createTransaction = {
 
         const responseFromSaveTransaction = await TransactionModel(
           tenant
-        ).register(transactionObjectForStorage);
+        ).register(transactionObjectForStorage, next);
         return responseFromSaveTransaction;
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- receiveMoneyFromHost --- ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  getTransactionDetails: async (request) => {
+  getTransactionDetails: async (request, next) => {
     logText("getTransactionDetails.............");
     try {
       const { params } = request;
@@ -687,24 +683,21 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- getTransactionDetails --- ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-
-  listTransactions: async (request) => {
+  listTransactions: async (request, next) => {
     logText("listTransactions.............");
     try {
-      const filter = generateFilter.transactions(request);
+      const filter = generateFilter.transactions(request, next);
       if (filter.success && filter.success === false) {
         return filter;
       }
@@ -720,21 +713,19 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- listTransactions --- ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
   /********************************* SIM CARD DATA LOADING ************************************/
-  loadDataBundle: async (request) => {
+  loadDataBundle: async (request, next) => {
     try {
       const {
         amount, //*
@@ -840,22 +831,22 @@ const createTransaction = {
       };
       const responseFromSaveTransaction = await TransactionModel(
         tenant
-      ).register(transactionObjectForStorage);
+      ).register(transactionObjectForStorage, next);
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- loadDataBundle --- ${JSON.stringify(error)}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  checkRemainingDataBundleBalance: async (request) => {
+  checkRemainingDataBundleBalance: async (request, next) => {
     try {
       return {
         success: false,
@@ -871,17 +862,15 @@ const createTransaction = {
        */
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- checkRemainingDataBundleBalance --- ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
 };
