@@ -320,6 +320,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verifyEmail: async (req, res, next) => {

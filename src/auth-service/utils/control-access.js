@@ -762,6 +762,7 @@ const controlAccess = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAccessToken: async (request, next) => {

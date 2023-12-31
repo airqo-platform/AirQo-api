@@ -120,6 +120,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -142,6 +143,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {

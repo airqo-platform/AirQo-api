@@ -48,6 +48,7 @@ const UnknownIPSchema = new mongoose.Schema(
         day: {
           type: String,
           default: getDay(),
+          unique: true,
         },
         count: {
           type: Number,
