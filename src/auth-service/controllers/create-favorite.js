@@ -1,7 +1,6 @@
-const { validationResult } = require("express-validator");
 const createFavoriteUtil = require("@utils/create-favorite");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logText } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -11,93 +10,82 @@ const logger = log4js.getLogger(
 );
 
 const createFavorite = {
-  syncFavorites: async (req, res) => {
-     try {
-      logText("Syncing Favorites.....");
-       const { query } = req;
-       let { tenant } = query;
-       const hasErrors = !validationResult(req).isEmpty();
-       logObject("hasErrors", hasErrors);
-       if (hasErrors) {
-         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-         return badRequest(
-           res,
-           "bad request errors",
-           convertErrorArrayToObject(nestedErrors)
-         );
-       }
-     
-      let request = Object.assign({}, req);
-       if (isEmpty(tenant)) {
-         request["query"]["tenant"] = constants.DEFAULT_TENANT;
-       }
-     
-      const responseFromSyncFavorites = await createFavoriteUtil.syncFavorites(
-         request
-       );
- 
-      if (responseFromSyncFavorites.success === true) {
-         const status = responseFromSyncFavorites.status
-           ? responseFromSyncFavorites.status
-           : httpStatus.OK;
-         return res.status(status).json({
-           success: true,
-           message: responseFromSyncFavorites.message
-             ? responseFromSyncFavorites.message
-             : "",
-           favorites: responseFromSyncFavorites.data
-             ? responseFromSyncFavorites.data
-             : [],
-         });
-       } else if (responseFromSyncFavorites.success === false) {
-         const status = responseFromSyncFavorites.status
-           ? responseFromSyncFavorites.status
-           : httpStatus.INTERNAL_SERVER_ERROR;
-         return res.status(status).json({
-           success: false,
-           message: responseFromSyncFavorites.message
-             ? responseFromSyncFavorites.message
-             : "",
-           errors: responseFromSyncFavorites.errors
-             ? responseFromSyncFavorites.errors
-             : { message: "Internal Server Error" },
-         });
-       }
-     } catch (err) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-         success: false,
-         message: "Internal Server Error",
-         errors: { message: error.message },
-       });
-     }
-
-  },
-
-  create: async (req, res) => {
+  syncFavorites: async (req, res, next) => {
     try {
-      logText("creating Favorite.....");
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      logText("Syncing Favorites.....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+      const responseFromSyncFavorites = await createFavoriteUtil.syncFavorites(
+        request,
+        next
+      );
+
+      if (responseFromSyncFavorites.success === true) {
+        const status = responseFromSyncFavorites.status
+          ? responseFromSyncFavorites.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromSyncFavorites.message
+            ? responseFromSyncFavorites.message
+            : "",
+          favorites: responseFromSyncFavorites.data
+            ? responseFromSyncFavorites.data
+            : [],
+        });
+      } else if (responseFromSyncFavorites.success === false) {
+        const status = responseFromSyncFavorites.status
+          ? responseFromSyncFavorites.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromSyncFavorites.message
+            ? responseFromSyncFavorites.message
+            : "",
+          errors: responseFromSyncFavorites.errors
+            ? responseFromSyncFavorites.errors
+            : { message: "Internal Server Error" },
+        });
       }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  create: async (req, res, next) => {
+    try {
+      logText("creating Favorite.....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromCreateFavorite = await createFavoriteUtil.create(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateFavorite.success === true) {
@@ -128,35 +116,33 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromListFavorites = await createFavoriteUtil.list(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const responseFromListFavorites = await createFavoriteUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListFavorites.success === true) {
         const status = responseFromListFavorites.status
@@ -186,36 +172,32 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
       const responseFromDeleteFavorite = await createFavoriteUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteFavorite.success === true) {
@@ -246,36 +228,33 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
       const responseFromUpdateFavorite = await createFavoriteUtil.update(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateFavorite.success === true) {
@@ -306,12 +285,14 @@ const createFavorite = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

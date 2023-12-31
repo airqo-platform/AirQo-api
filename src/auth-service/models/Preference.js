@@ -1,17 +1,18 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { addWeeksToProvideDateTime } = require("@utils/date");
-const currentDate = new Date();
 const constants = require("@config/constants");
+const currentDate = new Date();
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- preferences-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const periodSchema = new mongoose.Schema(
   {
@@ -290,7 +291,7 @@ PreferenceSchema.methods = {
 };
 
 PreferenceSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let createBody = args;
       logObject("args", args);
@@ -349,15 +350,12 @@ PreferenceSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const preferences = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -389,16 +387,17 @@ PreferenceSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updateBody = update;
@@ -463,15 +462,12 @@ PreferenceSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedPreference)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Preference  you are trying to UPDATE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
@@ -483,15 +479,10 @@ PreferenceSchema.statics = {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-      return {
-        success: false,
-        message,
-        errors,
-        status,
-      };
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -515,24 +506,20 @@ PreferenceSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedPreference)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the User Preference  you are trying to DELETE does not exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
+          message: error.message,
+        })
+      );
     }
   },
 };

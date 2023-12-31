@@ -1,6 +1,6 @@
 const SimModel = require("@models/Sim");
 const constants = require("@config/constants");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const generateFilter = require("@utils/generate-filter");
@@ -11,14 +11,15 @@ const xml2js = require("xml2js");
 const thingsMobile = require("@config/things-mobile");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { HttpError } = require("@utils/errors");
 
 const convertFromBytesToMegaBytes = (bytes) => {
   return bytes / (1000 * 1000);
 };
 
 const createSim = {
-  create: async (request) => {},
-  createLocal: async (request) => {
+  create: async (request, next) => {},
+  createLocal: async (request, next) => {
     try {
       const { body } = request;
       const { tenant } = request.query;
@@ -44,19 +45,19 @@ const createSim = {
           };
         });
     } catch (error) {
-      logElement(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- createLocal ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  createBulkLocal: async (request) => {
+  createBulkLocal: async (request, next) => {
     try {
       const { sims } = request.body;
       const { tenant } = request.query;
@@ -123,20 +124,18 @@ const createSim = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(
-        `Internal Server Error --- createBulkLocal ---  ${JSON.stringify(
-          error
-        )}`
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  listLocal: async (request) => {
+  listLocal: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
@@ -145,68 +144,65 @@ const createSim = {
       logObject("limit", limit);
       logObject("skip", skip);
 
-      const filter = generateFilter.sims(request);
-      logObject("filter", filter);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.sims(request, next);
 
-      const responseFromListSim = await SimModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListSim = await SimModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       return responseFromListSim;
     } catch (error) {
-      logElement("list Sims util", error.message);
-      logger.error(
-        `Internal Server Error --- listLocal ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  deleteLocal: async (request) => {
+  deleteLocal: async (request, next) => {
     try {
       let { query } = request;
       let { tenant } = query;
-      let filter = generateFilter.sims(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-      const responseFromRemoveSim = await SimModel(tenant).remove({
-        filter,
-      });
+      let filter = generateFilter.sims(request, next);
+
+      const responseFromRemoveSim = await SimModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveSim;
     } catch (error) {
-      logElement("delete Sim util", error.message);
-      logger.error(
-        `Internal Server Error --- deleteLocal ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  updateLocal: async (request) => {
+  updateLocal: async (request, next) => {
     try {
       const { query } = request;
       const { body } = request;
       const { tenant } = query;
 
       let update = body;
-      const filter = generateFilter.sims(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.sims(request, next);
       delete update.msisdn;
       delete update.balance;
       delete update.activationDate;
@@ -216,26 +212,29 @@ const createSim = {
       delete update.totalTraffic;
       delete update.simBarcode;
       delete update.active;
-      const responseFromModifySim = await SimModel(tenant).modify({
-        filter,
-        update,
-      });
+      const responseFromModifySim = await SimModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return responseFromModifySim;
     } catch (error) {
-      logElement("update Sims util", error.message);
-      logger.error(
-        `Internal Server Error --- updateLocal ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return;
     }
   },
-  checkStatus: async (request) => {
+  checkStatus: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { sim_id } = request.params;
@@ -368,19 +367,19 @@ const createSim = {
           };
         });
     } catch (error) {
-      logObject(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- checkStatus ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  activateSim: async (request) => {
+  activateSim: async (request, next) => {
     try {
       return {
         success: false,
@@ -466,19 +465,19 @@ const createSim = {
           };
         });
     } catch (error) {
-      logObject(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- activateSim ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  deactivateSim: async (request) => {
+  deactivateSim: async (request, next) => {
     try {
       return {
         success: false,
@@ -567,19 +566,19 @@ const createSim = {
           };
         });
     } catch (error) {
-      logObject(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- deactivateSim ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  updateSimName: async (request) => {
+  updateSimName: async (request, next) => {
     try {
       return {
         success: false,
@@ -669,19 +668,19 @@ const createSim = {
           };
         });
     } catch (error) {
-      logObject(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- updateSimName ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
-  rechargeSim: async (request) => {
+  rechargeSim: async (request, next) => {
     try {
       return {
         success: false,
@@ -769,16 +768,16 @@ const createSim = {
           };
         });
     } catch (error) {
-      logObject(" the util server error,", error.message);
-      logger.error(
-        `Internal Server Error --- rechargeSim ---  ${JSON.stringify(error)}`
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return;
     }
   },
 };

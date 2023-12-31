@@ -542,6 +542,36 @@ router.delete(
   createCohortController.unAssignOneDeviceFromCohort
 );
 /************************ networks ******************************/
+router.get(
+  "/:cohort_id/generate",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("cohort_id")
+      .exists()
+      .withMessage("the cohort_id is missing in request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("cohort_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createCohortController.getSiteAndDeviceIds
+);
 router.post(
   "/networks",
   oneOf([

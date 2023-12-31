@@ -1,3 +1,4 @@
+const { HttpError } = require("@utils/errors");
 const {
   monthsInfront,
   isTimeEmpty,
@@ -16,13 +17,12 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
-
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
 };
 
 const generateFilter = {
-  events: (request) => {
+  events: (request, next) => {
     const { query, params } = request;
     const {
       device,
@@ -281,8 +281,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  devices: (req) => {
+  devices: (req, next) => {
     const {
       name,
       channel,
@@ -395,8 +394,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  sites: (req) => {
+  sites: (req, next) => {
     const {
       lat_long,
       id,
@@ -498,8 +496,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  airqlouds: (req) => {
+  airqlouds: (req, next) => {
     const {
       id,
       airqloud_id,
@@ -555,8 +552,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  grids: (req) => {
+  grids: (req, next) => {
     const { id, admin_level, grid_codes, grid_id, category, network, group } = {
       ...req.query,
       ...req.params,
@@ -599,8 +595,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  cohorts: (req) => {
+  cohorts: (req, next) => {
     const { id, cohort_codes, name, cohort_id, category, network, group } = {
       ...req.query,
       ...req.params,
@@ -642,8 +637,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  networks: (req) => {
+  networks: (req, next) => {
     try {
       const { id, name, network_codes, net_id } = {
         ...req.query,
@@ -668,19 +662,19 @@ const generateFilter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  admin_levels: (req) => {
+  admin_levels: (req, next) => {
     try {
       const { id, name, admin_level_codes, level_id } = {
         ...req.query,
@@ -709,16 +703,17 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  locations: (req) => {
+  locations: (req, next) => {
     let { id, name, admin_level, summary, network } = {
       ...req.query,
       ...req.params,
@@ -747,8 +742,7 @@ const generateFilter = {
     }
     return filter;
   },
-
-  activities: (req) => {
+  activities: (req, next) => {
     let {
       device,
       id,
@@ -816,8 +810,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  photos: (req) => {
+  photos: (req, next) => {
     let {
       id,
       device_id,
@@ -874,8 +867,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  tips: (request) => {
+  tips: (request, next) => {
     let { id, pm25, pm10 } = {
       ...request.query,
       ...request.params,
@@ -893,8 +885,7 @@ const generateFilter = {
     }
     return filter;
   },
-
-  kyalessons: (request) => {
+  kyalessons: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {
         ...request.query,
@@ -910,18 +901,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyatasks: (request) => {
+  kyatasks: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {
         ...request.query,
@@ -940,18 +930,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaprogress: (request) => {
+  kyaprogress: (request, next) => {
     try {
       const { id, user_id, lesson_id, progress_id, quiz_id } = {
         ...request.query,
@@ -979,18 +968,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaquizzes: (request) => {
+  kyaquizzes: (request, next) => {
     try {
       const { id, quiz_id } = {
         ...request.query,
@@ -1006,18 +994,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaquestions: (request) => {
+  kyaquestions: (request, next) => {
     try {
       const { id, quiz_id, question_id, answer_id } = {
         ...request.query,
@@ -1039,14 +1026,14 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

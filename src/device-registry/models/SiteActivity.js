@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const validator = require("validator");
 const constants = require("@config/constants");
@@ -89,7 +90,7 @@ activitySchema.methods = {
 };
 
 activitySchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       let createdActivity = await this.create({
@@ -107,32 +108,29 @@ activitySchema.statics = {
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdActivity)) {
-        return {
-          success: false,
-          message: "Activity not created despite successful operation",
-          status: httpStatus.ACCEPTED,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Activity not created despite successful operation" }
+          )
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[key] = value.message;
         return response;
       });
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
         constants.SITE_ACTIVITIES_INCLUSION_PROJECTION;
@@ -176,16 +174,17 @@ activitySchema.statics = {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
       let modifiedUpdateBody = update;
@@ -213,26 +212,28 @@ activitySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedActivity)) {
-        return {
-          success: false,
-          message: "activity does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: filter,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            ...filter,
+            message: "activity does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -257,23 +258,25 @@ activitySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedActivity)) {
-        return {
-          success: false,
-          message: "activity does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: filter,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            ...filter,
+            message: "activity does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
