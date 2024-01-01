@@ -19,6 +19,23 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+function filterOutPrivateIDs(privateIds, randomIds) {
+  // Create a Set from the privateIds array
+  const privateIdSet = new Set(privateIds);
+
+  // Check if privateIds array is empty
+  if (privateIdSet.size === 0) {
+    return randomIds;
+  }
+
+  // Filter randomIds array to exclude privateIds
+  const filteredIds = randomIds.filter(
+    (randomId) => !privateIdSet.has(randomId)
+  );
+
+  return filteredIds;
+}
+
 const createCohort = {
   listNetworks: async (request, next) => {
     try {
@@ -816,6 +833,51 @@ const createCohort = {
         message: "Successfully returned the Site IDs and the Device IDs",
         status: httpStatus.OK,
         data: { device_ids, site_ids },
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  filterOutPrivateDevices: async (request, next) => {
+    try {
+      const { tenant, devices } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const privateCohorts = await CohortModel(tenant)
+        .find({
+          visibility: false,
+        })
+        .select("_id")
+        .lean();
+
+      const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
+      // Fetch devices based on the private Cohort IDs
+      const privateDevices = await DeviceModel(tenant).find({
+        cohorts: { $in: privateCohortIds },
+      });
+
+      // Extract device IDs from the fetched devices
+      const privateDeviceIds = privateDevices.map((device) =>
+        device._id.toString()
+      );
+      const deviceIds = devices.map((device) => device.toString());
+
+      const publicDevices = filterOutPrivateIDs(privateDeviceIds, deviceIds);
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        data: publicDevices,
+        message: "operation successful",
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

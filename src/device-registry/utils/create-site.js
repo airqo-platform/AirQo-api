@@ -26,62 +26,6 @@ const kafka = new Kafka({
 });
 
 const createSite = {
-  getVisibleSites: async (request) => {
-    try {
-      const { siteIds, userId } = request;
-      const user = await UserModel.findById(userId);
-      const userGroup = user ? user.group : null;
-
-      const aggregationPipeline = [
-        {
-          $match: {
-            _id: {
-              $in: siteIds.map((siteId) => ObjectId(siteId)),
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "grids",
-            localField: "grids",
-            foreignField: "_id",
-            as: "gridDetails",
-          },
-        },
-        {
-          $match: {
-            $or: [
-              { "gridDetails.visibility": { $exists: false } }, // Include sites not in any grid
-              { "gridDetails.visibility": true }, // Include sites in grids with visibility true
-              {
-                $and: [
-                  // Include sites in PRIVATE Grid if the user belongs to the owning group
-                  { "gridDetails.name": "PRIVATE" },
-                  { "gridDetails.group": userGroup },
-                ],
-              },
-            ],
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-          },
-        },
-      ];
-
-      const result = await SiteModel.aggregate(aggregationPipeline);
-
-      const visibleSiteIds = result.map((site) => site._id.toString());
-      return { success: true, data: { visibleSiteIds } };
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
   hasWhiteSpace: (name, next) => {
     try {
       return name.indexOf(" ") >= 0;

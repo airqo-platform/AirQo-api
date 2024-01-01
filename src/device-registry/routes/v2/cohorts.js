@@ -10,21 +10,17 @@ const isEmpty = require("is-empty");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- cohorts-route-v2`
 );
-
 const NetworkModel = require("@models/Network");
-
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
   return networks.map((network) => network.toLowerCase());
 };
-
 const validateNetwork = async (value) => {
   const networks = await validNetworks();
   if (!networks.includes(value.toLowerCase())) {
     throw new Error("Invalid network");
   }
 };
-
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -41,7 +37,6 @@ const validatePagination = (req, res, next) => {
 
   next();
 };
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -51,12 +46,10 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
   next();
 };
-
 router.use(headers);
 router.use(validatePagination);
 
 /************************ the core functionality ********************/
-
 router.delete(
   "/:cohort_id",
   oneOf([
@@ -148,7 +141,6 @@ router.put(
 
   createCohortController.update
 );
-
 router.post(
   "/",
   oneOf([
@@ -540,6 +532,41 @@ router.delete(
   ]),
 
   createCohortController.unAssignOneDeviceFromCohort
+);
+router.post(
+  "/filterNonPrivateDevices",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("devices")
+        .exists()
+        .withMessage("the devices should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the devices should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the devices should not be empty"),
+      body("devices.*")
+        .isMongoId()
+        .withMessage("device provided must be an object ID"),
+    ],
+  ]),
+  createCohortController.filterOutPrivateDevices
 );
 /************************ networks ******************************/
 router.get(
