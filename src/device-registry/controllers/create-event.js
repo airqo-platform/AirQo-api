@@ -467,6 +467,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -498,6 +499,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listFromBigQuery: async (req, res, next) => {
@@ -510,6 +512,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -561,6 +564,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   latestFromBigQuery: async (req, res, next) => {
@@ -570,6 +574,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -609,6 +614,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -618,6 +624,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -672,6 +679,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listForMap: async (req, res, next) => {
@@ -682,6 +690,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = {
@@ -724,6 +733,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listEventsForAllDevices: async (req, res, next) => {
@@ -733,6 +743,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -776,6 +787,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listRecent: async (req, res, next) => {
@@ -785,6 +797,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -857,6 +870,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listHistorical: async (req, res, next) => {
@@ -866,6 +880,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -932,6 +947,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listRunningDevices: async (req, res, next) => {
@@ -941,6 +957,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -993,6 +1010,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listGood: async (req, res, next) => {
@@ -1002,6 +1020,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1046,6 +1065,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listModerate: async (req, res, next) => {
@@ -1055,6 +1075,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1099,6 +1120,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listU4sg: async (req, res, next) => {
@@ -1108,6 +1130,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1151,6 +1174,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listUnhealthy: async (req, res, next) => {
@@ -1160,6 +1184,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1202,6 +1227,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listVeryUnhealthy: async (req, res, next) => {
@@ -1211,6 +1237,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1253,6 +1280,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listHazardous: async (req, res, next) => {
@@ -1262,6 +1290,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1304,6 +1333,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   transform: async (req, res, next) => {
@@ -1313,6 +1343,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1353,6 +1384,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -1362,6 +1394,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1399,6 +1432,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   transmitMultipleSensorValues: async (req, res, next) => {
@@ -1408,6 +1442,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1454,6 +1489,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkTransmitMultipleSensorValues: async (req, res, next) => {
@@ -1463,6 +1499,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1507,6 +1544,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   transmitValues: async (req, res, next) => {
@@ -1516,6 +1554,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1558,6 +1597,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteValuesOnPlatform: async (req, res, next) => {
@@ -1568,6 +1608,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1610,6 +1651,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   addEvents: async (req, res, next) => {
@@ -1619,6 +1661,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1661,6 +1704,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByAirQloud: async (req, res, next) => {
@@ -1670,6 +1714,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1734,6 +1779,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByAirQloudHistorical: async (req, res, next) => {
@@ -1743,6 +1789,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1807,6 +1854,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByGridHistorical: async (req, res, next) => {
@@ -1816,6 +1864,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1882,6 +1931,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByGrid: async (req, res, next) => {
@@ -1891,6 +1941,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1956,6 +2007,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByCohort: async (req, res, next) => {
@@ -1965,6 +2017,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -2031,6 +2084,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByCohortHistorical: async (req, res, next) => {
@@ -2040,6 +2094,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -2106,6 +2161,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listByLatLong: async (req, res, next) => {
@@ -2118,6 +2174,7 @@ const createEvent = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -2190,6 +2247,7 @@ const createEvent = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

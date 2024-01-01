@@ -1,6 +1,6 @@
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -18,6 +18,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -58,6 +59,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   recall: async (req, res, next) => {
@@ -68,6 +70,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -107,6 +110,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   maintain: async (req, res, next) => {
@@ -116,6 +120,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -158,6 +163,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkAdd: async (req, res, next) => {
@@ -173,6 +179,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -189,6 +196,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkUpdate: async (req, res, next) => {
@@ -204,6 +212,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -220,6 +229,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -230,6 +240,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -272,6 +283,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -283,6 +295,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -325,6 +338,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -336,6 +350,7 @@ const activity = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -376,6 +391,7 @@ const activity = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

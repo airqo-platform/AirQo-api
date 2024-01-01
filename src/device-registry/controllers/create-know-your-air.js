@@ -18,6 +18,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -60,6 +61,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createLesson: async (req, res, next) => {
@@ -69,6 +71,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -113,6 +116,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteLesson: async (req, res, next) => {
@@ -122,6 +126,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -166,6 +171,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateLesson: async (req, res, next) => {
@@ -175,6 +181,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -217,6 +224,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -228,6 +236,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -270,6 +279,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteUserLessonProgress: async (req, res, next) => {
@@ -279,6 +289,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -321,6 +332,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateUserLessonProgress: async (req, res, next) => {
@@ -330,6 +342,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -372,6 +385,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createUserLessonProgress: async (req, res, next) => {
@@ -381,6 +395,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -423,6 +438,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   syncUserLessonProgress: async (req, res, next) => {
@@ -432,6 +448,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -474,6 +491,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -485,6 +503,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -527,6 +546,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createTask: async (req, res, next) => {
@@ -536,6 +556,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -580,6 +601,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteTask: async (req, res, next) => {
@@ -589,6 +611,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -631,6 +654,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateTask: async (req, res, next) => {
@@ -640,6 +664,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -682,6 +707,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -693,6 +719,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -735,6 +762,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignManyTasksToLesson: async (req, res, next) => {
@@ -744,6 +772,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -786,6 +815,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeTaskFromLesson: async (req, res, next) => {
@@ -795,6 +825,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -837,6 +868,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeManyTasksFromLesson: async (req, res, next) => {
@@ -846,6 +878,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -888,6 +921,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableTasks: async (req, res, next) => {
@@ -898,6 +932,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -941,6 +976,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAssignedTasks: async (req, res, next) => {
@@ -951,6 +987,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1001,6 +1038,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -1012,6 +1050,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1054,6 +1093,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createQuiz: async (req, res, next) => {
@@ -1063,6 +1103,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1107,6 +1148,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteQuiz: async (req, res, next) => {
@@ -1116,6 +1158,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1158,6 +1201,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateQuiz: async (req, res, next) => {
@@ -1167,6 +1211,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1209,6 +1254,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -1220,6 +1266,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1262,6 +1309,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteUserQuizProgress: async (req, res, next) => {
@@ -1271,6 +1319,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1313,6 +1362,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateUserQuizProgress: async (req, res, next) => {
@@ -1322,6 +1372,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1364,6 +1415,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createUserQuizProgress: async (req, res, next) => {
@@ -1373,6 +1425,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1415,6 +1468,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   syncUserQuizProgress: async (req, res, next) => {
@@ -1424,6 +1478,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1466,6 +1521,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -1477,6 +1533,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1519,6 +1576,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createQuestion: async (req, res, next) => {
@@ -1528,6 +1586,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1572,6 +1631,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteQuestion: async (req, res, next) => {
@@ -1581,6 +1641,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1623,6 +1684,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateQuestion: async (req, res, next) => {
@@ -1632,6 +1694,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1674,11 +1737,11 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
   /****************** ANSWERS********************************/
-
   listAnswers: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1686,6 +1749,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1728,6 +1792,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createAnswer: async (req, res, next) => {
@@ -1737,6 +1802,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1781,6 +1847,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteAnswer: async (req, res, next) => {
@@ -1790,6 +1857,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1832,6 +1900,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateAnswer: async (req, res, next) => {
@@ -1841,6 +1910,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1883,6 +1953,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -1894,6 +1965,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1936,6 +2008,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeManyQuestionsFromQuiz: async (req, res, next) => {
@@ -1945,6 +2018,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -1987,6 +2061,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignManyAnswersToQuestion: async (req, res, next) => {
@@ -1996,6 +2071,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -2038,6 +2114,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeManyAnswersFromQuestion: async (req, res, next) => {
@@ -2047,6 +2124,7 @@ const createKnowYourAir = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -2089,6 +2167,7 @@ const createKnowYourAir = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

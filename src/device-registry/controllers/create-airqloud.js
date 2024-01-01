@@ -1,6 +1,5 @@
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createAirQloudUtil = require("@utils/create-airqloud");
 const constants = require("@config/constants");
@@ -23,6 +22,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -39,6 +39,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   register: async (req, res, next) => {
@@ -49,6 +50,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -95,6 +97,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   calculateGeographicalCenter: async (req, res, next) => {
@@ -104,6 +107,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -153,6 +157,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -164,6 +169,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -206,6 +212,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   refresh: async (req, res, next) => {
@@ -215,6 +222,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -256,6 +264,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   findSites: async (req, res, next) => {
@@ -265,6 +274,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -305,6 +315,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -315,6 +326,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -358,6 +370,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -369,6 +382,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -412,6 +426,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -423,6 +438,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -468,6 +484,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listDashboard: async (req, res, next) => {
@@ -479,6 +496,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -524,6 +542,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listCohortsAndGrids: async (req, res, next) => {
@@ -535,6 +554,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -582,6 +602,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listCohortsAndGridsSummary: async (req, res, next) => {
@@ -593,6 +614,7 @@ const createAirqloud = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -641,6 +663,7 @@ const createAirqloud = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

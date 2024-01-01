@@ -23,6 +23,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -39,6 +40,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkUpdate: async (req, res, next) => {
@@ -53,6 +55,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -69,6 +72,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkDelete: async (req, res, next) => {
@@ -83,6 +87,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -99,6 +104,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   register: async (req, res, next) => {
@@ -109,6 +115,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -148,6 +155,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   generateMetadata: async (req, res, next) => {
@@ -158,6 +166,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -194,6 +203,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listNearestWeatherStation: async (req, res, next) => {
@@ -203,6 +213,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -244,6 +255,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listWeatherStations: async (req, res, next) => {
@@ -253,6 +265,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -292,6 +305,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   findAirQlouds: async (req, res, next) => {
@@ -301,6 +315,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -343,6 +358,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -354,6 +370,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -393,6 +410,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -403,6 +421,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -441,6 +460,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   refresh: async (req, res, next) => {
@@ -451,6 +471,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -492,6 +513,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   findNearestSite: async (req, res, next) => {
@@ -502,6 +524,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -545,6 +568,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -554,6 +578,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -596,6 +621,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -653,6 +679,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createApproximateCoordinates: (req, res, next) => {
@@ -662,6 +689,7 @@ const manageSite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const {
         latitude,
@@ -709,6 +737,7 @@ const manageSite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

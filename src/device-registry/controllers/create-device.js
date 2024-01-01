@@ -26,6 +26,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -42,6 +43,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   bulkUpdate: async (req, res, next) => {
@@ -56,6 +58,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -72,6 +75,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   decryptManyKeys: (req, res, next) => {
@@ -81,6 +85,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -124,6 +129,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   decryptKey: (req, res, next) => {
@@ -133,6 +139,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -174,6 +181,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   getDevicesCount: async (req, res, next) => {
@@ -183,6 +191,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -219,6 +228,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -228,6 +238,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -269,6 +280,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   generateQRCode: async (req, res, next) => {
@@ -278,6 +290,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -314,6 +327,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -324,6 +338,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -364,6 +379,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -374,6 +390,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -414,6 +431,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   refresh: async (req, res, next) => {
@@ -424,6 +442,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -464,6 +483,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   encryptKeys: async (req, res, next) => {
@@ -475,6 +495,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -517,6 +538,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -529,6 +551,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -575,6 +598,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -586,6 +610,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -628,6 +653,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAllByNearestCoordinates: async (req, res, next) => {
@@ -646,6 +672,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -685,6 +712,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateOnPlatform: async (req, res, next) => {
@@ -696,6 +724,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -738,6 +767,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteOnPlatform: async (req, res, next) => {
@@ -748,6 +778,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -791,6 +822,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createOnPlatform: async (req, res, next) => {
@@ -800,6 +832,7 @@ const device = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -843,6 +876,7 @@ const device = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listOnGCP: (req, res, next) => {
@@ -868,6 +902,7 @@ const device = {
             { message: error.message }
           )
         );
+        return;
       });
   },
   createOnGCP: (req, res, next) => {
@@ -899,6 +934,7 @@ const device = {
             { message: error.message }
           )
         );
+        return;
       });
   },
 };
