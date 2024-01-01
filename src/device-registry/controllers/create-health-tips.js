@@ -16,6 +16,7 @@ const createHealthTips = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -56,6 +57,7 @@ const createHealthTips = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -65,6 +67,7 @@ const createHealthTips = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -109,6 +112,7 @@ const createHealthTips = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -118,6 +122,7 @@ const createHealthTips = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -160,6 +165,7 @@ const createHealthTips = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -169,6 +175,7 @@ const createHealthTips = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -211,6 +218,7 @@ const createHealthTips = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

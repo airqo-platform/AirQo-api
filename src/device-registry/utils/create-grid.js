@@ -20,6 +20,23 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+function filterOutPrivateIDs(privateIds, randomIds) {
+  // Create a Set from the privateIds array
+  const privateIdSet = new Set(privateIds);
+
+  // Check if privateIds array is empty
+  if (privateIdSet.size === 0) {
+    return randomIds;
+  }
+
+  // Filter randomIds array to exclude privateIds
+  const filteredIds = randomIds.filter(
+    (randomId) => !privateIdSet.has(randomId)
+  );
+
+  return filteredIds;
+}
+
 const createGrid = {
   batchCreate: async (request, next) => {
     try {
@@ -777,6 +794,48 @@ const createGrid = {
         message: "Successfully returned the Site IDs and the Device IDs",
         status: httpStatus.OK,
         data: { site_ids, device_ids },
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  filterOutPrivateSites: async (request, next) => {
+    try {
+      const { tenant, sites } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const privateGrids = await GridModel(tenant)
+        .find({
+          visibility: false,
+        })
+        .select("_id")
+        .lean();
+
+      const privateGridIds = privateGrids.map((grid) => grid._id);
+      // Fetch sites based on the private Grid IDs
+      const privateSites = await SiteModel(tenant).find({
+        grids: { $in: privateGridIds },
+      });
+
+      // Extract site IDs from the fetched sites
+      const privateSiteIds = privateSites.map((site) => site._id.toString());
+      const siteIds = sites.map((site) => site.toString());
+      const publicSites = filterOutPrivateIDs(privateSiteIds, siteIds);
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        data: publicSites,
+        message: "operation successful",
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);

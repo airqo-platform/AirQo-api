@@ -18,6 +18,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -61,6 +62,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateAdminLevel: async (req, res, next) => {
@@ -70,6 +72,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -116,6 +119,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteAdminLevel: async (req, res, next) => {
@@ -125,6 +129,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -168,6 +173,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createAdminLevel: async (req, res, next) => {
@@ -177,6 +183,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -223,6 +230,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   /******************* Grids ************************************************/
@@ -234,6 +242,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -275,6 +284,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   calculateGeographicalCenter: async (req, res, next) => {
@@ -284,6 +294,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -333,6 +344,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -344,6 +356,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -384,6 +397,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   refresh: async (req, res, next) => {
@@ -393,6 +407,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -431,6 +446,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   findSites: async (req, res, next) => {
@@ -440,6 +456,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -480,6 +497,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -490,6 +508,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -531,6 +550,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -542,6 +562,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -582,6 +603,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -593,6 +615,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -634,6 +657,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listDashboard: async (req, res, next) => {
@@ -645,6 +669,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -687,6 +712,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -700,6 +726,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -739,6 +766,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createGridFromShapefile: async (req, res, next) => {
@@ -755,6 +783,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -781,6 +810,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableSites: async (req, res, next) => {
@@ -791,6 +821,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -834,6 +865,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAssignedSites: async (req, res, next) => {
@@ -844,6 +876,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -894,6 +927,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   getSiteAndDeviceIds: async (req, res, next) => {
@@ -904,6 +938,7 @@ const createGrid = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -947,6 +982,56 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
+    }
+  },
+  filterOutPrivateSites: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const filterResponse = await createGridUtil.filterOutPrivateSites(
+        request,
+        next
+      );
+      const status =
+        filterResponse.status ||
+        (filterResponse.success
+          ? httpStatus.OK
+          : httpStatus.INTERNAL_SERVER_ERROR);
+
+      res.status(status).json({
+        success: filterResponse.success,
+        message: filterResponse.message,
+        ...(filterResponse.success
+          ? { sites: filterResponse.data }
+          : {
+              errors: filterResponse.errors || {
+                message: "Internal Server Error",
+              },
+            }),
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

@@ -17,6 +17,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -63,6 +64,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listNetworks: async (req, res, next) => {
@@ -72,6 +74,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -117,6 +120,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateNetwork: async (req, res, next) => {
@@ -126,6 +130,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -169,6 +174,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteNetwork: async (req, res, next) => {
@@ -178,6 +184,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -220,6 +227,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -229,6 +237,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -272,6 +281,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -281,6 +291,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -322,6 +333,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -331,6 +343,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -371,6 +384,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -380,6 +394,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -424,6 +439,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -435,6 +451,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -476,6 +493,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listDashboard: async (req, res, next) => {
@@ -487,6 +505,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -528,6 +547,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableDevices: async (req, res, next) => {
@@ -538,6 +558,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -586,6 +607,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAssignedDevices: async (req, res, next) => {
@@ -596,6 +618,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -652,6 +675,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignManyDevicesToCohort: async (req, res, next) => {
@@ -662,6 +686,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -705,6 +730,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignManyDevicesFromCohort: async (req, res, next) => {
@@ -715,6 +741,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -763,6 +790,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignOneDeviceToCohort: async (req, res, next) => {
@@ -773,6 +801,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -816,6 +845,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignOneDeviceFromCohort: async (req, res, next) => {
@@ -826,6 +856,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -869,6 +900,7 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   getSiteAndDeviceIds: async (req, res, next) => {
@@ -879,6 +911,7 @@ const createCohort = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -922,6 +955,56 @@ const createCohort = {
           { message: error.message }
         )
       );
+      return;
+    }
+  },
+  filterOutPrivateDevices: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const filterResponse = await createCohortUtil.filterOutPrivateDevices(
+        request,
+        next
+      );
+      const status =
+        filterResponse.status ||
+        (filterResponse.success
+          ? httpStatus.OK
+          : httpStatus.INTERNAL_SERVER_ERROR);
+
+      res.status(status).json({
+        success: filterResponse.success,
+        message: filterResponse.message,
+        ...(filterResponse.success
+          ? { devices: filterResponse.data }
+          : {
+              errors: filterResponse.errors || {
+                message: "Internal Server Error",
+              },
+            }),
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

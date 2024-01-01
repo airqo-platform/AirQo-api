@@ -21,6 +21,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -61,6 +62,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -74,6 +76,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -114,6 +117,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -123,6 +127,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -163,6 +168,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -172,6 +178,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -212,6 +219,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   /******************** platform ********************************/
@@ -223,6 +231,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -267,6 +276,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deletePhotoOnPlatform: async (req, res, next) => {
@@ -276,6 +286,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -318,6 +329,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updatePhotoOnPlatform: async (req, res, next) => {
@@ -327,6 +339,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -369,6 +382,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   /*********** cloudinary *************************/
@@ -379,6 +393,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -421,6 +436,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updatePhotoOnCloudinary: async (req, res, next) => {
@@ -434,6 +450,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -476,6 +493,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createPhotoOnCloudinary: async (req, res, next) => {
@@ -489,6 +507,7 @@ const processImage = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = req;
@@ -531,6 +550,7 @@ const processImage = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
