@@ -1,43 +1,35 @@
 const httpStatus = require("http-status");
 const { logObject, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
 const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-transaction-controller`
 );
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 
 const createTransaction = {
   /******************************** HOST PAYMENTS *************************************************/
-  sendMoneyToHost: async (req, res) => {
+  sendMoneyToHost: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromSendMoneyToHost =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.sendMoneyToHost(request, next);
       logObject(
         "responseFromSendMoneyToHost in controller",
         responseFromSendMoneyToHost
@@ -65,39 +57,39 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  addMoneyToOrganisationAccount: async (req, res) => {
+  addMoneyToOrganisationAccount: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromAddMoneyToOrganisation =
-        await createTransactionUtil.addMoneyToOrganisationAccount(request);
+        await createTransactionUtil.addMoneyToOrganisationAccount(
+          request,
+          next
+        );
       logObject(
         "responseFromAddMoneyToOrganisation in controller",
         responseFromAddMoneyToOrganisation
@@ -125,39 +117,36 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  receiveMoneyFromHost: async (req, res) => {
+  receiveMoneyFromHost: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromReceiveMoneyFromHost =
-        await createTransactionUtil.receiveMoneyFromHost(request);
+        await createTransactionUtil.receiveMoneyFromHost(request, next);
       logObject(
         "responseFromReceiveMoneyFromHost in controller",
         responseFromReceiveMoneyFromHost
@@ -185,39 +174,36 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getTransactionDetails: async (req, res) => {
+  getTransactionDetails: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromGetTransactionDetails =
-        await createTransactionUtil.getTransactionDetails(request);
+        await createTransactionUtil.getTransactionDetails(request, next);
       logObject(
         "responseFromGetTransactionDetails in controller",
         responseFromGetTransactionDetails
@@ -245,40 +231,36 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listTransactions: async (req, res) => {
+  listTransactions: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListTransactions =
-        await createTransactionUtil.listTransactions(request);
+        await createTransactionUtil.listTransactions(request, next);
       logObject(
         "responseFromListTransactions in controller",
         responseFromListTransactions
@@ -306,40 +288,37 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   /******************************** SIM CARD DATA LOADING *********************************/
-  loadDataBundle: async (req, res) => {
+  loadDataBundle: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromLoadDataBundle =
-        await createTransactionUtil.loadDataBundle(request);
+        await createTransactionUtil.loadDataBundle(request, next);
       logObject(
         "responseFromLoadDataBundle in controller",
         responseFromLoadDataBundle
@@ -367,39 +346,39 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  checkRemainingDataBundleBalance: async (req, res) => {
+  checkRemainingDataBundleBalance: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromCheckRemainingDataBundleBalance =
-        await createTransactionUtil.checkRemainingDataBundleBalance(request);
+        await createTransactionUtil.checkRemainingDataBundleBalance(
+          request,
+          next
+        );
       logObject(
         "responseFromCheckRemainingDataBundleBalance in controller",
         responseFromCheckRemainingDataBundleBalance
@@ -429,11 +408,15 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

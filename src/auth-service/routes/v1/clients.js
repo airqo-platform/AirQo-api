@@ -4,6 +4,7 @@ const createClientController = require("@controllers/create-client");
 const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
+const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);

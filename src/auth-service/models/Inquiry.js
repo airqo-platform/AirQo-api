@@ -1,10 +1,13 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
-const ObjectId = mongoose.Schema.Types.ObjectId;
-const { logObject, logElement } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-model`);
+const { HttpError } = require("@utils/errors");
 
 const InquirySchema = new mongoose.Schema(
   {
@@ -46,7 +49,7 @@ const InquirySchema = new mongoose.Schema(
 );
 
 InquirySchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = Object.assign({}, args);
       const eitherFirstOrLastName = args.firstName
@@ -90,16 +93,12 @@ InquirySchema.statics = {
       } else if (err.code === 11000) {
         response["message"] = "some duplicate records observed";
       }
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inquiries = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -123,15 +122,17 @@ InquirySchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "unable to list the inquiries",
-        error: error.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let updatedInquiry = await this.findOneAndUpdate(
@@ -149,20 +150,24 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        return {
-          success: false,
-          message: "inquiry does not exist, please crosscheck",
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "inquiry does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "model server error",
-        error: error.message,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
@@ -176,17 +181,21 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        return {
-          success: false,
-          message: "inquiry does not exist, please crosscheck",
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "inquiry does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "model server error",
-        error: error.message,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

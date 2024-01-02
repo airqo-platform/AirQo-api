@@ -11,10 +11,11 @@ connectToMongoDB();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
+const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
-/** */
+require("@bin/refresh-sims-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
@@ -53,73 +54,67 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/incentives", require("@routes/v1"));
 app.use("/api/v2/incentives", require("@routes/v2"));
 
-// Error handling middleware
-// catch 404 and forward to error handler
-app.use(function (req, res, next) {
+// default error handling
+app.use((req, res, next) => {
   const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
 app.use(function (err, req, res, next) {
-  if (err.status === 404) {
+  if (err instanceof HttpError) {
+    res.status(err.statusCode).json({
+      success: false,
+      message: err.message,
+      errors: err.errors,
+    });
+  } else if (err.status === 404) {
     res.status(err.status).json({
       success: false,
-      message: "this endpoint does not exist",
+      message: "This endpoint does not exist",
       errors: { message: err.message },
     });
   } else if (err.status === 400) {
-    logger.error(`bad request error --- ${err.message}`);
+    logger.error(`Bad request error --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
-      message: "bad request error",
+      message: "Bad request error",
       errors: { message: err.message },
     });
   } else if (err.status === 401) {
-    logger.error(`Unauthorized --- ${err.message}`);
+    logger.error(`Unauthorized --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
       errors: { message: err.message },
     });
   } else if (err.status === 403) {
-    logger.error(`Forbidden --- ${err.message}`);
+    logger.error(`Forbidden --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
       errors: { message: err.message },
     });
   } else if (err.status === 500) {
-    logger.error(`Internal Server Error --- ${err.message}`);
+    // logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    // logger.error(`Stack Trace: ${err.stack}`);
+    logObject("the error", err);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
       errors: { message: err.message },
     });
-  } else if (err.status === 502) {
-    logger.error(`Bad Gateway --- ${err.message}`);
+  } else if (err.status === 502 || err.status === 503 || err.status === 504) {
+    logger.error(`${err.message} --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
-      message: "Bad Gateway",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 503) {
-    logger.error(`Service Unavailable --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Service Unavailable",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 504) {
-    logger.error(`Gateway Timeout. --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: " Gateway Timeout.",
+      message: err.message,
       errors: { message: err.message },
     });
   } else {
-    logger.error(`Internal Server Error --- ${err.message}`);
+    logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
     logObject("Internal Server Error", err);
+    logger.error(`Stack Trace: ${err.stack}`);
     res.status(err.status || 500).json({
       success: false,
       message: "Internal Server Error - app entry",

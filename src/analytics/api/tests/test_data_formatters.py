@@ -47,7 +47,6 @@ def test_format_to_aqcsv(
                 == mock_aqcsv_globals["AQCSV_QC_CODE_MAPPER"]["averaged"]
             )
 
-
         if pollutant == "pm2_5":
             assert "value_pm2_5" in result[0].keys()
             assert "unit_pm2_5" in result[0].keys()

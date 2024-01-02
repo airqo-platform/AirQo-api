@@ -1,15 +1,14 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("../utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const ObjectId = mongoose.Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-model`
 );
 const { getModelByTenant } = require("@config/database");
-
+const { HttpError } = require("@utils/errors");
 const SearchHistorySchema = new mongoose.Schema(
   {
     place_id: {
@@ -61,7 +60,7 @@ SearchHistorySchema.pre("update", function (next) {
 });
 
 SearchHistorySchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -84,24 +83,24 @@ SearchHistorySchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        success: false,
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(
+        new HttpError(
+          "validation errors for some of the provided input",
+          httpStatus.CONFLICT,
+          response
+        )
+      );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
         constants.SEARCH_HISTORIES_INCLUSION_PROJECTION;
@@ -139,16 +138,17 @@ SearchHistorySchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
@@ -167,26 +167,24 @@ SearchHistorySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedSearchHistory)) {
-        return {
-          success: false,
-          message: "Search History does not exist, please crosscheck",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Search History does not exist, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -213,23 +211,21 @@ SearchHistorySchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedSearchHistory)) {
-        return {
-          success: false,
-          message: "Search History does not exist, please crosscheck",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Search History does not exist, please crosscheck",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

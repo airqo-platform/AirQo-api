@@ -17,7 +17,7 @@ def drop_missing_value(df):
 
 
 def getFeatures(df: pd.core.frame.DataFrame) -> pd.core.frame.DataFrame:
-    df = df.set_index(['time']).fillna(method='ffill')
+    df = df.set_index(['time']).ffill()
     df = df.assign(hour=df.index.hour,
                    day=df.index.day,
                    month=df.index.month,

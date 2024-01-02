@@ -12,6 +12,7 @@ const logger = log4js.getLogger(
 );
 const axios = require("axios");
 const generateFilter = require("@utils/generate-filter");
+const { HttpError } = require("@utils/errors");
 
 /*********************************** Helper Functions ***********************************/
 const createProductItemForMobileMoneyPayout = (phone_number) => {
@@ -29,7 +30,6 @@ const createProductItemForMobileMoneyPayout = (phone_number) => {
   logObject("paymentProvider", paymentProvider);
   return paymentProvider;
 };
-
 const createPaymentProviderForCollections = (phone_number) => {
   const airtelCodes = ["25675", "25670"];
   const mtnCodes = ["25678", "25677"];
@@ -82,7 +82,9 @@ const getFirstBearerToken = async () => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error -- ${JSON.stringify(error.response.status)}`
+          `internal server error --- getFirstBearerToken --- ${JSON.stringify(
+            error
+          )}`
         );
         if (error.response) {
           return {
@@ -99,7 +101,11 @@ const getFirstBearerToken = async () => {
         }
       });
   } catch (error) {
-    logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+    logger.error(
+      `Internal Server Error --- getFirstBearerToken --- ${JSON.stringify(
+        error
+      )}`
+    );
     return {
       success: false,
       message: "Internal Server Error",
@@ -146,7 +152,9 @@ const getSecondBearerToken = async (firstBearerToken) => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error -- ${JSON.stringify(error.response.status)}`
+          `internal server error --- getSecondBearerToken --- ${JSON.stringify(
+            error
+          )}`
         );
         if (error.response) {
           return {
@@ -163,7 +171,11 @@ const getSecondBearerToken = async (firstBearerToken) => {
         }
       });
   } catch (error) {
-    logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+    logger.error(
+      `Internal Server Error --- getSecondBearerToken --- ${JSON.stringify(
+        error
+      )}`
+    );
     return {
       success: false,
       message: "Internal Server Error",
@@ -175,7 +187,7 @@ const getSecondBearerToken = async (firstBearerToken) => {
 
 const createTransaction = {
   /*********************************** HOST PAYMENTS ***********************************/
-  sendMoneyToHost: async (request) => {
+  sendMoneyToHost: async (request, next) => {
     try {
       const {
         amount, //*
@@ -267,13 +279,15 @@ const createTransaction = {
 
             const responseFromSaveTransaction = await TransactionModel(
               tenant
-            ).register(transactionObjectForStorage);
+            ).register(transactionObjectForStorage, next);
             return responseFromSaveTransaction;
           })
           .catch((error) => {
             logObject("API request error", error);
             logger.error(
-              `Response from EXT system, the status is outside of 2XX range`
+              `Response from EXT system, the status is outside of 2XX range --- sendMoneyToHost --- ${JSON.stringify(
+                error
+              )}`
             );
             if (error.response) {
               return {
@@ -313,16 +327,18 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  addMoneyToOrganisationAccount: async (request) => {
+  addMoneyToOrganisationAccount: async (request, next) => {
     try {
       const {
         amount, //*
@@ -378,7 +394,7 @@ const createTransaction = {
             );
             logObject("Response data", error.response.data);
             logger.error(
-              `Response status outised of 2XX range -- ${JSON.stringify(
+              `Response status outised of 2XX range --- addMoneyToOrganisationAccount --- ${JSON.stringify(
                 error.response
               )}`
             );
@@ -391,7 +407,9 @@ const createTransaction = {
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received -- ${JSON.stringify(error.request)}`
+              `No response received --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+                error.request
+              )}`
             );
             return {
               success: false,
@@ -403,7 +421,11 @@ const createTransaction = {
             };
           } else {
             logObject("Error", error.message);
-            logger.error(`Error -- ${JSON.stringify(error.message)}`);
+            logger.error(
+              `Internal Server Error --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+                error
+              )}`
+            );
             return {
               success: false,
               message: "Internal Server Error",
@@ -428,20 +450,22 @@ const createTransaction = {
 
       const responseFromSaveTransaction = await TransactionModel(
         tenant
-      ).register(transactionObjectForStorage);
+      ).register(transactionObjectForStorage, next);
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  receiveMoneyFromHost: async (request) => {
+  receiveMoneyFromHost: async (request, next) => {
     try {
       const {
         amount, //*
@@ -514,7 +538,7 @@ const createTransaction = {
               );
               logObject("Response data", error.response.data);
               logger.error(
-                `Response status outised of 2XX range -- ${JSON.stringify(
+                `Response status outised of 2XX range --- receiveMoneyFromHost --- ${JSON.stringify(
                   error.response
                 )}`
               );
@@ -527,7 +551,9 @@ const createTransaction = {
             } else if (error.request) {
               logObject("No response received", error.request);
               logger.error(
-                `No response received -- ${JSON.stringify(error.request)}`
+                `No response received --- receiveMoneyFromHost --- ${JSON.stringify(
+                  error.request
+                )}`
               );
               return {
                 success: false,
@@ -539,7 +565,11 @@ const createTransaction = {
               };
             } else {
               logObject("Error", error.message);
-              logger.error(`Error -- ${JSON.stringify(error.message)}`);
+              logger.error(
+                `Internal Server Error --- receiveMoneyFromHost --- ${JSON.stringify(
+                  error
+                )}`
+              );
               return {
                 success: false,
                 message: "Internal Server Error",
@@ -564,21 +594,23 @@ const createTransaction = {
 
         const responseFromSaveTransaction = await TransactionModel(
           tenant
-        ).register(transactionObjectForStorage);
+        ).register(transactionObjectForStorage, next);
         return responseFromSaveTransaction;
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getTransactionDetails: async (request) => {
+  getTransactionDetails: async (request, next) => {
     logText("getTransactionDetails.............");
     try {
       const { params } = request;
@@ -600,7 +632,7 @@ const createTransaction = {
           );
           logObject("Response data", error.response.data);
           logger.error(
-            `Response status outised of 2XX range -- ${JSON.stringify(
+            `Response status outised of 2XX range --- getTransactionDetails --- ${JSON.stringify(
               error.response
             )}`
           );
@@ -613,7 +645,9 @@ const createTransaction = {
         } else if (error.request) {
           logObject("No response received", error.request);
           logger.error(
-            `No response received -- ${JSON.stringify(error.request)}`
+            `No response received --- getTransactionDetails --- ${JSON.stringify(
+              error.request
+            )}`
           );
           return {
             success: false,
@@ -625,7 +659,11 @@ const createTransaction = {
           };
         } else {
           logObject("Error", error.message);
-          logger.error(`Error -- ${JSON.stringify(error.message)}`);
+          logger.error(
+            `Internal Server Error --- getTransactionDetails --- ${JSON.stringify(
+              error
+            )}`
+          );
           return {
             success: false,
             message: "Internal Server Error",
@@ -645,20 +683,21 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listTransactions: async (request) => {
+  listTransactions: async (request, next) => {
     logText("listTransactions.............");
     try {
-      const filter = generateFilter.transactions(request);
+      const filter = generateFilter.transactions(request, next);
       if (filter.success && filter.success === false) {
         return filter;
       }
@@ -674,17 +713,19 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   /********************************* SIM CARD DATA LOADING ************************************/
-  loadDataBundle: async (request) => {
+  loadDataBundle: async (request, next) => {
     try {
       const {
         amount, //*
@@ -736,7 +777,7 @@ const createTransaction = {
             );
             logObject("Response data", error.response.data);
             logger.error(
-              `Response status outised of 2XX range -- ${JSON.stringify(
+              `Response status outised of 2XX range --- loadDataBundle --- ${JSON.stringify(
                 error.response
               )}`
             );
@@ -749,7 +790,9 @@ const createTransaction = {
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received -- ${JSON.stringify(error.request)}`
+              `No response received --- loadDataBundle --- ${JSON.stringify(
+                error.request
+              )}`
             );
             return {
               success: false,
@@ -761,7 +804,11 @@ const createTransaction = {
             };
           } else {
             logObject("Error", error.message);
-            logger.error(`Error -- ${JSON.stringify(error.message)}`);
+            logger.error(
+              `Internal Server Error --- loadDataBundle --- ${JSON.stringify(
+                error
+              )}`
+            );
             return {
               success: false,
               message: "Internal Server Error",
@@ -784,20 +831,22 @@ const createTransaction = {
       };
       const responseFromSaveTransaction = await TransactionModel(
         tenant
-      ).register(transactionObjectForStorage);
+      ).register(transactionObjectForStorage, next);
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  checkRemainingDataBundleBalance: async (request) => {
+  checkRemainingDataBundleBalance: async (request, next) => {
     try {
       return {
         success: false,
@@ -813,13 +862,15 @@ const createTransaction = {
        */
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

@@ -1,5 +1,4 @@
-const { client1 } = require("@config/redis");
-const redisClient = client1;
+const redis = require("@config/redis");
 const httpStatus = require("http-status");
 const AccessTokenModel = require("@models/AccessToken");
 const ClientModel = require("@models/Client");
@@ -11,6 +10,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- middleware/rate-limit`
 );
+const { HttpError } = require("@utils/errors");
 
 const getClientLimit = (client) => {
   return client.rateLimit || 100;
@@ -18,11 +18,8 @@ const getClientLimit = (client) => {
 
 const rateLimitMiddleware = async (req, res, next) => {
   try {
-    let { tenant } = req.query;
-
-    if (!tenant) {
-      tenant = "airqo";
-    }
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
 
     let client;
     if (req.params && req.params.token) {
@@ -55,7 +52,7 @@ const rateLimitMiddleware = async (req, res, next) => {
     const clientId = client._id;
     const clientLimit = getClientLimit(client);
 
-    const currentCount = await redisClient.get(clientId);
+    const currentCount = await redis.get(clientId);
 
     if (currentCount && parseInt(currentCount) >= clientLimit) {
       return res
@@ -63,18 +60,17 @@ const rateLimitMiddleware = async (req, res, next) => {
         .send("Rate limit exceeded");
     }
 
-    await redisClient.incr(clientId);
-    await redisClient.expire(clientId, 3600);
+    await redis.incr(clientId);
+    await redis.expire(clientId, 3600);
 
     next();
   } catch (error) {
-    logger.error(
-      `Error in rate limiting middleware: -- ${JSON.stringify(error)}`
+    logger.error(`Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
     );
-
-    return res
-      .status(httpStatus.INTERNAL_SERVER_ERROR)
-      .send(`Internal Server Error -- ${error.message}`);
   }
 };
 

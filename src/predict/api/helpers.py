@@ -21,16 +21,18 @@ def date_to_str(date: datetime):
     return date.isoformat()
 
 
+# Ensure these are updated when the API query parameters are changed
 def heatmap_cache_key():
     args = request.args
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     airqloud = args.get("airqloud")
     page = args.get("page")
     limit = args.get("limit")
-    return f"{airqloud}_{page}_{limit}"
+    return f"{current_hour}_{airqloud}_{page}_{limit}"
 
 
 def daily_forecasts_cache_key():
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_day = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -38,14 +40,16 @@ def daily_forecasts_cache_key():
     county = args.get("county")
     district = args.get("district")
     parish = args.get("parish")
+    language = args.get("language")
     city = args.get("city")
     site_id = args.get("site_id")
+    device_id = args.get("device_id")
 
-    return f"daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
+    return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{language}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def hourly_forecasts_cache_key():
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_day = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -53,14 +57,17 @@ def hourly_forecasts_cache_key():
     county = args.get("county")
     district = args.get("district")
     parish = args.get("parish")
+    language = args.get("language")
     city = args.get("city")
     site_id = args.get("site_id")
+    device_id = args.get("device_id")
 
-    return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
+    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
 def get_faults_cache_key():
     args = request.args
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     airqloud = args.get("airqloud")
     device_name = args.get("device_name")
     correlation_fault = args.get("correlation_fault")
@@ -82,11 +89,13 @@ def geo_coordinates_cache_key():
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_health_tips() -> list[dict]:
+def get_health_tips(language="") -> list[dict]:
+    params = {"language": language} if language else {}
     try:
         response = requests.get(
             f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
             timeout=10,
+            params=params,
         )
         if response.status_code == 200:
             result = response.json()
@@ -329,8 +338,8 @@ def read_faulty_devices(query):
     return result
 
 
-def add_forecast_health_tips(result: dict):
-    health_tips = get_health_tips()
+def add_forecast_health_tips(result: dict, language: str = ""):
+    health_tips = get_health_tips(language=language)
     if health_tips:
         for i in result["forecasts"]:
             pm2_5 = i["pm2_5"]

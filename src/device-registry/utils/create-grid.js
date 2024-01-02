@@ -2,20 +2,17 @@ const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
+const { HttpError } = require("@utils/errors");
 const geolib = require("geolib");
-const geohash = require("ngeohash");
-const { Transform } = require("stream");
 const shapefile = require("shapefile");
 const AdmZip = require("adm-zip");
-const { logObject, logElement, logText } = require("./log");
+const { logObject, logText } = require("./log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
-const { Schema } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
 const kafka = new Kafka({
@@ -23,8 +20,25 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+function filterOutPrivateIDs(privateIds, randomIds) {
+  // Create a Set from the privateIds array
+  const privateIdSet = new Set(privateIds);
+
+  // Check if privateIds array is empty
+  if (privateIdSet.size === 0) {
+    return randomIds;
+  }
+
+  // Filter randomIds array to exclude privateIds
+  const filteredIds = randomIds.filter(
+    (randomId) => !privateIdSet.has(randomId)
+  );
+
+  return filteredIds;
+}
+
 const createGrid = {
-  batchCreate: async (request) => {
+  batchCreate: async (request, next) => {
     try {
       const { shape } = request.body; // Assuming the input data is passed in the request body as 'data' field
       const { coordinates, type } = shape;
@@ -48,21 +62,23 @@ const createGrid = {
 
       /************* END batch processing ************ */
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { tenant } = request.query;
       let modifiedBody = request.body;
       const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
-        request
+        request,
+        next
       );
       logObject(
         "responseFromCalculateGeographicalCenter",
@@ -75,7 +91,8 @@ const createGrid = {
         // logObject("modifiedBody", modifiedBody);
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
-          modifiedBody
+          modifiedBody,
+          next
         );
 
         // logObject("responseFromRegisterGrid in UTIL", responseFromRegisterGrid);
@@ -105,66 +122,74 @@ const createGrid = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
       const update = body;
-      const filter = generateFilter.grids(request);
+      const filter = generateFilter.grids(request, next);
       if (filter.success && filter.success === "false") {
         return filter;
       } else {
-        const responseFromModifyGrid = await GridModel(tenant).modify({
-          filter,
-          update,
-        });
+        const responseFromModifyGrid = await GridModel(tenant).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
         return responseFromModifyGrid;
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.grids(request);
+      const filter = generateFilter.grids(request, next);
       if (filter.success && filter.success === "false") {
         return filter;
       } else {
-        const responseFromRemoveGrid = await GridModel(tenant).remove({
-          filter,
-        });
+        const responseFromRemoveGrid = await GridModel(tenant).remove(
+          {
+            filter,
+          },
+          next
+        );
         return responseFromRemoveGrid;
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "unable to delete airqloud",
-        errors: error.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  refresh: async (request) => {
+  refresh: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { grid_id } = request.params;
@@ -194,7 +219,8 @@ const createGrid = {
 
       const responseFromFindSites = await createGrid.findSites(
         request,
-        grid.shape
+        grid.shape,
+        next
       );
 
       logObject("responseFromFindSites", responseFromFindSites);
@@ -253,17 +279,17 @@ const createGrid = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  calculateGeographicalCenter: async (request) => {
+  calculateGeographicalCenter: async (request, next) => {
     try {
       const { coordinates, type } = request.body.shape;
       logObject("coordinates", coordinates);
@@ -293,22 +319,23 @@ const createGrid = {
         data: centers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  findSites: async (request, shape) => {
+  findSites: async (request, shape, next) => {
     try {
       logText("we are now finding Sites................");
       const { query } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.grids(request);
+      const filter = generateFilter.grids(request, next);
       if (filter.success && filter.success === false) {
         return filter;
       }
@@ -385,132 +412,137 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.grids(request);
-      const responseFromListGrid = await GridModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.grids(request, next);
+      const responseFromListGrid = await GridModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListGrid;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /************* admin levels **************************************/
-  listAdminLevels: async (request) => {
+  listAdminLevels: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.admin_levels(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
-      const responseFromListAdminLevels = await AdminLevelModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.admin_levels(request, next);
+      const responseFromListAdminLevels = await AdminLevelModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListAdminLevels;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateAdminLevel: async (request) => {
+  updateAdminLevel: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const filter = generateFilter.admin_levels(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.admin_levels(request, next);
+
       logObject("filter", filter);
       const update = request.body;
       const responseFromUpdateAdminLevel = await AdminLevelModel(tenant).modify(
         {
           filter,
           update,
-        }
+        },
+        next
       );
       logObject("responseFromUpdateAdminLevel", responseFromUpdateAdminLevel);
       return responseFromUpdateAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteAdminLevel: async (request) => {
+  deleteAdminLevel: async (request, next) => {
     try {
       const { tenant } = request.query;
-      const filter = generateFilter.admin_levels(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.admin_levels(request, next);
+
       const responseFromDeleteAdminLevel = await AdminLevelModel(tenant).remove(
         {
           filter,
-        }
+        },
+        next
       );
       return responseFromDeleteAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createAdminLevel: async (request) => {
+  createAdminLevel: async (request, next) => {
     try {
       const { tenant } = request.query;
       const responseFromCreateAdminLevel = await AdminLevelModel(
         tenant
-      ).register(request.body);
+      ).register(request.body, next);
       return responseFromCreateAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /********************* manage grids **********************************  */
-
-  findGridUsingGPSCoordinates: async (request) => {
+  findGridUsingGPSCoordinates: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
@@ -558,16 +590,17 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  createGridFromShapefile: async (request) => {
+  createGridFromShapefile: async (request, next) => {
     const uploadedFile = request.file;
     const shapefilePath = uploadedFile.path;
     try {
@@ -607,17 +640,17 @@ const createGrid = {
       if (fs.existsSync(shapefilePath)) {
         fs.unlinkSync(shapefilePath);
       }
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAvailableSites: async (request) => {
+  listAvailableSites: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { grid_id } = request.params;
@@ -639,7 +672,7 @@ const createGrid = {
         .distinct("site_id", { site_id: { $exists: true } })
         .lean();
 
-      const sites = await createGrid.findSites(request, grid.shape);
+      const sites = await createGrid.findSites(request, grid.shape, next);
 
       const availableSites = Array.isArray(sites)
         ? sites.filter(({ _id }) => !assignedSiteIds.includes(_id.toString()))
@@ -652,17 +685,17 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAssignedSites: async (request) => {
+  listAssignedSites: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { grid_id } = request.params;
@@ -715,14 +748,104 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("Internal Server Error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getSiteAndDeviceIds: async (request, next) => {
+    try {
+      const { grid_id, tenant } = { ...request.query, ...request.params };
+      const gridDetails = await GridModel(tenant).findById(grid_id);
+      if (isEmpty(gridDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: "This Grid does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      // Fetch sites based on the provided Grid ID
+      const sites = await SiteModel(tenant).find({ grids: grid_id });
+
+      // Extract site IDs from the fetched sites
+      const site_ids = sites.map((site) => site._id);
+
+      // Fetch devices for each site concurrently
+      const device_ids_promises = site_ids.map(async (siteId) => {
+        const devices = await DeviceModel(tenant).find({ site_id: siteId });
+        return devices.map((device) => device._id);
+      });
+
+      const device_ids = await Promise.all(device_ids_promises).then((ids) =>
+        ids.flat()
+      );
+
+      logObject("site_ids:", site_ids);
+      logObject("device_ids:", device_ids);
+
       return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
+        success: true,
+        message: "Successfully returned the Site IDs and the Device IDs",
+        status: httpStatus.OK,
+        data: { site_ids, device_ids },
       };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  filterOutPrivateSites: async (request, next) => {
+    try {
+      const { tenant, sites } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const privateGrids = await GridModel(tenant)
+        .find({
+          visibility: false,
+        })
+        .select("_id")
+        .lean();
+
+      const privateGridIds = privateGrids.map((grid) => grid._id);
+      // Fetch sites based on the private Grid IDs
+      const privateSites = await SiteModel(tenant).find({
+        grids: { $in: privateGridIds },
+      });
+
+      // Extract site IDs from the fetched sites
+      const privateSiteIds = privateSites.map((site) => site._id.toString());
+      const siteIds = sites.map((site) => site.toString());
+      const publicSites = filterOutPrivateIDs(privateSiteIds, siteIds);
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        data: publicSites,
+        message: "operation successful",
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

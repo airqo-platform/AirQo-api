@@ -101,10 +101,11 @@ def get_next_24hr_forecasts():
             ),
             400,
         )
+    language = request.args.get("language", default="", type=str)
     result = get_forecasts(**params, db_name="hourly_forecasts_1")
     if result:
         try:
-            add_forecast_health_tips(result)
+            add_forecast_health_tips(result, language=language)
         except Exception as e:
             print("Error adding health tips", e)
         response = result
@@ -146,10 +147,11 @@ def get_next_1_week_forecasts():
             ),
             400,
         )
+    language = request.args.get("language", default="", type=str)
     result = get_forecasts(**params, db_name="daily_forecasts_1")
     if result:
         try:
-            add_forecast_health_tips(result)
+            add_forecast_health_tips(result, language=language)
 
         except Exception as e:
             print("Error adding health tips")

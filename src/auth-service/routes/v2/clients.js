@@ -3,6 +3,7 @@ const router = express.Router();
 const createClientController = require("@controllers/create-client");
 const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
+const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -78,6 +79,14 @@ router.post(
         .exists()
         .withMessage("the name is missing in your request")
         .trim(),
+      body("ip_address")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("the ip_address must not be empty IF provided")
+        .bail()
+        .isIP()
+        .withMessage("Invalid IP address"),
       body("redirect_url")
         .optional()
         .notEmpty()

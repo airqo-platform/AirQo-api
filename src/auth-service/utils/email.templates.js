@@ -1,4 +1,9 @@
-const constants = require("../config/constants");
+const constants = require("@config/constants");
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
 module.exports = {
   confirm: (id) => ({
     subject: "AirQo Analytics JOIN request",
@@ -100,14 +105,21 @@ module.exports = {
     entity_title = "",
     targetId,
     inviterEmail,
+    userExists = false,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Join your team on ${entity_title} 🎉
+                                    Join your team on ${processString(
+                                      entity_title
+                                    )} 🎉
                                     <br /><br />
-                                    ${entity_title}, ${inviterEmail} has invited you to collaborate in ${entity_title} on AirQo Analytics
+                                    ${processString(
+                                      entity_title
+                                    )}, ${inviterEmail} has invited you to collaborate in ${processString(
+      entity_title
+    )} on AirQo Analytics
                                     <br /><br />
                                     Use AirQo Analytics to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
                                     <br /><br />
@@ -116,7 +128,9 @@ module.exports = {
                                             style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                                Join ${entity_title}</div>
+                                                Join ${processString(
+                                                  entity_title
+                                                )}</div>
                                         </div>
                                     </a>
                                     <br /><br />
@@ -135,7 +149,7 @@ module.exports = {
     return constants.EMAIL_BODY(email, content);
   },
 
-  afterEmailVerification: (firstName, username, password, email) => {
+  afterEmailVerification: (firstName, username, email) => {
     const name = firstName;
     const content = ` <tr>
                                 <td
@@ -146,7 +160,7 @@ module.exports = {
                                 <br />
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
@@ -8,20 +8,11 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- sim-model`);
+const { HttpError } = require("@utils/errors");
 
 const successResponse = {
   success: true,
   status: httpStatus.OK,
-};
-
-const errorResponse = {
-  success: false,
-  status: httpStatus.INTERNAL_SERVER_ERROR,
-};
-
-const badRequestResponse = {
-  success: false,
-  status: httpStatus.BAD_REQUEST,
 };
 
 const SimSchema = new Schema(
@@ -50,17 +41,6 @@ SimSchema.index(
   }
 );
 
-const handleServerError = (error, message) => {
-  logObject("error", error);
-  const stingifiedMessage = JSON.stringify(error ? error : "");
-  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-  return {
-    // ...errorRsesponse,
-    message,
-    errors: { message: error.message },
-  };
-};
-
 SimSchema.pre("save", function (next) {
   return next();
 });
@@ -69,7 +49,7 @@ SimSchema.pre("update", function (next) {
   return next();
 });
 
-SimSchema.statics.register = async function (args) {
+SimSchema.statics.register = async function (args, next) {
   try {
     logObject("inside the register function", args);
     const data = await this.create({ ...args });
@@ -81,15 +61,20 @@ SimSchema.statics.register = async function (args) {
     };
   } catch (error) {
     logObject("error", error);
-    return handleServerError(error, "Internal Server Error");
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-SimSchema.statics.list = async function ({
-  skip = 0,
-  limit = 5,
-  filter = {},
-} = {}) {
+SimSchema.statics.list = async function (
+  { skip = 0, limit = 5, filter = {} } = {},
+  next
+) {
   try {
     const sims = await this.aggregate()
       .match(filter)
@@ -120,11 +105,21 @@ SimSchema.statics.list = async function ({
       data: [],
     };
   } catch (error) {
-    return handleServerError(error, "unable to retrieve sims");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-SimSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
+SimSchema.statics.modify = async function (
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const modifiedUpdate = update;
     const projection = { _id: 1 };
@@ -146,18 +141,27 @@ SimSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
         data: updatedHost,
       };
     } else {
-      return {
-        ...badRequestResponse,
-        message: "sim does not exist, please crosscheck",
-        errors: { message: "sim does not exist" },
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "sim does not exist, please crosscheck",
+        })
+      );
+      return;
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-SimSchema.statics.remove = async function ({ filter = {} } = {}) {
+SimSchema.statics.remove = async function ({ filter = {} } = {}, next) {
   try {
     const projection = { _id: 1, msisdn: 1 };
     const options = { projection };
@@ -171,14 +175,23 @@ SimSchema.statics.remove = async function ({ filter = {} } = {}) {
         data,
       };
     } else {
-      return {
-        ...badRequestResponse,
-        message: "sim does not exist, please crosscheck",
-        errors: { message: "sim does not exist" },
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "sim does not exist, please crosscheck",
+        })
+      );
+      return;
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pymongo as pm
+import tweepy
 import urllib3
 from dotenv import load_dotenv
 
@@ -32,6 +33,7 @@ class Config:
         "BIGQUERY_DAILY_FORECAST_EVENTS_TABLE"
     )
     BIGQUERY_HOURLY_WEATHER_TABLE = os.getenv("BIGQUERY_HOURLY_WEATHER_TABLE")
+    BIGQUERY_OPENWEATHERMAP_TABLE = os.getenv("BIGQUERY_OPENWEATHERMAP_TABLE")
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
 
     # Bam data
@@ -59,6 +61,10 @@ class Config:
     BIGQUERY_SITES_META_DATA_TABLE = os.getenv("BIGQUERY_SITES_META_DATA_TABLE")
     BIGQUERY_AIRQLOUDS_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_TABLE")
     BIGQUERY_AIRQLOUDS_SITES_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_SITES_TABLE")
+    BIGQUERY_GRIDS_TABLE = os.getenv("BIGQUERY_GRIDS_TABLE")
+    BIGQUERY_COHORTS_TABLE = os.getenv("BIGQUERY_COHORTS_TABLE")
+    BIGQUERY_GRIDS_SITES_TABLE = os.getenv("BIGQUERY_GRIDS_SITES_TABLE")
+    BIGQUERY_COHORTS_DEVICES_TABLE = os.getenv("BIGQUERY_COHORTS_DEVICES_TABLE")
 
     # AirQo
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
@@ -76,6 +82,10 @@ class Config:
     TAHMO_API_KEY = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
     TAHMO_API_SECRET = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
 
+    # OpenWeather
+    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+    OPENWEATHER_BASE_URL = os.getenv("OPENWEATHER_BASE_URL")
+    OPENWEATHER_DATA_BATCH_SIZE = os.getenv("OPENWEATHER_DATA_BATCH_SIZE")
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092").split(",")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "1,2,3,4").split(",")
@@ -173,8 +183,31 @@ class Config:
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
 
+    # Twitter bot
+    TWITTER_BOT_API_KEY = os.getenv("TWITTER_BOT_API_KEY")
+    TWITTER_BOT_API_KEY_SECRET = os.getenv("TWITTER_BOT_API_KEY_SECRET")
+    TWITTER_BOT_BEARER_TOKEN = os.getenv("TWITTER_BOT_BEARER_TOKEN")
+    TWITTER_BOT_ACCESS_TOKEN = os.getenv("TWITTER_BOT_ACCESS_TOKEN")
+    TWITTER_BOT_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_BOT_ACCESS_TOKEN_SECRET")
+
 
 configuration = Config()
 
+# MONGO_DB
 client = pm.MongoClient(configuration.MONGO_URI)
 db = client[configuration.MONGO_DATABASE_NAME]
+
+# Twitter
+twitter_client = tweepy.Client(
+    bearer_token=configuration.TWITTER_BOT_BEARER_TOKEN,
+    access_token=configuration.TWITTER_BOT_ACCESS_TOKEN,
+    access_token_secret=configuration.TWITTER_BOT_ACCESS_TOKEN_SECRET,
+    consumer_key=configuration.TWITTER_BOT_API_KEY,
+    consumer_secret=configuration.TWITTER_BOT_API_KEY_SECRET,
+)
+twitter_auth = tweepy.OAuthHandler(
+    access_token=configuration.TWITTER_BOT_ACCESS_TOKEN,
+    access_token_secret=configuration.TWITTER_BOT_ACCESS_TOKEN_SECRET,
+    consumer_key=configuration.TWITTER_BOT_API_KEY,
+    consumer_secret=configuration.TWITTER_BOT_API_KEY_SECRET,
+)

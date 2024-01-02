@@ -3,8 +3,9 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- grid-model`
@@ -114,8 +115,6 @@ gridSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
 
-// gridSchema.index({ geoHash: 1 });
-
 gridSchema.methods.toJSON = function() {
   const {
     _id,
@@ -149,7 +148,7 @@ gridSchema.methods.toJSON = function() {
   };
 };
 
-gridSchema.statics.register = async function(args) {
+gridSchema.statics.register = async function(args, next) {
   try {
     let modifiedArgs = { ...args };
 
@@ -187,14 +186,15 @@ gridSchema.statics.register = async function(args) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "grid not created despite successful operation",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: "grid not created despite successful operation",
-        },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "grid not created despite successful operation",
+          }
+        )
+      );
     }
   } catch (error) {
     logObject("error", error);
@@ -215,16 +215,14 @@ gridSchema.statics.register = async function(args) {
     } else {
       response.errors = { message: error.message };
     }
-
-    return response;
+    next(new HttpError(response.message, response.status, response.errors));
   }
 };
 
-gridSchema.statics.list = async function({
-  filter = {},
-  limit = 1000,
-  skip = 0,
-} = {}) {
+gridSchema.statics.list = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
   try {
     logText("we are inside model's list....");
     const inclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
@@ -248,9 +246,9 @@ gridSchema.statics.list = async function({
         foreignField: "grids",
         as: "sites",
       })
-      .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
+      .sort({ createdAt: -1 })
       .skip(skip ? skip : 0)
       .limit(limit ? limit : 1000)
       .allowDiskUse(true);
@@ -272,16 +270,19 @@ gridSchema.statics.list = async function({
       };
     }
   } catch (error) {
-    return {
-      errors: { message: error.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    logger.error(`Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
-gridSchema.statics.modify = async function({ filter = {}, update = {} } = {}) {
+gridSchema.statics.modify = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const options = {
       new: true,
@@ -312,24 +313,24 @@ gridSchema.statics.modify = async function({ filter = {}, update = {} } = {}) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "grid does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "grid does not exist, please crosscheck",
+        })
+      );
     }
   } catch (error) {
-    return {
-      errors: { message: error.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    logger.error(`Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
-gridSchema.statics.remove = async function({ filter = {} } = {}) {
+gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
   try {
     const options = {
       projection: {
@@ -349,20 +350,20 @@ gridSchema.statics.remove = async function({ filter = {} } = {}) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "grid does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "grid does not exist, please crosscheck",
+        })
+      );
     }
   } catch (error) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+    logger.error(`Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

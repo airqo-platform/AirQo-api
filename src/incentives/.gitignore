@@ -5,3 +5,4 @@ controllers/rsa_private.pem
 airqo-250220-*
 data.*
 config/airqo-250220-*
+coverage

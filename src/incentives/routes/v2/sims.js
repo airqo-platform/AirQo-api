@@ -134,6 +134,42 @@ router.post(
   ]),
   createSimController.create
 );
+
+router.post(
+  "/bulk",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("sims")
+        .exists()
+        .withMessage("the sims is missing in the request body")
+        .bail()
+        .isArray()
+        .withMessage("sims should be an array"),
+      body("sims.*")
+        .optional()
+        .isInt()
+        .withMessage("Each element in the sims array should be a number")
+        .bail()
+        .isLength({ min: 15, max: 15 })
+        .withMessage(
+          "Each element in the sims array should be exactly 15 digits long"
+        ),
+    ],
+  ]),
+  createSimController.createBulk
+);
+
 router.get(
   "/",
   oneOf([

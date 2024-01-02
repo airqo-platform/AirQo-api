@@ -2604,4 +2604,91 @@ describe("createUserController", () => {
       });
     });
   });
+
+  describe("syncAnalyticsAndMobile", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {};
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should successfully sync the analytics and mobile accounts", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const syncUtilStub = sinon
+        .stub(createUserUtil, "syncAnalyticsAndMobile")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          message: "Sync successful",
+          data: { name: "John Doe" },
+        });
+
+      await createUser.syncAnalyticsAndMobile(req, res);
+
+      expect(syncUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Sync successful",
+        user: { name: "John Doe" },
+      });
+    });
+
+    it("should handle errors when syncing fails", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const syncUtilStub = sinon
+        .stub(createUserUtil, "syncAnalyticsAndMobile")
+        .resolves({
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Unable to sync Analytics and Mobile Accounts",
+          errors: { message: "Invalid request" },
+        });
+
+      await createUser.syncAnalyticsAndMobile(req, res);
+
+      expect(syncUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Unable to sync Analytics and Mobile Accounts",
+        exists: false,
+        errors: { message: "Invalid request" },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const syncUtilStub = sinon
+        .stub(createUserUtil, "syncAnalyticsAndMobile")
+        .rejects(new Error("Internal Server Error"));
+
+      await createUser.syncAnalyticsAndMobile(req, res);
+
+      expect(syncUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        error: "Internal Server Error",
+      });
+    });
+  });
 });

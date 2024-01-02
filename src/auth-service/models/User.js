@@ -14,6 +14,8 @@ const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
+const validUserTypes = ["user", "guest"];
+const { HttpError } = require("@utils/errors");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -60,6 +62,7 @@ const UserSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    analyticsVersion: { type: Number, default: 2 },
     firstName: {
       type: String,
       required: [true, "FirstName is required!"],
@@ -92,7 +95,7 @@ const UserSchema = new Schema(
       type: String,
       default: "user",
     },
-    isActive: { type: Boolean },
+    isActive: { type: Boolean, default: false },
     duration: { type: Date, default: oneMonthFromNow },
     network_roles: {
       type: [
@@ -102,6 +105,8 @@ const UserSchema = new Schema(
             ref: "network",
             default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
           },
+          userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -111,6 +116,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many networks. Maximum limit: 6.",
+        },
+      ],
     },
     group_roles: {
       type: [
@@ -120,6 +134,8 @@ const UserSchema = new Schema(
             ref: "group",
             default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
+          userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -129,6 +145,15 @@ const UserSchema = new Schema(
       ],
       default: [],
       _id: false,
+      validate: [
+        {
+          validator: function (value) {
+            const maxLimit = 6;
+            return value.length <= maxLimit;
+          },
+          message: "Too many groups. Maximum limit: 6.",
+        },
+      ],
     },
 
     permissions: [
@@ -164,6 +189,9 @@ const UserSchema = new Schema(
     },
     website: { type: String },
     description: { type: String },
+    lastLogin: {
+      type: Date,
+    },
     category: {
       type: String,
     },
@@ -177,9 +205,18 @@ const UserSchema = new Schema(
       type: String,
     },
     google_id: { type: String, trim: true },
+    timezone: { type: String, trim: true },
   },
   { timestamps: true }
 );
+
+UserSchema.path("network_roles.userType").validate(function (value) {
+  return validUserTypes.includes(value);
+}, "Invalid userType value");
+
+UserSchema.path("group_roles.userType").validate(function (value) {
+  return validUserTypes.includes(value);
+}, "Invalid userType value");
 
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
@@ -190,21 +227,63 @@ UserSchema.pre("save", function (next) {
   }
 
   if (!this.network_roles || this.network_roles.length === 0) {
+    if (
+      !constants ||
+      !constants.DEFAULT_NETWORK ||
+      !constants.DEFAULT_NETWORK_ROLE
+    ) {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message:
+            "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
+        }
+      );
+    }
+
     this.network_roles = [
       {
         network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+        userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
       },
     ];
   }
 
   if (!this.group_roles || this.group_roles.length === 0) {
+    if (
+      !constants ||
+      !constants.DEFAULT_GROUP ||
+      !constants.DEFAULT_GROUP_ROLE
+    ) {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message:
+            "Contact support@airqo.net -- unable to retrieve the default Group or Role to which the User will belong",
+        }
+      );
+    }
+
     this.group_roles = [
       {
         group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+        userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];
+  }
+
+  if (!this.verified) {
+    this.verified = false;
+  }
+
+  if (!this.analyticsVersion) {
+    this.analyticsVersion = 2;
   }
 
   return next();
@@ -221,7 +300,7 @@ UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       const data = await this.create({
         ...args,
@@ -237,12 +316,11 @@ UserSchema.statics = {
         return {
           success: true,
           data,
-          message: "operation successful but user NOT successfully created",
-          status: httpStatus.BAD_REQUEST,
+          message: "Operation successful but user NOT successfully created",
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -261,57 +339,105 @@ UserSchema.statics = {
         response["message"] =
           "the email and userName must be unique for every user";
       }
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async listStatistics() {
+  async listStatistics(next) {
     try {
       const response = await this.aggregate()
-        .match({})
+        .match({ email: { $ne: null } })
         .sort({ createdAt: -1 })
+        .lookup({
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
+        })
+        .lookup({
+          from: "users",
+          localField: "clients.user_id",
+          foreignField: "_id",
+          as: "api_clients",
+        })
         .group({
           _id: null,
-          count: { $sum: 1 },
-          active: { $sum: { $cond: ["$isActive", 1, 0] } },
+          users: { $sum: 1 },
+          user_details: {
+            $push: {
+              userName: "$userName",
+              email: "$email",
+              _id: "$_id",
+            },
+          },
+          active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
+          active_user_details: {
+            $addToSet: {
+              $cond: {
+                if: "$isActive",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  _id: "$_id",
+                },
+                else: "$nothing",
+              },
+            },
+          },
+          client_users: { $addToSet: "$clients.user_id" },
+          api_user_details: {
+            $addToSet: {
+              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
+              email: { $arrayElemAt: ["$api_clients.email", 0] },
+              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+            },
+          },
         })
         .project({
           _id: 0,
+          users: {
+            number: "$users",
+            details: "$user_details",
+          },
+          active_users: {
+            number: "$active_users",
+            details: "$active_user_details",
+          },
+          api_users: {
+            number: { $size: { $ifNull: ["$client_users", []] } },
+            details: "$api_user_details",
+          },
         })
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the user statistics",
-          data: response,
+          message: "Successfully retrieved the user statistics",
+          data: response[0],
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "no users statistics exist",
+          message: "No users statistics exist",
           data: [],
           status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
@@ -324,12 +450,6 @@ UserSchema.statics = {
       logObject("the filter being used", filter);
       const response = await this.aggregate()
         .match(filter)
-        .lookup({
-          from: "roles",
-          localField: "role",
-          foreignField: "_id",
-          as: "lol",
-        })
         .lookup({
           from: "permissions",
           localField: "permissions",
@@ -410,9 +530,13 @@ UserSchema.statics = {
           _id: "$_id",
           firstName: { $first: "$firstName" },
           lastName: { $first: "$lastName" },
+          lastLogin: { $first: "$lastLogin" },
+          timezone: { $first: "$timezone" },
+          isActive: { $first: "$isActive" },
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
+          analyticsVersion: { $first: "$analyticsVersion" },
           country: { $first: "$country" },
           privilege: { $first: "$privilege" },
           website: { $first: "$website" },
@@ -424,7 +548,10 @@ UserSchema.statics = {
           description: { $first: "$description" },
           profilePicture: { $first: "$profilePicture" },
           phoneNumber: { $first: "$phoneNumber" },
-          lol: { $first: "$lol" },
+          group_roles: { $first: "$group_roles" },
+          network_roles: { $first: "$network_roles" },
+          group_role: { $first: "$group_role" },
+          network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
           groups: {
             $addToSet: {
@@ -441,6 +568,13 @@ UserSchema.statics = {
                     role_permissions: "$group_role_permissions",
                   },
                   else: null,
+                },
+              },
+              userType: {
+                $cond: {
+                  if: { $eq: [{ $type: "$group_roles.userType" }, "missing"] },
+                  then: "user",
+                  else: "$group_roles.userType",
                 },
               },
             },
@@ -463,6 +597,15 @@ UserSchema.statics = {
                     role_permissions: "$network_role_permissions",
                   },
                   else: null,
+                },
+              },
+              userType: {
+                $cond: {
+                  if: {
+                    $eq: [{ $type: "$network_roles.userType" }, "missing"],
+                  },
+                  then: "user",
+                  else: "$network_roles.userType",
                 },
               },
             },
@@ -490,18 +633,19 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
+      logText("the user modification function........");
       let options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
@@ -520,6 +664,17 @@ UserSchema.statics = {
             network_roles: { $each: modifiedUpdate.network_roles },
           };
           delete modifiedUpdate.network_roles;
+        }
+      }
+
+      if (modifiedUpdate.group_roles) {
+        if (isEmpty(modifiedUpdate.group_roles.group)) {
+          delete modifiedUpdate.group_roles;
+        } else {
+          modifiedUpdate["$addToSet"] = {
+            group_roles: { $each: modifiedUpdate.group_roles },
+          };
+          delete modifiedUpdate.group_roles;
         }
       }
 
@@ -544,56 +699,60 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedUser)) {
-        return {
-          success: false,
-          message: "user does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          data: [],
-          errors: { message: "user does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "user does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "INTERNAL SERVER ERROR",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
-        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+        projection: {
+          _id: 0,
+          email: 1,
+          firstName: 1,
+          lastName: 1,
+          lastLogin: 1,
+        },
       };
       const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
           success: true,
-          message: "successfully removed the user",
+          message: "Successfully removed the user",
           data: removedUser._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        return {
-          success: false,
-          message: "user does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          data: [],
-          errors: { message: "user does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Provided User does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("the models error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
@@ -629,6 +788,8 @@ UserSchema.methods = {
       firstName: this.firstName,
       organization: this.organization,
       long_organization: this.long_organization,
+      group_roles: this.group_roles,
+      network_roles: this.network_roles,
       privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,
@@ -642,7 +803,11 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      analyticsVersion: this.analyticsVersion,
       rateLimit: this.rateLimit,
+      lastLogin: this.lastLogin,
+      isActive: this.isActive,
+      timezone: this.timezone,
     };
   },
 };
@@ -656,7 +821,6 @@ const UserModel = (tenant) => {
     return users;
   }
 };
-
 UserSchema.methods.createToken = async function () {
   try {
     const filter = { _id: this._id };
@@ -671,6 +835,8 @@ UserSchema.methods.createToken = async function () {
       return userWithDerivedAttributes;
     } else {
       const user = userWithDerivedAttributes.data[0];
+      // Calculate expiration time (24 hours from now) in seconds
+      const expirationTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
       logObject("user", user);
       return jwt.sign(
         {
@@ -689,12 +855,14 @@ UserSchema.methods.createToken = async function () {
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
+          lastLogin: user.lastLogin,
+          exp: expirationTime,
         },
         constants.JWT_SECRET
       );
     }
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`Internal Server Error --- ${error.message}`);
   }
 };
 

@@ -1,14 +1,15 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-
+const { addWeeksToProvideDateTime } = require("@utils/date");
+const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
+const { HttpError } = require("@utils/errors");
 
 const periodSchema = new mongoose.Schema(
   {
@@ -26,38 +27,61 @@ const DefaultsSchema = new mongoose.Schema(
       type: String,
       trim: true,
       required: [true, "pollutant is required!"],
+      default: "pm2_5",
     },
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
+      default: "hourly",
     },
     startDate: {
       type: Date,
       required: [true, "startDate is required!"],
+      default: addWeeksToProvideDateTime(currentDate, -2),
     },
     endDate: {
       type: Date,
       required: [true, "endDate is required!"],
+      default: currentDate,
     },
     chartType: {
       type: String,
       required: [true, "chartTyoe is required!"],
+      default: "line",
     },
     chartTitle: {
       type: String,
       required: [true, "chartTitle is required!"],
+      default: "Chart Title",
     },
     chartSubTitle: {
       type: String,
       required: [true, "chartSubTitle is required!"],
+      default: "Chart SubTitle",
     },
     airqloud: {
       type: ObjectId,
       ref: "airqloud",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
+    },
+    grid: {
+      type: ObjectId,
+      ref: "grid",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
+    },
+    cohort: {
+      type: ObjectId,
+      ref: "cohort",
     },
     network_id: {
       type: ObjectId,
       ref: "network",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+    },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
     user: {
       type: ObjectId,
@@ -110,11 +134,19 @@ DefaultsSchema.methods = {
 };
 
 DefaultsSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let body = args;
       if (body._id) {
         delete body._id;
+      }
+      if (isEmpty(args.period)) {
+        args.period = {
+          value: "Last 7 days",
+          label: "Last 7 days",
+          unitValue: 7,
+          unit: "day",
+        };
       }
       let data = await this.create({
         ...body,
@@ -156,15 +188,11 @@ DefaultsSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 20, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const defaults = await this.find(filter)
         .sort({ createdAt: -1 })
@@ -188,16 +216,17 @@ DefaultsSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Data conflicts detected",
-        errors: { message: error.message },
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       if (update._id) {
@@ -217,32 +246,27 @@ DefaultsSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedDefault)) {
-        return {
-          success: true,
-          message: "the default does not exist, please crosscheck",
-          status: httpStatus.OK,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The User Default you are trying to UPDATE does not exist, please crosscheck",
+          })
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = {};
-      let message = "";
-      let status = "";
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code == 11000) {
         errors = err.keyValue;
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
       }
-      return {
-        success: false,
-        message,
-        errors,
-        status,
-      };
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -253,7 +277,10 @@ DefaultsSchema.statics = {
           airqloud: 1,
         },
       };
-      let removedDefault = await this.findOneAndRemove(filter, options).exec();
+      const removedDefault = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
       if (!isEmpty(removedDefault)) {
         return {
@@ -263,21 +290,22 @@ DefaultsSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedDefault)) {
-        return {
-          success: true,
-          message: "default does not exist, please crosscheck",
-          status: httpStatus.OK,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "the User Default  you are trying to DELETE does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      return {
-        success: false,
-        message: "Data conflicts detected",
-        errors: { message: error.message },
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
