@@ -125,6 +125,8 @@ spec:
         pass: platform-ui
     - path: /airflow
       route: pipeline/airflow
+    - path: /mlflow
+      route: staging/mlflow
     - path: /grafana
       route: monitoring/grafana
     - path: /inventory
