@@ -88,7 +88,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -203,7 +203,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -361,7 +361,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -417,7 +417,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -475,7 +475,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -533,7 +533,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -593,7 +593,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -654,7 +654,7 @@ const createAirqloud = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       next(
         new HttpError(
