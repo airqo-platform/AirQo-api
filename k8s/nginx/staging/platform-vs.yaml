@@ -21,7 +21,7 @@ metadata:
   name: mlflow
   namespace: staging
 spec:
-  host: stagin-platform.airqo.net
+  host: staging-platform.airqo.net
   upstreams:
     - name: mlflow
       service: airqo-mlflow
