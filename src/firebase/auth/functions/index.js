@@ -261,37 +261,6 @@ exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
 });
 
 /**
- * @param {any} user The new user
- */
-async function sendWelcomeNotification(user) {
-  try {
-    const userId = user.id;
-    const notificationId = new Date.UTC().toString();
-    const welcomeNotification = {
-      "id": notificationId,
-      "body": "Begin your journey to Knowing Your Air and Breathe Clean...",
-      "isNew": true,
-      "time": new Date.UTC().toISOString(),
-      "title": "Welcome to AirQo!",
-    };
-
-    const notificationsCollection = process.env.NOTIFICATIONS_COLLECTION;
-    const docRef = firestoreDb.collection(notificationsCollection)
-        .doc(userId).collection(userId).doc(notificationId);
-    await docRef.set(welcomeNotification);
-  } catch (error) {
-    console.log(error);
-  }
-
-  return null;
-}
-exports.sendWelcomeMessages = functions.https.onCall(async (data, _) => {
-  await sendWelcomeNotification(data);
-  // await sendWelcomeMessage(data);
-  return null;
-});
-
-/**
  * @param {auth.UserRecord} email The user's email
  * @param {auth.UserRecord} firstName The user's name
  */
