@@ -35,4 +35,3 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-
