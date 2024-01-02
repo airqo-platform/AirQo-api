@@ -261,24 +261,42 @@ const isIPBlacklisted = async ({
   token_name = "",
   endpoint = "",
 } = {}) => {
-  try {
-    const day = getDay();
-    const filter = { ip };
-    const update = {
-      $addToSet: {
-        emails: email,
-        tokens: token,
-        token_names: token_name,
-        endpoints: endpoint,
-      },
-    };
-    const options = {
-      upsert: true,
-      new: true,
-      arrayFilters: [{ "ipCounts.day": day }],
-      runValidators: true,
-    };
+  const [blacklistedIP, whitelistedIP, blacklistedRanges] = await Promise.all([
+    BlacklistedIPModel("airqo").findOne({ ip }),
+    WhitelistedIPModel("airqo").findOne({ ip }),
+    BlacklistedIPRangeModel("airqo").find(),
+  ]);
 
+  const isInRange = blacklistedRanges.some((range) =>
+    rangeCheck(ip, range.range)
+  );
+
+  if (whitelistedIP) {
+    return false;
+  }
+
+  if (blacklistedIP || isInRange) {
+    return true;
+  }
+
+  const day = getDay();
+  const filter = { ip };
+  const update = {
+    $addToSet: {
+      emails: email,
+      tokens: token,
+      token_names: token_name,
+      endpoints: endpoint,
+    },
+  };
+  const options = {
+    upsert: true,
+    new: true,
+    arrayFilters: [{ "ipCounts.day": day }],
+    runValidators: true,
+  };
+
+  try {
     await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
 
     const document = await UnknownIPModel("airqo").findOne(filter);
@@ -299,28 +317,6 @@ const isIPBlacklisted = async ({
     } else {
       logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
     }
-  }
-
-  const [blacklistedIP, whitelistedIP, blacklistedRanges] = await Promise.all([
-    BlacklistedIPModel("airqo").findOne({ ip }),
-    WhitelistedIPModel("airqo").findOne({ ip }),
-    BlacklistedIPRangeModel("airqo").find(),
-  ]);
-
-  if (blacklistedIP) {
-    return true;
-  }
-
-  if (whitelistedIP) {
-    return false;
-  }
-
-  const isInRange = blacklistedRanges.some((range) =>
-    rangeCheck(ip, range.range)
-  );
-
-  if (isInRange) {
-    return true;
   }
 
   return false;
