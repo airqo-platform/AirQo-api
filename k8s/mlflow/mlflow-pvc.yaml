@@ -1,0 +1,14 @@
+#Exclude when running with helm
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-pv
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 300Mi
+  storageClassName: ""
+  volumeMode: Filesystem
+  volumeName: mlflow-pv
