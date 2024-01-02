@@ -1,4 +1,8 @@
-const { logElement, logObject, logText } = require("@utils/log");
+const { logElement, logObject } = require("@utils/log");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
+const { HttpError } = require("@utils/errors");
 
 function monthsFromNow(number) {
   const num = isNaN(number) ? 1 : number;
@@ -10,8 +14,7 @@ function monthsFromNow(number) {
   }
   return d;
 }
-
-function generateDateFormat(ISODate) {
+function generateDateFormat(ISODate, next) {
   try {
     let date = new Date(ISODate);
     let year = date.getFullYear();
@@ -26,11 +29,15 @@ function generateDateFormat(ISODate) {
       month = "0" + month;
     }
     return `${year}-${month}-${day}-${hrs}`;
-  } catch (e) {
-    logger.error(`internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`internal server error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
 function isTimeEmpty(dateTime) {
   let date = new Date(dateTime);
   let hrs = date.getUTCHours();
@@ -51,12 +58,10 @@ function isTimeEmpty(dateTime) {
   }
   return true;
 }
-
 function formatDate(dateTime) {
   return new Date(dateTime).toISOString();
 }
-
-function generateDateFormatWithoutHrs(ISODate) {
+function generateDateFormatWithoutHrs(ISODate, next) {
   try {
     let date = new Date(ISODate);
     let year = date.getFullYear();
@@ -70,12 +75,16 @@ function generateDateFormatWithoutHrs(ISODate) {
       month = "0" + month;
     }
     return `${year}-${month}-${day}`;
-  } catch (e) {
-    logger.error(`internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function addMonthsToProvidedDate(date, number) {
+function addMonthsToProvidedDate(date, number, next) {
   try {
     const originalDate = new Date(date);
     const year = originalDate.getFullYear();
@@ -96,12 +105,16 @@ function addMonthsToProvidedDate(date, number) {
       `${newYear}-${formattedMonth}-${formattedDay}`
     );
     return `${newYear}-${formattedMonth}-${formattedDay}`;
-  } catch (e) {
-    logger.error(`Internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function addMonthsToProvideDateTime(dateTime, number) {
+function addMonthsToProvideDateTime(dateTime, number, next) {
   try {
     if (isTimeEmpty(dateTime) === false) {
       const originalDate = new Date(dateTime);
@@ -123,11 +136,15 @@ function addMonthsToProvideDateTime(dateTime, number) {
       );
       return newDate;
     }
-  } catch (e) {
-    logger.error(`Internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
 function addWeeksToProvideDateTime(dateTime, number) {
   try {
     if (isTimeEmpty(dateTime) === false) {
@@ -140,12 +157,11 @@ function addWeeksToProvideDateTime(dateTime, number) {
       const newDate = addMonthsToProvidedDate(dateTime, number * 4); // Approximate 4 weeks per month
       return newDate;
     }
-  } catch (e) {
-    logger.error(`Internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
   }
 }
-
-function addDaysToProvideDateTime(dateTime, number) {
+function addDaysToProvideDateTime(dateTime, number, next) {
   try {
     if (isTimeEmpty(dateTime) === false) {
       const originalDate = new Date(dateTime);
@@ -157,12 +173,16 @@ function addDaysToProvideDateTime(dateTime, number) {
       const newDate = addMonthsToProvidedDate(dateTime, number / 30); // Approximate 30 days per month
       return newDate;
     }
-  } catch (e) {
-    logger.error(`Internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function monthsInfront(number) {
+function monthsInfront(number, next) {
   try {
     const d = new Date();
     const currentMonth = d.getMonth();
@@ -181,42 +201,58 @@ function monthsInfront(number) {
     }
     logObject("date returned by function for monthsInfront()", d);
     return d;
-  } catch (e) {
-    logger.error(`Internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function addDays(number) {
+function addDays(number, next) {
   try {
     let d = new Date();
     d.setDate(d.getDate() + number);
     logObject("date returned by function addDays()", d);
     return d;
-  } catch (e) {
-    logger.error(`internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function addHours(number) {
+function addHours(number, next) {
   try {
     const currentTime = new Date();
     const newTime = new Date(currentTime.getTime() + number * 60 * 60 * 1000);
     return newTime;
-  } catch (e) {
-    logger.error(`internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
-function addMinutes(number) {
+function addMinutes(number, next) {
   try {
     let d = new Date();
     d.setMinutes(d.getMinutes() + number);
     return d;
-  } catch (e) {
-    logger.error(`internal server error -- ${e.message}`);
+  } catch (error) {
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 }
-
 function getDifferenceInMonths(d1, d2) {
   let months;
   let start = new Date(d1);
@@ -227,7 +263,6 @@ function getDifferenceInMonths(d1, d2) {
   logObject(" result for getDifferenceInMonths()", months <= 0 ? 0 : months);
   return months <= 0 ? 0 : months;
 }
-
 function getDifferenceInWeeks(d1, d2) {
   const oneWeekInMilliseconds = 7 * 24 * 60 * 60 * 1000;
   const startDate = new Date(d1);
@@ -237,7 +272,6 @@ function getDifferenceInWeeks(d1, d2) {
 
   return weeks;
 }
-
 function threeMonthsFromNow(date) {
   d = new Date(date);
   let targetMonth = d.getMonth() + 3;

@@ -11,6 +11,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- network-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const NetworkSchema = new Schema(
   {
@@ -148,7 +149,7 @@ const sanitizeName = (name) => {
 };
 
 NetworkSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       let tenant = modifiedArgs.tenant;
@@ -198,15 +199,12 @@ NetworkSchema.statics = {
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.NETWORKS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.NETWORKS_EXCLUSION_PROJECTION(
@@ -330,21 +328,15 @@ NetworkSchema.statics = {
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
-
-      logObject("modifiedUpdate", modifiedUpdate);
 
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
@@ -393,12 +385,11 @@ NetworkSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedNetwork)) {
-        return {
-          success: true,
-          message: "No networks exist for this operation",
-          status: httpStatus.OK,
-          errors: { message: "No networks exist for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No networks exist for this operation",
+          })
+        );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
@@ -429,19 +420,11 @@ NetworkSchema.statics = {
         (err.code === 13 || err.codeName === "Unauthorized")
       ) {
         response["message"] = "Unauthorized to carry out this operation";
-        return response;
       }
-      logObject("err", err);
-
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -465,12 +448,11 @@ NetworkSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedNetwork)) {
-        return {
-          success: true,
-          message: "Network does not exist for this operation",
-          status: httpStatus.OK,
-          errors: { message: "Network does not exist for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network does not exist for this operation",
+          })
+        );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
@@ -496,12 +478,7 @@ NetworkSchema.statics = {
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
 };

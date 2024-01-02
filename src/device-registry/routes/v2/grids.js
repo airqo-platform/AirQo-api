@@ -10,23 +10,20 @@ const logger = require("log4js").getLogger(
 );
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
-const { getModelByTenant } = require("@config/database");
 const NetworkModel = require("@models/Network");
 const AdminLevelModel = require("@models/AdminLevel");
-const { logText, logObject } = require("@utils/log");
+const { logText } = require("@utils/log");
 
 const validAdminLevels = async () => {
   const levels = await AdminLevelModel("airqo").distinct("name");
   return levels.map((level) => level.toLowerCase());
 };
-
 const validateAdminLevels = async (value) => {
   const levels = await validAdminLevels();
   if (!levels.includes(value.toLowerCase())) {
     throw new Error("Invalid level");
   }
 };
-
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
   return networks.map((network) => network.toLowerCase());
@@ -37,7 +34,6 @@ const validateNetwork = async (value) => {
     throw new Error("Invalid network");
   }
 };
-
 const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;
   if (
@@ -59,7 +55,6 @@ const validateCoordinate = (coordinate) => {
     throw new Error("Invalid longitude coordinate");
   }
 };
-
 const validatePolygonCoordinates = (value) => {
   if (!Array.isArray(value)) {
     logText("Coordinates must be provided as an array");
@@ -88,7 +83,6 @@ const validatePolygonCoordinates = (value) => {
   }
   return true;
 };
-
 const validateMultiPolygonCoordinates = (value) => {
   if (!Array.isArray(value)) {
     logText("Coordinates must be provided as an array");
@@ -103,7 +97,6 @@ const validateMultiPolygonCoordinates = (value) => {
   }
   return true;
 };
-
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -120,7 +113,6 @@ const validatePagination = (req, res, next) => {
 
   next();
 };
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -130,7 +122,6 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
   next();
 };
-
 router.use(headers);
 router.use(validatePagination);
 
@@ -266,7 +257,6 @@ router.get(
   ]),
   createGridController.list
 );
-
 router.get(
   "/summary",
   oneOf([
@@ -567,7 +557,41 @@ router.post(
 
   createGridController.findGridUsingGPSCoordinates
 );
-
+router.post(
+  "/filterNonPrivateSites",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("sites")
+        .exists()
+        .withMessage("the sites should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the sites should not be empty"),
+      body("sites.*")
+        .isMongoId()
+        .withMessage("site provided must be an object ID"),
+    ],
+  ]),
+  createGridController.filterOutPrivateSites
+);
 /************************ admin levels ********************/
 router.post(
   "/levels",

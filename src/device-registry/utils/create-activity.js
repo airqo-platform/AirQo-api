@@ -1,8 +1,7 @@
 const ActivityModel = require("@models/SiteActivity");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
-const HTTPStatus = require("http-status");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const { addMonthsToProvideDateTime } = require("./date");
@@ -13,7 +12,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
-
+const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
 const kafka = new Kafka({
@@ -25,74 +24,86 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const createActivity = {
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.activities(request);
+      const filter = generateFilter.activities(request, next);
 
-      const responseFromListActivity = await ActivityModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListActivity = await ActivityModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListActivity;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
       const update = body;
-      const filter = generateFilter.activities(request);
+      const filter = generateFilter.activities(request, next);
 
-      const responseFromModifyActivity = await ActivityModel(tenant).modify({
-        filter,
-        update,
-      });
+      const responseFromModifyActivity = await ActivityModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return responseFromModifyActivity;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.activities(request);
+      const filter = generateFilter.activities(request, next);
 
-      const responseFromRemoveActivity = await ActivityModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveActivity = await ActivityModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
 
       return responseFromRemoveActivity;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deploy: async (request) => {
+  deploy: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant, deviceName } = query;
@@ -134,17 +145,18 @@ const createActivity = {
 
       requestForExistenceSearch.tenant = tenant;
       const responseFromDeviceSearchCheck = await createDeviceUtil.doesDeviceSearchExist(
-        requestForExistenceSearch
+        requestForExistenceSearch,
+        next
       );
 
       if (responseFromDeviceSearchCheck.success === true) {
         return {
           success: false,
           message: `Device ${deviceName} already deployed`,
-          status: HTTPStatus.CONFLICT,
+          status: httpStatus.CONFLICT,
         };
       } else if (responseFromDeviceSearchCheck.success === false) {
-        const responseFromListSite = await createSiteUtil.list(request);
+        const responseFromListSite = await createSiteUtil.list(request, next);
         if (responseFromListSite.success === true) {
           if (responseFromListSite.data.length === 1) {
             const { latitude, longitude } = responseFromListSite.data[0];
@@ -158,12 +170,14 @@ const createActivity = {
               network,
               nextMaintenance: addMonthsToProvideDateTime(
                 date && new Date(date),
-                3
+                3,
+                next
               ),
             };
 
             const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
-              { latitude, longitude }
+              { latitude, longitude },
+              next
             );
 
             const {
@@ -182,7 +196,8 @@ const createActivity = {
             deviceBody.body.isPrimaryInLocation = isPrimaryInLocation;
             deviceBody.body.nextMaintenance = addMonthsToProvideDateTime(
               date && new Date(date),
-              3
+              3,
+              next
             );
             deviceBody.body.latitude = approximate_latitude
               ? approximate_latitude
@@ -207,12 +222,13 @@ const createActivity = {
 
             const responseFromRegisterActivity = await ActivityModel(
               tenant
-            ).register(siteActivityBody);
+            ).register(siteActivityBody, next);
 
             if (responseFromRegisterActivity.success === true) {
               const createdActivity = responseFromRegisterActivity.data;
               const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-                deviceBody
+                deviceBody,
+                next
               );
               if (responseFromUpdateDevice.success === true) {
                 const updatedDevice = responseFromUpdateDevice.data;
@@ -251,7 +267,7 @@ const createActivity = {
             return {
               success: false,
               message: "unable to find one site record for this operation",
-              status: HTTPStatus.NOT_FOUND,
+              status: httpStatus.NOT_FOUND,
               errors: {
                 message: "unable to find the provided site",
               },
@@ -262,17 +278,17 @@ const createActivity = {
         }
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  recall: async (request) => {
+  recall: async (request, next) => {
     try {
       const { query, body } = request;
       const { recallType } = body;
@@ -300,7 +316,8 @@ const createActivity = {
       };
       requestForExistenceSearch["tenant"] = tenant;
       const isDeviceRecalled = await createDeviceUtil.doesDeviceSearchExist(
-        requestForExistenceSearch
+        requestForExistenceSearch,
+        next
       );
 
       logObject("isDeviceRecalled", isDeviceRecalled);
@@ -309,15 +326,18 @@ const createActivity = {
         return {
           success: false,
           message: `Device ${deviceName} already recalled`,
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           errors: { message: `Device ${deviceName} already recalled` },
         };
       } else if (isDeviceRecalled.success === false) {
         let previousSiteId = {};
-        const filter = generateFilter.devices(request);
-        const responseFromListDevice = await DeviceModel(tenant).list({
-          filter,
-        });
+        const filter = generateFilter.devices(request, next);
+        const responseFromListDevice = await DeviceModel(tenant).list(
+          {
+            filter,
+          },
+          next
+        );
         if (
           responseFromListDevice.success === true &&
           responseFromListDevice.data.length === 1
@@ -363,12 +383,13 @@ const createActivity = {
 
         const responseFromRegisterActivity = await ActivityModel(
           tenant
-        ).register(siteActivityBody);
+        ).register(siteActivityBody, next);
 
         if (responseFromRegisterActivity.success === true) {
           const createdActivity = responseFromRegisterActivity.data;
           const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-            deviceBody
+            deviceBody,
+            next
           );
           if (responseFromUpdateDevice.success === true) {
             const updatedDevice = responseFromUpdateDevice.data;
@@ -406,17 +427,17 @@ const createActivity = {
         }
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  maintain: async (request) => {
+  maintain: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant, deviceName } = query;
@@ -456,14 +477,19 @@ const createActivity = {
         network,
         tags,
         maintenanceType,
-        nextMaintenance: addMonthsToProvideDateTime(date && new Date(date), 3),
+        nextMaintenance: addMonthsToProvideDateTime(
+          date && new Date(date),
+          3,
+          next
+        ),
       };
       let deviceBody = {};
       deviceBody["body"] = {};
       deviceBody["query"] = {};
       deviceBody["body"]["nextMaintenance"] = addMonthsToProvideDateTime(
         date && new Date(date),
-        3
+        3,
+        next
       );
       deviceBody["body"]["maintenance_date"] =
         (date && new Date(date)) || new Date();
@@ -471,13 +497,15 @@ const createActivity = {
       deviceBody["query"]["tenant"] = tenant;
 
       const responseFromRegisterActivity = await ActivityModel(tenant).register(
-        siteActivityBody
+        siteActivityBody,
+        next
       );
 
       if (responseFromRegisterActivity.success === true) {
         const createdActivity = responseFromRegisterActivity.data;
         const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
-          deviceBody
+          deviceBody,
+          next
         );
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
@@ -514,12 +542,14 @@ const createActivity = {
         return responseFromRegisterActivity;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

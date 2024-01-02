@@ -5,11 +5,10 @@ const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- admin-level-model`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-model`);
 const { getModelByTenant } = require("@config/database");
 
 const networkSchema = new Schema({
@@ -52,7 +51,7 @@ networkSchema.methods.toJSON = function() {
   };
 };
 
-networkSchema.statics.register = async function(args) {
+networkSchema.statics.register = async function(args, next) {
   try {
     let modifiedArgs = { ...args };
 
@@ -66,41 +65,39 @@ networkSchema.statics.register = async function(args) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "network not created despite successful operation",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: "network not created despite successful operation",
-        },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "network not created despite successful operation",
+          }
+        )
+      );
     }
-  } catch (err) {
+  } catch (error) {
     let response = {
       message: "validation errors for some of the provided fields",
       success: false,
       status: httpStatus.CONFLICT,
     };
 
-    if (!isEmpty(err.errors)) {
+    if (!isEmpty(error.errors)) {
       response.errors = {};
-      Object.entries(err.errors).forEach(([key, value]) => {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.errors.message = value.message;
         response.errors[value.path] = value.message;
       });
     } else {
-      response.errors = { message: err.message };
+      response.errors = { message: error.message };
     }
-
-    return response;
+    next(new HttpError(response.message, response.status, response.errors));
   }
 };
-
-networkSchema.statics.list = async function({
-  filter = {},
-  limit = 1000,
-  skip = 0,
-} = {}) {
+networkSchema.statics.list = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
   try {
     const inclusionProjection = constants.NETWORK_INCLUSION_PROJECTION;
     const exclusionProjection = constants.NETWORK_EXCLUSION_PROJECTION(
@@ -142,20 +139,18 @@ networkSchema.statics.list = async function({
         status: httpStatus.OK,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-networkSchema.statics.modify = async function({
-  filter = {},
-  update = {},
-} = {}) {
+networkSchema.statics.modify = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const options = {
       new: true,
@@ -181,24 +176,22 @@ networkSchema.statics.modify = async function({
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "network does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "network does not exist, please crosscheck",
+        })
+      );
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-networkSchema.statics.remove = async function({ filter = {} } = {}) {
+networkSchema.statics.remove = async function({ filter = {} } = {}, next) {
   try {
     const options = {
       projection: {
@@ -218,20 +211,19 @@ networkSchema.statics.remove = async function({ filter = {} } = {}) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "network does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "network does not exist, please crosscheck",
+        })
+      );
     }
-  } catch (err) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

@@ -1,43 +1,41 @@
-const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("@utils/log");
-const errors = require("@utils/errors");
+const httpStatus = require("http-status");
+const { logText } = require("@utils/log");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-photo-controller`
 );
-const { validationResult } = require("express-validator");
 const createPhotoUtil = require("@utils/create-photo");
 const isEmpty = require("is-empty");
 
 const processImage = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "coming soon...",
       });
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromCreatePhoto = await createPhotoUtil.create(request);
 
       if (responseFromCreatePhoto.success === true) {
         const status = responseFromCreatePhoto.status
           ? responseFromCreatePhoto.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhoto.message,
@@ -46,7 +44,7 @@ const processImage = {
       } else if (responseFromCreatePhoto.success === false) {
         const status = responseFromCreatePhoto.status
           ? responseFromCreatePhoto.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreatePhoto.message,
@@ -56,41 +54,43 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "coming soon...",
       });
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromUpdatePhoto = await createPhotoUtil.update(request);
 
       if (responseFromUpdatePhoto.success === true) {
         const status = responseFromUpdatePhoto.status
           ? responseFromUpdatePhoto.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromUpdatePhoto.message,
@@ -99,7 +99,7 @@ const processImage = {
       } else if (responseFromUpdatePhoto.success === false) {
         const status = responseFromUpdatePhoto.status
           ? responseFromUpdatePhoto.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhoto.message,
@@ -109,48 +109,39 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      const responseFromDeletePhoto = await createPhotoUtil.delete(request);
 
-      logObject("responseFromDeletePhoto", responseFromDeletePhoto);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const responseFromDeletePhoto = await createPhotoUtil.delete(request);
 
       if (responseFromDeletePhoto.success === true) {
         const status = responseFromDeletePhoto.status
           ? responseFromDeletePhoto.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromDeletePhoto.message,
@@ -159,7 +150,7 @@ const processImage = {
       } else if (responseFromDeletePhoto.success === false) {
         const status = responseFromDeletePhoto.status
           ? responseFromDeletePhoto.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromDeletePhoto.message,
@@ -169,50 +160,39 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromListPhoto = await createPhotoUtil.list(request);
-      logObject("responseFromListPhoto in controller", responseFromListPhoto);
 
       if (responseFromListPhoto.success === true) {
         const status = responseFromListPhoto.status
           ? responseFromListPhoto.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromListPhoto.message,
@@ -221,7 +201,7 @@ const processImage = {
       } else if (responseFromListPhoto.success === false) {
         const status = responseFromListPhoto.status
           ? responseFromListPhoto.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListPhoto.message,
@@ -231,55 +211,43 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   /******************** platform ********************************/
-  createPhotoOnPlatform: async (req, res) => {
+  createPhotoOnPlatform: async (req, res, next) => {
     try {
       logText("we are into this now....");
-      const hasErrors = !validationResult(req).isEmpty();
-      logElement("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request
       );
-      logObject(
-        "responseFromCreatePhotoOnPlatform",
-        responseFromCreatePhotoOnPlatform
-      );
+
       if (responseFromCreatePhotoOnPlatform.success === true) {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhotoOnPlatform.message,
@@ -290,7 +258,7 @@ const processImage = {
       } else if (responseFromCreatePhotoOnPlatform.success === false) {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreatePhotoOnPlatform.message,
@@ -300,55 +268,41 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  deletePhotoOnPlatform: async (req, res) => {
+  deletePhotoOnPlatform: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromDeletePhotoOnPlatform = await createPhotoUtil.deletePhotoOnPlatform(
         request
       );
 
-      logObject(
-        "responseFromDeletePhotoOnPlatform",
-        responseFromDeletePhotoOnPlatform
-      );
-
       if (responseFromDeletePhotoOnPlatform.success === true) {
         const status = responseFromDeletePhotoOnPlatform.status
           ? responseFromDeletePhotoOnPlatform.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromDeletePhotoOnPlatform.message,
@@ -357,7 +311,7 @@ const processImage = {
       } else if (responseFromDeletePhotoOnPlatform.success === false) {
         const status = responseFromDeletePhotoOnPlatform.status
           ? responseFromDeletePhotoOnPlatform.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromDeletePhotoOnPlatform.message,
@@ -367,55 +321,41 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  updatePhotoOnPlatform: async (req, res) => {
+  updatePhotoOnPlatform: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromUpdatePhotoOnPlatform = await createPhotoUtil.updatePhotoOnPlatform(
         request
       );
 
-      logObject(
-        "responseFromUpdatePhotoOnPlatform",
-        responseFromUpdatePhotoOnPlatform
-      );
-
       if (responseFromUpdatePhotoOnPlatform.success === true) {
         const status = responseFromUpdatePhotoOnPlatform.status
           ? responseFromUpdatePhotoOnPlatform.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromUpdatePhotoOnPlatform.message,
@@ -424,7 +364,7 @@ const processImage = {
       } else if (responseFromUpdatePhotoOnPlatform.success === false) {
         const status = responseFromUpdatePhotoOnPlatform.status
           ? responseFromUpdatePhotoOnPlatform.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhotoOnPlatform.message,
@@ -434,42 +374,33 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   /*********** cloudinary *************************/
-  deletePhotoOnCloudinary: async (req, res) => {
+  deletePhotoOnCloudinary: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromDeletePhotoOnCloudinary = await createPhotoUtil.deletePhotoOnCloudinary(
         request
@@ -478,7 +409,7 @@ const processImage = {
       if (responseFromDeletePhotoOnCloudinary.success === true) {
         const status = responseFromDeletePhotoOnCloudinary.status
           ? responseFromDeletePhotoOnCloudinary.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromDeletePhotoOnCloudinary.message,
@@ -487,7 +418,7 @@ const processImage = {
       } else if (responseFromDeletePhotoOnCloudinary.success === false) {
         const status = responseFromDeletePhotoOnCloudinary.status
           ? responseFromDeletePhotoOnCloudinary.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromDeletePhotoOnCloudinary.message,
@@ -497,35 +428,37 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  updatePhotoOnCloudinary: async (req, res) => {
+  updatePhotoOnCloudinary: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "coming soon...",
       });
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromUpdatePhotoOnCloudinary = await createPhotoUtil.updatePhotoOnCloudinary(
         request
       );
@@ -533,7 +466,7 @@ const processImage = {
       if (responseFromUpdatePhotoOnCloudinary.success === true) {
         const status = responseFromUpdatePhotoOnCloudinary.status
           ? responseFromUpdatePhotoOnCloudinary.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromUpdatePhotoOnCloudinary.message,
@@ -542,7 +475,7 @@ const processImage = {
       } else if (responseFromUpdatePhotoOnCloudinary.success === false) {
         const status = responseFromUpdatePhotoOnCloudinary.status
           ? responseFromUpdatePhotoOnCloudinary.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhotoOnCloudinary.message,
@@ -552,46 +485,45 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  createPhotoOnCloudinary: async (req, res) => {
+  createPhotoOnCloudinary: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "coming soon...",
       });
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
         request
       );
-      logObject(
-        "responseFromCreatePhotoOnCloudinary",
-        responseFromCreatePhotoOnCloudinary
-      );
+
       if (responseFromCreatePhotoOnCloudinary.success === true) {
         const status = responseFromCreatePhotoOnCloudinary.status
           ? responseFromCreatePhotoOnCloudinary.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhotoOnCloudinary.message,
@@ -600,7 +532,7 @@ const processImage = {
       } else if (responseFromCreatePhotoOnCloudinary.success === false) {
         const status = responseFromCreatePhotoOnCloudinary.status
           ? responseFromCreatePhotoOnCloudinary.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreatePhotoOnCloudinary.message,
@@ -610,14 +542,15 @@ const processImage = {
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
