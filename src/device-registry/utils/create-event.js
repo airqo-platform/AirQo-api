@@ -1613,7 +1613,7 @@ const createEvent = {
             day: measurement.day,
             site_id: measurement.site_id,
             device_id: measurement.device_id,
-            nValues: { $lt: parseInt(constants.N_VALUES) || 500 },
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
             $or: [
               { "values.time": { $ne: measurement.time } },
               { "values.device": { $ne: measurement.device } },
