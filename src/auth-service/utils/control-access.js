@@ -30,6 +30,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 const getDay = () => {
   const now = new Date();
@@ -312,10 +313,19 @@ const isIPBlacklisted = async ({
       await document.save();
     }
   } catch (error) {
-    if (error.name === "MongoError" && error.code === 11000) {
-      logger.error(`IP address ${ip} already exists in the database.`);
+    const jsonErrorString = stringify(error);
+    if (error.name === "MongoError") {
+      switch (error.code) {
+        case 11000:
+          logger.error(
+            `Duplicate key error: IP address ${ip} already exists in the database.`
+          );
+          break;
+        default:
+          logger.error(`Unknown MongoDB error: ${jsonErrorString}`);
+      }
     } else {
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+      logger.error(`Internal Server Error --- ${jsonErrorString}`);
     }
   }
 
