@@ -7,6 +7,7 @@ const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-host-util`);
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 const createHost = {
   create: async (request, next) => {
