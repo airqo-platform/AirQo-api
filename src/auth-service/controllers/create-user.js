@@ -19,6 +19,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -26,30 +27,30 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListStatistics = await createUserUtil.listStatistics(
+      const listStatsResponse = await createUserUtil.listStatistics(
         tenant,
         next
       );
 
-      if (responseFromListStatistics.success === true) {
-        const status = responseFromListStatistics.status
-          ? responseFromListStatistics.status
+      if (listStatsResponse.success === true) {
+        const status = listStatsResponse.status
+          ? listStatsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListStatistics.message,
-          users_stats: responseFromListStatistics.data,
+          message: listStatsResponse.message,
+          users_stats: listStatsResponse.data,
         });
-      } else if (responseFromListStatistics.success === false) {
-        const status = responseFromListStatistics.status
-          ? responseFromListStatistics.status
+      } else if (listStatsResponse.success === false) {
+        const status = listStatsResponse.status
+          ? listStatsResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListStatistics.message,
+          message: listStatsResponse.message,
           errors: {
-            message: responseFromListStatistics.errors
-              ? responseFromListStatistics.errors
+            message: listStatsResponse.errors
+              ? listStatsResponse.errors
               : { message: "Internal Server Error" },
           },
         });
@@ -63,6 +64,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listLogs: async (req, res, next) => {
@@ -72,6 +74,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -79,29 +82,26 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListStatistics = await createUserUtil.listLogs(
-        request,
-        next
-      );
+      const listLogsResponse = await createUserUtil.listLogs(request, next);
 
-      if (responseFromListStatistics.success === true) {
-        const status = responseFromListStatistics.status
-          ? responseFromListStatistics.status
+      if (listLogsResponse.success === true) {
+        const status = listLogsResponse.status
+          ? listLogsResponse.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListStatistics.message,
-          users_stats: responseFromListStatistics.data,
+          message: listLogsResponse.message,
+          users_stats: listLogsResponse.data,
         });
-      } else if (responseFromListStatistics.success === false) {
-        const status = responseFromListStatistics.status
-          ? responseFromListStatistics.status
+      } else if (listLogsResponse.success === false) {
+        const status = listLogsResponse.status
+          ? listLogsResponse.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListStatistics.message,
-          errors: responseFromListStatistics.errors
-            ? responseFromListStatistics.errors
+          message: listLogsResponse.message,
+          errors: listLogsResponse.errors
+            ? listLogsResponse.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -114,6 +114,60 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
+    }
+  },
+  getUserStats: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const userStatsResponse = await createUserUtil.getUserStats(
+        request,
+        next
+      );
+      logObject("userStatsResponse", userStatsResponse);
+      if (userStatsResponse.success === true) {
+        const status = userStatsResponse.status
+          ? userStatsResponse.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: userStatsResponse.message,
+          users_stats: userStatsResponse.data,
+        });
+      } else if (userStatsResponse.success === false) {
+        const status = userStatsResponse.status
+          ? userStatsResponse.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: userStatsResponse.message,
+          errors: userStatsResponse.errors
+            ? userStatsResponse.errors
+            : { message: "Internal Server Errors" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   listCache: async (req, res, next) => {
@@ -123,6 +177,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -165,6 +220,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -174,6 +230,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -213,6 +270,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listUsersAndAccessRequests: async (req, res, next) => {
@@ -222,6 +280,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -262,6 +321,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   googleCallback: async (req, res, next) => {
@@ -271,6 +331,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -304,6 +365,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verify: async (req, res, next) => {
@@ -331,6 +393,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -372,6 +435,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   deleteMobileUserData: async (req, res, next) => {
@@ -382,6 +446,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -421,6 +486,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   emailReport: async (req, res, next) => {
@@ -431,6 +497,7 @@ const createUser = {
             message: "No PDF or CSV file attached",
           })
         );
+        return;
       }
 
       const pdfFile = req.files.pdf;
@@ -497,6 +564,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   lookUpFirebaseUser: async (req, res, next) => {
@@ -506,6 +574,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -546,6 +615,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   syncAnalyticsAndMobile: async (req, res, next) => {
@@ -555,6 +625,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -588,6 +659,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   signUpWithFirebase: async (req, res, next) => {
@@ -597,6 +669,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -636,6 +709,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   loginWithFirebase: async (req, res, next) => {
@@ -645,6 +719,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -684,6 +759,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verifyFirebaseCustomToken: async (req, res, next) => {
@@ -693,6 +769,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -734,6 +811,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   createFirebaseUser: async (req, res, next) => {
@@ -743,6 +821,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -782,6 +861,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   sendFeedback: async (req, res, next) => {
@@ -791,6 +871,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -835,6 +916,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   forgot: async (req, res, next) => {
@@ -846,6 +928,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -891,6 +974,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   register: async (req, res, next) => {
@@ -902,6 +986,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -947,6 +1032,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -958,6 +1044,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -996,6 +1083,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   login: async (req, res, next) => {
@@ -1007,6 +1095,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1038,6 +1127,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   logout: async (req, res, next) => {
@@ -1049,6 +1139,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1086,6 +1177,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   guest: (req, res, next) => {
@@ -1097,6 +1189,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1125,6 +1218,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -1136,6 +1230,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1179,6 +1274,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -1190,6 +1286,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1229,6 +1326,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   loginInViaEmail: async (req, res, next) => {
@@ -1238,6 +1336,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1280,6 +1379,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   emailAuth: async (req, res, next) => {
@@ -1290,6 +1390,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1337,6 +1438,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateForgottenPassword: async (req, res, next) => {
@@ -1346,6 +1448,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1386,6 +1489,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateKnownPassword: async (req, res, next) => {
@@ -1396,6 +1500,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1436,6 +1541,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   subscribeToNewsLetter: async (req, res, next) => {
@@ -1445,6 +1551,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -1487,6 +1594,7 @@ const createUser = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
