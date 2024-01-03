@@ -14,6 +14,7 @@ const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const mailer = require("@utils/mailer");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -574,6 +575,14 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
       ];
 
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ _id: payload._id })
+        .exec();
+
+      if (!user) {
+        return done(null, false);
+      }
+
       routesWithService.forEach((route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
@@ -589,18 +598,32 @@ const useJWTStrategy = (tenant, req, res, next) =>
         ) {
           service = route.service;
           userAction = route.action;
+
+          if (
+            [
+              "device-deployment",
+              "device-maintenance",
+              "device-recall",
+            ].includes(service)
+          ) {
+            logText("we are inside the mailer baby!!");
+            mailer.siteActivity(
+              {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                siteActivityDetails: {
+                  service: service,
+                  userAction: userAction,
+                  actor: user.email,
+                },
+              },
+              next
+            );
+          }
+          logObject("Service", service);
         }
       });
-
-      // ... other route checks
-      logObject("Service", service);
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({ _id: payload._id })
-        .exec();
-
-      if (!user) {
-        return done(null, false);
-      }
 
       const currentDate = new Date();
 
