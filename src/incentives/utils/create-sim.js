@@ -1,6 +1,6 @@
 const SimModel = require("@models/Sim");
 const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
+const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const generateFilter = require("@utils/generate-filter");
@@ -12,6 +12,7 @@ const thingsMobile = require("@config/things-mobile");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 const convertFromBytesToMegaBytes = (bytes) => {
   return bytes / (1000 * 1000);
@@ -357,7 +358,7 @@ const createSim = {
         .catch((error) => {
           logObject("the error inside the checkStatus util", error);
           logger.error(
-            `Internal Server Error --- checkStatus --- ${JSON.stringify(error)}`
+            `Internal Server Error --- checkStatus --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -455,7 +456,7 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- activateSim --- ${JSON.stringify(error)}`
+            `Internal Server Error --- activateSim --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -554,13 +555,11 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- deactivateSim --- ${JSON.stringify(
-              error
-            )}`
+            `Internal Server Error --- deactivateSim --- ${stringify(error)}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
@@ -656,13 +655,11 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- updateSimName --- ${JSON.stringify(
-              error
-            )}`
+            `Internal Server Error --- updateSimName --- ${stringify(error)}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
@@ -758,11 +755,11 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- rechargeSim --- ${JSON.stringify(error)}`
+            `Internal Server Error --- rechargeSim --- ${stringify(error)}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
