@@ -364,7 +364,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES) || 500 },
+    },
   }
 );
 
@@ -379,7 +381,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES) || 500 },
+    },
   }
 );
 
@@ -392,7 +396,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES) || 500 },
+    },
   }
 );
 
