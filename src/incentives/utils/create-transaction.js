@@ -399,7 +399,7 @@ const createTransaction = {
               success: false,
               message: "Response status outised of 2XX range",
               errors: { message: "Response status outised of 2XX range" },
-              status: response.status,
+              status: error.response.status,
             };
           } else if (error.request) {
             logObject("No response received", error.request);
@@ -412,8 +412,8 @@ const createTransaction = {
               success: false,
               message: "No response received",
               errors: { message: "No response received" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else {
@@ -427,8 +427,8 @@ const createTransaction = {
               success: false,
               message: "Internal Server Error",
               errors: { message: "Internal Server Error" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           }
@@ -556,8 +556,8 @@ const createTransaction = {
                 success: false,
                 message: "No response received",
                 errors: { message: "No response received" },
-                status: response.status
-                  ? response.status
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             } else {
@@ -571,8 +571,8 @@ const createTransaction = {
                 success: false,
                 message: "Internal Server Error",
                 errors: { message: "Internal Server Error" },
-                status: response.status
-                  ? response.status
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             }
@@ -637,7 +637,7 @@ const createTransaction = {
             success: false,
             message: "Response status outised of 2XX range",
             errors: { message: "Response status outised of 2XX range" },
-            status: response.status,
+            status: error.response.status,
           };
         } else if (error.request) {
           logObject("No response received", error.request);
@@ -650,8 +650,8 @@ const createTransaction = {
             success: false,
             message: "No response received",
             errors: { message: "No response received" },
-            status: response.status
-              ? response.status
+            status: error.response.status
+              ? error.response.status
               : httpStatus.INTERNAL_SERVER_ERROR,
           };
         } else {
@@ -665,8 +665,8 @@ const createTransaction = {
             success: false,
             message: "Internal Server Error",
             errors: { message: "Internal Server Error" },
-            status: response.status
-              ? response.status
+            status: error.response.status
+              ? error.response.status
               : httpStatus.INTERNAL_SERVER_ERROR,
           };
         }
@@ -782,7 +782,7 @@ const createTransaction = {
               success: false,
               message: "Response status outised of 2XX range",
               errors: { message: "Response status outised of 2XX range" },
-              status: response.status,
+              status: error.response.status,
             };
           } else if (error.request) {
             logObject("No response received", error.request);
@@ -795,8 +795,8 @@ const createTransaction = {
               success: false,
               message: "No response received",
               errors: { message: "No response received" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else {
@@ -808,8 +808,8 @@ const createTransaction = {
               success: false,
               message: "Internal Server Error",
               errors: { message: "Internal Server Error" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           }
