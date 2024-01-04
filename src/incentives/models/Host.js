@@ -1,6 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
@@ -8,20 +8,11 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- host-model`);
+const { HttpError } = require("@utils/errors");
 
 const successResponse = {
   success: true,
   status: httpStatus.OK,
-};
-
-const errorResponse = {
-  success: false,
-  status: httpStatus.INTERNAL_SERVER_ERROR,
-};
-
-const badRequestResponse = {
-  success: false,
-  status: httpStatus.BAD_REQUEST,
 };
 
 const HostSchema = new Schema(
@@ -82,17 +73,6 @@ HostSchema.index(
   }
 );
 
-const handleServerError = (error, message) => {
-  logObject("error", error);
-  const stingifiedMessage = JSON.stringify(error ? error : "");
-  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-  return {
-    ...errorResponse,
-    message,
-    errors: { message: error.message },
-  };
-};
-
 HostSchema.pre("save", function (next) {
   if (this.isModified("password")) {
   }
@@ -103,7 +83,7 @@ HostSchema.pre("update", function (next) {
   return next();
 });
 
-HostSchema.statics.register = async function (args) {
+HostSchema.statics.register = async function (args, next) {
   try {
     const data = await this.create({ ...args });
     return {
@@ -112,15 +92,21 @@ HostSchema.statics.register = async function (args) {
       message: "host created",
     };
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-HostSchema.statics.list = async function ({
-  skip = 0,
-  limit = 5,
-  filter = {},
-} = {}) {
+HostSchema.statics.list = async function (
+  { skip = 0, limit = 5, filter = {} } = {},
+  next
+) {
   try {
     const hosts = await this.aggregate()
       .match(filter)
@@ -150,11 +136,21 @@ HostSchema.statics.list = async function ({
       message: "no hosts exist for this search",
     };
   } catch (error) {
-    return handleServerError(error, "unable to retrieve hosts");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
+HostSchema.statics.modify = async function (
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const modifiedUpdate = update;
     const projection = { _id: 1 };
@@ -176,18 +172,27 @@ HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
         data: updatedHost,
       };
     } else {
-      return {
-        ...badRequestResponse,
-        message: "host does not exist, please crosscheck",
-        errors: { message: "host does not exist" },
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "host does not exist, please crosscheck",
+        })
+      );
+      return;
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-HostSchema.statics.remove = async function ({ filter = {} } = {}) {
+HostSchema.statics.remove = async function ({ filter = {} } = {}, next) {
   try {
     const projection = { _id: 1, email: 1, first_name: 1, last_name: 1 };
     const options = { projection };
@@ -201,14 +206,25 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}) {
         data,
       };
     } else {
-      return {
-        ...badRequestResponse,
-        message: "host does not exist, please crosscheck",
-        errors: { message: "host does not exist" },
-      };
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "host does not exist, please crosscheck",
+        })
+      );
+      return;
     }
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    logObject("error", error);
+    logger.error(`Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 

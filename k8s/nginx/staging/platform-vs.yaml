@@ -18,6 +18,23 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
+  name: mlflow
+  namespace: staging
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: mlflow
+      service: airqo-mlflow
+      port: 5000
+  subroutes:
+    - path: /mlflow
+      action:
+        pass: mlflow
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
   name: grafana
   namespace: monitoring
 spec:
@@ -108,6 +125,8 @@ spec:
         pass: platform-ui
     - path: /airflow
       route: pipeline/airflow
+    - path: /mlflow
+      route: staging/mlflow
     - path: /grafana
       route: monitoring/grafana
     - path: /inventory

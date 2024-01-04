@@ -2,9 +2,10 @@ const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
+const { logElement, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 
 const polygonSchema = new Schema(
@@ -126,53 +127,51 @@ locationSchema.methods = {
 };
 
 locationSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let body = args;
       if (!args.isCustom) {
         body["isCustom"] = false;
       }
-      let createdAirQloud = await this.create({
+      let createdLocation = await this.create({
         ...body,
       });
 
-      if (!isEmpty(createdAirQloud)) {
-        let data = createdAirQloud._doc;
+      if (!isEmpty(createdLocation)) {
+        let data = createdLocation._doc;
         return {
           success: true,
           data,
           message: "location created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
-      if (isEmpty(createdAirQloud)) {
-        return {
-          success: true,
-          message: "location not created despite successful operation",
-          status: HTTPStatus.NO_CONTENT,
-        };
+      if (isEmpty(createdLocation)) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "location not created despite successful operation",
+            }
+          )
+        );
       }
-    } catch (err) {
-      let e = err;
+    } catch (error) {
+      let e = error;
       let response = {};
-      logObject("the err", e);
+      logObject("the error", e);
       message = "validation errors for some of the provided fields";
-      const status = HTTPStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
+      const status = httpStatus.CONFLICT;
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[value.path] = value.message;
         return response;
       });
-
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
+  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}, next) {
     try {
       logElement("the limit in the model", _limit);
       const { summary } = filter;
@@ -227,29 +226,24 @@ locationSchema.statics = {
           success: true,
           message: "successfully fetched the Location(s)",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
           message: "there are no records for this search",
           data: [],
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
-    } catch (err) {
-      let errors = { message: err.message };
+    } catch (error) {
+      let errors = { message: error.message };
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      return {
-        errors,
-        message,
-        success: false,
-        status,
-      };
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+      next(new HttpError(message, status, errors));
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdateBody = update;
@@ -278,29 +272,25 @@ locationSchema.statics = {
           success: true,
           message: "successfully modified the location",
           data: updatedLocation._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedLocation)) {
-        return {
-          success: false,
-          message: "location does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: filter,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            ...filter,
+            message: "location does not exist, please crosscheck",
+          })
+        );
       }
-    } catch (err) {
-      let errors = { message: err.message };
+    } catch (error) {
+      let errors = { message: error.message };
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      return {
-        errors,
-        message,
-        success: false,
-        status,
-      };
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      next(new HttpError(message, status, errors));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -322,23 +312,24 @@ locationSchema.statics = {
           success: true,
           message: "successfully removed the location",
           data: removedLocation._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedLocation)) {
-        return {
-          success: false,
-          message: "location does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: filter,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            ...filter,
+            message: "location does not exist, please crosscheck",
+          })
+        );
       }
-    } catch (err) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

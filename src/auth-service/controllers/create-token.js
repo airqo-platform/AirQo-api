@@ -1,7 +1,6 @@
 const httpStatus = require("http-status");
 const controlAccessUtil = require("@utils/control-access");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logText, logElement, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -10,26 +9,22 @@ const logger = log4js.getLogger(
 );
 
 const createAccessToken = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
-      let request = req;
-      request.query.tenant = tenant;
       const responseFromCreateAccessToken =
-        await controlAccessUtil.createAccessToken(request);
+        await controlAccessUtil.createAccessToken(request, next);
 
       if (responseFromCreateAccessToken.success === true) {
         const status = responseFromCreateAccessToken.status
@@ -53,41 +48,36 @@ const createAccessToken = {
             : "",
           errors: responseFromCreateAccessToken.errors
             ? responseFromCreateAccessToken.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      logText("we are in baby");
-      let { tenant, id } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      logElement("tenant", tenant);
-      let request = req;
-      request["query"]["tenant"] = tenant;
-      const responseFromListAccessToken =
-        await controlAccessUtil.listAccessToken(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
+      const responseFromListAccessToken =
+        await controlAccessUtil.listAccessToken(request, next);
 
       if (responseFromListAccessToken.success === true) {
         const status = responseFromListAccessToken.status
@@ -109,70 +99,69 @@ const createAccessToken = {
           message: responseFromListAccessToken.message,
           errors: responseFromListAccessToken.errors
             ? responseFromListAccessToken.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  verify: async (req, res) => {
+  verify: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = req;
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       const responseFromListAccessToken = await controlAccessUtil.verifyToken(
-        request
+        request,
+        next
       );
       const status = responseFromListAccessToken.status;
       return res.status(status).send(responseFromListAccessToken.message);
     } catch (error) {
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let { tenant, id } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
-      let request = req;
-      request["query"]["tenant"] = tenant;
       const responseFromDeleteAccessToken =
-        await controlAccessUtil.deleteAccessToken(request);
+        await controlAccessUtil.deleteAccessToken(request, next);
 
       if (responseFromDeleteAccessToken.success === true) {
         const status = responseFromDeleteAccessToken.status
@@ -196,39 +185,36 @@ const createAccessToken = {
             : "",
           errors: responseFromDeleteAccessToken.errors
             ? responseFromDeleteAccessToken.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  regenerate: async (req, res) => {
+  regenerate: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let { tenant, id } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
-      let request = req;
-      request.query.tenant = tenant;
       const responseFromUpdateAccessToken =
-        await controlAccessUtil.regenerateAccessToken(request);
+        await controlAccessUtil.regenerateAccessToken(request, next);
 
       if (responseFromUpdateAccessToken.success === true) {
         const status = responseFromUpdateAccessToken.status
@@ -252,39 +238,36 @@ const createAccessToken = {
             : "",
           errors: responseFromUpdateAccessToken.errors
             ? responseFromUpdateAccessToken.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let { tenant, id } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
-      let request = req;
-      request.query.tenant = tenant;
       const responseFromUpdateAccessToken =
-        await controlAccessUtil.updateAccessToken(request);
+        await controlAccessUtil.updateAccessToken(request, next);
 
       if (responseFromUpdateAccessToken.success === true) {
         const status = responseFromUpdateAccessToken.status
@@ -308,39 +291,40 @@ const createAccessToken = {
             : "",
           errors: responseFromUpdateAccessToken.errors
             ? responseFromUpdateAccessToken.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************** IP ADDRESSES ********************** */
 
-  blackListIp: async (req, res) => {
+  blackListIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromBlackListIp = await controlAccessUtil.blackListIp(
-        request
+        request,
+        next
       );
 
       if (responseFromBlackListIp.success === true) {
@@ -365,36 +349,37 @@ const createAccessToken = {
             : "",
           errors: responseFromBlackListIp.errors
             ? responseFromBlackListIp.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  blackListIps: async (req, res) => {
+  blackListIps: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromBlackListIps = await controlAccessUtil.blackListIps(
-        request
+        request,
+        next
       );
 
       if (responseFromBlackListIps.success === true) {
@@ -419,35 +404,36 @@ const createAccessToken = {
             : "",
           errors: responseFromBlackListIps.errors
             ? responseFromBlackListIps.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeBlacklistedIp: async (req, res) => {
+  removeBlacklistedIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
       const responseFromRemoveBlackListedIp =
-        await controlAccessUtil.removeBlacklistedIp(request);
+        await controlAccessUtil.removeBlacklistedIp(request, next);
 
       if (responseFromRemoveBlackListedIp.success === true) {
         const status = responseFromRemoveBlackListedIp.status
@@ -471,36 +457,36 @@ const createAccessToken = {
             : "",
           errors: responseFromRemoveBlackListedIp.errors
             ? responseFromRemoveBlackListedIp.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  blackListIpRange: async (req, res) => {
+  blackListIpRange: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromBlackListIpRange =
-        await controlAccessUtil.blackListIpRange(request);
+        await controlAccessUtil.blackListIpRange(request, next);
 
       if (responseFromBlackListIpRange.success === true) {
         const status = responseFromBlackListIpRange.status
@@ -524,35 +510,36 @@ const createAccessToken = {
             : "",
           errors: responseFromBlackListIpRange.errors
             ? responseFromBlackListIpRange.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeBlacklistedIpRange: async (req, res) => {
+  removeBlacklistedIpRange: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
       const responseFromRemoveBlackListedIpRange =
-        await controlAccessUtil.removeBlacklistedIpRange(request);
+        await controlAccessUtil.removeBlacklistedIpRange(request, next);
 
       if (responseFromRemoveBlackListedIpRange.success === true) {
         const status = responseFromRemoveBlackListedIpRange.status
@@ -576,35 +563,36 @@ const createAccessToken = {
             : "",
           errors: responseFromRemoveBlackListedIpRange.errors
             ? responseFromRemoveBlackListedIpRange.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listBlacklistedIpRange: async (req, res) => {
+  listBlacklistedIpRange: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListBlacklistedIPRanges =
-        await controlAccessUtil.listBlacklistedIpRange(request);
+        await controlAccessUtil.listBlacklistedIpRange(request, next);
 
       if (responseFromListBlacklistedIPRanges.success === true) {
         const status = responseFromListBlacklistedIPRanges.status
@@ -628,35 +616,37 @@ const createAccessToken = {
             : "",
           errors: responseFromListBlacklistedIPRanges.errors
             ? responseFromListBlacklistedIPRanges.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  whiteListIp: async (req, res) => {
+  whiteListIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
       const responseFromWhiteListIp = await controlAccessUtil.whiteListIp(
-        request
+        request,
+        next
       );
 
       if (responseFromWhiteListIp.success === true) {
@@ -681,35 +671,36 @@ const createAccessToken = {
             : "",
           errors: responseFromWhiteListIp.errors
             ? responseFromWhiteListIp.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeWhitelistedIp: async (req, res) => {
+  removeWhitelistedIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromRemoveWhiteListedIp =
-        await controlAccessUtil.removeWhitelistedIp(request);
+        await controlAccessUtil.removeWhitelistedIp(request, next);
 
       if (responseFromRemoveWhiteListedIp.success === true) {
         const status = responseFromRemoveWhiteListedIp.status
@@ -733,35 +724,37 @@ const createAccessToken = {
             : "",
           errors: responseFromRemoveWhiteListedIp.errors
             ? responseFromRemoveWhiteListedIp.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listUnknownIPs: async (req, res) => {
+  listUnknownIPs: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
-      let request = req;
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const responseFromListUnknownIPs = await controlAccessUtil.listUnknownIPs(
-        request
+        request,
+        next
       );
 
       if (responseFromListUnknownIPs.success === true) {
@@ -786,16 +779,18 @@ const createAccessToken = {
             : "",
           errors: responseFromListUnknownIPs.errors
             ? responseFromListUnknownIPs.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

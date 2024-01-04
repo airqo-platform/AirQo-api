@@ -1,19 +1,17 @@
 const CohortModel = require("@models/Cohort");
 const DeviceModel = require("@models/Device");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`
 );
+const { HttpError } = require("@utils/errors");
 const mongoose = require("mongoose");
-const { Schema } = require("mongoose");
-
 const ObjectId = mongoose.Types.ObjectId;
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -21,31 +19,49 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+function filterOutPrivateIDs(privateIds, randomIds) {
+  // Create a Set from the privateIds array
+  const privateIdSet = new Set(privateIds);
+
+  // Check if privateIds array is empty
+  if (privateIdSet.size === 0) {
+    return randomIds;
+  }
+
+  // Filter randomIds array to exclude privateIds
+  const filteredIds = randomIds.filter(
+    (randomId) => !privateIdSet.has(randomId)
+  );
+
+  return filteredIds;
+}
+
 const createCohort = {
-  listNetworks: async (request) => {
+  listNetworks: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
-      const responseFromListNetworks = await NetworkModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.networks(request, next);
+      const responseFromListNetworks = await NetworkModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListNetworks;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateNetwork: async (request) => {
+  updateNetwork: async (request, next) => {
     try {
       /**
        * in the near future, this wont be needed since Kafka
@@ -54,10 +70,8 @@ const createCohort = {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.networks(request, next);
+
       if (isEmpty(filter)) {
         return {
           success: false,
@@ -107,25 +121,22 @@ const createCohort = {
         }
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteNetwork: async (request) => {
+  deleteNetwork: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.networks(request, next);
 
       const network = await NetworkModel(tenant)
         .find(filter)
@@ -163,16 +174,17 @@ const createCohort = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createNetwork: async (request) => {
+  createNetwork: async (request, next) => {
     try {
       /**
        * in the near future, this wont be needed since Kafka
@@ -182,28 +194,30 @@ const createCohort = {
       const { tenant } = query;
 
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
-        body
+        body,
+        next
       );
       return responseFromCreateNetwork;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
       let modifiedBody = body;
 
       const responseFromRegisterCohort = await CohortModel(tenant).register(
-        modifiedBody
+        modifiedBody,
+        next
       );
 
       logObject("responseFromRegisterCohort", responseFromRegisterCohort);
@@ -232,87 +246,99 @@ const createCohort = {
       } else if (responseFromRegisterCohort.success === false) {
         return responseFromRegisterCohort;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
       const update = body;
-      const filter = generateFilter.cohorts(request);
+      const filter = generateFilter.cohorts(request, next);
       if (filter.success && filter.success === "false") {
         return filter;
       } else {
-        const responseFromModifyCohort = await CohortModel(tenant).modify({
-          filter,
-          update,
-        });
+        const responseFromModifyCohort = await CohortModel(tenant).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
         return responseFromModifyCohort;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.cohorts(request);
+      const filter = generateFilter.cohorts(request, next);
       if (filter.success && filter.success === "false") {
         return filter;
       } else {
-        const responseFromRemoveCohort = await CohortModel(tenant).remove({
-          filter,
-        });
+        const responseFromRemoveCohort = await CohortModel(tenant).remove(
+          {
+            filter,
+          },
+          next
+        );
         return responseFromRemoveCohort;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to delete airqloud",
-        errors: err.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.cohorts(request);
-      const responseFromListCohort = await CohortModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.cohorts(request, next);
+      const responseFromListCohort = await CohortModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListCohort;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to list airqloud",
-        errors: err.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAvailableDevices: async (request) => {
+  listAvailableDevices: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { cohort_id } = request.params;
@@ -366,17 +392,17 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listAssignedDevices: async (request) => {
+  listAssignedDevices: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { cohort_id } = request.params;
@@ -430,17 +456,17 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignManyDevicesToCohort: async (request) => {
+  assignManyDevicesToCohort: async (request, next) => {
     try {
       const { cohort_id } = request.params;
       const { device_ids } = request.body;
@@ -530,16 +556,17 @@ const createCohort = {
         data: cohort,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignManyDevicesFromCohort: async (request) => {
+  unAssignManyDevicesFromCohort: async (request, next) => {
     try {
       const { device_ids } = request.body;
       const { cohort_id } = request.params;
@@ -641,15 +668,16 @@ const createCohort = {
       };
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignOneDeviceToCohort: async (request) => {
+  assignOneDeviceToCohort: async (request, next) => {
     try {
       const { cohort_id, device_id } = request.params;
       const { tenant } = request.query;
@@ -701,16 +729,17 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignOneDeviceFromCohort: async (request) => {
+  unAssignOneDeviceFromCohort: async (request, next) => {
     try {
       const { cohort_id, device_id } = request.params;
       const { tenant } = request.query;
@@ -760,14 +789,105 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getSiteAndDeviceIds: async (request, next) => {
+    try {
+      const { cohort_id, tenant } = { ...request.query, ...request.params };
+      const cohortDetails = await CohortModel(tenant).findById(cohort_id);
+      if (isEmpty(cohortDetails)) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: "This Cohort does not exist" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      // Fetch devices based on the provided Cohort ID
+      const devices = await DeviceModel(tenant).find({ cohorts: cohort_id });
+
+      // Extract device IDs from the fetched devices
+      const device_ids = devices.map((device) => device._id);
+
+      // Fetch sites for each device concurrently
+      const site_ids_promises = device_ids.map(async (deviceId) => {
+        const device = await DeviceModel(tenant).findOne({ _id: deviceId });
+        return device.site_id;
+      });
+
+      const site_ids = await Promise.all(site_ids_promises);
+
+      logObject("device_ids:", device_ids);
+      logObject("device_ids:", site_ids);
+
       return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: true,
+        message: "Successfully returned the Site IDs and the Device IDs",
+        status: httpStatus.OK,
+        data: { device_ids, site_ids },
       };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  filterOutPrivateDevices: async (request, next) => {
+    try {
+      const { tenant, devices } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const privateCohorts = await CohortModel(tenant)
+        .find({
+          visibility: false,
+        })
+        .select("_id")
+        .lean();
+
+      const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
+      // Fetch devices based on the private Cohort IDs
+      const privateDevices = await DeviceModel(tenant).find({
+        cohorts: { $in: privateCohortIds },
+      });
+
+      // Extract device IDs from the fetched devices
+      const privateDeviceIds = privateDevices.map((device) =>
+        device._id.toString()
+      );
+      const deviceIds = devices.map((device) => device.toString());
+
+      const publicDevices = filterOutPrivateIDs(privateDeviceIds, deviceIds);
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        data: publicDevices,
+        message: "operation successful",
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

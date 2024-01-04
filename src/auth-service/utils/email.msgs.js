@@ -218,8 +218,13 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-  user_updated: (firstName, lastName, updatedData, email) => {
-    const updatedFields = Object.keys(updatedData)
+  user_updated: ({
+    firstName = "",
+    lastName = "",
+    updatedUserDetails = {},
+    email = "",
+  } = {}) => {
+    const updatedFields = Object.keys(updatedUserDetails)
       .map((field) => `• ${field}`)
       .join("\n");
     const content = ` <tr>
@@ -228,6 +233,36 @@ module.exports = {
                                 Your AirQo Analytics account details have been updated.
                                     <br />
                                     The following fields have been updated:
+                                    <ol>
+                                        ${updatedFields}
+                                    </ol>
+                                    <br />
+                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                    <br />
+                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    const name = firstName + " " + lastName;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  site_activity: ({
+    firstName = "",
+    lastName = "",
+    siteActivityDetails = {},
+    email = "",
+  } = {}) => {
+    const updatedFields = Object.keys(siteActivityDetails)
+      .map((field) => `• ${field}`)
+      .join("\n");
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                An operation has been done to a Device on a Site.
+                                    <br />
+                                    The following are the details:
                                     <ol>
                                         ${updatedFields}
                                     </ol>

@@ -84,14 +84,18 @@ def train_forecasting_models():
         return ForecastUtils.train_and_save_forecast_models(train_data, "daily")
 
     hourly_data = fetch_training_data_for_hourly_forecast_model()
-    hourly_preprocessed_data = preprocess_training_data_for_hourly_forecast_model(hourly_data)
+    hourly_preprocessed_data = preprocess_training_data_for_hourly_forecast_model(
+        hourly_data
+    )
     hourly_lag_data = get_hourly_lag_and_rolling_features(hourly_preprocessed_data)
     hourly_cyclic_data = get_hourly_time_and_cyclic_features(hourly_lag_data)
     hourly_loc_data = get_location_features(hourly_cyclic_data)
     train_and_save_hourly_forecast_model(hourly_loc_data)
 
     daily_data = fetch_training_data_for_daily_forecast_model()
-    daily_preprocessed_data = preprocess_training_data_for_daily_forecast_model(daily_data)
+    daily_preprocessed_data = preprocess_training_data_for_daily_forecast_model(
+        daily_data
+    )
     daily_lag_data = get_daily_lag_and_rolling_features(daily_preprocessed_data)
     daily_cyclic_data = get_daily_time_and_cylic_features(daily_lag_data)
     daily_loc_data = get_location_features(daily_cyclic_data)

@@ -6,6 +6,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const { HttpError } = require("@utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohort-model`);
 const { getModelByTenant } = require("@config/database");
@@ -95,7 +96,7 @@ cohortSchema.methods.toJSON = function() {
   };
 };
 
-cohortSchema.statics.register = async function(args) {
+cohortSchema.statics.register = async function(args, next) {
   try {
     let modifiedArgs = { ...args };
 
@@ -133,42 +134,43 @@ cohortSchema.statics.register = async function(args) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "cohort not created despite successful operation",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: "cohort not created despite successful operation",
-        },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: "cohort not created despite successful operation" }
+        )
+      );
     }
-  } catch (err) {
+  } catch (error) {
     let response = {
       message: "validation errors for some of the provided fields",
       success: false,
       status: httpStatus.CONFLICT,
     };
 
-    if (!isEmpty(err.errors)) {
+    if (!isEmpty(error.errors)) {
       response.errors = {};
 
-      Object.entries(err.errors).forEach(([key, value]) => {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.errors.message = value.message;
         response.errors[value.path] = value.message;
       });
     } else {
-      response.errors = { message: err.message };
+      response.errors = { message: error.message };
     }
 
     return response;
+
+    logger.error(`Internal Server Error ${error.message}`);
+    next(new HttpError(response.message, response.status, response.errors));
   }
 };
 
-cohortSchema.statics.list = async function({
-  filter = {},
-  limit = 1000,
-  skip = 0,
-} = {}) {
+cohortSchema.statics.list = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
   try {
     const inclusionProjection = constants.COHORTS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.COHORTS_EXCLUSION_PROJECTION(
@@ -267,20 +269,19 @@ cohortSchema.statics.list = async function({
         status: httpStatus.OK,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
-cohortSchema.statics.modify = async function({
-  filter = {},
-  update = {},
-} = {}) {
+cohortSchema.statics.modify = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const options = {
       new: true,
@@ -314,17 +315,16 @@ cohortSchema.statics.modify = async function({
         errors: filter,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
-cohortSchema.statics.remove = async function({ filter = {} } = {}) {
+cohortSchema.statics.remove = async function({ filter = {} } = {}, next) {
   try {
     const options = {
       projection: {
@@ -350,13 +350,12 @@ cohortSchema.statics.remove = async function({ filter = {} } = {}) {
         errors: filter,
       };
     }
-  } catch (err) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

@@ -19,7 +19,7 @@ const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
-require("@bin/cronJob");
+require("@bin/active-status-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
@@ -73,8 +73,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/users", require("@routes/v1"));
 app.use("/api/v2/users", require("@routes/v2"));
 
-// Error handling middleware
-// catch 404 and forward to error handler
+// default error handling
 app.use((req, res, next) => {
   const err = new Error("Not Found");
   err.status = 404;
@@ -83,21 +82,18 @@ app.use((req, res, next) => {
 
 app.use(function (err, req, res, next) {
   if (err instanceof HttpError) {
-    // Handle HttpError
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
       errors: err.errors,
     });
   } else if (err.status === 404) {
-    // Handle 404 Not Found
     res.status(err.status).json({
       success: false,
       message: "This endpoint does not exist",
       errors: { message: err.message },
     });
   } else if (err.status === 400) {
-    // Handle other 400 Bad Request errors
     logger.error(`Bad request error --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
@@ -105,7 +101,6 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 401) {
-    // Handle 401 Unauthorized
     logger.error(`Unauthorized --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
@@ -113,7 +108,6 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 403) {
-    // Handle 403 Forbidden
     logger.error(`Forbidden --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
@@ -121,16 +115,15 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 500) {
-    // Handle 500 Internal Server Error
-    logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
-    logger.error(`Stack Trace: ${err.stack}`);
+    // logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    // logger.error(`Stack Trace: ${err.stack}`);
+    logObject("the error", err);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
       errors: { message: err.message },
     });
   } else if (err.status === 502 || err.status === 503 || err.status === 504) {
-    // Handle other 5xx errors
     logger.error(`${err.message} --- ${JSON.stringify(err)}`);
     res.status(err.status).json({
       success: false,
@@ -138,7 +131,6 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else {
-    // Handle other uncaught errors
     logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
     logObject("Internal Server Error", err);
     logger.error(`Stack Trace: ${err.stack}`);
@@ -154,12 +146,10 @@ const normalizePort = (val) => {
   var port = parseInt(val, 10);
 
   if (isNaN(port)) {
-    // named pipe
     return val;
   }
 
   if (port >= 0) {
-    // port number
     return port;
   }
 

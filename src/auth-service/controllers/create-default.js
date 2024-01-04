@@ -1,36 +1,36 @@
 const httpStatus = require("http-status");
 const { logText, logObject } = require("@utils/log");
-const createDefaultUtil = require("../utils/create-default");
-const constants = require("../config/constants");
+const createDefaultUtil = require("@utils/create-default");
+const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- defaults-controller`
 );
-
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 
 const defaults = {
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(request.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const responseFromUpdateDefault = await createDefaultUtil.update(
+        request,
+        next
+      );
 
-      let responseFromUpdateDefault = await createDefaultUtil.update(request);
-      logObject("responseFromUpdateDefault", responseFromUpdateDefault);
       if (responseFromUpdateDefault.success === true) {
-        let status = responseFromUpdateDefault.status
+        const status = responseFromUpdateDefault.status
           ? responseFromUpdateDefault.status
           : httpStatus.OK;
         res.status(status).json({
@@ -39,50 +39,50 @@ const defaults = {
           default: responseFromUpdateDefault.data,
         });
       } else if (responseFromUpdateDefault.success === false) {
-        let errors = responseFromUpdateDefault.errors
-          ? responseFromUpdateDefault.errors
-          : { message: "" };
-        let status = responseFromUpdateDefault.status
+        const status = responseFromUpdateDefault.status
           ? responseFromUpdateDefault.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromUpdateDefault.message,
           default: responseFromUpdateDefault.data,
-          errors,
+          errors: responseFromUpdateDefault.errors
+            ? responseFromUpdateDefault.errors
+            : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      let responseFromCreateDefault = await createDefaultUtil.create(request);
+      const responseFromCreateDefault = await createDefaultUtil.create(
+        request,
+        next
+      );
       logObject("responseFromCreateDefault", responseFromCreateDefault);
       if (responseFromCreateDefault.success === true) {
-        let status = responseFromCreateDefault.status
+        const status = responseFromCreateDefault.status
           ? responseFromCreateDefault.status
           : httpStatus.OK;
         res.status(status).json({
@@ -91,50 +91,51 @@ const defaults = {
           default: responseFromCreateDefault.data,
         });
       } else if (responseFromCreateDefault.success === false) {
-        let errors = responseFromCreateDefault.errors
-          ? responseFromCreateDefault.errors
-          : { message: "" };
-        let status = responseFromCreateDefault.status
+        const status = responseFromCreateDefault.status
           ? responseFromCreateDefault.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreateDefault.message,
           default: responseFromCreateDefault.data,
-          errors,
+          errors: responseFromCreateDefault.errors
+            ? responseFromCreateDefault.errors
+            : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all defaults by query params provided");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(request.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      const responseFromListDefaults = await createDefaultUtil.list(request);
+      const responseFromListDefaults = await createDefaultUtil.list(
+        request,
+        next
+      );
       if (responseFromListDefaults.success === true) {
-        let status = responseFromListDefaults.status
+        const status = responseFromListDefaults.status
           ? responseFromListDefaults.status
           : httpStatus.OK;
         res.status(status).json({
@@ -143,50 +144,51 @@ const defaults = {
           defaults: responseFromListDefaults.data,
         });
       } else if (responseFromListDefaults.success === false) {
-        let errors = responseFromListDefaults.errors
-          ? responseFromListDefaults.errors
-          : "";
-
-        let status = responseFromListDefaults.status
+        const status = responseFromListDefaults.status
           ? responseFromListDefaults.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromListDefaults.message,
-          errors,
+          errors: responseFromListDefaults.errors
+            ? responseFromListDefaults.errors
+            : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       logText("deleting default..........");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        throw new HttpError(
-          "bad request errors",
-          httpStatus.BAD_REQUEST,
-          extractErrorsFromRequest(req)
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      const responseFromDeleteDefault = await createDefaultUtil.delete(request);
-      logObject("responseFromDeleteDefault", responseFromDeleteDefault);
+      const responseFromDeleteDefault = await createDefaultUtil.delete(
+        request,
+        next
+      );
+
       if (responseFromDeleteDefault.success === true) {
-        let status = responseFromDeleteDefault.status
+        const status = responseFromDeleteDefault.status
           ? responseFromDeleteDefault.status
           : httpStatus.OK;
         res.status(status).json({
@@ -195,28 +197,27 @@ const defaults = {
           default: responseFromDeleteDefault.data,
         });
       } else if (responseFromDeleteDefault.success === false) {
-        let errors = responseFromDeleteDefault.errors
-          ? responseFromDeleteDefault.errors
-          : { message: "" };
-
-        let status = responseFromDeleteDefault.status
+        const status = responseFromDeleteDefault.status
           ? responseFromDeleteDefault.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         res.status(status).json({
           success: false,
           message: responseFromDeleteDefault.message,
           default: responseFromDeleteDefault.data,
-          errors,
+          errors: responseFromDeleteDefault.errors
+            ? responseFromDeleteDefault.errors
+            : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
