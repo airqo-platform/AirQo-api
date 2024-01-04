@@ -25,7 +25,7 @@ const generateFilter = {
       return filter;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -63,7 +63,7 @@ const generateFilter = {
       return filter;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -94,7 +94,7 @@ const generateFilter = {
       return filter;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -129,7 +129,7 @@ const generateFilter = {
       return filter;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

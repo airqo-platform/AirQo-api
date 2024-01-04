@@ -61,7 +61,7 @@ SimSchema.statics.register = async function (args, next) {
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -106,7 +106,7 @@ SimSchema.statics.list = async function (
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -151,7 +151,7 @@ SimSchema.statics.modify = async function (
     }
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -185,7 +185,7 @@ SimSchema.statics.remove = async function ({ filter = {} } = {}, next) {
     }
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

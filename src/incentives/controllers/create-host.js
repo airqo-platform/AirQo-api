@@ -51,7 +51,7 @@ const createHost = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -107,7 +107,7 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -160,7 +160,7 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -217,7 +217,7 @@ const createHost = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
