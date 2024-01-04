@@ -70,7 +70,7 @@ HostSchema.index(
 const handleServerError = (error, message) => {
   logObject("error", error);
   const stingifiedMessage = JSON.stringify(error ? error : "");
-  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+  logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
   return {
     ...errorResponse,
     message,
@@ -97,6 +97,7 @@ HostSchema.statics.register = async function(args, next) {
       message: "host created",
     };
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -138,6 +139,7 @@ HostSchema.statics.list = async function(
       message: "no hosts exist for this search",
     };
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -178,6 +180,7 @@ HostSchema.statics.modify = async function(
       );
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -207,6 +210,7 @@ HostSchema.statics.remove = async function({ filter = {} } = {}, next) {
       );
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

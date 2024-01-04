@@ -162,7 +162,7 @@ cohortSchema.statics.register = async function(args, next) {
 
     return response;
 
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(new HttpError(response.message, response.status, response.errors));
   }
 };

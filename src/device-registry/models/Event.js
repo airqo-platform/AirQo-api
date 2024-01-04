@@ -2200,7 +2200,9 @@ eventSchema.statics.view = async (
       },
     };
   } catch (error) {
-    logger.error(`Internal Server Error -- view events -- ${error.message}`);
+    logger.error(
+      `🐛🐛 Internal Server Error -- view events -- ${error.message}`
+    );
     logObject("error", error);
 
     next(
