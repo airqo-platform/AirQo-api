@@ -60,7 +60,8 @@ const createAirqloud = {
         : req.query.tenant;
 
       const responseFromCreateAirQloud = await createAirQloudUtil.create(
-        request
+        request,
+        next
       );
       logObject(
         "responseFromCreateAirQloud in controller",
@@ -117,7 +118,8 @@ const createAirqloud = {
         : req.query.tenant;
 
       const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
-        request
+        request,
+        next
       );
 
       if (responseFromCalculateGeographicalCenter.success === true) {
@@ -179,7 +181,8 @@ const createAirqloud = {
         : req.query.tenant;
 
       const responseFromRemoveAirQloud = await createAirQloudUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveAirQloud.success === true) {
@@ -232,7 +235,8 @@ const createAirqloud = {
         : req.query.tenant;
 
       const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
-        request
+        request,
+        next
       );
       if (responseFromRefreshAirQloud.success === true) {
         const status = responseFromRefreshAirQloud.status
@@ -283,7 +287,10 @@ const createAirqloud = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindSites = await createAirQloudUtil.findSites(request);
+      const responseFromFindSites = await createAirQloudUtil.findSites(
+        request,
+        next
+      );
       logObject("responseFromFindSites", responseFromFindSites);
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
@@ -336,7 +343,8 @@ const createAirqloud = {
         : req.query.tenant;
 
       const responseFromUpdateAirQloud = await createAirQloudUtil.update(
-        request
+        request,
+        next
       );
       logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
       if (responseFromUpdateAirQloud.success === true) {
@@ -391,7 +399,10 @@ const createAirqloud = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      const responseFromListAirQlouds = await createAirQloudUtil.list(
+        request,
+        next
+      );
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -449,7 +460,10 @@ const createAirqloud = {
 
       request.query.category = "summary";
 
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      const responseFromListAirQlouds = await createAirQloudUtil.list(
+        request,
+        next
+      );
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -507,7 +521,10 @@ const createAirqloud = {
 
       request.query.category = "dashboard";
 
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      const responseFromListAirQlouds = await createAirQloudUtil.list(
+        request,
+        next
+      );
       logElement(
         "has the response for listing airqlouds been successful?",
         responseFromListAirQlouds.success
@@ -566,7 +583,8 @@ const createAirqloud = {
       request.query.dashboard = "yes";
 
       const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
-        request
+        request,
+        next
       );
       logElement(
         "has the response for listing airqlouds been successful?",
@@ -627,7 +645,8 @@ const createAirqloud = {
       request.query.category = "summary";
 
       const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
-        request
+        request,
+        next
       );
       logElement(
         "has the response for listing airqlouds been successful?",

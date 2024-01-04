@@ -89,7 +89,7 @@ networkSchema.statics.register = async function (args, next) {
       response.errors = { message: error.message };
     }
 
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(new HttpError(response.message, response.status, response.errors));
     return;
   }
@@ -135,7 +135,7 @@ networkSchema.statics.list = async function (
       };
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -183,7 +183,7 @@ networkSchema.statics.modify = async function (
       return;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -222,7 +222,7 @@ networkSchema.statics.remove = async function ({ filter = {} } = {}, next) {
       return;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

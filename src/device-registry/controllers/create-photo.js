@@ -30,7 +30,10 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatePhoto = await createPhotoUtil.create(request);
+      const responseFromCreatePhoto = await createPhotoUtil.create(
+        request,
+        next
+      );
 
       if (responseFromCreatePhoto.success === true) {
         const status = responseFromCreatePhoto.status
@@ -85,7 +88,10 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePhoto = await createPhotoUtil.update(request);
+      const responseFromUpdatePhoto = await createPhotoUtil.update(
+        request,
+        next
+      );
 
       if (responseFromUpdatePhoto.success === true) {
         const status = responseFromUpdatePhoto.status
@@ -136,7 +142,10 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeletePhoto = await createPhotoUtil.delete(request);
+      const responseFromDeletePhoto = await createPhotoUtil.delete(
+        request,
+        next
+      );
 
       if (responseFromDeletePhoto.success === true) {
         const status = responseFromDeletePhoto.status
@@ -187,7 +196,7 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListPhoto = await createPhotoUtil.list(request);
+      const responseFromListPhoto = await createPhotoUtil.list(request, next);
 
       if (responseFromListPhoto.success === true) {
         const status = responseFromListPhoto.status
@@ -241,7 +250,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromCreatePhotoOnPlatform.success === true) {
@@ -296,7 +306,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromDeletePhotoOnPlatform = await createPhotoUtil.deletePhotoOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromDeletePhotoOnPlatform.success === true) {
@@ -349,7 +360,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromUpdatePhotoOnPlatform = await createPhotoUtil.updatePhotoOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdatePhotoOnPlatform.success === true) {
@@ -403,7 +415,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromDeletePhotoOnCloudinary = await createPhotoUtil.deletePhotoOnCloudinary(
-        request
+        request,
+        next
       );
 
       if (responseFromDeletePhotoOnCloudinary.success === true) {
@@ -460,7 +473,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromUpdatePhotoOnCloudinary = await createPhotoUtil.updatePhotoOnCloudinary(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdatePhotoOnCloudinary.success === true) {
@@ -517,7 +531,8 @@ const processImage = {
         : req.query.tenant;
 
       const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
-        request
+        request,
+        next
       );
 
       if (responseFromCreatePhotoOnCloudinary.success === true) {
