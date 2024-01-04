@@ -283,29 +283,39 @@ const isIPBlacklisted = async ({
   try {
     const day = getDay();
     const filter = { ip };
-    const update = {
-      $addToSet: {
-        emails: email,
-        tokens: token,
-        token_names: token_name,
-        endpoints: endpoint,
-      },
-      $setOnInsert: {
-        ipCounts: [{ day, count: 1 }],
-      },
-      $inc: {
-        "ipCounts.$[elem].count": 1,
-      },
-    };
-    const options = {
-      upsert: true,
-      new: true,
-      arrayFilters: [{ "elem.day": day }],
-      runValidators: true,
-    };
+    let doc = await UnknownIPModel("airqo").findOne(filter);
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    if (!doc) {
+      doc = await UnknownIPModel("airqo").create({
+        ip,
+        emails: [email],
+        tokens: [token],
+        token_names: [token_name],
+        endpoints: [endpoint],
+        ipCounts: [{ day, count: 1 }],
+      });
+    } else {
+      const update = {
+        $addToSet: {
+          emails: email,
+          tokens: token,
+          token_names: token_name,
+          endpoints: endpoint,
+        },
+        $inc: {
+          "ipCounts.$[].count": 1,
+        },
+      };
+      const options = {
+        upsert: true,
+        new: true,
+        runValidators: true,
+      };
+
+      await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    }
   } catch (error) {
+    logObject("the error", error);
     const jsonErrorString = stringify(error);
     if (error.name === "MongoError") {
       switch (error.code) {
