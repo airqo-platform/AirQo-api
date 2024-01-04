@@ -224,7 +224,7 @@ const createCandidate = {
           constants.RANDOM_PASSWORD_CONFIGURATION(10)
         );
 
-        let requestBodyForUserCreation = Object.assign({}, request);
+        let requestBodyForUserCreation = Object.assign({}, request.body);
         requestBodyForUserCreation.privilege = "user";
         requestBodyForUserCreation.userName = email;
         requestBodyForUserCreation.password = password;
