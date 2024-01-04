@@ -505,7 +505,7 @@ siteSchema.statics = {
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -583,7 +583,7 @@ siteSchema.statics = {
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
 
       next(
         new HttpError(
@@ -673,7 +673,7 @@ siteSchema.statics = {
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -712,7 +712,7 @@ siteSchema.statics = {
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       next(
         new HttpError(
           "Internal Server Error",

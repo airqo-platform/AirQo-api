@@ -76,6 +76,7 @@ networkSchema.statics.register = async function(args, next) {
       );
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     let response = {
       message: "validation errors for some of the provided fields",
       success: false,
@@ -140,6 +141,7 @@ networkSchema.statics.list = async function(
       };
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -184,6 +186,7 @@ networkSchema.statics.modify = async function(
       );
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -219,6 +222,7 @@ networkSchema.statics.remove = async function({ filter = {} } = {}, next) {
       );
     }
   } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

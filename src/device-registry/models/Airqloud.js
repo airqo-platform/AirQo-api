@@ -213,7 +213,7 @@ airqloudSchema.statics.register = async function(args, next) {
       });
     }
 
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(new HttpError(message, status, response));
   }
 };
@@ -268,7 +268,7 @@ airqloudSchema.statics.list = async function(
       };
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -324,7 +324,7 @@ airqloudSchema.statics.modify = async function(
       };
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -365,7 +365,7 @@ airqloudSchema.statics.remove = async function({ filter = {} } = {}, next) {
       };
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

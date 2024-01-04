@@ -173,7 +173,7 @@ activitySchema.statics = {
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
 
       next(
         new HttpError(
@@ -222,7 +222,7 @@ activitySchema.statics = {
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
 
       next(
         new HttpError(
@@ -268,7 +268,7 @@ activitySchema.statics = {
     } catch (error) {
       logObject("the error", error);
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
 
       next(
         new HttpError(

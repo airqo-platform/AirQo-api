@@ -8,6 +8,9 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- health-tip-model`);
+
 const aqiRangeSchema = new Schema(
   {
     min: { type: Number, required: true },
@@ -110,6 +113,7 @@ tipsSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -166,6 +170,7 @@ tipsSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = { message: error.message };
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -256,6 +261,7 @@ tipsSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -304,6 +310,7 @@ tipsSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
