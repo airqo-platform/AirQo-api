@@ -86,7 +86,7 @@ AccessTokenSchema.statics = {
       }
       return { user: null, currentAccessToken: null };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -139,7 +139,7 @@ AccessTokenSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -212,7 +212,7 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -257,7 +257,7 @@ AccessTokenSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -295,7 +295,7 @@ AccessTokenSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

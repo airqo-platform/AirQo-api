@@ -59,7 +59,7 @@ const inquiry = {
         return responseFromCreateInquiry;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -88,7 +88,7 @@ const inquiry = {
       );
       return responseFromListInquiry;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -119,7 +119,7 @@ const inquiry = {
       logObject("responseFromModifyInquiry", responseFromModifyInquiry);
       return responseFromModifyInquiry;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -148,7 +148,7 @@ const inquiry = {
       );
       return responseFromRemoveInquiry;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

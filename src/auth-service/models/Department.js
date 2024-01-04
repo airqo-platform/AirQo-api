@@ -135,7 +135,7 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -244,7 +244,7 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -313,7 +313,7 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -366,7 +366,7 @@ DepartmentSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
