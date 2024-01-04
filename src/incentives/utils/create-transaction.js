@@ -324,7 +324,7 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -451,7 +451,7 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -596,7 +596,7 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -680,7 +680,7 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -710,7 +710,7 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -830,7 +830,7 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -857,7 +857,7 @@ const createTransaction = {
        */
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
