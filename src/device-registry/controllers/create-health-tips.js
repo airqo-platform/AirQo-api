@@ -25,7 +25,10 @@ const createHealthTips = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListHealthTip = await createHealthTipUtil.list(request);
+      const responseFromListHealthTip = await createHealthTipUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListHealthTip.success === true) {
         const status = responseFromListHealthTip.status
@@ -77,7 +80,8 @@ const createHealthTips = {
         : req.query.tenant;
 
       const responseFromCreateHealthTip = await createHealthTipUtil.create(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateHealthTip.success === true) {
@@ -132,7 +136,8 @@ const createHealthTips = {
         : req.query.tenant;
 
       const responseFromDeleteHealthTip = await createHealthTipUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteHealthTip.success === true) {
@@ -185,7 +190,8 @@ const createHealthTips = {
         : req.query.tenant;
 
       const responseFromUpdateHealthTip = await createHealthTipUtil.update(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateHealthTip.success === true) {

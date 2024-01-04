@@ -476,7 +476,7 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      let response = await createEventUtil.insert(tenant, measurements);
+      let response = await createEventUtil.insert(tenant, measurements, next);
 
       if (!response.success) {
         return res.status(httpStatus.BAD_REQUEST).json({
@@ -522,7 +522,8 @@ const createEvent = {
         : req.query.tenant;
 
       const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery(
-        req
+        req,
+        next
       );
       if (responseFromListFromBigQuery.success === true) {
         const status = responseFromListFromBigQuery.status
@@ -583,7 +584,7 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createEventUtil.latestFromBigQuery(request);
+      const result = await createEventUtil.latestFromBigQuery(request, next);
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -651,7 +652,7 @@ const createEvent = {
 
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
@@ -705,7 +706,7 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
@@ -756,7 +757,7 @@ const createEvent = {
       request.query.brief = "yes";
       request.query.metadata = "device";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -828,7 +829,7 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
         if (result.success === true) {
@@ -906,7 +907,7 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
         if (result.success === true) {
@@ -968,7 +969,7 @@ const createEvent = {
 
       request.query.running = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1033,7 +1034,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1088,7 +1089,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1142,7 +1143,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1196,7 +1197,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1249,7 +1250,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1302,7 +1303,7 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1353,7 +1354,8 @@ const createEvent = {
         : req.query.tenant;
 
       const responseFromTransformEvents = await createEventUtil.transformManyEvents(
-        request
+        request,
+        next
       );
 
       if (responseFromTransformEvents.success === true) {
@@ -1402,7 +1404,10 @@ const createEvent = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const responseFromCreateEvents = await createEventUtil.create(request);
+      const responseFromCreateEvents = await createEventUtil.create(
+        request,
+        next
+      );
       logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
@@ -1456,7 +1461,8 @@ const createEvent = {
       request.query.device_number = device_number || chid;
 
       const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
-        request
+        request,
+        next
       );
 
       if (responseFromTransmitMultipleSensorValues.success === true) {
@@ -1512,7 +1518,8 @@ const createEvent = {
       request.query.device_number = device_number || chid;
 
       const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
-        request
+        request,
+        next
       );
 
       if (responseFromBulkTransmitMultipleSensorValues.success === true) {
@@ -1564,7 +1571,8 @@ const createEvent = {
         : req.query.tenant;
 
       const responseFromTransmitValues = await createEventUtil.transmitValues(
-        request
+        request,
+        next
       );
 
       if (responseFromTransmitValues.success === true) {
@@ -1618,7 +1626,8 @@ const createEvent = {
         : req.query.tenant;
 
       const responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromClearValuesOnPlatform.success === false) {
@@ -1671,7 +1680,8 @@ const createEvent = {
         : req.query.tenant;
 
       const responseFromAddEventsUtil = await createEventUtil.addEvents(
-        request
+        request,
+        next
       );
 
       if (responseFromAddEventsUtil.success === false) {
@@ -1738,7 +1748,7 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
 
@@ -1814,7 +1824,7 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
         logObject("the result for listing events", result);
 
         if (result.success === true) {
@@ -1890,7 +1900,7 @@ const createEvent = {
 
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
 
@@ -1966,7 +1976,7 @@ const createEvent = {
 
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
 
@@ -2043,7 +2053,7 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
 
@@ -2120,7 +2130,7 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
 
         logObject("the result for listing events", result);
 
@@ -2213,7 +2223,7 @@ const createEvent = {
           request.query.site_id =
             responseFromGetSitesFromLatitudeAndLongitude.data;
 
-          const result = await createEventUtil.list(request);
+          const result = await createEventUtil.list(request, next);
 
           logObject("the result for listing events", result);
 

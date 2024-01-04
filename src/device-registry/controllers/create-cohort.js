@@ -27,7 +27,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromCreateNetwork = await createCohortUtil.createNetwork(
-        request
+        request,
+        next
       );
       logObject(
         "responseFromCreateNetwork in controller",
@@ -84,7 +85,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromListNetworks = await createCohortUtil.listNetworks(
-        request
+        request,
+        next
       );
       logElement(
         "has the response for listing cohorts been successful?",
@@ -140,7 +142,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromUpdateNetwork = await createCohortUtil.updateNetwork(
-        request
+        request,
+        next
       );
       logObject("responseFromUpdateNetwork", responseFromUpdateNetwork);
       if (responseFromUpdateNetwork.success === true) {
@@ -194,7 +197,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromRemoveNetwork = await createCohortUtil.deleteNetwork(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveNetwork.success === true) {
@@ -246,7 +250,10 @@ const createCohort = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListCohorts = await createCohortUtil.list(request);
+      const responseFromListCohorts = await createCohortUtil.list(
+        request,
+        next
+      );
       logElement(
         "has the response for listing cohorts been successful?",
         responseFromListCohorts.success
@@ -300,7 +307,10 @@ const createCohort = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateCohort = await createCohortUtil.update(request);
+      const responseFromUpdateCohort = await createCohortUtil.update(
+        request,
+        next
+      );
       logObject("responseFromUpdateCohort", responseFromUpdateCohort);
       if (responseFromUpdateCohort.success === true) {
         const status = responseFromUpdateCohort.status
@@ -352,7 +362,10 @@ const createCohort = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveCohort = await createCohortUtil.delete(request);
+      const responseFromRemoveCohort = await createCohortUtil.delete(
+        request,
+        next
+      );
 
       if (responseFromRemoveCohort.success === true) {
         const status = responseFromRemoveCohort.status
@@ -403,7 +416,10 @@ const createCohort = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateCohort = await createCohortUtil.create(request);
+      const responseFromCreateCohort = await createCohortUtil.create(
+        request,
+        next
+      );
       logObject(
         "responseFromCreateCohort in controller",
         responseFromCreateCohort
@@ -461,7 +477,10 @@ const createCohort = {
         : req.query.tenant;
       request.query.summary = "yes";
 
-      const responseFromListCohorts = await createCohortUtil.list(request);
+      const responseFromListCohorts = await createCohortUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListCohorts.success === true) {
         const status = responseFromListCohorts.status
@@ -515,7 +534,10 @@ const createCohort = {
         : req.query.tenant;
       request.query.dashboard = "yes";
 
-      const responseFromListCohorts = await createCohortUtil.list(request);
+      const responseFromListCohorts = await createCohortUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListCohorts.success === true) {
         const status = responseFromListCohorts.status
@@ -568,7 +590,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromListAvailableDevices = await createCohortUtil.listAvailableDevices(
-        request
+        request,
+        next
       );
 
       logObject(
@@ -628,7 +651,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromListAssignedDevices = await createCohortUtil.listAssignedDevices(
-        request
+        request,
+        next
       );
 
       logObject(
@@ -696,7 +720,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromAssignDevices = await createCohortUtil.assignManyDevicesToCohort(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignDevices.success === true) {
@@ -751,7 +776,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromUnassignManyDevices = await createCohortUtil.unAssignManyDevicesFromCohort(
-        request
+        request,
+        next
       );
 
       logObject(
@@ -811,7 +837,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromUpdateCohort = await createCohortUtil.assignOneDeviceToCohort(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateCohort.success === true) {
@@ -866,7 +893,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromUnassignDevice = await createCohortUtil.unAssignOneDeviceFromCohort(
-        request
+        request,
+        next
       );
 
       if (responseFromUnassignDevice.success === true) {
@@ -921,7 +949,8 @@ const createCohort = {
         : req.query.tenant;
 
       const responseFromGetSiteAndDeviceIds = await createCohortUtil.getSiteAndDeviceIds(
-        request
+        request,
+        next
       );
 
       if (responseFromGetSiteAndDeviceIds.success === true) {

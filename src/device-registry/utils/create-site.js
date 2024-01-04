@@ -314,13 +314,11 @@ const createSite = {
       );
     }
   },
-  create: async (req, next) => {
+  create: async (request, next) => {
     try {
-      const { body, query } = req;
+      const { body, query } = request;
       const { tenant } = query;
       const { name, latitude, longitude, approximate_distance_in_km } = body;
-
-      let request = Object.assign({}, req);
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km },

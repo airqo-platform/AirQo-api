@@ -96,7 +96,8 @@ const device = {
 
       let arrayOfEncryptedKeys = req.body;
       let responseFromDecryptManyKeys = createDeviceUtil.decryptManyKeys(
-        arrayOfEncryptedKeys
+        arrayOfEncryptedKeys,
+        next
       );
 
       if (responseFromDecryptManyKeys.success === true) {
@@ -149,7 +150,10 @@ const device = {
         : req.query.tenant;
 
       let { encrypted_key } = req.body;
-      let responseFromDecryptKey = createDeviceUtil.decryptKey(encrypted_key);
+      let responseFromDecryptKey = createDeviceUtil.decryptKey(
+        encrypted_key,
+        next
+      );
 
       if (responseFromDecryptKey.success === true) {
         const status = responseFromDecryptKey.status
@@ -200,7 +204,7 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createDeviceUtil.getDevicesCount(request);
+      const result = await createDeviceUtil.getDevicesCount(request, next);
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -247,7 +251,10 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateDevice = await createDeviceUtil.create(request);
+      const responseFromCreateDevice = await createDeviceUtil.create(
+        request,
+        next
+      );
 
       if (responseFromCreateDevice.success === true) {
         const status = responseFromCreateDevice.status
@@ -299,7 +306,7 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      const response = await createDeviceUtil.generateQR(request);
+      const response = await createDeviceUtil.generateQR(request, next);
 
       if (response.success === true) {
         const status = response.status ? response.status : httpStatus.OK;
@@ -347,7 +354,10 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveDevice = await createDeviceUtil.delete(request);
+      const responseFromRemoveDevice = await createDeviceUtil.delete(
+        request,
+        next
+      );
 
       if (responseFromRemoveDevice.success === true) {
         const status = responseFromRemoveDevice.status
@@ -399,7 +409,10 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateDevice = await createDeviceUtil.update(request);
+      const responseFromUpdateDevice = await createDeviceUtil.update(
+        request,
+        next
+      );
 
       if (responseFromUpdateDevice.success === true) {
         const status = responseFromUpdateDevice.status
@@ -451,7 +464,10 @@ const device = {
         ? defaultTenant
         : req.query.tenant;
 
-      let responseFromRefreshDevice = await createDeviceUtil.refresh(request);
+      let responseFromRefreshDevice = await createDeviceUtil.refresh(
+        request,
+        next
+      );
       logObject("responseFromRefreshDevice", responseFromRefreshDevice);
       if (responseFromRefreshDevice.success === true) {
         const status = responseFromRefreshDevice.status
@@ -505,7 +521,8 @@ const device = {
         : req.query.tenant;
 
       const responseFromEncryptKeys = await createDeviceUtil.encryptKeys(
-        request
+        request,
+        next
       );
 
       if (responseFromEncryptKeys.success === true) {
@@ -561,7 +578,8 @@ const device = {
         : req.query.tenant;
 
       const responseFromListDeviceDetails = await createDeviceUtil.list(
-        request
+        request,
+        next
       );
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
@@ -620,7 +638,8 @@ const device = {
         : req.query.tenant;
       request.query.category = "summary";
       const responseFromListDeviceDetails = await createDeviceUtil.list(
-        request
+        request,
+        next
       );
 
       if (responseFromListDeviceDetails.success === true) {
@@ -684,7 +703,7 @@ const device = {
       request.query.name = device;
       request.query.device_number = chid;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await createDeviceUtil.list(request, next);
 
       let devices = [];
 
@@ -734,7 +753,8 @@ const device = {
         : req.query.tenant;
 
       const responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateDeviceOnPlatform.success === true) {
@@ -788,7 +808,8 @@ const device = {
         : req.query.tenant;
 
       const responseFromRemoveDevice = await createDeviceUtil.deleteOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveDevice.success === true) {
@@ -842,7 +863,8 @@ const device = {
         : req.query.tenant;
 
       const responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateOnPlatform.success === true) {
