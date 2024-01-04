@@ -124,7 +124,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateSite = await createSiteUtil.create(request);
+      const responseFromCreateSite = await createSiteUtil.create(request, next);
       if (responseFromCreateSite.success === true) {
         const status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -176,7 +176,8 @@ const manageSite = {
         : req.query.tenant;
 
       const responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        request
+        request,
+        next
       );
 
       if (responseFromGenerateMetadata.success === true) {
@@ -223,7 +224,8 @@ const manageSite = {
         : req.query.tenant;
 
       const responseFromFindNearestSite = await createSiteUtil.findNearestWeatherStation(
-        request
+        request,
+        next
       );
       if (responseFromFindNearestSite.success === true) {
         const status = responseFromFindNearestSite.status
@@ -274,7 +276,9 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListTahmoStations = await createSiteUtil.listWeatherStations();
+      const responseFromListTahmoStations = await createSiteUtil.listWeatherStations(
+        next
+      );
       if (responseFromListTahmoStations.success === true) {
         const status = responseFromListTahmoStations.status
           ? responseFromListTahmoStations.status
@@ -325,7 +329,8 @@ const manageSite = {
         : req.query.tenant;
 
       const responseFromFindAirQloud = await createSiteUtil.findAirQlouds(
-        request
+        request,
+        next
       );
 
       if (responseFromFindAirQloud.success === true) {
@@ -379,7 +384,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveSite = await createSiteUtil.delete(request);
+      const responseFromRemoveSite = await createSiteUtil.delete(request, next);
       if (responseFromRemoveSite.success === true) {
         const status = responseFromRemoveSite.status
           ? responseFromRemoveSite.status
@@ -430,7 +435,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateSite = await createSiteUtil.update(request);
+      const responseFromUpdateSite = await createSiteUtil.update(request, next);
 
       if (responseFromUpdateSite.success === true) {
         return res.status(httpStatus.OK).json({
@@ -480,7 +485,10 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRefreshSite = await createSiteUtil.refresh(request);
+      const responseFromRefreshSite = await createSiteUtil.refresh(
+        request,
+        next
+      );
 
       if (responseFromRefreshSite.success === true) {
         const status = responseFromRefreshSite.status
@@ -534,7 +542,8 @@ const manageSite = {
         : req.query.tenant;
 
       const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
-        request
+        request,
+        next
       );
 
       if (responseFromFindNearestSite.success === true) {
@@ -588,7 +597,7 @@ const manageSite = {
         : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListSites = await createSiteUtil.list(request);
+      const responseFromListSites = await createSiteUtil.list(request, next);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status
@@ -640,7 +649,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListSites = await createSiteUtil.list(request);
+      const responseFromListSites = await createSiteUtil.list(request, next);
 
       if (responseFromListSites.success === true) {
         const status = responseFromListSites.status

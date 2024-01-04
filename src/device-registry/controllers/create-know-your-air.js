@@ -28,7 +28,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListKYALesson = await createKnowYourAirUtil.listLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromListKYALesson.success === true) {
@@ -81,7 +82,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateKYALesson = await createKnowYourAirUtil.createLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateKYALesson.success === true) {
@@ -136,7 +138,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteKYALesson = await createKnowYourAirUtil.deleteLesson(
-        request
+        request,
+        next
       );
 
       logObject("responseFromDeleteKYALesson", responseFromDeleteKYALesson);
@@ -191,7 +194,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateKYALesson = await createKnowYourAirUtil.updateLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateKYALesson.success === true) {
@@ -246,7 +250,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListUserLessonProgress = await createKnowYourAirUtil.listUserLessonProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromListUserLessonProgress.success === true) {
@@ -299,7 +304,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteUserLessonProgress = await createKnowYourAirUtil.deleteUserLessonProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteUserLessonProgress.success === true) {
@@ -352,7 +358,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateUserLessonProgress = await createKnowYourAirUtil.updateUserLessonProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateUserLessonProgress.success === true) {
@@ -405,7 +412,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateUserLessonProgress = await createKnowYourAirUtil.createUserLessonProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateUserLessonProgress.success === true) {
@@ -458,7 +466,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromSyncUserLessonProgress = await createKnowYourAirUtil.syncUserLessonProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromSyncUserLessonProgress.success === true) {
@@ -513,7 +522,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListKYATask = await createKnowYourAirUtil.listTask(
-        request
+        request,
+        next
       );
 
       if (responseFromListKYATask.success === true) {
@@ -566,7 +576,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateKYATask = await createKnowYourAirUtil.createTask(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateKYATask.success === true) {
@@ -621,7 +632,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteKYATask = await createKnowYourAirUtil.deleteTask(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteKYATask.success === true) {
@@ -674,7 +686,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateKYATask = await createKnowYourAirUtil.updateTask(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateKYATask.success === true) {
@@ -729,7 +742,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromAssignTaskToLesson = await createKnowYourAirUtil.assignTaskToLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignTaskToLesson.success === true) {
@@ -782,7 +796,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromAssignManyTasksToLesson = await createKnowYourAirUtil.assignManyTasksToLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignManyTasksToLesson.success === true) {
@@ -835,7 +850,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromRemoveTaskFromLesson = await createKnowYourAirUtil.removeTaskFromLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveTaskFromLesson.success === true) {
@@ -888,7 +904,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromRemoveManyTasksFromLesson = await createKnowYourAirUtil.removeManyTasksFromLesson(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveManyTasksFromLesson.success === true) {
@@ -942,7 +959,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListAvailableTasks = await createKnowYourAirUtil.listAvailableTasks(
-        request
+        request,
+        next
       );
 
       if (responseFromListAvailableTasks.success === true) {
@@ -997,7 +1015,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListAssignedTasks = await createKnowYourAirUtil.listAssignedTasks(
-        request
+        request,
+        next
       );
 
       if (responseFromListAssignedTasks.success === true) {
@@ -1060,7 +1079,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListKYAQuiz = await createKnowYourAirUtil.listQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromListKYAQuiz.success === true) {
@@ -1113,7 +1133,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateKYAQuiz = await createKnowYourAirUtil.createQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateKYAQuiz.success === true) {
@@ -1168,7 +1189,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteKYAQuiz = await createKnowYourAirUtil.deleteQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteKYAQuiz.success === true) {
@@ -1221,7 +1243,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateKYAQuiz = await createKnowYourAirUtil.updateQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateKYAQuiz.success === true) {
@@ -1276,7 +1299,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListUserQuizProgress = await createKnowYourAirUtil.listUserQuizProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromListUserQuizProgress.success === true) {
@@ -1329,7 +1353,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteUserQuizProgress = await createKnowYourAirUtil.deleteUserQuizProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteUserQuizProgress.success === true) {
@@ -1382,7 +1407,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateUserQuizProgress = await createKnowYourAirUtil.updateUserQuizProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateUserQuizProgress.success === true) {
@@ -1435,7 +1461,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateUserQuizProgress = await createKnowYourAirUtil.createUserQuizProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateUserQuizProgress.success === true) {
@@ -1488,7 +1515,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromSyncUserQuizProgress = await createKnowYourAirUtil.syncUserQuizProgress(
-        request
+        request,
+        next
       );
 
       if (responseFromSyncUserQuizProgress.success === true) {
@@ -1543,7 +1571,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListKYAQuestion = await createKnowYourAirUtil.listQuestions(
-        request
+        request,
+        next
       );
 
       if (responseFromListKYAQuestion.success === true) {
@@ -1596,7 +1625,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateKYAQuestion = await createKnowYourAirUtil.createQuestion(
-        request
+        request,
+        next
       );
       logObject("responseFromCreateKYAQuestion", responseFromCreateKYAQuestion);
       if (responseFromCreateKYAQuestion.success === true) {
@@ -1651,7 +1681,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteKYAQuestion = await createKnowYourAirUtil.deleteQuestion(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteKYAQuestion.success === true) {
@@ -1704,7 +1735,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateKYAQuestion = await createKnowYourAirUtil.updateQuestion(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateKYAQuestion.success === true) {
@@ -1759,7 +1791,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswers(
-        request
+        request,
+        next
       );
 
       if (responseFromListKYAAnswer.success === true) {
@@ -1812,7 +1845,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromCreateKYAAnswer = await createKnowYourAirUtil.createAnswer(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateKYAAnswer.success === true) {
@@ -1867,7 +1901,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromDeleteKYAAnswer = await createKnowYourAirUtil.deleteAnswer(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteKYAAnswer.success === true) {
@@ -1920,7 +1955,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromUpdateKYAAnswer = await createKnowYourAirUtil.updateAnswer(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateKYAAnswer.success === true) {
@@ -1975,7 +2011,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromAssignManyQuestionsToQuiz = await createKnowYourAirUtil.assignManyQuestionsToQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignManyQuestionsToQuiz.success === true) {
@@ -2028,7 +2065,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromRemoveManyQuestionsFromQuiz = await createKnowYourAirUtil.removeManyQuestionsFromQuiz(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveManyQuestionsFromQuiz.success === true) {
@@ -2081,7 +2119,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromAssignManyAnswersToQuestion = await createKnowYourAirUtil.assignManyAnswersToQuestion(
-        request
+        request,
+        next
       );
 
       if (responseFromAssignManyAnswersToQuestion.success === true) {
@@ -2134,7 +2173,8 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const responseFromRemoveManyAnswersFromQuestion = await createKnowYourAirUtil.removeManyAnswersFromQuestion(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveManyAnswersFromQuestion.success === true) {

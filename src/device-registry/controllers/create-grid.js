@@ -28,7 +28,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromListAdminLevels = await createGridUtil.listAdminLevels(
-        request
+        request,
+        next
       );
 
       if (responseFromListAdminLevels.success === true) {
@@ -82,7 +83,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromUpdateAdminLevel = await createGridUtil.updateAdminLevel(
-        request
+        request,
+        next
       );
       logObject(
         "responseFromUpdateAdminLevel in controller",
@@ -139,7 +141,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromDeleteAdminLevel = await createGridUtil.deleteAdminLevel(
-        request
+        request,
+        next
       );
 
       if (responseFromDeleteAdminLevel.success === true) {
@@ -193,7 +196,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromCreateAdminLevel = await createGridUtil.createAdminLevel(
-        request
+        request,
+        next
       );
       logObject(
         "responseFromCreateAdminLevel in controller",
@@ -251,7 +255,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateGrid = await createGridUtil.create(request);
+      const responseFromCreateGrid = await createGridUtil.create(request, next);
       // logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
       if (responseFromCreateGrid.success === true) {
         const status = responseFromCreateGrid.status
@@ -304,7 +308,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromCalculateGeographicalCenter = await createGridUtil.calculateGeographicalCenter(
-        request
+        request,
+        next
       );
 
       if (responseFromCalculateGeographicalCenter.success === true) {
@@ -365,7 +370,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveGrid = await createGridUtil.delete(request);
+      const responseFromRemoveGrid = await createGridUtil.delete(request, next);
 
       if (responseFromRemoveGrid.success === true) {
         const status = responseFromRemoveGrid.status
@@ -416,7 +421,10 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRefreshGrid = await createGridUtil.refresh(request);
+      const responseFromRefreshGrid = await createGridUtil.refresh(
+        request,
+        next
+      );
       if (responseFromRefreshGrid.success === true) {
         const status = responseFromRefreshGrid.status
           ? responseFromRefreshGrid.status
@@ -465,7 +473,10 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindSites = await createGridUtil.findSites(request);
+      const responseFromFindSites = await createGridUtil.findSites(
+        request,
+        next
+      );
 
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
@@ -517,7 +528,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateGrid = await createGridUtil.update(request);
+      const responseFromUpdateGrid = await createGridUtil.update(request, next);
 
       if (responseFromUpdateGrid.success === true) {
         const status = responseFromUpdateGrid.status
@@ -571,7 +582,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const responseFromListGrids = await createGridUtil.list(request, next);
 
       if (responseFromListGrids.success === true) {
         const status = responseFromListGrids.status
@@ -625,7 +636,7 @@ const createGrid = {
         : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const responseFromListGrids = await createGridUtil.list(request, next);
 
       if (responseFromListGrids.success === true) {
         const status = responseFromListGrids.status
@@ -680,7 +691,7 @@ const createGrid = {
 
       request.query.dashboard = "yes";
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const responseFromListGrids = await createGridUtil.list(request, next);
 
       if (responseFromListGrids.success === true) {
         const status = responseFromListGrids.status
@@ -736,7 +747,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromFindGridUsingGPSCoordinates = await createGridUtil.findGridUsingGPSCoordinates(
-        request
+        request,
+        next
       );
       if (responseFromFindGridUsingGPSCoordinates.success === false) {
         const status = responseFromFindGridUsingGPSCoordinates.status
@@ -793,7 +805,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromCreateGridFromShapefile = await createGridUtil.createGridFromShapefile(
-        request
+        request,
+        next
       );
       if (responseFromCreateGridFromShapefile.success === false) {
         const status = responseFromCreateGridFromShapefile.status
@@ -831,7 +844,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromListAvailableSites = await createGridUtil.listAvailableSites(
-        request
+        request,
+        next
       );
 
       if (responseFromListAvailableSites.success === true) {
@@ -886,7 +900,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromListAssignedSites = await createGridUtil.listAssignedSites(
-        request
+        request,
+        next
       );
 
       if (responseFromListAssignedSites.success === true) {
@@ -948,7 +963,8 @@ const createGrid = {
         : req.query.tenant;
 
       const responseFromGetSiteAndDeviceIds = await createGridUtil.getSiteAndDeviceIds(
-        request
+        request,
+        next
       );
 
       if (responseFromGetSiteAndDeviceIds.success === true) {

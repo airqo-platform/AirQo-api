@@ -27,7 +27,10 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeployDevice = await createActivityUtil.deploy(request);
+      const responseFromDeployDevice = await createActivityUtil.deploy(
+        request,
+        next
+      );
       if (responseFromDeployDevice.success === true) {
         const status = responseFromDeployDevice.status
           ? responseFromDeployDevice.status
@@ -78,7 +81,10 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRecallDevice = await createActivityUtil.recall(request);
+      const responseFromRecallDevice = await createActivityUtil.recall(
+        request,
+        next
+      );
       if (responseFromRecallDevice.success === true) {
         const status = responseFromRecallDevice.status
           ? responseFromRecallDevice.status
@@ -130,7 +136,8 @@ const activity = {
         : req.query.tenant;
 
       const responseFromMaintainDevice = await createActivityUtil.maintain(
-        request
+        request,
+        next
       );
       if (responseFromMaintainDevice.success === true) {
         const status = responseFromMaintainDevice.status
@@ -249,7 +256,8 @@ const activity = {
         : req.query.tenant;
 
       const responseFromUpdateActivity = await createActivityUtil.update(
-        request
+        request,
+        next
       );
       logObject("responseFromUpdateActivity", responseFromUpdateActivity);
       if (responseFromUpdateActivity.success === true) {
@@ -305,7 +313,8 @@ const activity = {
         : req.query.tenant;
 
       const responseFromRemoveActivity = await createActivityUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveActivity.success === true) {
@@ -359,7 +368,10 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListActivities = await createActivityUtil.list(request);
+      const responseFromListActivities = await createActivityUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListActivities.success === true) {
         const status = responseFromListActivities.status

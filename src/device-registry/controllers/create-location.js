@@ -28,7 +28,8 @@ const createLocation = {
         : req.query.tenant;
 
       const responseFromCreateLocation = await createLocationUtil.create(
-        request
+        request,
+        next
       );
 
       if (responseFromCreateLocation.success === true) {
@@ -84,7 +85,8 @@ const createLocation = {
         : req.query.tenant;
 
       const responseFromRemoveLocation = await createLocationUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveLocation.success === true) {
@@ -138,7 +140,8 @@ const createLocation = {
         : req.query.tenant;
 
       const responseFromUpdateLocation = await createLocationUtil.update(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdateLocation.success === true) {
@@ -195,7 +198,10 @@ const createLocation = {
 
       request.query.summary = "yes";
 
-      const responseFromListLocations = await createLocationUtil.list(request);
+      const responseFromListLocations = await createLocationUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListLocations.success === true) {
         const status = responseFromListLocations.status
@@ -249,7 +255,10 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListLocations = await createLocationUtil.list(request);
+      const responseFromListLocations = await createLocationUtil.list(
+        request,
+        next
+      );
 
       if (responseFromListLocations.success === true) {
         const status = responseFromListLocations.status
@@ -303,7 +312,8 @@ const createLocation = {
         : req.query.tenant;
 
       const responseFromRemoveLocation = await createLocationUtil.delete(
-        request
+        request,
+        next
       );
 
       if (responseFromRemoveLocation.success === true) {
