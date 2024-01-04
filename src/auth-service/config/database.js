@@ -51,7 +51,7 @@ const connectToMongoDB = () => {
 
     return db;
   } catch (error) {
-    // logger.error(`Internal Server Error -- ${error.message}`);
+    // logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
   }
 };
 

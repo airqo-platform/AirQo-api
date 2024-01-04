@@ -113,7 +113,7 @@ RoleSchema.statics = {
           "the role_name and role_code must be unique for every role";
       }
 
-      logger.error(`Internal Server Error -- ${message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -187,7 +187,7 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -236,7 +236,7 @@ RoleSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -270,7 +270,7 @@ RoleSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

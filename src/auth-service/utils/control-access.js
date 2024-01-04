@@ -46,7 +46,7 @@ const convertToUpperCaseWithUnderscore = (inputString, next) => {
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -303,10 +303,11 @@ const isIPBlacklisted = async ({
           endpoints: endpoint,
         },
         $inc: {
-          "ipCounts.$[].count": 1,
+          "ipCounts.$[elem].count": 1,
         },
       };
       const options = {
+        arrayFilters: [{ "elem.day": day }],
         upsert: true,
         new: true,
         runValidators: true,
@@ -321,14 +322,14 @@ const isIPBlacklisted = async ({
       switch (error.code) {
         case 11000:
           logger.error(
-            `Duplicate key error: IP address ${ip} already exists in the database.`
+            `🐛🐛 Duplicate key error: IP address ${ip} already exists in the database.`
           );
           break;
         default:
-          logger.error(`Unknown MongoDB error: ${jsonErrorString}`);
+          logger.error(`🐛🐛 Unknown MongoDB error: ${jsonErrorString}`);
       }
     } else {
-      logger.error(`Internal Server Error --- ${jsonErrorString}`);
+      logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
     }
   }
 
@@ -339,7 +340,7 @@ const controlAccess = {
   sample: async (request, next) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -354,7 +355,7 @@ const controlAccess = {
     try {
       crypto.createHash("sha256").update(string).digest("base64");
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -368,7 +369,7 @@ const controlAccess = {
     try {
       Object.is(first_item, second_item);
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -505,7 +506,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -561,7 +562,7 @@ const controlAccess = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -599,7 +600,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -619,7 +620,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -763,7 +764,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -796,7 +797,7 @@ const controlAccess = {
       ).list({ skip, limit, filter }, next);
       return responseFromListToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -845,7 +846,7 @@ const controlAccess = {
 
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -959,7 +960,7 @@ const controlAccess = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1079,7 +1080,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1105,7 +1106,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1125,7 +1126,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromDeleteClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1144,7 +1145,7 @@ const controlAccess = {
       ).list({ skip, limit, filter }, next);
       return responseFromListClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1185,7 +1186,7 @@ const controlAccess = {
       ).register(modifiedBody, next);
       return responseFromCreateClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1231,7 +1232,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1254,7 +1255,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1274,7 +1275,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1295,7 +1296,7 @@ const controlAccess = {
       );
       return responseFromListToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1314,7 +1315,7 @@ const controlAccess = {
       ).register(body, next);
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1339,7 +1340,7 @@ const controlAccess = {
       );
       return responseFromListRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1411,7 +1412,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1483,7 +1484,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1535,7 +1536,7 @@ const controlAccess = {
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1557,7 +1558,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1621,7 +1622,7 @@ const controlAccess = {
 
       return responseFromCreateRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1686,7 +1687,7 @@ const controlAccess = {
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1824,7 +1825,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1985,7 +1986,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2047,7 +2048,7 @@ const controlAccess = {
         data: responseFromListAssignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2163,7 +2164,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2353,7 +2354,7 @@ const controlAccess = {
       }
       return response;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2454,7 +2455,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2571,7 +2572,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2674,7 +2675,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2783,7 +2784,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2836,7 +2837,7 @@ const controlAccess = {
         return listRoleResponse;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2887,7 +2888,7 @@ const controlAccess = {
         return listRoleResponse;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2965,7 +2966,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3040,7 +3041,7 @@ const controlAccess = {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3131,7 +3132,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3206,7 +3207,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3233,7 +3234,7 @@ const controlAccess = {
       );
       return responseFromListPermissions;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3258,7 +3259,7 @@ const controlAccess = {
       );
       return responseFromDeletePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3279,7 +3280,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdatePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3298,7 +3299,7 @@ const controlAccess = {
       ).register(body, next);
       return responseFromCreatePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3320,7 +3321,7 @@ const controlAccess = {
       ).register(modifiedBody, next);
       return responseFromRegisterDepartment;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3344,7 +3345,7 @@ const controlAccess = {
       ).modify({ update, filter }, next);
       return responseFromModifyDepartment;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3365,7 +3366,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3385,7 +3386,7 @@ const controlAccess = {
       ).list({ filter, limit, skip }, next);
       return responseFromListDepartments;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3412,7 +3413,7 @@ const controlAccess = {
       );
       return responseFromBlacklistIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3483,7 +3484,7 @@ const controlAccess = {
         message: finalMessage,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3506,7 +3507,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3533,7 +3534,7 @@ const controlAccess = {
       );
       return responseFromBlacklistIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3555,7 +3556,7 @@ const controlAccess = {
         await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
       return responseFromRemoveBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3583,7 +3584,7 @@ const controlAccess = {
       );
       return responseFromListBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3610,7 +3611,7 @@ const controlAccess = {
       );
       return responseFromWhitelistIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3633,7 +3634,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3661,7 +3662,7 @@ const controlAccess = {
       );
       return responseFromListUnkownIP;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

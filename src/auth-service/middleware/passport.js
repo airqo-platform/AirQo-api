@@ -149,7 +149,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               );
             }
           } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+            logger.error(
+              `🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`
+            );
           }
           req.auth.success = false;
           req.auth.message =
@@ -233,7 +235,9 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               );
             }
           } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+            logger.error(
+              `🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`
+            );
           }
           req.auth.success = false;
           req.auth.message =
@@ -341,7 +345,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
         }
       } catch (error) {
-        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
         logObject("error", error);
         req.auth = {};
         req.auth.success = false;
@@ -650,7 +654,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       return done(null, user);
     } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(e)}`);
       return done(e, false);
     }
   });

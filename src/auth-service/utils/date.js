@@ -76,7 +76,7 @@ function generateDateFormatWithoutHrs(ISODate, next) {
     }
     return `${year}-${month}-${day}`;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -106,7 +106,7 @@ function addMonthsToProvidedDate(date, number, next) {
     );
     return `${newYear}-${formattedMonth}-${formattedDay}`;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -137,7 +137,7 @@ function addMonthsToProvideDateTime(dateTime, number, next) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -158,7 +158,7 @@ function addWeeksToProvideDateTime(dateTime, number) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
   }
 }
 function addDaysToProvideDateTime(dateTime, number, next) {
@@ -174,7 +174,7 @@ function addDaysToProvideDateTime(dateTime, number, next) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -202,7 +202,7 @@ function monthsInfront(number, next) {
     logObject("date returned by function for monthsInfront()", d);
     return d;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -217,7 +217,7 @@ function addDays(number, next) {
     logObject("date returned by function addDays()", d);
     return d;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -231,7 +231,7 @@ function addHours(number, next) {
     const newTime = new Date(currentTime.getTime() + number * 60 * 60 * 1000);
     return newTime;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -245,7 +245,7 @@ function addMinutes(number, next) {
     d.setMinutes(d.getMinutes() + number);
     return d;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

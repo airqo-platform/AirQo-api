@@ -115,7 +115,7 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else if (err.status === 500) {
-    // logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    // logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
     // logger.error(`Stack Trace: ${err.stack}`);
     logObject("the error", err);
     res.status(err.status).json({
@@ -131,7 +131,7 @@ app.use(function (err, req, res, next) {
       errors: { message: err.message },
     });
   } else {
-    logger.error(`Internal Server Error --- ${JSON.stringify(err)}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
     logObject("Internal Server Error", err);
     logger.error(`Stack Trace: ${err.stack}`);
     res.status(err.status || 500).json({

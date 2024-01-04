@@ -80,7 +80,7 @@ const createNetwork = {
         return responseFromExtractOneNetwork;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -118,7 +118,7 @@ const createNetwork = {
         message: "successfully removed the file extension",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -135,7 +135,7 @@ const createNetwork = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       logElement("the sanitise name error", error.message);
     }
   },
@@ -360,7 +360,7 @@ const createNetwork = {
         return responseFromRegisterNetwork;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -479,7 +479,7 @@ const createNetwork = {
         data: assignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -537,7 +537,7 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -597,7 +597,7 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -687,7 +687,7 @@ const createNetwork = {
           };
         }
       } catch (error) {
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         next(
           new HttpError(
             "Internal Server Error",
@@ -704,7 +704,7 @@ const createNetwork = {
         data: [],
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -779,7 +779,7 @@ const createNetwork = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -809,7 +809,7 @@ const createNetwork = {
       );
       return responseFromModifyNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -867,7 +867,7 @@ const createNetwork = {
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
       return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -891,7 +891,7 @@ const createNetwork = {
       );
       return responseFromListNetworks;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -966,7 +966,7 @@ const createNetwork = {
         data: updatedNetwork,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1006,7 +1006,7 @@ const createNetwork = {
       }
       return responseFromListAvailableUsers;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1050,7 +1050,7 @@ const createNetwork = {
       }
       return responseFromListAssignedUsers;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

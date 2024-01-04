@@ -63,7 +63,7 @@ WhitelistedIPSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(
         new HttpError("input validation errors", httpStatus.CONFLICT, response)
       );
@@ -106,7 +106,7 @@ WhitelistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -141,7 +141,7 @@ WhitelistedIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -176,7 +176,7 @@ WhitelistedIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
