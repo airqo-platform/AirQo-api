@@ -50,7 +50,7 @@ let attachments = [
 
 const mailer = {
   candidate: async (
-    { firstName, lastName, email, tenan = "airqo" } = {},
+    { firstName, lastName, email, tenant = "airqo" } = {},
     next
   ) => {
     try {
