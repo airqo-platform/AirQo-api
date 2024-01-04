@@ -255,13 +255,11 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
-const isIPBlacklisted = async ({
-  ip = "",
-  email = "",
-  token = "",
-  token_name = "",
-  endpoint = "",
-} = {}) => {
+const isIPBlacklisted = async (
+  { ip = "", email = "", token = "", token_name = "", endpoint = "" } = {},
+  retries = 3,
+  delay = 1000
+) => {
   const [blacklistedIP, whitelistedIP, blacklistedRanges] = await Promise.all([
     BlacklistedIPModel("airqo").findOne({ ip }),
     WhitelistedIPModel("airqo").findOne({ ip }),
@@ -284,9 +282,10 @@ const isIPBlacklisted = async ({
     const day = getDay();
     const filter = { ip };
     let doc = await UnknownIPModel("airqo").findOne(filter);
+    logObject("the existing document", doc);
 
     if (!doc) {
-      doc = await UnknownIPModel("airqo").create({
+      document = await UnknownIPModel("airqo").create({
         ip,
         emails: [email],
         tokens: [token],
@@ -294,31 +293,76 @@ const isIPBlacklisted = async ({
         endpoints: [endpoint],
         ipCounts: [{ day, count: 1 }],
       });
+      logText(`🐛🐛 Failed to create record for this new IP address ${ip}.`);
+      if (!document) {
+        logger.error(
+          `🐛🐛 Failed to store record for this new IP address ${ip}.`
+        );
+      }
     } else {
-      const update = {
-        $addToSet: {
-          emails: email,
-          tokens: token,
-          token_names: token_name,
-          endpoints: endpoint,
-        },
-        $inc: {
-          "ipCounts.$[elem].count": 1,
-        },
-      };
-      const options = {
-        arrayFilters: [{ "elem.day": day }],
-        upsert: true,
-        new: true,
-        runValidators: true,
-      };
+      const checkDoc = await UnknownIPModel("airqo").findOne({
+        ip,
+        "ipCounts.day": day,
+      });
+      if (checkDoc) {
+        const update = {
+          $addToSet: {
+            emails: email,
+            tokens: token,
+            token_names: token_name,
+            endpoints: endpoint,
+          },
+          $inc: {
+            "ipCounts.$[elem].count": 1,
+          },
+        };
+        const options = {
+          arrayFilters: [{ "elem.day": day }],
+          upsert: true,
+          new: true,
+          runValidators: true,
+        };
 
-      await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+        await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+      } else {
+        const update = {
+          $addToSet: {
+            emails: email,
+            tokens: token,
+            token_names: token_name,
+            endpoints: endpoint,
+          },
+          $push: {
+            ipCounts: { day, count: 1 },
+          },
+        };
+        await UnknownIPModel("airqo").findOneAndUpdate(filter, update);
+      }
     }
   } catch (error) {
     logObject("the error", error);
-    const jsonErrorString = stringify(error);
-    if (error.name === "MongoError") {
+    if (
+      retries > 0 &&
+      [
+        "NetworkError",
+        "TimeoutError",
+        "MongooseServerSelectionError",
+        "MongoTimeoutError",
+        "serverSelectionTimeoutMS",
+        "SocketTimeoutError",
+      ].includes(error.name)
+    ) {
+      logger.error(
+        `🐛🐛 Transient errors or network issues when handling the DB operations during verificaiton of this IP address: ${ip}.`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return isIPBlacklisted(
+        { ip, email, token, token_name, endpoint },
+        retries - 1,
+        delay
+      );
+    } else if (error.name === "MongoError") {
+      const jsonErrorString = stringify(error);
       switch (error.code) {
         case 11000:
           logger.error(
@@ -329,6 +373,7 @@ const isIPBlacklisted = async ({
           logger.error(`🐛🐛 Unknown MongoDB error: ${jsonErrorString}`);
       }
     } else {
+      const jsonErrorString = stringify(error);
       logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
     }
   }
