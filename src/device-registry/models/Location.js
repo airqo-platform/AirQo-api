@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
+const constants = require("@config/constants");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject } = require("@utils/log");
@@ -7,6 +8,8 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- location-model`);
 
 const polygonSchema = new Schema(
   {
@@ -158,9 +161,9 @@ locationSchema.statics = {
         );
       }
     } catch (error) {
-      let e = error;
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
-      logObject("the error", e);
+      logObject("the error", error);
       message = "validation errors for some of the provided fields";
       const status = httpStatus.CONFLICT;
       Object.entries(error.errors).forEach(([key, value]) => {
@@ -237,6 +240,7 @@ locationSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let errors = { message: error.message };
       let message = "Internal Server Error";
       let status = httpStatus.INTERNAL_SERVER_ERROR;
@@ -283,6 +287,7 @@ locationSchema.statics = {
         );
       }
     } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let errors = { message: error.message };
       let message = "Internal Server Error";
       let status = httpStatus.INTERNAL_SERVER_ERROR;
@@ -323,6 +328,7 @@ locationSchema.statics = {
         );
       }
     } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

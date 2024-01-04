@@ -191,7 +191,7 @@ const createAirqloud = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -252,7 +252,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -346,7 +346,7 @@ const createAirqloud = {
         return responseFromRegisterAirQloud;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -373,7 +373,7 @@ const createAirqloud = {
       );
       return responseFromModifyAirQloud;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -397,7 +397,7 @@ const createAirqloud = {
 
       return responseFromRemoveAirQloud;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -478,7 +478,7 @@ const createAirqloud = {
         return responseFromUpdateAirQloud;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -535,7 +535,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -646,7 +646,7 @@ const createAirqloud = {
         return responseFromListAirQlouds;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -670,7 +670,7 @@ const createAirqloud = {
       );
       return responseFromListAirQloud;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -735,7 +735,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

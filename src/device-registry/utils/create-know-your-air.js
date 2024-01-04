@@ -23,7 +23,7 @@ const createKnowYourAir = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -63,7 +63,7 @@ const createKnowYourAir = {
       logObject("responseFromListLessons", responseFromListLessons);
       return responseFromListLessons;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -85,7 +85,7 @@ const createKnowYourAir = {
       logObject("responseFromRemoveKyaLesson", responseFromRemoveKyaLesson);
       return responseFromRemoveKyaLesson;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -108,7 +108,7 @@ const createKnowYourAir = {
       logObject("responseFromModifyKyaLesson", responseFromModifyKyaLesson);
       return responseFromModifyKyaLesson;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -154,7 +154,7 @@ const createKnowYourAir = {
         return responseFromRegisterKyaLesson;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -206,7 +206,7 @@ const createKnowYourAir = {
         data: responseFromListAvailableTasks,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -255,7 +255,7 @@ const createKnowYourAir = {
         data: responseFromListAssignedTasks,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -291,7 +291,7 @@ const createKnowYourAir = {
       );
       return responseFromListUserLessonProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -322,7 +322,7 @@ const createKnowYourAir = {
       );
       return responseFromDeleteUserLessonProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -356,7 +356,7 @@ const createKnowYourAir = {
       );
       return responseFromUpdateUserLessonProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -380,7 +380,7 @@ const createKnowYourAir = {
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -477,7 +477,7 @@ const createKnowYourAir = {
           }
         : syncResponse;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -507,7 +507,7 @@ const createKnowYourAir = {
       logObject("responseFromListKyaTask", responseFromListKyaTask);
       return responseFromListKyaTask;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -529,7 +529,7 @@ const createKnowYourAir = {
       logObject("responseFromRemoveKyaTask", responseFromRemoveKyaTask);
       return responseFromRemoveKyaTask;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -552,7 +552,7 @@ const createKnowYourAir = {
 
       return responseFromModifyKyaTask;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -597,7 +597,7 @@ const createKnowYourAir = {
         return responseFromRegisterKyaTask;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -665,7 +665,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -754,7 +754,7 @@ const createKnowYourAir = {
         data: [],
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -816,7 +816,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -891,7 +891,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -907,7 +907,7 @@ const createKnowYourAir = {
         data: [],
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -947,7 +947,7 @@ const createKnowYourAir = {
       logObject("responseFromListQuizzes", responseFromListQuizzes);
       return responseFromListQuizzes;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -968,7 +968,7 @@ const createKnowYourAir = {
       logObject("responseFromRemoveKyaQuiz", responseFromRemoveKyaQuiz);
       return responseFromRemoveKyaQuiz;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -991,7 +991,7 @@ const createKnowYourAir = {
       logObject("responseFromModifyKyaQuiz", responseFromModifyKyaQuiz);
       return responseFromModifyKyaQuiz;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1037,7 +1037,7 @@ const createKnowYourAir = {
         return responseFromRegisterKyaQuiz;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1072,7 +1072,7 @@ const createKnowYourAir = {
       );
       return responseFromListUserQuizProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1102,7 +1102,7 @@ const createKnowYourAir = {
       );
       return responseFromDeleteUserQuizProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1136,7 +1136,7 @@ const createKnowYourAir = {
       );
       return responseFromUpdateUserQuizProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1160,7 +1160,7 @@ const createKnowYourAir = {
       );
       return responseFromCreateUserQuizProgress;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1254,7 +1254,7 @@ const createKnowYourAir = {
           }
         : syncResponse;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1286,7 +1286,7 @@ const createKnowYourAir = {
       logObject("responseFromListKyaQuestion", responseFromListKyaQuestion);
       return responseFromListKyaQuestion;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1308,7 +1308,7 @@ const createKnowYourAir = {
       logObject("responseFromRemoveKyaQuestion", responseFromRemoveKyaQuestion);
       return responseFromRemoveKyaQuestion;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1331,7 +1331,7 @@ const createKnowYourAir = {
 
       return responseFromModifyKyaQuestion;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1379,7 +1379,7 @@ const createKnowYourAir = {
         return responseFromRegisterKyaQuestion;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1411,7 +1411,7 @@ const createKnowYourAir = {
       logObject("responseFromListKyaAnswer", responseFromListKyaAnswer);
       return responseFromListKyaAnswer;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1433,7 +1433,7 @@ const createKnowYourAir = {
       logObject("responseFromRemoveKyaAnswer", responseFromRemoveKyaAnswer);
       return responseFromRemoveKyaAnswer;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1456,7 +1456,7 @@ const createKnowYourAir = {
 
       return responseFromModifyKyaAnswer;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1501,7 +1501,7 @@ const createKnowYourAir = {
         return responseFromRegisterKyaAnswer;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1590,7 +1590,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1668,7 +1668,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -1683,7 +1683,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1774,7 +1774,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1853,7 +1853,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -1868,7 +1868,7 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

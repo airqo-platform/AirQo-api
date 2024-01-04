@@ -39,7 +39,7 @@ const createPhoto = {
         return responseFromCreatePhotoOnCloudinary;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -67,7 +67,7 @@ const createPhoto = {
         return responseFromUpdatePhotoOnCloudinary;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -102,7 +102,7 @@ const createPhoto = {
         return responseFromListPhotos;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -162,7 +162,7 @@ const createPhoto = {
         return responseFromDeletePhotoOnCloudinary;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -189,7 +189,7 @@ const createPhoto = {
       logObject("responseFromListPhotos", responseFromListPhotos);
       return responseFromListPhotos;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -264,7 +264,7 @@ const createPhoto = {
         }
       );
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -289,7 +289,7 @@ const createPhoto = {
         return responseFromUpdateOnCloudinary;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -385,7 +385,7 @@ const createPhoto = {
         return responseFromExtractImageIds;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -436,7 +436,7 @@ const createPhoto = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -466,7 +466,7 @@ const createPhoto = {
         message: "successfully removed the file extension",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -495,7 +495,7 @@ const createPhoto = {
       logObject("responseFromRemovePhoto", responseFromRemovePhoto);
       return responseFromRemovePhoto;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -524,7 +524,7 @@ const createPhoto = {
 
       return responseFromModifyPhoto;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -605,7 +605,7 @@ const createPhoto = {
         return responseFromRegisterPhoto;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

@@ -3,8 +3,13 @@ const { Schema } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- unique-identifier-model`
+);
 const uniqueIdentifierCounterSchema = new Schema(
   {
     COUNT: {
@@ -79,6 +84,7 @@ uniqueIdentifierCounterSchema.statics = {
         );
       }
     } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

@@ -62,7 +62,7 @@ const listDevices = async (request, next) => {
       return responseFromListDevice;
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -93,7 +93,7 @@ const decryptKey = async (encryptedKey, next) => {
       };
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -360,7 +360,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -446,7 +446,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -486,7 +486,7 @@ const createEvent = {
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`);
       }
 
       if (page) {
@@ -538,11 +538,15 @@ const createEvent = {
             const errors = resultOfCacheOperation.errors
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
-            logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
+            logger.error(
+              `🐛🐛 Internal Server Error -- ${JSON.stringify(errors)}`
+            );
             // return resultOfCacheOperation;
           }
         } catch (error) {
-          logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+          logger.error(
+            `🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`
+          );
         }
 
         logText("Cache set.");
@@ -574,7 +578,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -694,7 +698,7 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -808,7 +812,7 @@ const createEvent = {
         data: requestBody,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -935,7 +939,7 @@ const createEvent = {
           };
         });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1053,7 +1057,7 @@ const createEvent = {
           };
         });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1116,7 +1120,7 @@ const createEvent = {
         network ? network : "noNetwork"
       }_${language ? language : "noLanguage"}`;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1146,7 +1150,7 @@ const createEvent = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1183,7 +1187,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1250,7 +1254,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1316,7 +1320,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1397,7 +1401,7 @@ const createEvent = {
         }
       });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1434,7 +1438,7 @@ const createEvent = {
         return responseFromInsertEvents;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1524,7 +1528,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1557,7 +1561,7 @@ const createEvent = {
       };
       return responseFromClearEvents;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1576,7 +1580,7 @@ const createEvent = {
       );
       return responseFromInsertMeasurements;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1727,7 +1731,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1801,7 +1805,7 @@ const createEvent = {
         }
       });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1869,7 +1873,7 @@ const createEvent = {
         success: true,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1946,7 +1950,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

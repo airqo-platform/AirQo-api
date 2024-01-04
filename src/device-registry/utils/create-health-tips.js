@@ -47,7 +47,7 @@ const createHealthTips = {
       logObject("responseFromListHealthTips", responseFromListHealthTips);
       return responseFromListHealthTips;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -74,7 +74,7 @@ const createHealthTips = {
       logObject("responseFromRemoveHealthTip", responseFromRemoveHealthTip);
       return responseFromRemoveHealthTip;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -103,7 +103,7 @@ const createHealthTips = {
 
       return responseFromModifyHealthTip;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -149,7 +149,7 @@ const createHealthTips = {
         return responseFromRegisterHealthTip;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

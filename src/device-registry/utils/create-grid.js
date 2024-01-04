@@ -62,7 +62,7 @@ const createGrid = {
 
       /************* END batch processing ************ */
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -114,7 +114,7 @@ const createGrid = {
             });
             await kafkaProducer.disconnect();
           } catch (error) {
-            logger.error(`Internal Server Error -- ${error.message}`);
+            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
           }
           return responseFromRegisterGrid;
         } else if (responseFromRegisterGrid.success === false) {
@@ -122,7 +122,7 @@ const createGrid = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -152,7 +152,7 @@ const createGrid = {
         return responseFromModifyGrid;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -179,7 +179,7 @@ const createGrid = {
         return responseFromRemoveGrid;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -195,26 +195,24 @@ const createGrid = {
       const { grid_id } = request.params;
 
       if (isEmpty(grid_id)) {
-        return {
-          success: false,
-          message: "Bad Request",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "the Grid Object ID is required" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "the Grid Object ID is required",
+          })
+        );
+        return;
       }
 
       const grid = await GridModel(tenant).findById(grid_id);
       logObject("grid", grid);
 
       if (!grid) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid grid ID ${grid_id}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
+        return;
       }
 
       const responseFromFindSites = await createGrid.findSites(
@@ -269,17 +267,19 @@ const createGrid = {
         logger.error(
           "Internal Server Error -- Some associated sites may not have been updated during Grid refresh"
         );
-        return {
-          success: false,
-          message: "Some associated sites may not have been updated.",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message: `Only ${pullResponse.nModified} out of ${site_ids.length} sites were updated`,
-          },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Only ${pullResponse.nModified} out of ${site_ids.length} sites were updated`,
+            }
+          )
+        );
+        return;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -287,6 +287,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   calculateGeographicalCenter: async (request, next) => {
@@ -319,7 +320,7 @@ const createGrid = {
         data: centers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -412,7 +413,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -436,7 +437,7 @@ const createGrid = {
       );
       return responseFromListGrid;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -462,7 +463,7 @@ const createGrid = {
       );
       return responseFromListAdminLevels;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -489,7 +490,7 @@ const createGrid = {
       logObject("responseFromUpdateAdminLevel", responseFromUpdateAdminLevel);
       return responseFromUpdateAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -512,7 +513,7 @@ const createGrid = {
       );
       return responseFromDeleteAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -530,7 +531,7 @@ const createGrid = {
       ).register(request.body, next);
       return responseFromCreateAdminLevel;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -590,7 +591,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -640,7 +641,7 @@ const createGrid = {
       if (fs.existsSync(shapefilePath)) {
         fs.unlinkSync(shapefilePath);
       }
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -685,7 +686,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -748,7 +749,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -796,7 +797,7 @@ const createGrid = {
         data: { site_ids, device_ids },
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -838,7 +839,7 @@ const createGrid = {
         message: "operation successful",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

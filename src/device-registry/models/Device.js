@@ -427,7 +427,7 @@ deviceSchema.statics = {
       logger.warn("operation successful but device is not created");
     } catch (error) {
       logObject("the error in the Device Model", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -508,7 +508,7 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -583,7 +583,7 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -646,7 +646,7 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -684,7 +684,7 @@ deviceSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error --- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
