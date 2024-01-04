@@ -374,8 +374,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const endpoint = req.headers["x-original-uri"];
       const clientOriginalIp = req.headers["x-client-original-ip"];
 
-      let service = req.headers["service"];
-      let userAction = "Unknown Action";
+      let service = req.headers["service"] || "unknown";
+      let userAction = "unknown";
 
       const specificRoutes = [
         {
@@ -598,6 +598,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         ) {
           service = route.service;
           userAction = route.action;
+          logObject("Service", service);
 
           if (
             [
@@ -606,7 +607,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
               "device-recall",
             ].includes(service)
           ) {
-            logText("we are inside the mailer baby!!");
             mailer.siteActivity(
               {
                 email: user.email,
@@ -621,7 +621,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
               next
             );
           }
-          logObject("Service", service);
         }
       });
 
