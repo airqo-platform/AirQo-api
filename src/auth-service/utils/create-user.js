@@ -146,7 +146,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -200,7 +200,7 @@ const setCache = async ({ data, request } = {}, next) => {
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -238,7 +238,7 @@ const getCache = async (request, next) => {
       );
     }
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -285,7 +285,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -330,7 +330,7 @@ const createUserModule = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -349,7 +349,7 @@ const createUserModule = {
       );
       return responseFromListStatistics;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -422,7 +422,7 @@ const createUserModule = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -458,7 +458,7 @@ const createUserModule = {
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`);
       }
 
       const filter = generateFilter.users(request, next);
@@ -494,10 +494,14 @@ const createUserModule = {
             const errors = resultOfCacheOperation.errors
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
-            logger.error(`Internal Server Error -- ${JSON.stringify(errors)}`);
+            logger.error(
+              `🐛🐛 Internal Server Error -- ${JSON.stringify(errors)}`
+            );
           }
         } catch (error) {
-          logger.error(`Internal Server Errors -- ${JSON.stringify(error)}`);
+          logger.error(
+            `🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`
+          );
         }
 
         logText("Cache set.");
@@ -533,7 +537,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -560,7 +564,7 @@ const createUserModule = {
 
       return responseFromListUser;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -639,7 +643,7 @@ const createUserModule = {
       }
     } catch (error) {
       logObject("the util error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -909,7 +913,7 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -988,7 +992,7 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1021,7 +1025,7 @@ const createUserModule = {
       );
       return result;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1048,7 +1052,7 @@ const createUserModule = {
       }
       return JSON.parse(result);
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1068,7 +1072,7 @@ const createUserModule = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1162,7 +1166,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1321,7 +1325,7 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1403,7 +1407,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1437,7 +1441,7 @@ const createUserModule = {
         return responseFromCascadeDeletion;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1472,7 +1476,7 @@ const createUserModule = {
         return responseFromSendEmail;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1545,7 +1549,7 @@ const createUserModule = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1641,7 +1645,7 @@ const createUserModule = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1717,7 +1721,7 @@ const createUserModule = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1793,7 +1797,7 @@ const createUserModule = {
         return responseFromGenerateResetToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1868,7 +1872,7 @@ const createUserModule = {
         return responseFromCheckTokenValidity;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1961,7 +1965,7 @@ const createUserModule = {
         return responseFromUpdateUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1980,7 +1984,7 @@ const createUserModule = {
         data: token,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2022,7 +2026,7 @@ const createUserModule = {
         return responseFromListUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2085,7 +2089,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2148,7 +2152,7 @@ const createUserModule = {
             logText("Document successfully deleted!");
           })
           .catch((error) => {
-            logger.error(`Internal Server Error -- ${error.message}`);
+            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
 
             next(
               new HttpError(
@@ -2167,7 +2171,7 @@ const createUserModule = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         next(
           new HttpError(
             "Internal Server Error",
@@ -2177,7 +2181,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2233,7 +2237,7 @@ const createUserModule = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

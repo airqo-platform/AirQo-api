@@ -66,7 +66,7 @@ PermissionSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(
         new HttpError(
           "validation errors for some of the provided fields",
