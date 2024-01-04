@@ -7,3 +7,5 @@ airqo-250220-*
 data.*
 coverage/
 .nyc_output/
+utils/scripts/logs.txt
+utils/scripts/report*

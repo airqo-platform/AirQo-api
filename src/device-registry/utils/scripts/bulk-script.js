@@ -6,7 +6,7 @@ const isEmpty = require("is-empty");
  */
 
 // Make a GET request
-const url = "http://localhost:3000/api/v1/devices?tenant=airqo";
+const url = "http://localhost:3000/api/v1/devices";
 const config = {
   headers: {
     Authorization: "",
@@ -22,7 +22,7 @@ axios
       // Process batch of 10 items
       batch.forEach(async (device) => {
         // console.log("the device _id", device._id);
-        const url = `http://localhost:3000/api/v1/devices?id=${device._id}&tenant=airqo`;
+        const url = `http://localhost:3000/api/v1/devices?id=${device._id}`;
         const data = {
           network: "airqo",
         };

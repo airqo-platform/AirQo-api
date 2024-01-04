@@ -280,39 +280,42 @@ const isIPBlacklisted = async ({
     return true;
   }
 
-  const day = getDay();
-  const filter = { ip };
-  const update = {
-    $addToSet: {
-      emails: email,
-      tokens: token,
-      token_names: token_name,
-      endpoints: endpoint,
-    },
-  };
-  const options = {
-    upsert: true,
-    new: true,
-    arrayFilters: [{ "ipCounts.day": day }],
-    runValidators: true,
-  };
-
   try {
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    const day = getDay();
+    const filter = { ip };
+    let doc = await UnknownIPModel("airqo").findOne(filter);
 
-    const document = await UnknownIPModel("airqo").findOne(filter);
-    if (document) {
-      let matchingDayEntry = document.ipCounts.find(
-        (entry) => entry.day === day
-      );
-      if (!matchingDayEntry) {
-        document.ipCounts.push({ day, count: 1 });
-      } else {
-        matchingDayEntry.count += 1;
-      }
-      await document.save();
+    if (!doc) {
+      doc = await UnknownIPModel("airqo").create({
+        ip,
+        emails: [email],
+        tokens: [token],
+        token_names: [token_name],
+        endpoints: [endpoint],
+        ipCounts: [{ day, count: 1 }],
+      });
+    } else {
+      const update = {
+        $addToSet: {
+          emails: email,
+          tokens: token,
+          token_names: token_name,
+          endpoints: endpoint,
+        },
+        $inc: {
+          "ipCounts.$[].count": 1,
+        },
+      };
+      const options = {
+        upsert: true,
+        new: true,
+        runValidators: true,
+      };
+
+      await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
     }
   } catch (error) {
+    logObject("the error", error);
     const jsonErrorString = stringify(error);
     if (error.name === "MongoError") {
       switch (error.code) {
