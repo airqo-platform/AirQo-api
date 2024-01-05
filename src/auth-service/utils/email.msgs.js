@@ -1,4 +1,6 @@
 const constants = require("../config/constants");
+const { logObject, logText } = require("@utils/log");
+
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -257,16 +259,11 @@ module.exports = {
     siteActivityDetails = {},
     email = "",
   } = {}) => {
-    logText("insides the mailer.siteActivityDetails util function.......");
-    logObject("siteActivityDetails", siteActivityDetails);
-
     let updatedFields = "<ol>\n";
     Object.entries(siteActivityDetails).forEach(([key, value]) => {
       updatedFields += ` <li>• ${key}: "${value}"</li>\n`;
     });
     updatedFields += "</ol>";
-
-    logObject("updatedFields", updatedFields);
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
