@@ -410,7 +410,10 @@ const createUser = {
     try {
       logText("..................................");
       logText("user verify......");
-      res.status(httpStatus.OK).send("this token is valid");
+      if (!res.headersSent) {
+        res.status(httpStatus.OK).send("this token is valid");
+        return;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
