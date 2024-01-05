@@ -74,6 +74,9 @@ spec:
     - name: data-mgt
       service: airqo-data-mgt-api-svc
       port: 3000
+    - name: data-proxy
+      service: airqo-data-proxy-api-svc
+      port: 3000
     - name: locate
       service: airqo-locate-api-svc
       port: 4001
@@ -137,6 +140,14 @@ spec:
       action:
         proxy:
           upstream: data-mgt
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/proxy
+      action:
+        proxy:
+          upstream: data-proxy
           responseHeaders:
             add:
               - name: Content-Type

@@ -28,6 +28,7 @@ jobs:
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
+      run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
@@ -56,6 +57,7 @@ jobs:
           echo "run_device_registry=false" >>$GITHUB_OUTPUT  
           echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
           echo "run_data_mgt=false" >>$GITHUB_OUTPUT
+          echo "run_data_proxy=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
           echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
@@ -81,6 +83,10 @@ jobs:
 
             if [[ $file == src/data-mgt/node/* ]]; then
               echo "run_data_mgt=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/data-proxy/* ]]; then
+              echo "run_data_proxy=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/analytics/* ]]; then
@@ -424,6 +430,85 @@ jobs:
               repo: context.repo.repo,
               body: 'Data management changes in this PR available for preview [here](${{ needs.data-mgt.outputs.url }})'
             })
+
+  ### run data proxy ###
+  data-proxy:
+    name: build-push-deploy-data-proxy
+    needs: [check, branch-name]
+    if: needs.check.outputs.run_data_proxy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      url: ${{ steps.preview-url.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Build and Push Container
+        run: |
+          cd src/data-proxy/
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |-
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
+            --region=${{ secrets.REGION }} \
+            --max-instances=10 \
+            --timeout=60 \
+            --concurrency=10 \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-proxy-pr-previews:${{ github.sha }} \
+            --port=3000 \
+            --cpu=1000m \
+            --memory=256Mi \
+            --update-secrets=/etc/env/.env=sta-env-data-proxy:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage" \
+            --allow-unauthenticated
+
+      - name: Get preview service url
+        id: preview-url
+        run: |
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
+            --format='value(status.url)' \
+            --platform managed \
+            --region ${{ secrets.REGION }})
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
+
+  data-proxy-pr-comment:
+    name: data-proxy-preview-link-comment
+    if: needs.check.outputs.run_data_proxy == 'true'
+    needs: [data-proxy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Data Proxy changes in this PR available for preview [here](${{ needs.data-proxy.outputs.url }})'
+            })
+
 
   ### analytics ###
   analytics:

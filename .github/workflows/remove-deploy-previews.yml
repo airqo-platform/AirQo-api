@@ -26,6 +26,7 @@ jobs:
       remove_preview__device_registry: ${{ steps.check_files.outputs.remove_preview__device_registry }} # device registry
       remove_preview__device_monitoring: ${{ steps.check_files.outputs.remove_preview__device_monitoring }} # device monitoring
       remove_preview__data_mgt: ${{ steps.check_files.outputs.remove_preview__data_mgt }} # data mgt
+      remove_preview__data_proxy: ${{ steps.check_files.outputs.remove_preview__data_proxy }} # data proxy
       remove_preview__analytics: ${{ steps.check_files.outputs.remove_preview__analytics }} # analytics
       remove_preview__locate: ${{ steps.check_files.outputs.remove_preview__locate }} # locate
       remove_preview__predict: ${{ steps.check_files.outputs.remove_preview__predict }} # predict
@@ -55,6 +56,7 @@ jobs:
           echo "remove_preview__device_registry=false" >>$GITHUB_OUTPUT  
           echo "remove_preview__device_monitoring=false" >>$GITHUB_OUTPUT 
           echo "remove_preview__data_mgt=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__data_proxy=false" >>$GITHUB_OUTPUT
           echo "remove_preview__analytics=false" >>$GITHUB_OUTPUT
           echo "remove_preview__locate=false" >>$GITHUB_OUTPUT
           echo "remove_preview__predict=false" >>$GITHUB_OUTPUT
@@ -80,6 +82,10 @@ jobs:
 
             if [[ $file == src/data-mgt/node/* ]]; then
               echo "remove_preview__data_mgt=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/data-proxy/* ]]; then
+              echo "remove_preview__data_proxy=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/analytics/* ]]; then
@@ -197,6 +203,28 @@ jobs:
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### data-proxy ###
+  data-proxy:
+    name: remove-preview--data-proxy
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__data_proxy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
+      - name: Setup Cloud SDK
+        uses: "google-github-actions/setup-gcloud@v1.1.1"
+
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-proxy-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
