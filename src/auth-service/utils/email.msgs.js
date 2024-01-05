@@ -224,18 +224,21 @@ module.exports = {
     updatedUserDetails = {},
     email = "",
   } = {}) => {
-    const updatedFields = Object.keys(updatedUserDetails)
-      .map((field) => `• ${field}`)
-      .join("\n");
+    let updatedFields = "<ol>\n";
+    Object.keys(updatedUserDetails).forEach((field) => {
+      updatedFields += ` <li>• ${field}</li>\n`;
+    });
+    updatedFields += "</ol>";
+
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Your AirQo Analytics account details have been updated.
                                     <br />
                                     The following fields have been updated:
-                                    <ol>
+                                    
                                         ${updatedFields}
-                                    </ol>
+                                    
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
@@ -254,18 +257,25 @@ module.exports = {
     siteActivityDetails = {},
     email = "",
   } = {}) => {
-    const updatedFields = Object.keys(siteActivityDetails)
-      .map((field) => `• ${field}`)
-      .join("\n");
+    logText("insides the mailer.siteActivityDetails util function.......");
+    logObject("siteActivityDetails", siteActivityDetails);
+
+    let updatedFields = "<ol>\n";
+    Object.entries(siteActivityDetails).forEach(([key, value]) => {
+      updatedFields += ` <li>• ${key}: "${value}"</li>\n`;
+    });
+    updatedFields += "</ol>";
+
+    logObject("updatedFields", updatedFields);
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 You have just performed an activity on an AirQo Device or Site.
                                     <br />
                                     The following are the details:
-                                    <ol>
+                                   
                                         ${updatedFields}
-                                    </ol>
+                                
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
