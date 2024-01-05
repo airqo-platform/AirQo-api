@@ -228,7 +228,7 @@ module.exports = {
   } = {}) => {
     let updatedFields = "<ol>\n";
     Object.keys(updatedUserDetails).forEach((field) => {
-      updatedFields += ` <li>• ${field}</li>\n`;
+      updatedFields += ` <li> ${field}</li>\n`;
     });
     updatedFields += "</ol>";
 
@@ -261,7 +261,7 @@ module.exports = {
   } = {}) => {
     let updatedFields = "<ol>\n";
     Object.entries(siteActivityDetails).forEach(([key, value]) => {
-      updatedFields += ` <li>• ${key}: "${value}"</li>\n`;
+      updatedFields += ` <li> ${key}: "${value}"</li>\n`;
     });
     updatedFields += "</ol>";
     const content = ` <tr>
