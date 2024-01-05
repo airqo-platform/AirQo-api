@@ -17,6 +17,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,25 +25,26 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const rolesResponse = await controlAccessUtil.listRole(request, next);
+      const result = await controlAccessUtil.listRole(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (rolesResponse.success === true) {
-        const status = rolesResponse.status
-          ? rolesResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: rolesResponse.message,
-          roles: rolesResponse.data,
+          message: result.message,
+          roles: result.data,
         });
-      } else if (rolesResponse.success === false) {
-        const status = rolesResponse.status
-          ? rolesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: rolesResponse.message,
-          errors: rolesResponse.errors ? rolesResponse.errors : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -54,6 +56,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listSummary: async (req, res, next) => {
@@ -63,6 +66,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -71,30 +75,27 @@ const createRole = {
         : req.query.tenant;
       request.query.category = "summary";
 
-      const summaryRolesResponse = await controlAccessUtil.listRole(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.listRole(request, next);
 
-      if (summaryRolesResponse.success === true) {
-        const status = summaryRolesResponse.status
-          ? summaryRolesResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: summaryRolesResponse.message,
-          roles: summaryRolesResponse.data,
+          message: result.message,
+          roles: result.data,
         });
-      } else if (summaryRolesResponse.success === false) {
-        const status = summaryRolesResponse.status
-          ? summaryRolesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: summaryRolesResponse.message,
-          errors: summaryRolesResponse.errors
-            ? summaryRolesResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -106,6 +107,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -115,6 +117,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -122,30 +125,27 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const createRoleResponse = await controlAccessUtil.createRole(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.createRole(request, next);
 
-      if (createRoleResponse.success === true) {
-        const status = createRoleResponse.status
-          ? createRoleResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: createRoleResponse.message,
-          created_role: createRoleResponse.data,
+          message: result.message,
+          created_role: result.data,
         });
-      } else if (createRoleResponse.success === false) {
-        const status = createRoleResponse.status
-          ? createRoleResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: createRoleResponse.message,
-          errors: createRoleResponse.errors
-            ? createRoleResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -157,6 +157,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -166,6 +167,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -173,28 +175,24 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const updateRoleResponse = await controlAccessUtil.updateRole(
-        request,
-        next
-      );
-      if (updateRoleResponse.success === true) {
-        const status = updateRoleResponse.status
-          ? updateRoleResponse.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.updateRole(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
-          message: updateRoleResponse.message,
-          updated_role: updateRoleResponse.data,
+          message: result.message,
+          updated_role: result.data,
           success: true,
         });
-      } else if (updateRoleResponse.success === false) {
-        const status = updateRoleResponse.status
-          ? updateRoleResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
-          message: updateRoleResponse.message,
-          errors: updateRoleResponse.errors
-            ? updateRoleResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
           success: false,
         });
       }
@@ -207,6 +205,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -216,6 +215,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -223,28 +223,26 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const deleteRoleResponse = await controlAccessUtil.deleteRole(
-        request,
-        next
-      );
-      if (deleteRoleResponse.success === true) {
-        const status = deleteRoleResponse.status
-          ? deleteRoleResponse.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.deleteRole(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: deleteRoleResponse.message,
-          deleted_role: deleteRoleResponse.data,
+          message: result.message,
+          deleted_role: result.data,
         });
-      } else if (deleteRoleResponse.success === false) {
-        const status = deleteRoleResponse.status
-          ? deleteRoleResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: deleteRoleResponse.message,
-          errors: deleteRoleResponse.errors
-            ? deleteRoleResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
@@ -257,6 +255,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listUsersWithRole: async (req, res, next) => {
@@ -266,6 +265,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -273,29 +273,28 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const usersWithRoleResponse = await controlAccessUtil.listUsersWithRole(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.listUsersWithRole(request, next);
 
-      if (usersWithRoleResponse.success === true) {
-        const status = usersWithRoleResponse.status
-          ? usersWithRoleResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: usersWithRoleResponse.message,
-          users_with_role: usersWithRoleResponse.data,
+          message: result.message,
+          users_with_role: result.data,
         });
-      } else if (usersWithRoleResponse.success === false) {
-        const status = usersWithRoleResponse.status
-          ? usersWithRoleResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: usersWithRoleResponse.message,
-          errors: usersWithRoleResponse.errors
-            ? usersWithRoleResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
@@ -308,6 +307,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableUsersForRole: async (req, res, next) => {
@@ -317,6 +317,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -324,28 +325,30 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const availableUsersResponse =
-        await controlAccessUtil.listAvailableUsersForRole(request, next);
+      const result = await controlAccessUtil.listAvailableUsersForRole(
+        request,
+        next
+      );
 
-      if (availableUsersResponse.success === true) {
-        const status = availableUsersResponse.status
-          ? availableUsersResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully listed the available users",
-          available_users: availableUsersResponse.data,
+          available_users: result.data,
         });
-      } else if (availableUsersResponse.success === false) {
-        const status = availableUsersResponse.status
-          ? availableUsersResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: availableUsersResponse.message,
-          errors: availableUsersResponse.errors
-            ? availableUsersResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -357,6 +360,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignUserToRole: async (req, res, next) => {
@@ -367,6 +371,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -374,28 +379,27 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const assignUserResponse = await controlAccessUtil.assignUserToRole(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.assignUserToRole(request, next);
 
-      if (assignUserResponse.success === true) {
-        const status = assignUserResponse.status
-          ? assignUserResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          updated_records: assignUserResponse.data,
+          updated_records: result.data,
         });
-      } else if (assignUserResponse.success === false) {
-        const status = assignUserResponse.status
-          ? assignUserResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: assignUserResponse.message,
-          errors: assignUserResponse.errors
-            ? assignUserResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
@@ -408,6 +412,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignManyUsersToRole: async (req, res, next) => {
@@ -418,6 +423,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -425,27 +431,31 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const assignManyUsersResponse =
-        await controlAccessUtil.assignManyUsersToRole(request, next);
+      const result = await controlAccessUtil.assignManyUsersToRole(
+        request,
+        next
+      );
 
-      if (assignManyUsersResponse.success === true) {
-        const status = assignManyUsersResponse.status
-          ? assignManyUsersResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: assignManyUsersResponse.message,
-          updated_records: assignManyUsersResponse.data,
+          message: result.message,
+          updated_records: result.data,
         });
-      } else if (assignManyUsersResponse.success === false) {
-        const status = assignManyUsersResponse.status
-          ? assignManyUsersResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: assignManyUsersResponse.message,
-          errors: assignManyUsersResponse.errors
-            ? assignManyUsersResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -458,6 +468,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignUserFromRole: async (req, res, next) => {
@@ -467,6 +478,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -474,29 +486,31 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const unAssignUserResponse = await controlAccessUtil.unAssignUserFromRole(
+      const result = await controlAccessUtil.unAssignUserFromRole(
         request,
         next
       );
 
-      if (unAssignUserResponse.success === true) {
-        const status = unAssignUserResponse.status
-          ? unAssignUserResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: unAssignUserResponse.message,
-          user_unassigned: unAssignUserResponse.data,
+          message: result.message,
+          user_unassigned: result.data,
         });
-      } else if (unAssignUserResponse.success === false) {
-        const status = unAssignUserResponse.status
-          ? unAssignUserResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: unAssignUserResponse.message,
-          errors: unAssignUserResponse.errors
-            ? unAssignUserResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERRORS" },
         });
       }
@@ -509,6 +523,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignManyUsersFromRole: async (req, res, next) => {
@@ -519,6 +534,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -526,27 +542,31 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const unAssignManyUsersResponse =
-        await controlAccessUtil.unAssignManyUsersFromRole(request, next);
+      const result = await controlAccessUtil.unAssignManyUsersFromRole(
+        request,
+        next
+      );
 
-      if (unAssignManyUsersResponse.success === true) {
-        const status = unAssignManyUsersResponse.status
-          ? unAssignManyUsersResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: unAssignManyUsersResponse.message,
-          updated_records: unAssignManyUsersResponse.data,
+          message: result.message,
+          updated_records: result.data,
         });
-      } else if (unAssignManyUsersResponse.success === false) {
-        const status = unAssignManyUsersResponse.status
-          ? unAssignManyUsersResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: unAssignManyUsersResponse.message,
-          errors: unAssignManyUsersResponse.errors
-            ? unAssignManyUsersResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -559,6 +579,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listPermissionsForRole: async (req, res, next) => {
@@ -568,6 +589,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -575,27 +597,31 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const permissionsForRoleResponse =
-        await controlAccessUtil.listPermissionsForRole(request, next);
+      const result = await controlAccessUtil.listPermissionsForRole(
+        request,
+        next
+      );
 
-      if (permissionsForRoleResponse.success === true) {
-        const status = permissionsForRoleResponse.status
-          ? permissionsForRoleResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully listed the permissions for the role",
-          permissions_list: permissionsForRoleResponse.data,
+          permissions_list: result.data,
         });
-      } else if (permissionsForRoleResponse.success === false) {
-        const status = permissionsForRoleResponse.status
-          ? permissionsForRoleResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: permissionsForRoleResponse.message,
-          errors: permissionsForRoleResponse.errors
-            ? permissionsForRoleResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "internal server error" },
         });
       }
@@ -608,6 +634,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailablePermissionsForRole: async (req, res, next) => {
@@ -617,6 +644,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -624,27 +652,29 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const availablePermissionsResponse =
-        await controlAccessUtil.listAvailablePermissionsForRole(request, next);
+      const result = await controlAccessUtil.listAvailablePermissionsForRole(
+        request,
+        next
+      );
 
-      if (availablePermissionsResponse.success === true) {
-        const status = availablePermissionsResponse.status
-          ? availablePermissionsResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: availablePermissionsResponse.message,
-          available_permissions: availablePermissionsResponse.data,
+          message: result.message,
+          available_permissions: result.data,
         });
-      } else if (availablePermissionsResponse.success === false) {
-        const status = availablePermissionsResponse.status
-          ? availablePermissionsResponse.status
-          : httpStatus.OK;
+      } else if (result.success === false) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: false,
-          message: availablePermissionsResponse.message,
-          errors: availablePermissionsResponse.errors
-            ? availablePermissionsResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
@@ -657,6 +687,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignPermissionToRole: async (req, res, next) => {
@@ -667,6 +698,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -674,27 +706,31 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const assignPermissionsResponse =
-        await controlAccessUtil.assignPermissionsToRole(request, next);
+      const result = await controlAccessUtil.assignPermissionsToRole(
+        request,
+        next
+      );
 
-      if (assignPermissionsResponse.success === true) {
-        const status = assignPermissionsResponse.status
-          ? assignPermissionsResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: assignPermissionsResponse.message,
-          updated_role: assignPermissionsResponse.data,
+          message: result.message,
+          updated_role: result.data,
         });
-      } else if (assignPermissionsResponse.success === false) {
-        const status = assignPermissionsResponse.status
-          ? assignPermissionsResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: assignPermissionsResponse.message,
-          errors: assignPermissionsResponse.errors
-            ? assignPermissionsResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "INTERNAL SERVER ERROR" },
         });
       }
@@ -707,6 +743,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignPermissionFromRole: async (req, res, next) => {
@@ -717,6 +754,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -724,28 +762,30 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const unAssignPermissionResponse =
-        await controlAccessUtil.unAssignPermissionFromRole(request, next);
+      const result = await controlAccessUtil.unAssignPermissionFromRole(
+        request,
+        next
+      );
 
-      if (unAssignPermissionResponse.success === true) {
-        const status = unAssignPermissionResponse.status
-          ? unAssignPermissionResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: unAssignPermissionResponse.message,
-          modified_role: unAssignPermissionResponse.data,
+          message: result.message,
+          modified_role: result.data,
         });
-      } else if (unAssignPermissionResponse.success === false) {
-        const status = unAssignPermissionResponse.status
-          ? unAssignPermissionResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: unAssignPermissionResponse.message,
-          errors: unAssignPermissionResponse.errors
-            ? unAssignPermissionResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -757,6 +797,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignManyPermissionsFromRole: async (req, res, next) => {
@@ -767,6 +808,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -774,28 +816,30 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const unAssignManyPermissionsResponse =
-        await controlAccessUtil.unAssignManyPermissionsFromRole(request, next);
+      const result = await controlAccessUtil.unAssignManyPermissionsFromRole(
+        request,
+        next
+      );
 
-      if (unAssignManyPermissionsResponse.success === true) {
-        const status = unAssignManyPermissionsResponse.status
-          ? unAssignManyPermissionsResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: unAssignManyPermissionsResponse.message,
-          modified_role: unAssignManyPermissionsResponse.data,
+          message: result.message,
+          modified_role: result.data,
         });
-      } else if (unAssignManyPermissionsResponse.success === false) {
-        const status = unAssignManyPermissionsResponse.status
-          ? unAssignManyPermissionsResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: true,
-          message: unAssignManyPermissionsResponse.message,
-          errors: unAssignManyPermissionsResponse.errors
-            ? unAssignManyPermissionsResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -807,6 +851,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateRolePermissions: async (req, res, next) => {
@@ -817,6 +862,7 @@ const createRole = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -824,28 +870,30 @@ const createRole = {
         ? defaultTenant
         : req.query.tenant;
 
-      const updateRolePermissionsResponse =
-        await controlAccessUtil.updateRolePermissions(request, next);
+      const result = await controlAccessUtil.updateRolePermissions(
+        request,
+        next
+      );
 
-      if (updateRolePermissionsResponse.success === true) {
-        const status = updateRolePermissionsResponse.status
-          ? updateRolePermissionsResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: updateRolePermissionsResponse.message,
-          modified_role: updateRolePermissionsResponse.data,
+          message: result.message,
+          modified_role: result.data,
         });
-      } else if (updateRolePermissionsResponse.success === false) {
-        const status = updateRolePermissionsResponse.status
-          ? updateRolePermissionsResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: true,
-          message: updateRolePermissionsResponse.message,
-          errors: updateRolePermissionsResponse.errors
-            ? updateRolePermissionsResponse.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -857,6 +905,7 @@ const createRole = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

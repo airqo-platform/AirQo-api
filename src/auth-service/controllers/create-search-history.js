@@ -18,6 +18,7 @@ const createSearchHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -25,33 +26,31 @@ const createSearchHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSyncSearchHistories =
-        await createSearchHistoryUtil.syncSearchHistories(request, next);
+      const result = await createSearchHistoryUtil.syncSearchHistories(
+        request,
+        next
+      );
 
-      if (responseFromSyncSearchHistories.success === true) {
-        const status = responseFromSyncSearchHistories.status
-          ? responseFromSyncSearchHistories.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSyncSearchHistories.message
-            ? responseFromSyncSearchHistories.message
-            : "",
-          search_histories: responseFromSyncSearchHistories.data
-            ? responseFromSyncSearchHistories.data
-            : [],
+          message: result.message ? result.message : "",
+          search_histories: result.data ? result.data : [],
         });
-      } else if (responseFromSyncSearchHistories.success === false) {
-        const status = responseFromSyncSearchHistories.status
-          ? responseFromSyncSearchHistories.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSyncSearchHistories.message
-            ? responseFromSyncSearchHistories.message
-            : "",
-          errors: responseFromSyncSearchHistories.errors
-            ? responseFromSyncSearchHistories.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -64,6 +63,7 @@ const createSearchHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -74,6 +74,7 @@ const createSearchHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -81,33 +82,28 @@ const createSearchHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatesearchHistory =
-        await createSearchHistoryUtil.create(request, next);
+      const result = await createSearchHistoryUtil.create(request, next);
 
-      if (responseFromCreatesearchHistory.success === true) {
-        const status = responseFromCreatesearchHistory.status
-          ? responseFromCreatesearchHistory.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreatesearchHistory.message
-            ? responseFromCreatesearchHistory.message
-            : "",
-          created_search_history: responseFromCreatesearchHistory.data
-            ? responseFromCreatesearchHistory.data
-            : [],
+          message: result.message ? result.message : "",
+          created_search_history: result.data ? result.data : [],
         });
-      } else if (responseFromCreatesearchHistory.success === false) {
-        const status = responseFromCreatesearchHistory.status
-          ? responseFromCreatesearchHistory.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreatesearchHistory.message
-            ? responseFromCreatesearchHistory.message
-            : "",
-          errors: responseFromCreatesearchHistory.errors
-            ? responseFromCreatesearchHistory.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -120,6 +116,7 @@ const createSearchHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -129,6 +126,7 @@ const createSearchHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -136,33 +134,28 @@ const createSearchHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListSearchHistories =
-        await createSearchHistoryUtil.list(request, next);
+      const result = await createSearchHistoryUtil.list(request, next);
 
-      if (responseFromListSearchHistories.success === true) {
-        const status = responseFromListSearchHistories.status
-          ? responseFromListSearchHistories.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListSearchHistories.message
-            ? responseFromListSearchHistories.message
-            : "",
-          search_histories: responseFromListSearchHistories.data
-            ? responseFromListSearchHistories.data
-            : [],
+          message: result.message ? result.message : "",
+          search_histories: result.data ? result.data : [],
         });
-      } else if (responseFromListSearchHistories.success === false) {
-        const status = responseFromListSearchHistories.status
-          ? responseFromListSearchHistories.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListSearchHistories.message
-            ? responseFromListSearchHistories.message
-            : "",
-          errors: responseFromListSearchHistories.errors
-            ? responseFromListSearchHistories.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -175,6 +168,7 @@ const createSearchHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -184,6 +178,7 @@ const createSearchHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -191,33 +186,28 @@ const createSearchHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteSearchHistories =
-        await createSearchHistoryUtil.delete(request, next);
+      const result = await createSearchHistoryUtil.delete(request, next);
 
-      if (responseFromDeleteSearchHistories.success === true) {
-        const status = responseFromDeleteSearchHistories.status
-          ? responseFromDeleteSearchHistories.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteSearchHistories.message
-            ? responseFromDeleteSearchHistories.message
-            : "",
-          deleted_search_histories: responseFromDeleteSearchHistories.data
-            ? responseFromDeleteSearchHistories.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_search_histories: result.data ? result.data : [],
         });
-      } else if (responseFromDeleteSearchHistories.success === false) {
-        const status = responseFromDeleteSearchHistories.status
-          ? responseFromDeleteSearchHistories.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteSearchHistories.message
-            ? responseFromDeleteSearchHistories.message
-            : "",
-          errors: responseFromDeleteSearchHistories.errors
-            ? responseFromDeleteSearchHistories.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -230,6 +220,7 @@ const createSearchHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -239,6 +230,7 @@ const createSearchHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -246,33 +238,28 @@ const createSearchHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateSearchHistories =
-        await createSearchHistoryUtil.update(request, next);
+      const result = await createSearchHistoryUtil.update(request, next);
 
-      if (responseFromUpdateSearchHistories.success === true) {
-        const status = responseFromUpdateSearchHistories.status
-          ? responseFromUpdateSearchHistories.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateSearchHistories.message
-            ? responseFromUpdateSearchHistories.message
-            : "",
-          updated_search_history: responseFromUpdateSearchHistories.data
-            ? responseFromUpdateSearchHistories.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_search_history: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateSearchHistories.success === false) {
-        const status = responseFromUpdateSearchHistories.status
-          ? responseFromUpdateSearchHistories.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateSearchHistories.message
-            ? responseFromUpdateSearchHistories.message
-            : "",
-          errors: responseFromUpdateSearchHistories.errors
-            ? responseFromUpdateSearchHistories.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -285,6 +272,7 @@ const createSearchHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
