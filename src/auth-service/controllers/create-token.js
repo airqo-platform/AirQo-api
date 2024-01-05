@@ -175,7 +175,10 @@ const createAccessToken = {
         next
       );
       const status = responseFromListAccessToken.status;
-      return res.status(status).send(responseFromListAccessToken.message);
+      if (!res.headersSent) {
+        res.status(status).send(responseFromListAccessToken.message);
+        return;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
