@@ -11,6 +11,35 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
 );
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
+
 const createUser = {
   listStatistics: async (req, res, next) => {
     try {
@@ -31,6 +60,10 @@ const createUser = {
         tenant,
         next
       );
+
+      if (isEmpty(listStatsResponse)) {
+        return;
+      }
 
       if (listStatsResponse.success === true) {
         const status = listStatsResponse.status
@@ -84,28 +117,17 @@ const createUser = {
 
       const listLogsResponse = await createUserUtil.listLogs(request, next);
 
-      if (listLogsResponse.success === true) {
-        const status = listLogsResponse.status
-          ? listLogsResponse.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: listLogsResponse.message,
-          users_stats: listLogsResponse.data,
-        });
-      } else if (listLogsResponse.success === false) {
-        const status = listLogsResponse.status
-          ? listLogsResponse.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: listLogsResponse.message,
-          errors: listLogsResponse.errors
-            ? listLogsResponse.errors
-            : { message: "Internal Server Errors" },
+      if (isEmpty(listLogsResponse)) {
+        return;
+      } else {
+        handleResponse({
+          result: listLogsResponse,
+          key: "users_stats",
+          res,
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -136,6 +158,10 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(userStatsResponse)) {
+        return;
+      }
       logObject("userStatsResponse", userStatsResponse);
       if (userStatsResponse.success === true) {
         const status = userStatsResponse.status
@@ -190,6 +216,10 @@ const createUser = {
         next
       );
 
+      if (isEmpty(responseFromListUsers)) {
+        return;
+      }
+
       if (responseFromListUsers.success === true) {
         const status = responseFromListUsers.status
           ? responseFromListUsers.status
@@ -239,6 +269,10 @@ const createUser = {
         : req.query.tenant;
 
       const responseFromListUsers = await createUserUtil.list(request, next);
+
+      if (isEmpty(responseFromListUsers)) {
+        return;
+      }
 
       if (responseFromListUsers.success === true) {
         const status = responseFromListUsers.status
@@ -290,6 +324,10 @@ const createUser = {
 
       const responseFromListUsersAndAccessRequests =
         await createUserUtil.listUsersAndAccessRequests(request, next);
+
+      if (isEmpty(responseFromListUsersAndAccessRequests)) {
+        return;
+      }
 
       if (responseFromListUsersAndAccessRequests.success === true) {
         const status = responseFromListUsersAndAccessRequests.status
@@ -406,6 +444,10 @@ const createUser = {
         next
       );
 
+      if (isEmpty(responseFromVerifyEmail)) {
+        return;
+      }
+
       if (responseFromVerifyEmail.success === true) {
         const status = responseFromVerifyEmail.status
           ? responseFromVerifyEmail.status
@@ -457,6 +499,10 @@ const createUser = {
       const responseFromDeleteAppData =
         await createUserUtil.deleteMobileUserData(request, next);
 
+      if (isEmpty(responseFromDeleteAppData)) {
+        return;
+      }
+
       if (responseFromDeleteAppData.success === true) {
         const status = responseFromDeleteAppData.status
           ? responseFromDeleteAppData.status
@@ -507,6 +553,7 @@ const createUser = {
             message: "Invalid PDF file",
           })
         );
+        return;
       }
 
       const csvFile = req.files.csv;
@@ -516,6 +563,7 @@ const createUser = {
             message: "Invalid CSV file",
           })
         );
+        return;
       }
 
       const errors = extractErrorsFromRequest(req);
@@ -523,6 +571,7 @@ const createUser = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -534,6 +583,10 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(responseFromEmailReport)) {
+        return;
+      }
 
       if (responseFromEmailReport.success === true) {
         const status = responseFromEmailReport.status
@@ -583,6 +636,11 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.lookUpFirebaseUser(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+
       if (result[0].success === true) {
         const status = result[0].status ? result[0].status : httpStatus.OK;
         return res.status(status).json({
@@ -634,6 +692,9 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.syncAnalyticsAndMobile(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json(result);
@@ -678,6 +739,11 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.signUpWithFirebase(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -728,6 +794,10 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.loginWithFirebase(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -782,6 +852,10 @@ const createUser = {
         next
       );
 
+      if (isEmpty(result)) {
+        return;
+      }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -830,6 +904,10 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.createFirebaseUser(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
 
       if (result[0].success === true) {
         const status = result[0].status ? result[0].status : httpStatus.OK;
@@ -883,6 +961,10 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(responseFromSendEmail)) {
+        return;
+      }
 
       if (responseFromSendEmail.success === true) {
         const status = responseFromSendEmail.status
@@ -940,6 +1022,10 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(responseFromForgotPassword)) {
+        return;
+      }
 
       if (responseFromForgotPassword.success === true) {
         const status = responseFromForgotPassword.status
@@ -999,6 +1085,10 @@ const createUser = {
         next
       );
 
+      if (isEmpty(responseFromCreateUser)) {
+        return;
+      }
+
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
           ? responseFromCreateUser.status
@@ -1053,6 +1143,10 @@ const createUser = {
         : req.query.tenant;
 
       const responseFromCreateUser = await createUserUtil.create(request, next);
+
+      if (isEmpty(responseFromCreateUser)) {
+        return;
+      }
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
           ? responseFromCreateUser.status
@@ -1240,6 +1334,10 @@ const createUser = {
 
       const responseFromRemoveUser = await createUserUtil.delete(request, next);
 
+      if (isEmpty(responseFromRemoveUser)) {
+        return;
+      }
+
       if (responseFromRemoveUser.success === true) {
         const status = responseFromRemoveUser.status
           ? responseFromRemoveUser.status
@@ -1296,6 +1394,10 @@ const createUser = {
 
       const responseFromUpdateUser = await createUserUtil.update(request, next);
 
+      if (isEmpty(responseFromUpdateUser)) {
+        return;
+      }
+
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
           ? responseFromUpdateUser.status
@@ -1348,6 +1450,11 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(value)) {
+        return;
+      }
+
       if (value.success === true) {
         const status = value.status ? value.status : httpStatus.OK;
         return res.status(status).json({
@@ -1407,6 +1514,11 @@ const createUser = {
         request,
         next
       );
+
+      if (isEmpty(value)) {
+        return;
+      }
+
       if (value.success === true) {
         const status = value.status ? value.status : httpStatus.OK;
         return res.status(status).json({
@@ -1459,6 +1571,10 @@ const createUser = {
       const responseFromUpdateForgottenPassword =
         await createUserUtil.updateForgottenPassword(request, next);
 
+      if (isEmpty(responseFromUpdateForgottenPassword)) {
+        return;
+      }
+
       if (responseFromUpdateForgottenPassword.success === true) {
         const status = responseFromUpdateForgottenPassword.status
           ? responseFromUpdateForgottenPassword.status
@@ -1510,6 +1626,10 @@ const createUser = {
 
       const responseFromUpdatePassword =
         await createUserUtil.updateKnownPassword(request, next);
+
+      if (isEmpty(responseFromUpdatePassword)) {
+        return;
+      }
 
       if (responseFromUpdatePassword.success === true) {
         const status = responseFromUpdatePassword.status
@@ -1564,6 +1684,10 @@ const createUser = {
       }
       const responseFromSubscribeToNewsLetter =
         await createUserUtil.subscribeToNewsLetter(request, next);
+
+      if (isEmpty(responseFromSubscribeToNewsLetter)) {
+        return;
+      }
 
       if (responseFromSubscribeToNewsLetter.success === true) {
         const status = responseFromSubscribeToNewsLetter.status

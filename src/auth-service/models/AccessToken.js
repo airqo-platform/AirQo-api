@@ -293,6 +293,7 @@ AccessTokenSchema.statics = {
             message: "Token does not exist, please crosscheck",
           })
         );
+        return;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -303,6 +304,7 @@ AccessTokenSchema.statics = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
