@@ -434,6 +434,12 @@ const createUserModule = {
   },
   listCache: async (request, next) => {
     try {
+      return {
+        success: false,
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        message: "Service Unavailable",
+        errors: { message: "Service Temporarily Disabled" },
+      };
       let missingDataMessage = "";
       const { query } = request;
       const { tenant, limit, skip } = query;

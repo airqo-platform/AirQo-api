@@ -39,7 +39,6 @@ const getDay = () => {
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-
 const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
     const uppercaseString = inputString.toUpperCase();
@@ -54,7 +53,6 @@ const convertToUpperCaseWithUnderscore = (inputString, next) => {
     );
   }
 };
-
 const isGroupRoleOrNetworkRole = (role) => {
   logObject("role", role);
   if (role && (role.group_id || role.network_id)) {
@@ -68,7 +66,6 @@ const isGroupRoleOrNetworkRole = (role) => {
   }
   return "none";
 };
-
 const findAssociatedIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -91,11 +88,9 @@ const findAssociatedIdForRole = async ({
   }
   return null;
 };
-
 const isNetwork = (net_id, grp_id) => {
   return !isEmpty(net_id) && isEmpty(grp_id);
 };
-
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
@@ -121,7 +116,6 @@ const isAssignedUserSuperAdmin = async ({
 
   return false;
 };
-
 const isRoleAlreadyAssigned = (roles, role_id) => {
   if (isEmpty(roles) || !Array.isArray(roles)) {
     return false;
@@ -136,7 +130,6 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
     });
   }
 };
-
 const generateClientSecret = (length) => {
   if (length % 2 !== 0) {
     throw new Error("Length must be an even number");
@@ -145,7 +138,6 @@ const generateClientSecret = (length) => {
   const clientSecret = crypto.randomBytes(numBytes).toString("hex");
   return clientSecret;
 };
-
 const routeDefinitions = [
   {
     uriIncludes: ["/api/v1/devices"],
@@ -197,7 +189,6 @@ const routeDefinitions = [
     service: "data-export-scheduling",
   },
 ];
-
 const getService = (headers) => {
   const uri = headers["x-original-uri"];
   const serviceHeader = headers["service"];
@@ -224,7 +215,6 @@ const getService = (headers) => {
 
   return "unknown";
 };
-
 const getUserAction = (headers) => {
   if (headers["x-original-method"]) {
     const method = headers["x-original-method"];
@@ -238,7 +228,6 @@ const getUserAction = (headers) => {
   }
   return "Unknown Action";
 };
-
 const createUnauthorizedResponse = () => {
   return {
     success: false,
@@ -247,7 +236,6 @@ const createUnauthorizedResponse = () => {
     errors: { message: "Unauthorized" },
   };
 };
-
 const createValidTokenResponse = () => {
   return {
     success: true,
@@ -3590,6 +3578,80 @@ const controlAccess = {
           { message: error.message }
         )
       );
+    }
+  },
+  bulkInsertBlacklistIpRanges: async (request, next) => {
+    try {
+      const { ranges, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ranges || !Array.isArray(ranges) || ranges.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid input. Please provide an array of IP address ranges.",
+          })
+        );
+        return;
+      }
+
+      const responses = await Promise.all(
+        ranges.map(async (range) => {
+          const result = await BlacklistedIPRangeModel(tenant).register(
+            { range },
+            next
+          );
+          return { range, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.range);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.range);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IP ranges have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IP ranges provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   removeBlacklistedIpRange: async (request, next) => {

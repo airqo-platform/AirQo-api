@@ -56,34 +56,29 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const listStatsResponse = await createUserUtil.listStatistics(
-        tenant,
-        next
-      );
+      const result = await createUserUtil.listStatistics(tenant, next);
 
-      if (isEmpty(listStatsResponse)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (listStatsResponse.success === true) {
-        const status = listStatsResponse.status
-          ? listStatsResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: listStatsResponse.message,
-          users_stats: listStatsResponse.data,
+          message: result.message,
+          users_stats: result.data,
         });
-      } else if (listStatsResponse.success === false) {
-        const status = listStatsResponse.status
-          ? listStatsResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: listStatsResponse.message,
+          message: result.message,
           errors: {
-            message: listStatsResponse.errors
-              ? listStatsResponse.errors
+            message: result.errors
+              ? result.errors
               : { message: "Internal Server Error" },
           },
         });
@@ -115,13 +110,13 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const listLogsResponse = await createUserUtil.listLogs(request, next);
+      const result = await createUserUtil.listLogs(request, next);
 
-      if (isEmpty(listLogsResponse)) {
+      if (isEmpty(result)) {
         return;
       } else {
         handleResponse({
-          result: listLogsResponse,
+          result,
           key: "users_stats",
           res,
         });
@@ -154,33 +149,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const userStatsResponse = await createUserUtil.getUserStats(
-        request,
-        next
-      );
+      const result = await createUserUtil.getUserStats(request, next);
 
-      if (isEmpty(userStatsResponse)) {
+      if (isEmpty(result)) {
         return;
       }
-      logObject("userStatsResponse", userStatsResponse);
-      if (userStatsResponse.success === true) {
-        const status = userStatsResponse.status
-          ? userStatsResponse.status
-          : httpStatus.OK;
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: userStatsResponse.message,
-          users_stats: userStatsResponse.data,
+          message: result.message,
+          users_stats: result.data,
         });
-      } else if (userStatsResponse.success === false) {
-        const status = userStatsResponse.status
-          ? userStatsResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: userStatsResponse.message,
-          errors: userStatsResponse.errors
-            ? userStatsResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -211,33 +201,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUsers = await createUserUtil.listCache(
-        request,
-        next
-      );
+      const result = await createUserUtil.listCache(request, next);
 
-      if (isEmpty(responseFromListUsers)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListUsers.success === true) {
-        const status = responseFromListUsers.status
-          ? responseFromListUsers.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsers.message,
-          users: responseFromListUsers.data,
+          message: result.message,
+          users: result.data,
         });
-      } else if (responseFromListUsers.success === false) {
-        const status = responseFromListUsers.status
-          ? responseFromListUsers.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUsers.message,
-          errors: responseFromListUsers.errors
-            ? responseFromListUsers.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -268,30 +253,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUsers = await createUserUtil.list(request, next);
+      const result = await createUserUtil.list(request, next);
 
-      if (isEmpty(responseFromListUsers)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListUsers.success === true) {
-        const status = responseFromListUsers.status
-          ? responseFromListUsers.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsers.message,
-          users: responseFromListUsers.data,
+          message: result.message,
+          users: result.data,
         });
-      } else if (responseFromListUsers.success === false) {
-        const status = responseFromListUsers.status
-          ? responseFromListUsers.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUsers.message,
-          errors: responseFromListUsers.errors
-            ? responseFromListUsers.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -322,31 +305,31 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUsersAndAccessRequests =
-        await createUserUtil.listUsersAndAccessRequests(request, next);
+      const result = await createUserUtil.listUsersAndAccessRequests(
+        request,
+        next
+      );
 
-      if (isEmpty(responseFromListUsersAndAccessRequests)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListUsersAndAccessRequests.success === true) {
-        const status = responseFromListUsersAndAccessRequests.status
-          ? responseFromListUsersAndAccessRequests.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsersAndAccessRequests.message,
-          users: responseFromListUsersAndAccessRequests.data,
+          message: result.message,
+          users: result.data,
         });
-      } else if (responseFromListUsersAndAccessRequests.success === false) {
-        const status = responseFromListUsersAndAccessRequests.status
-          ? responseFromListUsersAndAccessRequests.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUsersAndAccessRequests.message,
-          errors: responseFromListUsersAndAccessRequests.errors
-            ? responseFromListUsersAndAccessRequests.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -442,32 +425,27 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromVerifyEmail = await controlAccessUtil.verifyEmail(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.verifyEmail(request, next);
 
-      if (isEmpty(responseFromVerifyEmail)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromVerifyEmail.success === true) {
-        const status = responseFromVerifyEmail.status
-          ? responseFromVerifyEmail.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "email verified sucessfully",
         });
-      } else if (responseFromVerifyEmail.success === false) {
-        const status = responseFromVerifyEmail.status
-          ? responseFromVerifyEmail.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromVerifyEmail.message,
-          errors: responseFromVerifyEmail.errors
-            ? responseFromVerifyEmail.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -499,30 +477,27 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteAppData =
-        await createUserUtil.deleteMobileUserData(request, next);
+      const result = await createUserUtil.deleteMobileUserData(request, next);
 
-      if (isEmpty(responseFromDeleteAppData)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromDeleteAppData.success === true) {
-        const status = responseFromDeleteAppData.status
-          ? responseFromDeleteAppData.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: "Data deleted sucessfully",
         });
-      } else if (responseFromDeleteAppData.success === false) {
-        const status = responseFromDeleteAppData.status
-          ? responseFromDeleteAppData.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteAppData.message,
-          errors: responseFromDeleteAppData.errors
-            ? responseFromDeleteAppData.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "internal server errors" },
         });
       }
@@ -582,32 +557,27 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromEmailReport = await createUserUtil.emailReport(
-        request,
-        next
-      );
+      const result = await createUserUtil.emailReport(request, next);
 
-      if (isEmpty(responseFromEmailReport)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromEmailReport.success === true) {
-        const status = responseFromEmailReport.status
-          ? responseFromEmailReport.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: "Report Emailed sucessfully",
         });
-      } else if (responseFromEmailReport.success === false) {
-        const status = responseFromEmailReport.status
-          ? responseFromEmailReport.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromEmailReport.message,
-          errors: responseFromEmailReport.errors
-            ? responseFromEmailReport.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -960,35 +930,30 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSendEmail = await createUserUtil.sendFeedback(
-        request,
-        next
-      );
+      const result = await createUserUtil.sendFeedback(request, next);
 
-      if (isEmpty(responseFromSendEmail)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromSendEmail.success === true) {
-        const status = responseFromSendEmail.status
-          ? responseFromSendEmail.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully responded to email",
           status,
         });
-      } else if (responseFromSendEmail.success === false) {
-        const status = responseFromSendEmail.status
-          ? responseFromSendEmail.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: true,
-          message: responseFromSendEmail.message,
+          message: result.message,
           status,
-          errors: responseFromSendEmail.errors
-            ? responseFromSendEmail.errors
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1021,36 +986,29 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromForgotPassword = await createUserUtil.forgotPassword(
-        request,
-        next
-      );
+      const result = await createUserUtil.forgotPassword(request, next);
 
-      if (isEmpty(responseFromForgotPassword)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromForgotPassword.success === true) {
-        const status = responseFromForgotPassword.status
-          ? responseFromForgotPassword.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromForgotPassword.message,
-          response: responseFromForgotPassword.data,
+          message: result.message,
+          response: result.data,
         });
-      } else if (responseFromForgotPassword.success === false) {
-        const status = responseFromForgotPassword.status
-          ? responseFromForgotPassword.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromForgotPassword.message,
-          error: responseFromForgotPassword.error
-            ? responseFromForgotPassword.error
-            : "",
-          errors: responseFromForgotPassword.errors
-            ? responseFromForgotPassword.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1083,37 +1041,30 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateUser = await createUserUtil.register(
-        request,
-        next
-      );
+      const result = await createUserUtil.register(request, next);
 
-      if (isEmpty(responseFromCreateUser)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromCreateUser.success === true) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateUser.message,
-          user: responseFromCreateUser.data,
+          message: result.message,
+          user: result.data,
         });
-      } else if (responseFromCreateUser.success === false) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateUser.message,
-          errors: responseFromCreateUser.errors
-            ? responseFromCreateUser.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
-          error: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "Internal Server Errors",
+          error: result.error ? result.error : "Internal Server Errors",
         });
       }
     } catch (error) {
@@ -1145,29 +1096,27 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateUser = await createUserUtil.create(request, next);
+      const result = await createUserUtil.create(request, next);
 
-      if (isEmpty(responseFromCreateUser)) {
+      if (isEmpty(result)) {
         return;
       }
-      if (responseFromCreateUser.success === true) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateUser.message,
-          user: responseFromCreateUser.data,
+          message: result.message,
+          user: result.data,
         });
-      } else if (responseFromCreateUser.success === false) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateUser.message,
-          errors: responseFromCreateUser.errors
-            ? responseFromCreateUser.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
@@ -1335,34 +1284,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveUser = await createUserUtil.delete(request, next);
+      const result = await createUserUtil.delete(request, next);
 
-      if (isEmpty(responseFromRemoveUser)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromRemoveUser.success === true) {
-        const status = responseFromRemoveUser.status
-          ? responseFromRemoveUser.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveUser.message
-            ? responseFromRemoveUser.message
-            : "Operation Successful",
-          user: responseFromRemoveUser.data,
+          message: result.message ? result.message : "Operation Successful",
+          user: result.data,
         });
-      } else if (responseFromRemoveUser.success === false) {
-        const status = responseFromRemoveUser.status
-          ? responseFromRemoveUser.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveUser.message
-            ? responseFromRemoveUser.message
-            : "Internal Server Error",
-          errors: responseFromRemoveUser.errors
-            ? responseFromRemoveUser.errors
+          message: result.message ? result.message : "Internal Server Error",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1395,30 +1338,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateUser = await createUserUtil.update(request, next);
+      const result = await createUserUtil.update(request, next);
 
-      if (isEmpty(responseFromUpdateUser)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateUser.message,
-          user: responseFromUpdateUser.data,
+          message: result.message,
+          user: result.data,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors: responseFromUpdateUser.errors
-            ? responseFromUpdateUser.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1449,34 +1390,34 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const value = await createUserUtil.generateSignInWithEmailLink(
+      const result = await createUserUtil.generateSignInWithEmailLink(
         request,
         next
       );
 
-      if (isEmpty(value)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (value.success === true) {
-        const status = value.status ? value.status : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: value.message,
-          login_link: value.data.link,
-          token: value.data.token,
-          email: value.data.email,
-          emailLinkCode: value.data.emailLinkCode,
+          message: result.message,
+          login_link: result.data.link,
+          token: result.data.token,
+          email: result.data.email,
+          emailLinkCode: result.data.emailLinkCode,
         });
-      } else if (value.success === false) {
-        const status = value.status
-          ? value.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: value.message,
-          errors: value.errors
-            ? value.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1513,34 +1454,34 @@ const createUser = {
         request.query.purpose = params.purpose;
       }
 
-      const value = await createUserUtil.generateSignInWithEmailLink(
+      const result = await createUserUtil.generateSignInWithEmailLink(
         request,
         next
       );
 
-      if (isEmpty(value)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (value.success === true) {
-        const status = value.status ? value.status : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: value.message,
-          token: value.data.token,
-          auth_link: value.data.link,
-          auth_code: value.data.emailLinkCode,
-          email: value.data.email,
+          message: result.message,
+          token: result.data.token,
+          auth_link: result.data.link,
+          auth_code: result.data.emailLinkCode,
+          email: result.data.email,
         });
-      } else if (value.success === false) {
-        const status = value.status
-          ? value.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: value.message,
-          errors: value.errors
-            ? value.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1571,31 +1512,31 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateForgottenPassword =
-        await createUserUtil.updateForgottenPassword(request, next);
+      const result = await createUserUtil.updateForgottenPassword(
+        request,
+        next
+      );
 
-      if (isEmpty(responseFromUpdateForgottenPassword)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromUpdateForgottenPassword.success === true) {
-        const status = responseFromUpdateForgottenPassword.status
-          ? responseFromUpdateForgottenPassword.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully updated the password",
-          user: responseFromUpdateForgottenPassword.data,
+          user: result.data,
         });
-      } else if (responseFromUpdateForgottenPassword.success === false) {
-        const status = responseFromUpdateForgottenPassword.status
-          ? responseFromUpdateForgottenPassword.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateForgottenPassword.message,
-          errors: responseFromUpdateForgottenPassword.errors
-            ? responseFromUpdateForgottenPassword.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1627,31 +1568,28 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePassword =
-        await createUserUtil.updateKnownPassword(request, next);
+      const result = await createUserUtil.updateKnownPassword(request, next);
 
-      if (isEmpty(responseFromUpdatePassword)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromUpdatePassword.success === true) {
-        const status = responseFromUpdatePassword.status
-          ? responseFromUpdatePassword.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdatePassword.message,
-          user: responseFromUpdatePassword.data,
+          message: result.message,
+          user: result.data,
         });
-      } else if (responseFromUpdatePassword.success === false) {
-        const status = responseFromUpdatePassword.status
-          ? responseFromUpdatePassword.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdatePassword.message,
-          errors: responseFromUpdatePassword.errors
-            ? responseFromUpdatePassword.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -1685,30 +1623,27 @@ const createUser = {
       if (isEmpty(req.body.tags)) {
         request.body.tags = [];
       }
-      const responseFromSubscribeToNewsLetter =
-        await createUserUtil.subscribeToNewsLetter(request, next);
+      const result = await createUserUtil.subscribeToNewsLetter(request, next);
 
-      if (isEmpty(responseFromSubscribeToNewsLetter)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromSubscribeToNewsLetter.success === true) {
-        const status = responseFromSubscribeToNewsLetter.status
-          ? responseFromSubscribeToNewsLetter.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromSubscribeToNewsLetter.message,
+          message: result.message,
           success: true,
         });
-      } else if (responseFromSubscribeToNewsLetter.success === false) {
-        const status = responseFromSubscribeToNewsLetter.status
-          ? responseFromSubscribeToNewsLetter.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSubscribeToNewsLetter.message,
-          errors: responseFromSubscribeToNewsLetter.errors
-            ? responseFromSubscribeToNewsLetter.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }

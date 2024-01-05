@@ -18,6 +18,7 @@ const createFavorite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -25,35 +26,28 @@ const createFavorite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSyncFavorites = await createFavoriteUtil.syncFavorites(
-        request,
-        next
-      );
+      const result = await createFavoriteUtil.syncFavorites(request, next);
 
-      if (responseFromSyncFavorites.success === true) {
-        const status = responseFromSyncFavorites.status
-          ? responseFromSyncFavorites.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSyncFavorites.message
-            ? responseFromSyncFavorites.message
-            : "",
-          favorites: responseFromSyncFavorites.data
-            ? responseFromSyncFavorites.data
-            : [],
+          message: result.message ? result.message : "",
+          favorites: result.data ? result.data : [],
         });
-      } else if (responseFromSyncFavorites.success === false) {
-        const status = responseFromSyncFavorites.status
-          ? responseFromSyncFavorites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSyncFavorites.message
-            ? responseFromSyncFavorites.message
-            : "",
-          errors: responseFromSyncFavorites.errors
-            ? responseFromSyncFavorites.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -66,6 +60,7 @@ const createFavorite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -76,6 +71,7 @@ const createFavorite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -83,35 +79,28 @@ const createFavorite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateFavorite = await createFavoriteUtil.create(
-        request,
-        next
-      );
+      const result = await createFavoriteUtil.create(request, next);
 
-      if (responseFromCreateFavorite.success === true) {
-        const status = responseFromCreateFavorite.status
-          ? responseFromCreateFavorite.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateFavorite.message
-            ? responseFromCreateFavorite.message
-            : "",
-          created_Favorite: responseFromCreateFavorite.data
-            ? responseFromCreateFavorite.data
-            : [],
+          message: result.message ? result.message : "",
+          created_Favorite: result.data ? result.data : [],
         });
-      } else if (responseFromCreateFavorite.success === false) {
-        const status = responseFromCreateFavorite.status
-          ? responseFromCreateFavorite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateFavorite.message
-            ? responseFromCreateFavorite.message
-            : "",
-          errors: responseFromCreateFavorite.errors
-            ? responseFromCreateFavorite.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -124,6 +113,7 @@ const createFavorite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -133,41 +123,35 @@ const createFavorite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const responseFromListFavorites = await createFavoriteUtil.list(
-        request,
-        next
-      );
+      const result = await createFavoriteUtil.list(request, next);
 
-      if (responseFromListFavorites.success === true) {
-        const status = responseFromListFavorites.status
-          ? responseFromListFavorites.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListFavorites.message
-            ? responseFromListFavorites.message
-            : "",
-          favorites: responseFromListFavorites.data
-            ? responseFromListFavorites.data
-            : [],
+          message: result.message ? result.message : "",
+          favorites: result.data ? result.data : [],
         });
-      } else if (responseFromListFavorites.success === false) {
-        const status = responseFromListFavorites.status
-          ? responseFromListFavorites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListFavorites.message
-            ? responseFromListFavorites.message
-            : "",
-          errors: responseFromListFavorites.errors
-            ? responseFromListFavorites.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -180,6 +164,7 @@ const createFavorite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -189,41 +174,35 @@ const createFavorite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const responseFromDeleteFavorite = await createFavoriteUtil.delete(
-        request,
-        next
-      );
+      const result = await createFavoriteUtil.delete(request, next);
 
-      if (responseFromDeleteFavorite.success === true) {
-        const status = responseFromDeleteFavorite.status
-          ? responseFromDeleteFavorite.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteFavorite.message
-            ? responseFromDeleteFavorite.message
-            : "",
-          deleted_Favorite: responseFromDeleteFavorite.data
-            ? responseFromDeleteFavorite.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_Favorite: result.data ? result.data : [],
         });
-      } else if (responseFromDeleteFavorite.success === false) {
-        const status = responseFromDeleteFavorite.status
-          ? responseFromDeleteFavorite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteFavorite.message
-            ? responseFromDeleteFavorite.message
-            : "",
-          errors: responseFromDeleteFavorite.errors
-            ? responseFromDeleteFavorite.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -236,6 +215,7 @@ const createFavorite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -245,6 +225,7 @@ const createFavorite = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -252,35 +233,28 @@ const createFavorite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateFavorite = await createFavoriteUtil.update(
-        request,
-        next
-      );
+      const result = await createFavoriteUtil.update(request, next);
 
-      if (responseFromUpdateFavorite.success === true) {
-        const status = responseFromUpdateFavorite.status
-          ? responseFromUpdateFavorite.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateFavorite.message
-            ? responseFromUpdateFavorite.message
-            : "",
-          updated_Favorite: responseFromUpdateFavorite.data
-            ? responseFromUpdateFavorite.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_Favorite: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateFavorite.success === false) {
-        const status = responseFromUpdateFavorite.status
-          ? responseFromUpdateFavorite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateFavorite.message
-            ? responseFromUpdateFavorite.message
-            : "",
-          errors: responseFromUpdateFavorite.errors
-            ? responseFromUpdateFavorite.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -293,6 +267,7 @@ const createFavorite = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

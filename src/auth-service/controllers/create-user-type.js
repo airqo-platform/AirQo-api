@@ -18,6 +18,7 @@ const createUserType = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -25,27 +26,31 @@ const createUserType = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUsersWithUserType =
-        await controlAccessUtil.listUsersWithUserType(request, next);
+      const result = await controlAccessUtil.listUsersWithUserType(
+        request,
+        next
+      );
 
-      if (responseFromListUsersWithUserType.success === true) {
-        const status = responseFromListUsersWithUserType.status
-          ? responseFromListUsersWithUserType.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsersWithUserType.message,
-          users_with_user_type: responseFromListUsersWithUserType.data,
+          message: result.message,
+          users_with_user_type: result.data,
         });
-      } else if (responseFromListUsersWithUserType.success === false) {
-        const status = responseFromListUsersWithUserType.status
-          ? responseFromListUsersWithUserType.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUsersWithUserType.message,
-          errors: responseFromListUsersWithUserType.errors
-            ? responseFromListUsersWithUserType.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -58,6 +63,7 @@ const createUserType = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableUsersForUserType: async (req, res, next) => {
@@ -67,6 +73,7 @@ const createUserType = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -74,27 +81,31 @@ const createUserType = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAvailableUsersForUserType =
-        await controlAccessUtil.listAvailableUsersForUserType(request, next);
+      const result = await controlAccessUtil.listAvailableUsersForUserType(
+        request,
+        next
+      );
 
-      if (responseFromListAvailableUsersForUserType.success === true) {
-        const status = responseFromListAvailableUsersForUserType.status
-          ? responseFromListAvailableUsersForUserType.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully listed the available users",
-          available_users: responseFromListAvailableUsersForUserType.data,
+          available_users: result.data,
         });
-      } else if (responseFromListAvailableUsersForUserType.success === false) {
-        const status = responseFromListAvailableUsersForUserType.status
-          ? responseFromListAvailableUsersForUserType.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableUsersForUserType.message,
-          errors: responseFromListAvailableUsersForUserType.errors
-            ? responseFromListAvailableUsersForUserType.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -107,6 +118,7 @@ const createUserType = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignUserType: async (req, res, next) => {
@@ -117,6 +129,7 @@ const createUserType = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -124,26 +137,27 @@ const createUserType = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignUserToUserType =
-        await controlAccessUtil.assignUserType(request, next);
+      const result = await controlAccessUtil.assignUserType(request, next);
 
-      if (responseFromAssignUserToUserType.success === true) {
-        const status = responseFromAssignUserToUserType.status
-          ? responseFromAssignUserToUserType.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          updated_records: responseFromAssignUserToUserType.data,
+          updated_records: result.data,
         });
-      } else if (responseFromAssignUserToUserType.success === false) {
-        const status = responseFromAssignUserToUserType.status
-          ? responseFromAssignUserToUserType.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignUserToUserType.message,
-          errors: responseFromAssignUserToUserType.errors
-            ? responseFromAssignUserToUserType.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -156,6 +170,7 @@ const createUserType = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignManyUsersToUserType: async (req, res, next) => {
@@ -166,6 +181,7 @@ const createUserType = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -173,27 +189,31 @@ const createUserType = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignManyUsersToUserType =
-        await controlAccessUtil.assignManyUsersToUserType(request, next);
+      const result = await controlAccessUtil.assignManyUsersToUserType(
+        request,
+        next
+      );
 
-      if (responseFromAssignManyUsersToUserType.success === true) {
-        const status = responseFromAssignManyUsersToUserType.status
-          ? responseFromAssignManyUsersToUserType.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignManyUsersToUserType.message,
-          user_type_assignments: responseFromAssignManyUsersToUserType.data,
+          message: result.message,
+          user_type_assignments: result.data,
         });
-      } else if (responseFromAssignManyUsersToUserType.success === false) {
-        const status = responseFromAssignManyUsersToUserType.status
-          ? responseFromAssignManyUsersToUserType.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignManyUsersToUserType.message,
-          errors: responseFromAssignManyUsersToUserType.errors
-            ? responseFromAssignManyUsersToUserType.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -206,6 +226,7 @@ const createUserType = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
