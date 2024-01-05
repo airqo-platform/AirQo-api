@@ -8,6 +8,34 @@ const logger = log4js.getLogger(
 );
 const createPhotoUtil = require("@utils/create-photo");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const processImage = {
   create: async (req, res, next) => {
@@ -30,30 +58,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatePhoto = await createPhotoUtil.create(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.create(request, next);
 
-      if (responseFromCreatePhoto.success === true) {
-        const status = responseFromCreatePhoto.status
-          ? responseFromCreatePhoto.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreatePhoto.message,
-          created_photo: responseFromCreatePhoto.data,
+          message: result.message,
+          created_photo: result.data,
         });
-      } else if (responseFromCreatePhoto.success === false) {
-        const status = responseFromCreatePhoto.status
-          ? responseFromCreatePhoto.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreatePhoto.message,
-          errors: responseFromCreatePhoto.errors
-            ? responseFromCreatePhoto.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -88,30 +113,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePhoto = await createPhotoUtil.update(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.update(request, next);
 
-      if (responseFromUpdatePhoto.success === true) {
-        const status = responseFromUpdatePhoto.status
-          ? responseFromUpdatePhoto.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdatePhoto.message,
-          updated_photo: responseFromUpdatePhoto.data,
+          message: result.message,
+          updated_photo: result.data,
         });
-      } else if (responseFromUpdatePhoto.success === false) {
-        const status = responseFromUpdatePhoto.status
-          ? responseFromUpdatePhoto.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdatePhoto.message,
-          errors: responseFromUpdatePhoto.errors
-            ? responseFromUpdatePhoto.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -142,30 +164,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeletePhoto = await createPhotoUtil.delete(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.delete(request, next);
 
-      if (responseFromDeletePhoto.success === true) {
-        const status = responseFromDeletePhoto.status
-          ? responseFromDeletePhoto.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeletePhoto.message,
-          created_photo: responseFromDeletePhoto.data,
+          message: result.message,
+          created_photo: result.data,
         });
-      } else if (responseFromDeletePhoto.success === false) {
-        const status = responseFromDeletePhoto.status
-          ? responseFromDeletePhoto.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeletePhoto.message,
-          errors: responseFromDeletePhoto.errors
-            ? responseFromDeletePhoto.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -196,27 +215,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListPhoto = await createPhotoUtil.list(request, next);
+      const result = await createPhotoUtil.list(request, next);
 
-      if (responseFromListPhoto.success === true) {
-        const status = responseFromListPhoto.status
-          ? responseFromListPhoto.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListPhoto.message,
-          photos: responseFromListPhoto.data,
+          message: result.message,
+          photos: result.data,
         });
-      } else if (responseFromListPhoto.success === false) {
-        const status = responseFromListPhoto.status
-          ? responseFromListPhoto.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListPhoto.message,
-          errors: responseFromListPhoto.errors
-            ? responseFromListPhoto.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -249,32 +268,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.createPhotoOnPlatform(request, next);
 
-      if (responseFromCreatePhotoOnPlatform.success === true) {
-        const status = responseFromCreatePhotoOnPlatform.status
-          ? responseFromCreatePhotoOnPlatform.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreatePhotoOnPlatform.message,
-          created_photo: responseFromCreatePhotoOnPlatform.data
-            ? responseFromCreatePhotoOnPlatform.data
-            : [],
+          message: result.message,
+          created_photo: result.data ? result.data : [],
         });
-      } else if (responseFromCreatePhotoOnPlatform.success === false) {
-        const status = responseFromCreatePhotoOnPlatform.status
-          ? responseFromCreatePhotoOnPlatform.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreatePhotoOnPlatform.message,
-          errors: responseFromCreatePhotoOnPlatform.errors
-            ? responseFromCreatePhotoOnPlatform.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -305,30 +319,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeletePhotoOnPlatform = await createPhotoUtil.deletePhotoOnPlatform(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.deletePhotoOnPlatform(request, next);
 
-      if (responseFromDeletePhotoOnPlatform.success === true) {
-        const status = responseFromDeletePhotoOnPlatform.status
-          ? responseFromDeletePhotoOnPlatform.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeletePhotoOnPlatform.message,
-          deleted_photo: responseFromDeletePhotoOnPlatform.data,
+          message: result.message,
+          deleted_photo: result.data,
         });
-      } else if (responseFromDeletePhotoOnPlatform.success === false) {
-        const status = responseFromDeletePhotoOnPlatform.status
-          ? responseFromDeletePhotoOnPlatform.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeletePhotoOnPlatform.message,
-          errors: responseFromDeletePhotoOnPlatform.errors
-            ? responseFromDeletePhotoOnPlatform.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -359,30 +370,27 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePhotoOnPlatform = await createPhotoUtil.updatePhotoOnPlatform(
-        request,
-        next
-      );
+      const result = await createPhotoUtil.updatePhotoOnPlatform(request, next);
 
-      if (responseFromUpdatePhotoOnPlatform.success === true) {
-        const status = responseFromUpdatePhotoOnPlatform.status
-          ? responseFromUpdatePhotoOnPlatform.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdatePhotoOnPlatform.message,
-          updated_photo: responseFromUpdatePhotoOnPlatform.data,
+          message: result.message,
+          updated_photo: result.data,
         });
-      } else if (responseFromUpdatePhotoOnPlatform.success === false) {
-        const status = responseFromUpdatePhotoOnPlatform.status
-          ? responseFromUpdatePhotoOnPlatform.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdatePhotoOnPlatform.message,
-          errors: responseFromUpdatePhotoOnPlatform.errors
-            ? responseFromUpdatePhotoOnPlatform.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -414,30 +422,30 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeletePhotoOnCloudinary = await createPhotoUtil.deletePhotoOnCloudinary(
+      const result = await createPhotoUtil.deletePhotoOnCloudinary(
         request,
         next
       );
 
-      if (responseFromDeletePhotoOnCloudinary.success === true) {
-        const status = responseFromDeletePhotoOnCloudinary.status
-          ? responseFromDeletePhotoOnCloudinary.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeletePhotoOnCloudinary.message,
-          deletion_details: responseFromDeletePhotoOnCloudinary.data,
+          message: result.message,
+          deletion_details: result.data,
         });
-      } else if (responseFromDeletePhotoOnCloudinary.success === false) {
-        const status = responseFromDeletePhotoOnCloudinary.status
-          ? responseFromDeletePhotoOnCloudinary.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeletePhotoOnCloudinary.message,
-          errors: responseFromDeletePhotoOnCloudinary.errors
-            ? responseFromDeletePhotoOnCloudinary.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -472,30 +480,30 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePhotoOnCloudinary = await createPhotoUtil.updatePhotoOnCloudinary(
+      const result = await createPhotoUtil.updatePhotoOnCloudinary(
         request,
         next
       );
 
-      if (responseFromUpdatePhotoOnCloudinary.success === true) {
-        const status = responseFromUpdatePhotoOnCloudinary.status
-          ? responseFromUpdatePhotoOnCloudinary.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdatePhotoOnCloudinary.message,
-          created_photo: responseFromUpdatePhotoOnCloudinary.data,
+          message: result.message,
+          created_photo: result.data,
         });
-      } else if (responseFromUpdatePhotoOnCloudinary.success === false) {
-        const status = responseFromUpdatePhotoOnCloudinary.status
-          ? responseFromUpdatePhotoOnCloudinary.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdatePhotoOnCloudinary.message,
-          errors: responseFromUpdatePhotoOnCloudinary.errors
-            ? responseFromUpdatePhotoOnCloudinary.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -530,30 +538,30 @@ const processImage = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
+      const result = await createPhotoUtil.createPhotoOnCloudinary(
         request,
         next
       );
 
-      if (responseFromCreatePhotoOnCloudinary.success === true) {
-        const status = responseFromCreatePhotoOnCloudinary.status
-          ? responseFromCreatePhotoOnCloudinary.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreatePhotoOnCloudinary.message,
-          created_photo: responseFromCreatePhotoOnCloudinary.data,
+          message: result.message,
+          created_photo: result.data,
         });
-      } else if (responseFromCreatePhotoOnCloudinary.success === false) {
-        const status = responseFromCreatePhotoOnCloudinary.status
-          ? responseFromCreatePhotoOnCloudinary.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreatePhotoOnCloudinary.message,
-          errors: responseFromCreatePhotoOnCloudinary.errors
-            ? responseFromCreatePhotoOnCloudinary.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
