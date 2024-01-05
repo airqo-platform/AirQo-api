@@ -234,7 +234,7 @@ def weather_data_realtime():
 
 @dag(
     "OpenWeatherMap-Weather-Measurements",
-    schedule="0 0 * * *",
+    schedule="0 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "openweathermap"],
