@@ -15,7 +15,7 @@ const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const mailer = require("@utils/mailer");
-
+const stringify = require("@utils/stringify");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
@@ -143,15 +143,13 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               await createUserUtil.verificationReminder(verificationRequest);
             if (verificationEmailResponse.success === false) {
               logger.error(
-                `Internal Server Error --- ${JSON.stringify(
+                `Internal Server Error --- ${stringify(
                   verificationEmailResponse
                 )}`
               );
             }
           } catch (error) {
-            logger.error(
-              `🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`
-            );
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
           req.auth.success = false;
           req.auth.message =
@@ -229,15 +227,13 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               await createUserUtil.verificationReminder(verificationRequest);
             if (verificationEmailResponse.success === false) {
               logger.error(
-                `Internal Server Error --- ${JSON.stringify(
+                `Internal Server Error --- ${stringify(
                   verificationEmailResponse
                 )}`
               );
             }
           } catch (error) {
-            logger.error(
-              `🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`
-            );
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
           req.auth.success = false;
           req.auth.message =
@@ -345,7 +341,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         logObject("error", error);
         req.auth = {};
         req.auth.success = false;
@@ -587,7 +583,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         return done(null, false);
       }
 
-      routesWithService.forEach((route) => {
+      routesWithService.forEach(async (route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
 
@@ -611,19 +607,29 @@ const useJWTStrategy = (tenant, req, res, next) =>
               "device-recall",
             ].includes(service)
           ) {
-            mailer.siteActivity(
-              {
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                siteActivityDetails: {
-                  service: service,
-                  userAction: userAction,
-                  actor: user.email,
+            try {
+              const emailResponse = await mailer.siteActivity(
+                {
+                  email: user.email,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  siteActivityDetails: {
+                    service: service,
+                    userAction: userAction,
+                    actor: user.email,
+                  },
                 },
-              },
-              next
-            );
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            } catch (error) {
+              logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+            }
           }
         }
       });
@@ -654,7 +660,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       return done(null, user);
     } catch (e) {
-      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(e)}`);
       return done(e, false);
     }
   });

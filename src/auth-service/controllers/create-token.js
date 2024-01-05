@@ -1,12 +1,42 @@
 const httpStatus = require("http-status");
 const controlAccessUtil = require("@utils/control-access");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-token-controller`
 );
+
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createAccessToken = {
   create: async (req, res, next) => {
@@ -16,6 +46,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -25,6 +56,10 @@ const createAccessToken = {
 
       const responseFromCreateAccessToken =
         await controlAccessUtil.createAccessToken(request, next);
+
+      if (isEmpty(responseFromCreateAccessToken)) {
+        return;
+      }
 
       if (responseFromCreateAccessToken.success === true) {
         const status = responseFromCreateAccessToken.status
@@ -60,6 +95,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -69,6 +105,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -78,6 +115,10 @@ const createAccessToken = {
 
       const responseFromListAccessToken =
         await controlAccessUtil.listAccessToken(request, next);
+
+      if (isEmpty(responseFromListAccessToken)) {
+        return;
+      }
 
       if (responseFromListAccessToken.success === true) {
         const status = responseFromListAccessToken.status
@@ -111,6 +152,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verify: async (req, res, next) => {
@@ -153,6 +195,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -163,32 +206,17 @@ const createAccessToken = {
       const responseFromDeleteAccessToken =
         await controlAccessUtil.deleteAccessToken(request, next);
 
-      if (responseFromDeleteAccessToken.success === true) {
-        const status = responseFromDeleteAccessToken.status
-          ? responseFromDeleteAccessToken.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          message: responseFromDeleteAccessToken.message
-            ? responseFromDeleteAccessToken.message
-            : "",
-          deleted_token: responseFromDeleteAccessToken.data
-            ? responseFromDeleteAccessToken.data
-            : {},
-        });
-      } else if (responseFromDeleteAccessToken.success === false) {
-        const status = responseFromDeleteAccessToken.status
-          ? responseFromDeleteAccessToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: responseFromDeleteAccessToken.message
-            ? responseFromDeleteAccessToken.message
-            : "",
-          errors: responseFromDeleteAccessToken.errors
-            ? responseFromDeleteAccessToken.errors
-            : { message: "Internal Server Error" },
+      if (isEmpty(responseFromDeleteAccessToken)) {
+        return;
+      } else {
+        handleResponse({
+          result: responseFromDeleteAccessToken,
+          key: "deleted_token",
+          res,
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -197,6 +225,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   regenerate: async (req, res, next) => {
@@ -206,6 +235,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -216,6 +246,10 @@ const createAccessToken = {
       const responseFromUpdateAccessToken =
         await controlAccessUtil.regenerateAccessToken(request, next);
 
+      if (isEmpty(responseFromUpdateAccessToken)) {
+        return;
+      }
+
       if (responseFromUpdateAccessToken.success === true) {
         const status = responseFromUpdateAccessToken.status
           ? responseFromUpdateAccessToken.status
@@ -250,6 +284,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -259,6 +294,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -269,6 +305,10 @@ const createAccessToken = {
       const responseFromUpdateAccessToken =
         await controlAccessUtil.updateAccessToken(request, next);
 
+      if (isEmpty(responseFromUpdateAccessToken)) {
+        return;
+      }
+
       if (responseFromUpdateAccessToken.success === true) {
         const status = responseFromUpdateAccessToken.status
           ? responseFromUpdateAccessToken.status
@@ -303,6 +343,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 
@@ -315,6 +356,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -326,6 +368,10 @@ const createAccessToken = {
         request,
         next
       );
+
+      if (isEmpty(responseFromBlackListIp)) {
+        return;
+      }
 
       if (responseFromBlackListIp.success === true) {
         const status = responseFromBlackListIp.status
@@ -361,6 +407,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   blackListIps: async (req, res, next) => {
@@ -370,6 +417,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -381,6 +429,10 @@ const createAccessToken = {
         request,
         next
       );
+
+      if (isEmpty(responseFromBlackListIps)) {
+        return;
+      }
 
       if (responseFromBlackListIps.success === true) {
         const status = responseFromBlackListIps.status
@@ -416,6 +468,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeBlacklistedIp: async (req, res, next) => {
@@ -425,6 +478,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -434,6 +488,10 @@ const createAccessToken = {
 
       const responseFromRemoveBlackListedIp =
         await controlAccessUtil.removeBlacklistedIp(request, next);
+
+      if (isEmpty(responseFromRemoveBlackListedIp)) {
+        return;
+      }
 
       if (responseFromRemoveBlackListedIp.success === true) {
         const status = responseFromRemoveBlackListedIp.status
@@ -469,6 +527,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   blackListIpRange: async (req, res, next) => {
@@ -478,6 +537,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -487,6 +547,10 @@ const createAccessToken = {
 
       const responseFromBlackListIpRange =
         await controlAccessUtil.blackListIpRange(request, next);
+
+      if (isEmpty(responseFromBlackListIpRange)) {
+        return;
+      }
 
       if (responseFromBlackListIpRange.success === true) {
         const status = responseFromBlackListIpRange.status
@@ -522,6 +586,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeBlacklistedIpRange: async (req, res, next) => {
@@ -531,6 +596,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -540,6 +606,10 @@ const createAccessToken = {
 
       const responseFromRemoveBlackListedIpRange =
         await controlAccessUtil.removeBlacklistedIpRange(request, next);
+
+      if (isEmpty(responseFromRemoveBlackListedIpRange)) {
+        return;
+      }
 
       if (responseFromRemoveBlackListedIpRange.success === true) {
         const status = responseFromRemoveBlackListedIpRange.status
@@ -575,6 +645,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listBlacklistedIpRange: async (req, res, next) => {
@@ -584,6 +655,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -593,6 +665,10 @@ const createAccessToken = {
 
       const responseFromListBlacklistedIPRanges =
         await controlAccessUtil.listBlacklistedIpRange(request, next);
+
+      if (isEmpty(responseFromListBlacklistedIPRanges)) {
+        return;
+      }
 
       if (responseFromListBlacklistedIPRanges.success === true) {
         const status = responseFromListBlacklistedIPRanges.status
@@ -628,6 +704,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   whiteListIp: async (req, res, next) => {
@@ -637,6 +714,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -648,6 +726,10 @@ const createAccessToken = {
         request,
         next
       );
+
+      if (isEmpty(responseFromWhiteListIp)) {
+        return;
+      }
 
       if (responseFromWhiteListIp.success === true) {
         const status = responseFromWhiteListIp.status
@@ -683,6 +765,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   removeWhitelistedIp: async (req, res, next) => {
@@ -692,6 +775,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -701,6 +785,10 @@ const createAccessToken = {
 
       const responseFromRemoveWhiteListedIp =
         await controlAccessUtil.removeWhitelistedIp(request, next);
+
+      if (isEmpty(responseFromRemoveWhiteListedIp)) {
+        return;
+      }
 
       if (responseFromRemoveWhiteListedIp.success === true) {
         const status = responseFromRemoveWhiteListedIp.status
@@ -736,6 +824,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listUnknownIPs: async (req, res, next) => {
@@ -745,6 +834,7 @@ const createAccessToken = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -756,6 +846,10 @@ const createAccessToken = {
         request,
         next
       );
+
+      if (isEmpty(responseFromListUnknownIPs)) {
+        return;
+      }
 
       if (responseFromListUnknownIPs.success === true) {
         const status = responseFromListUnknownIPs.status
@@ -791,6 +885,7 @@ const createAccessToken = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
