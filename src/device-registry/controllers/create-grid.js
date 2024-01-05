@@ -425,6 +425,10 @@ const createGrid = {
         request,
         next
       );
+
+      if (isEmpty(responseFromRefreshGrid)) {
+        return;
+      }
       if (responseFromRefreshGrid.success === true) {
         const status = responseFromRefreshGrid.status
           ? responseFromRefreshGrid.status
