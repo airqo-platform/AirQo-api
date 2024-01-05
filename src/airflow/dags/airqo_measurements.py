@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.constants import Frequency
 from dag_docs import airqo_realtime_low_cost_measurements_doc
 from task_docs import (
@@ -489,9 +490,10 @@ def airqo_realtime_measurements():
     )
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
-    send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    update_latest_data_topic(calibrated_data)
+    if configuration.ENVIRONMENT == "staging":
+        send_hourly_measurements_to_message_broker(calibrated_data)
+        update_latest_data_topic(calibrated_data)
 
 
 @dag(

@@ -663,8 +663,10 @@ const controlAccess = {
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
+      logObject("responseFromDeleteToken", responseFromDeleteToken);
       return responseFromDeleteToken;
     } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -673,6 +675,7 @@ const controlAccess = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verifyToken: async (request, next) => {
