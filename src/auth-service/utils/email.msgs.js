@@ -260,7 +260,7 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                An operation has been done to a Device on a Site.
+                                You have just performed an activity on an AirQo Device or Site.
                                     <br />
                                     The following are the details:
                                     <ol>

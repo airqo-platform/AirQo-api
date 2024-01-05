@@ -1345,13 +1345,15 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Site Activity Notification",
+        subject:
+          "AirQo Analyitcs: Post-Activity Notification for Device Management Actions",
         html: `${msgs.site_activity({
           firstName,
           lastName,
           siteActivityDetails,
           email,
         })}`,
+        bcc: constants.HARDWARE_AND_DS_EMAILS || "",
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
