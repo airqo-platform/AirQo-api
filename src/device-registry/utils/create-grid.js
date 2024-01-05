@@ -193,6 +193,7 @@ const createGrid = {
     try {
       const { tenant } = request.query;
       const { grid_id } = request.params;
+      const BATCH_SIZE = 50;
 
       if (isEmpty(grid_id)) {
         next(
@@ -231,53 +232,76 @@ const createGrid = {
         _id.toString()
       );
 
-      // Add new grid_id to sites
-      const addToSetResponse = await SiteModel(tenant).updateMany(
-        {
-          _id: { $in: site_ids },
-          grids: { $ne: grid_id.toString() },
-        },
-        {
-          $addToSet: { grids: grid_id.toString() },
-        }
-      );
+      // Process the site_ids in batches
+      for (let i = 0; i < site_ids.length; i += BATCH_SIZE) {
+        const batchSiteIds = site_ids.slice(i, i + BATCH_SIZE);
 
-      logObject("addToSetResponse", addToSetResponse);
-
-      // Remove old grid_ids from sites
-      const pullResponse = await SiteModel(tenant).updateMany(
-        {
-          _id: { $in: site_ids },
-          grids: { $ne: grid_id.toString() },
-        },
-        {
-          $pull: { grids: { $ne: grid_id.toString() } },
-        }
-      );
-
-      logObject("pullResponse", pullResponse);
-
-      if (addToSetResponse.ok && pullResponse.ok) {
-        return {
-          success: true,
-          message: `The Refresh for Grid ${grid_id.toString()} has been successful`,
-          status: httpStatus.OK,
-        };
-      } else {
-        logger.error(
-          "Internal Server Error -- Some associated sites may not have been updated during Grid refresh"
+        // Add new grid_id to sites
+        const addToSetResponse = await SiteModel(tenant).updateMany(
+          {
+            _id: { $in: batchSiteIds },
+            grids: { $ne: grid_id.toString() },
+          },
+          {
+            $addToSet: { grids: grid_id.toString() },
+          }
         );
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: `Only ${pullResponse.nModified} out of ${site_ids.length} sites were updated`,
-            }
-          )
+
+        logObject("addToSetResponse", addToSetResponse);
+
+        // Check if addToSet operation was successful
+        if (!addToSetResponse.ok) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Only ${addToSetResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
+              }
+            )
+          );
+          return;
+        }
+
+        // Remove old grid_ids from sites
+        const pullResponse = await SiteModel(tenant).updateMany(
+          {
+            _id: { $in: batchSiteIds },
+            grids: { $ne: grid_id.toString() },
+          },
+          {
+            $pull: { grids: { $ne: grid_id.toString() } },
+          }
         );
-        return;
+
+        logObject("pullResponse", pullResponse);
+
+        // Check if pull operation was successful
+        if (!pullResponse.ok) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
+              }
+            )
+          );
+          return;
+        }
       }
+
+      return {
+        success: true,
+        message: `The Refresh for Grid ${grid_id.toString()} has been successful`,
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -421,6 +445,7 @@ const createGrid = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (request, next) => {
