@@ -747,6 +747,12 @@ const controlAccess = {
             if (!isEmpty(clientIp)) {
               const ip = clientIp;
               const token_name = name;
+              function shouldLogIpAddress(ip, blockedIps) {
+                return !blockedIps.some((blockedIp) =>
+                  ip.startsWith(blockedIp)
+                );
+              }
+
               const isBlacklisted = await isIPBlacklisted({
                 ip,
                 email,
@@ -755,9 +761,12 @@ const controlAccess = {
                 endpoint,
               });
               if (isBlacklisted) {
-                logger.info(
-                  `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
-                );
+                const blockedIps = ["66"]; // Add more IP prefixes as needed
+                if (shouldLogIpAddress(clientIp, blockedIps)) {
+                  logger.info(
+                    `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
+                  );
+                }
                 return createUnauthorizedResponse();
               }
             } else {
