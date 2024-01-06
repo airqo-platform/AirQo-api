@@ -1,12 +1,12 @@
-# Apache Airflow
+# Workflows
 
-This folder contains functionality for running apache airflow, an open-source workflow management platform for data
+This folder contains functionality for running various AirQo workflow scripts using Apache Airflow framework, an open-source workflow management platform for data
 engineering pipelines.
 
 ## Environment Setup
 
-- Add the `.env` file to directory. This can be obtained from secret manager (`airflow-env-file`)
-- Add the `google_application_credentials.json` (`airflow-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta_data` folder in this directory. Create the `meta_data folder` if it does not exist. 
+- Add the `.env` file to directory. This can be obtained from secret manager (`workflows-env-file`)
+- Add the `google_application_credentials.json` (`workflows-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta_data` folder in this directory. Create the `meta_data folder` if it does not exist. 
 
 ## Running the utility functions
 ### Create a virtual environment
@@ -76,10 +76,10 @@ python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=202
 ```bash
 sh run.sh  
 ```
-### Running airflow only
+### Running workflows only
 
 ```bash
-sh run-airflow-only.sh  
+sh run-workflows-only.sh  
 ```
 
 **Note for Windows users:** There is a command in the sh files that requires to be modified / uncommented for windows 

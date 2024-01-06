@@ -1,10 +1,10 @@
 app:
-  name: airflow
-  label: airflow
-  namespace: pipeline
-  configmap: airflow-config
+  name: workflows
+  label: workflows
+  namespace: workflows
+  configmap: workflows-config
 replicaCount: 2
-serviceAccountName: airflow-sa
+serviceAccountName: workflows-sa
 images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom
@@ -21,15 +21,15 @@ resources:
     cpu: 500m
     memory: 3000Mi
 volumeMounts:
-  - name: config-volume
+  - name: workflows-config-volume
     mountPath: /etc/config
-  - name: xcom-config-volume
-    mountPath: /etc/airflow_xcom
+  - name: workflows-xcom-config-volume
+    mountPath: /etc/workflows_xcom
 volumes:
-  - name: config-volume
+  - name: workflows-config-volume
     configMap:
-      name: airflow-config-files
-  - name: xcom-config-volume
+      name: workflows-config-files
+  - name: workflows-xcom-config-volume
     emptyDir: {}
 ingress:
   enabled: false

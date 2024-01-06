@@ -1,6 +1,6 @@
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
 @dag(
@@ -13,7 +13,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 def aiflow_app_cleanup():
     @task()
     def delete_old_dag_runs(**kwargs):
-        from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+        from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
         try:
             dag_run = kwargs.get("dag_run")
