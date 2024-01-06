@@ -54,35 +54,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateAccessToken =
-        await controlAccessUtil.createAccessToken(request, next);
+      const result = await controlAccessUtil.createAccessToken(request, next);
 
-      if (isEmpty(responseFromCreateAccessToken)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromCreateAccessToken.success === true) {
-        const status = responseFromCreateAccessToken.status
-          ? responseFromCreateAccessToken.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromCreateAccessToken.message
-            ? responseFromCreateAccessToken.message
-            : "",
-          created_token: responseFromCreateAccessToken.data
-            ? responseFromCreateAccessToken.data
-            : [],
+          message: result.message ? result.message : "",
+          created_token: result.data ? result.data : [],
         });
-      } else if (responseFromCreateAccessToken.success === false) {
-        const status = responseFromCreateAccessToken.status
-          ? responseFromCreateAccessToken.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromCreateAccessToken.message
-            ? responseFromCreateAccessToken.message
-            : "",
-          errors: responseFromCreateAccessToken.errors
-            ? responseFromCreateAccessToken.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -113,33 +104,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAccessToken =
-        await controlAccessUtil.listAccessToken(request, next);
+      const result = await controlAccessUtil.listAccessToken(request, next);
 
-      if (isEmpty(responseFromListAccessToken)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListAccessToken.success === true) {
-        const status = responseFromListAccessToken.status
-          ? responseFromListAccessToken.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromListAccessToken.message
-            ? responseFromListAccessToken.message
-            : "",
-          tokens: responseFromListAccessToken.data
-            ? responseFromListAccessToken.data
-            : [],
+          message: result.message ? result.message : "",
+          tokens: result.data ? result.data : [],
         });
-      } else if (responseFromListAccessToken.success === false) {
-        const status = responseFromListAccessToken.status
-          ? responseFromListAccessToken.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromListAccessToken.message,
-          errors: responseFromListAccessToken.errors
-            ? responseFromListAccessToken.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -170,13 +154,10 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAccessToken = await controlAccessUtil.verifyToken(
-        request,
-        next
-      );
-      const status = responseFromListAccessToken.status;
+      const result = await controlAccessUtil.verifyToken(request, next);
+      const status = result.status;
       if (!res.headersSent) {
-        res.status(status).send(responseFromListAccessToken.message);
+        res.status(status).send(result.message);
         return;
       }
     } catch (error) {
@@ -206,14 +187,13 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteAccessToken =
-        await controlAccessUtil.deleteAccessToken(request, next);
+      const result = await controlAccessUtil.deleteAccessToken(request, next);
 
-      if (isEmpty(responseFromDeleteAccessToken)) {
+      if (isEmpty(result)) {
         return;
       } else {
         handleResponse({
-          result: responseFromDeleteAccessToken,
+          result,
           key: "deleted_token",
           res,
         });
@@ -246,35 +226,29 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateAccessToken =
-        await controlAccessUtil.regenerateAccessToken(request, next);
+      const result = await controlAccessUtil.regenerateAccessToken(
+        request,
+        next
+      );
 
-      if (isEmpty(responseFromUpdateAccessToken)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromUpdateAccessToken.success === true) {
-        const status = responseFromUpdateAccessToken.status
-          ? responseFromUpdateAccessToken.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromUpdateAccessToken.message
-            ? responseFromUpdateAccessToken.message
-            : "",
-          updated_token: responseFromUpdateAccessToken.data
-            ? responseFromUpdateAccessToken.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_token: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateAccessToken.success === false) {
-        const status = responseFromUpdateAccessToken.status
-          ? responseFromUpdateAccessToken.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromUpdateAccessToken.message
-            ? responseFromUpdateAccessToken.message
-            : "",
-          errors: responseFromUpdateAccessToken.errors
-            ? responseFromUpdateAccessToken.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -305,35 +279,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateAccessToken =
-        await controlAccessUtil.updateAccessToken(request, next);
+      const result = await controlAccessUtil.updateAccessToken(request, next);
 
-      if (isEmpty(responseFromUpdateAccessToken)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromUpdateAccessToken.success === true) {
-        const status = responseFromUpdateAccessToken.status
-          ? responseFromUpdateAccessToken.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromUpdateAccessToken.message
-            ? responseFromUpdateAccessToken.message
-            : "",
-          updated_token: responseFromUpdateAccessToken.data
-            ? responseFromUpdateAccessToken.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_token: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateAccessToken.success === false) {
-        const status = responseFromUpdateAccessToken.status
-          ? responseFromUpdateAccessToken.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromUpdateAccessToken.message
-            ? responseFromUpdateAccessToken.message
-            : "",
-          errors: responseFromUpdateAccessToken.errors
-            ? responseFromUpdateAccessToken.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -352,6 +317,8 @@ const createAccessToken = {
 
   /******************** IP ADDRESSES ********************** */
 
+  //bulkInsertBlacklistIpRanges
+
   blackListIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -367,37 +334,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromBlackListIp = await controlAccessUtil.blackListIp(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.blackListIp(request, next);
 
-      if (isEmpty(responseFromBlackListIp)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromBlackListIp.success === true) {
-        const status = responseFromBlackListIp.status
-          ? responseFromBlackListIp.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromBlackListIp.message
-            ? responseFromBlackListIp.message
-            : "",
-          blacklisted_ip: responseFromBlackListIp.data
-            ? responseFromBlackListIp.data
-            : [],
+          message: result.message ? result.message : "",
+          blacklisted_ip: result.data ? result.data : [],
         });
-      } else if (responseFromBlackListIp.success === false) {
-        const status = responseFromBlackListIp.status
-          ? responseFromBlackListIp.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromBlackListIp.message
-            ? responseFromBlackListIp.message
-            : "",
-          errors: responseFromBlackListIp.errors
-            ? responseFromBlackListIp.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -428,37 +384,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromBlackListIps = await controlAccessUtil.blackListIps(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.blackListIps(request, next);
 
-      if (isEmpty(responseFromBlackListIps)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromBlackListIps.success === true) {
-        const status = responseFromBlackListIps.status
-          ? responseFromBlackListIps.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromBlackListIps.message
-            ? responseFromBlackListIps.message
-            : "",
-          blacklisted_ips: responseFromBlackListIps.data
-            ? responseFromBlackListIps.data
-            : [],
+          message: result.message ? result.message : "",
+          blacklisted_ips: result.data ? result.data : [],
         });
-      } else if (responseFromBlackListIps.success === false) {
-        const status = responseFromBlackListIps.status
-          ? responseFromBlackListIps.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromBlackListIps.message
-            ? responseFromBlackListIps.message
-            : "",
-          errors: responseFromBlackListIps.errors
-            ? responseFromBlackListIps.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -489,35 +434,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveBlackListedIp =
-        await controlAccessUtil.removeBlacklistedIp(request, next);
+      const result = await controlAccessUtil.removeBlacklistedIp(request, next);
 
-      if (isEmpty(responseFromRemoveBlackListedIp)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromRemoveBlackListedIp.success === true) {
-        const status = responseFromRemoveBlackListedIp.status
-          ? responseFromRemoveBlackListedIp.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromRemoveBlackListedIp.message
-            ? responseFromRemoveBlackListedIp.message
-            : "",
-          removed_ip: responseFromRemoveBlackListedIp.data
-            ? responseFromRemoveBlackListedIp.data
-            : {},
+          message: result.message ? result.message : "",
+          removed_ip: result.data ? result.data : {},
         });
-      } else if (responseFromRemoveBlackListedIp.success === false) {
-        const status = responseFromRemoveBlackListedIp.status
-          ? responseFromRemoveBlackListedIp.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromRemoveBlackListedIp.message
-            ? responseFromRemoveBlackListedIp.message
-            : "",
-          errors: responseFromRemoveBlackListedIp.errors
-            ? responseFromRemoveBlackListedIp.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -548,35 +484,79 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromBlackListIpRange =
-        await controlAccessUtil.blackListIpRange(request, next);
+      const result = await controlAccessUtil.blackListIpRange(request, next);
 
-      if (isEmpty(responseFromBlackListIpRange)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromBlackListIpRange.success === true) {
-        const status = responseFromBlackListIpRange.status
-          ? responseFromBlackListIpRange.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromBlackListIpRange.message
-            ? responseFromBlackListIpRange.message
-            : "",
-          blacklisted_ip_range: responseFromBlackListIpRange.data
-            ? responseFromBlackListIpRange.data
-            : [],
+          message: result.message ? result.message : "",
+          blacklisted_ip_range: result.data ? result.data : [],
         });
-      } else if (responseFromBlackListIpRange.success === false) {
-        const status = responseFromBlackListIpRange.status
-          ? responseFromBlackListIpRange.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromBlackListIpRange.message
-            ? responseFromBlackListIpRange.message
-            : "",
-          errors: responseFromBlackListIpRange.errors
-            ? responseFromBlackListIpRange.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  bulkInsertBlacklistIpRanges: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.bulkInsertBlacklistIpRanges(
+        request,
+        next
+      );
+
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          blacklisted_ip_ranges: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -607,35 +587,29 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveBlackListedIpRange =
-        await controlAccessUtil.removeBlacklistedIpRange(request, next);
+      const result = await controlAccessUtil.removeBlacklistedIpRange(
+        request,
+        next
+      );
 
-      if (isEmpty(responseFromRemoveBlackListedIpRange)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromRemoveBlackListedIpRange.success === true) {
-        const status = responseFromRemoveBlackListedIpRange.status
-          ? responseFromRemoveBlackListedIpRange.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromRemoveBlackListedIpRange.message
-            ? responseFromRemoveBlackListedIpRange.message
-            : "",
-          removed_ip_range: responseFromRemoveBlackListedIpRange.data
-            ? responseFromRemoveBlackListedIpRange.data
-            : {},
+          message: result.message ? result.message : "",
+          removed_ip_range: result.data ? result.data : {},
         });
-      } else if (responseFromRemoveBlackListedIpRange.success === false) {
-        const status = responseFromRemoveBlackListedIpRange.status
-          ? responseFromRemoveBlackListedIpRange.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromRemoveBlackListedIpRange.message
-            ? responseFromRemoveBlackListedIpRange.message
-            : "",
-          errors: responseFromRemoveBlackListedIpRange.errors
-            ? responseFromRemoveBlackListedIpRange.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -666,35 +640,29 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListBlacklistedIPRanges =
-        await controlAccessUtil.listBlacklistedIpRange(request, next);
+      const result = await controlAccessUtil.listBlacklistedIpRange(
+        request,
+        next
+      );
 
-      if (isEmpty(responseFromListBlacklistedIPRanges)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListBlacklistedIPRanges.success === true) {
-        const status = responseFromListBlacklistedIPRanges.status
-          ? responseFromListBlacklistedIPRanges.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromListBlacklistedIPRanges.message
-            ? responseFromListBlacklistedIPRanges.message
-            : "",
-          blacklisted_ip_ranges: responseFromListBlacklistedIPRanges.data
-            ? responseFromListBlacklistedIPRanges.data
-            : {},
+          message: result.message ? result.message : "",
+          blacklisted_ip_ranges: result.data ? result.data : {},
         });
-      } else if (responseFromListBlacklistedIPRanges.success === false) {
-        const status = responseFromListBlacklistedIPRanges.status
-          ? responseFromListBlacklistedIPRanges.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromListBlacklistedIPRanges.message
-            ? responseFromListBlacklistedIPRanges.message
-            : "",
-          errors: responseFromListBlacklistedIPRanges.errors
-            ? responseFromListBlacklistedIPRanges.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -725,37 +693,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromWhiteListIp = await controlAccessUtil.whiteListIp(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.whiteListIp(request, next);
 
-      if (isEmpty(responseFromWhiteListIp)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromWhiteListIp.success === true) {
-        const status = responseFromWhiteListIp.status
-          ? responseFromWhiteListIp.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromWhiteListIp.message
-            ? responseFromWhiteListIp.message
-            : "",
-          whitelisted_ip: responseFromWhiteListIp.data
-            ? responseFromWhiteListIp.data
-            : [],
+          message: result.message ? result.message : "",
+          whitelisted_ip: result.data ? result.data : [],
         });
-      } else if (responseFromWhiteListIp.success === false) {
-        const status = responseFromWhiteListIp.status
-          ? responseFromWhiteListIp.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromWhiteListIp.message
-            ? responseFromWhiteListIp.message
-            : "",
-          errors: responseFromWhiteListIp.errors
-            ? responseFromWhiteListIp.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -786,35 +743,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveWhiteListedIp =
-        await controlAccessUtil.removeWhitelistedIp(request, next);
+      const result = await controlAccessUtil.removeWhitelistedIp(request, next);
 
-      if (isEmpty(responseFromRemoveWhiteListedIp)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromRemoveWhiteListedIp.success === true) {
-        const status = responseFromRemoveWhiteListedIp.status
-          ? responseFromRemoveWhiteListedIp.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromRemoveWhiteListedIp.message
-            ? responseFromRemoveWhiteListedIp.message
-            : "",
-          removed_ip: responseFromRemoveWhiteListedIp.data
-            ? responseFromRemoveWhiteListedIp.data
-            : {},
+          message: result.message ? result.message : "",
+          removed_ip: result.data ? result.data : {},
         });
-      } else if (responseFromRemoveWhiteListedIp.success === false) {
-        const status = responseFromRemoveWhiteListedIp.status
-          ? responseFromRemoveWhiteListedIp.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromRemoveWhiteListedIp.message
-            ? responseFromRemoveWhiteListedIp.message
-            : "",
-          errors: responseFromRemoveWhiteListedIp.errors
-            ? responseFromRemoveWhiteListedIp.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -845,37 +793,26 @@ const createAccessToken = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUnknownIPs = await controlAccessUtil.listUnknownIPs(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.listUnknownIPs(request, next);
 
-      if (isEmpty(responseFromListUnknownIPs)) {
+      if (isEmpty(result)) {
         return;
       }
 
-      if (responseFromListUnknownIPs.success === true) {
-        const status = responseFromListUnknownIPs.status
-          ? responseFromListUnknownIPs.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromListUnknownIPs.message
-            ? responseFromListUnknownIPs.message
-            : "",
-          unknown_ips: responseFromListUnknownIPs.data
-            ? responseFromListUnknownIPs.data
-            : {},
+          message: result.message ? result.message : "",
+          unknown_ips: result.data ? result.data : {},
         });
-      } else if (responseFromListUnknownIPs.success === false) {
-        const status = responseFromListUnknownIPs.status
-          ? responseFromListUnknownIPs.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromListUnknownIPs.message
-            ? responseFromListUnknownIPs.message
-            : "",
-          errors: responseFromListUnknownIPs.errors
-            ? responseFromListUnknownIPs.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }

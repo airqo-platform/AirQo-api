@@ -16,6 +16,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -23,33 +24,28 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListDepartment = await controlAccessUtil.listDepartment(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.listDepartment(request, next);
 
-      if (responseFromListDepartment.success === true) {
-        const status = responseFromListDepartment.status
-          ? responseFromListDepartment.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListDepartment.message
-            ? responseFromListDepartment.message
-            : "",
-          departments: responseFromListDepartment.data,
+          message: result.message ? result.message : "",
+          departments: result.data,
         });
-      } else if (responseFromListDepartment.success === false) {
-        const status = responseFromListDepartment.status
-          ? responseFromListDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListDepartment.message
-            ? responseFromListDepartment.message
-            : "",
-          errors: responseFromListDepartment.errors
-            ? responseFromListDepartment.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -62,6 +58,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -71,6 +68,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -78,34 +76,27 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateDepartment =
-        await controlAccessUtil.createDepartment(request, next);
+      const result = await controlAccessUtil.createDepartment(request, next);
 
-      if (responseFromCreateDepartment.success === true) {
-        const status = responseFromCreateDepartment.status
-          ? responseFromCreateDepartment.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateDepartment.message
-            ? responseFromCreateDepartment.message
-            : "",
-          created_department: responseFromCreateDepartment.data
-            ? responseFromCreateDepartment.data
-            : [],
+          message: result.message ? result.message : "",
+          created_department: result.data ? result.data : [],
         });
-      } else if (responseFromCreateDepartment.success === false) {
-        const status = responseFromCreateDepartment.status
-          ? responseFromCreateDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateDepartment.message
-            ? responseFromCreateDepartment.message
-            : "",
-          errors: responseFromCreateDepartment.errors
-            ? responseFromCreateDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -117,6 +108,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -126,6 +118,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -133,33 +126,26 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateDepartment =
-        await controlAccessUtil.updateDepartment(request, next);
-      if (responseFromUpdateDepartment.success === true) {
-        const status = responseFromUpdateDepartment.status
-          ? responseFromUpdateDepartment.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.updateDepartment(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateDepartment.message
-            ? responseFromUpdateDepartment.message
-            : "",
-          updated_department: responseFromUpdateDepartment.data
-            ? responseFromUpdateDepartment.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_department: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateDepartment.success === false) {
-        const status = responseFromUpdateDepartment.status
-          ? responseFromUpdateDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateDepartment.message
-            ? responseFromUpdateDepartment.message
-            : "",
-          errors: responseFromUpdateDepartment.errors
-            ? responseFromUpdateDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -171,6 +157,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -180,6 +167,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -187,33 +175,27 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteDepartment =
-        await controlAccessUtil.deleteDepartment(request, next);
-      if (responseFromDeleteDepartment.success === true) {
-        const status = responseFromDeleteDepartment.status
-          ? responseFromDeleteDepartment.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.deleteDepartment(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteDepartment.message
-            ? responseFromDeleteDepartment.message
-            : "",
-          deleted_department: responseFromDeleteDepartment.data
-            ? responseFromDeleteDepartment.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_department: result.data ? result.data : [],
         });
-      } else if (responseFromDeleteDepartment.success === false) {
-        const status = responseFromDeleteDepartment.status
-          ? responseFromDeleteDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteDepartment.message
-            ? responseFromDeleteDepartment.message
-            : "",
-          errors: responseFromDeleteDepartment.errors
-            ? responseFromDeleteDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -225,6 +207,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listUsersWithDepartment: async (req, res, next) => {
@@ -234,6 +217,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -241,34 +225,29 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUsersWithDepartment =
-        await controlAccessUtil.listUsersWithDepartment(request, next);
+      const result = await controlAccessUtil.listUsersWithDepartment(
+        request,
+        next
+      );
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (responseFromListUsersWithDepartment.success === true) {
-        const status = responseFromListUsersWithDepartment.status
-          ? responseFromListUsersWithDepartment.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsersWithDepartment.message
-            ? responseFromListUsersWithDepartment.message
-            : "",
-          users_with_department: responseFromListUsersWithDepartment.data
-            ? responseFromListUsersWithDepartment.data
-            : [],
+          message: result.message ? result.message : "",
+          users_with_department: result.data ? result.data : [],
         });
-      } else if (responseFromListUsersWithDepartment.success === false) {
-        const status = responseFromListUsersWithDepartment.status
-          ? responseFromListUsersWithDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUsersWithDepartment.message
-            ? responseFromListUsersWithDepartment.message
-            : "",
-          errors: responseFromListUsersWithDepartment.errors
-            ? responseFromListUsersWithDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -280,6 +259,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAvailableUsersForDepartment: async (req, res, next) => {
@@ -289,6 +269,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -296,37 +277,30 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAvailableUsersForDepartment =
-        await controlAccessUtil.listAvailableUsersForDepartment(request, next);
+      const result = await controlAccessUtil.listAvailableUsersForDepartment(
+        request,
+        next
+      );
 
-      if (responseFromListAvailableUsersForDepartment.success === true) {
-        const status = responseFromListAvailableUsersForDepartment.status
-          ? responseFromListAvailableUsersForDepartment.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAvailableUsersForDepartment.message
-            ? responseFromListAvailableUsersForDepartment.message
-            : "",
-          available_department_users:
-            responseFromListAvailableUsersForDepartment.data
-              ? responseFromListAvailableUsersForDepartment.data
-              : [],
+          message: result.message ? result.message : "",
+          available_department_users: result.data ? result.data : [],
         });
-      } else if (
-        responseFromListAvailableUsersForDepartment.success === false
-      ) {
-        const status = responseFromListAvailableUsersForDepartment.status
-          ? responseFromListAvailableUsersForDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableUsersForDepartment.message
-            ? responseFromListAvailableUsersForDepartment.message
-            : "",
-          errors: responseFromListAvailableUsersForDepartment.errors
-            ? responseFromListAvailableUsersForDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -338,6 +312,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   assignUserToDepartment: async (req, res, next) => {
@@ -347,6 +322,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -354,33 +330,28 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignUserToDepartment =
-        await controlAccessUtil.assignUserToDepartment(request, next);
-      if (responseFromAssignUserToDepartment.success === true) {
-        const status = responseFromAssignUserToDepartment.status
-          ? responseFromAssignUserToDepartment.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.assignUserToDepartment(
+        request,
+        next
+      );
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignUserToDepartment.message
-            ? responseFromAssignUserToDepartment.message
-            : "",
-          assigned_department_user: responseFromAssignUserToDepartment.data
-            ? responseFromAssignUserToDepartment.data
-            : [],
+          message: result.message ? result.message : "",
+          assigned_department_user: result.data ? result.data : [],
         });
-      } else if (responseFromAssignUserToDepartment.success === false) {
-        const status = responseFromAssignUserToDepartment.status
-          ? responseFromAssignUserToDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignUserToDepartment.message
-            ? responseFromAssignUserToDepartment.message
-            : "",
-          errors: responseFromAssignUserToDepartment.errors
-            ? responseFromAssignUserToDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -392,6 +363,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   unAssignUserFromDepartment: async (req, res, next) => {
@@ -401,6 +373,7 @@ const createDepartment = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -408,34 +381,28 @@ const createDepartment = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUnAssignUserFromDepartment =
-        await controlAccessUtil.unAssignUserFromDepartment(request, next);
-      if (responseFromUnAssignUserFromDepartment.success === true) {
-        const status = responseFromUnAssignUserFromDepartment.status
-          ? responseFromUnAssignUserFromDepartment.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.unAssignUserFromDepartment(
+        request,
+        next
+      );
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUnAssignUserFromDepartment.message
-            ? responseFromUnAssignUserFromDepartment.message
-            : "",
-          unassigned_department_user:
-            responseFromUnAssignUserFromDepartment.data
-              ? responseFromUnAssignUserFromDepartment.data
-              : [],
+          message: result.message ? result.message : "",
+          unassigned_department_user: result.data ? result.data : [],
         });
-      } else if (responseFromUnAssignUserFromDepartment.success === false) {
-        const status = responseFromUnAssignUserFromDepartment.status
-          ? responseFromUnAssignUserFromDepartment.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUnAssignUserFromDepartment.message
-            ? responseFromUnAssignUserFromDepartment.message
-            : "",
-          errors: responseFromUnAssignUserFromDepartment.errors
-            ? responseFromUnAssignUserFromDepartment.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -447,6 +414,7 @@ const createDepartment = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
