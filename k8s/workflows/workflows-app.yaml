@@ -125,7 +125,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: workflows-svc
-  namespace: workflows
+  namespace: pipeline
 spec:
   type: NodePort
   ports:
