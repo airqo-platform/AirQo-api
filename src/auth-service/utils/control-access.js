@@ -334,6 +334,8 @@ const isIPBlacklistedHelper = async (
         await UnknownIPModel("airqo").findOneAndUpdate(filter, update);
       }
     }
+
+    return false;
   } catch (error) {
     logObject("the error", error);
     if (
