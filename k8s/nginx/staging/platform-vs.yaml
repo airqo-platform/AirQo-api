@@ -2,7 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: workflows
-  namespace: workflows
+  namespace: pipeline
 spec:
   host: staging-platform.airqo.net
   upstreams:

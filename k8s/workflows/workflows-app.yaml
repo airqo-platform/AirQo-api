@@ -2,7 +2,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: workflows
-  namespace: workflows
+  namespace: pipeline
 spec:
   selector:
     matchLabels:
@@ -125,7 +125,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: workflows-svc
-  namespace: workflows
+  namespace: pipeline
 spec:
   type: NodePort
   ports:
