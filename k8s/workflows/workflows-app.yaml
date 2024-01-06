@@ -95,7 +95,7 @@ spec:
       volumes:
         - name: workflows-config-volume
           configMap:
-            name: workflows-config-files-config-files
+            name: workflows-config-files
         - name: workflows-xcom-config-volume
           emptyDir: {}
       restartPolicy: Always
