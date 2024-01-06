@@ -5,7 +5,7 @@ const createSimUtil = require("@utils/create-sim");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-sim-controller`
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-sim-controller`
 );
 const isEmpty = require("is-empty");
 

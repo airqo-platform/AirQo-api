@@ -5,7 +5,7 @@ const log4js = require("log4js");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- generate-filter-util`
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- generate-filter-util`
 );
 const { HttpError } = require("@utils/errors");
 

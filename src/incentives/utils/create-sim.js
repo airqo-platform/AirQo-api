@@ -5,7 +5,9 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-sim-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-sim-util`
+);
 const axios = require("axios");
 const xml2js = require("xml2js");
 const thingsMobile = require("@config/things-mobile");

@@ -5,7 +5,9 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-host-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-host-util`
+);
 const { HttpError } = require("@utils/errors");
 const stringify = require("@utils/stringify");
 
