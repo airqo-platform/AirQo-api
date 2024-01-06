@@ -8,6 +8,37 @@ const logger = log4js.getLogger(
 );
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createTransaction = {
   /******************************** HOST PAYMENTS *************************************************/
@@ -28,30 +59,28 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSendMoneyToHost =
-        await createTransactionUtil.sendMoneyToHost(request, next);
-      logObject(
-        "responseFromSendMoneyToHost in controller",
-        responseFromSendMoneyToHost
-      );
-      if (responseFromSendMoneyToHost.success === true) {
-        const status = responseFromSendMoneyToHost.status
-          ? responseFromSendMoneyToHost.status
-          : httpStatus.OK;
+      const result = await createTransactionUtil.sendMoneyToHost(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSendMoneyToHost.message,
-          transaction: responseFromSendMoneyToHost.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromSendMoneyToHost.success === false) {
-        const status = responseFromSendMoneyToHost.status
-          ? responseFromSendMoneyToHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSendMoneyToHost.message,
-          errors: responseFromSendMoneyToHost.errors
-            ? responseFromSendMoneyToHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -85,33 +114,31 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAddMoneyToOrganisation =
-        await createTransactionUtil.addMoneyToOrganisationAccount(
-          request,
-          next
-        );
-      logObject(
-        "responseFromAddMoneyToOrganisation in controller",
-        responseFromAddMoneyToOrganisation
+      const result = await createTransactionUtil.addMoneyToOrganisationAccount(
+        request,
+        next
       );
-      if (responseFromAddMoneyToOrganisation.success === true) {
-        const status = responseFromAddMoneyToOrganisation.status
-          ? responseFromAddMoneyToOrganisation.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAddMoneyToOrganisation.message,
-          transaction: responseFromAddMoneyToOrganisation.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromAddMoneyToOrganisation.success === false) {
-        const status = responseFromAddMoneyToOrganisation.status
-          ? responseFromAddMoneyToOrganisation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAddMoneyToOrganisation.message,
-          errors: responseFromAddMoneyToOrganisation.errors
-            ? responseFromAddMoneyToOrganisation.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -145,30 +172,31 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromReceiveMoneyFromHost =
-        await createTransactionUtil.receiveMoneyFromHost(request, next);
-      logObject(
-        "responseFromReceiveMoneyFromHost in controller",
-        responseFromReceiveMoneyFromHost
+      const result = await createTransactionUtil.receiveMoneyFromHost(
+        request,
+        next
       );
-      if (responseFromReceiveMoneyFromHost.success === true) {
-        const status = responseFromReceiveMoneyFromHost.status
-          ? responseFromReceiveMoneyFromHost.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromReceiveMoneyFromHost.message,
-          transaction: responseFromReceiveMoneyFromHost.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromReceiveMoneyFromHost.success === false) {
-        const status = responseFromReceiveMoneyFromHost.status
-          ? responseFromReceiveMoneyFromHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromReceiveMoneyFromHost.message,
-          errors: responseFromReceiveMoneyFromHost.errors
-            ? responseFromReceiveMoneyFromHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -202,30 +230,31 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromGetTransactionDetails =
-        await createTransactionUtil.getTransactionDetails(request, next);
-      logObject(
-        "responseFromGetTransactionDetails in controller",
-        responseFromGetTransactionDetails
+      const result = await createTransactionUtil.getTransactionDetails(
+        request,
+        next
       );
-      if (responseFromGetTransactionDetails.success === true) {
-        const status = responseFromGetTransactionDetails.status
-          ? responseFromGetTransactionDetails.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromGetTransactionDetails.message,
-          transaction: responseFromGetTransactionDetails.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromGetTransactionDetails.success === false) {
-        const status = responseFromGetTransactionDetails.status
-          ? responseFromGetTransactionDetails.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromGetTransactionDetails.message,
-          errors: responseFromGetTransactionDetails.errors
-            ? responseFromGetTransactionDetails.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -259,30 +288,31 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListTransactions =
-        await createTransactionUtil.listTransactions(request, next);
-      logObject(
-        "responseFromListTransactions in controller",
-        responseFromListTransactions
+      const result = await createTransactionUtil.listTransactions(
+        request,
+        next
       );
-      if (responseFromListTransactions.success === true) {
-        const status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListTransactions.message,
-          transaction: responseFromListTransactions.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromListTransactions.success === false) {
-        const status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListTransactions.message,
-          errors: responseFromListTransactions.errors
-            ? responseFromListTransactions.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -317,30 +347,28 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromLoadDataBundle =
-        await createTransactionUtil.loadDataBundle(request, next);
-      logObject(
-        "responseFromLoadDataBundle in controller",
-        responseFromLoadDataBundle
-      );
-      if (responseFromLoadDataBundle.success === true) {
-        const status = responseFromLoadDataBundle.status
-          ? responseFromLoadDataBundle.status
-          : httpStatus.OK;
+      const result = await createTransactionUtil.loadDataBundle(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromLoadDataBundle.message,
-          transaction: responseFromLoadDataBundle.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromLoadDataBundle.success === false) {
-        const status = responseFromLoadDataBundle.status
-          ? responseFromLoadDataBundle.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromLoadDataBundle.message,
-          errors: responseFromLoadDataBundle.errors
-            ? responseFromLoadDataBundle.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -374,35 +402,32 @@ const createTransaction = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCheckRemainingDataBundleBalance =
+      const result =
         await createTransactionUtil.checkRemainingDataBundleBalance(
           request,
           next
         );
-      logObject(
-        "responseFromCheckRemainingDataBundleBalance in controller",
-        responseFromCheckRemainingDataBundleBalance
-      );
-      if (responseFromCheckRemainingDataBundleBalance.success === true) {
-        const status = responseFromCheckRemainingDataBundleBalance.status
-          ? responseFromCheckRemainingDataBundleBalance.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCheckRemainingDataBundleBalance.message,
-          transaction: responseFromCheckRemainingDataBundleBalance.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (
-        responseFromCheckRemainingDataBundleBalance.success === false
-      ) {
-        const status = responseFromCheckRemainingDataBundleBalance.status
-          ? responseFromCheckRemainingDataBundleBalance.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCheckRemainingDataBundleBalance.message,
-          errors: responseFromCheckRemainingDataBundleBalance.errors
-            ? responseFromCheckRemainingDataBundleBalance.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
