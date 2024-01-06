@@ -729,6 +729,79 @@ describe("createGroup Module", () => {
       UserModel(tenant).bulkWrite.restore();
     });
   });
+  describe("assignUsersHybrid", () => {
+    it("should assign users to the group and return success", async () => {
+      // Create mock data and stubs for GroupModel and UserModel
+      const request = {
+        params: { grp_id: "valid_group_id" },
+        body: { user_ids: ["user1", "user2"] },
+        query: { tenant: "test_tenant" },
+      };
+      const GroupModel = {
+        findById: sinon.stub().resolves({}),
+      };
+      const UserModel = {
+        findById: sinon.stub(),
+        bulkWrite: sinon.stub(),
+      };
+
+      // Stub findById to return user data when called
+      UserModel.findById
+        .withArgs("user1")
+        .resolves({ group_roles: [] })
+        .withArgs("user2")
+        .resolves({ group_roles: [] });
+
+      // Stub bulkWrite to simulate a successful operation
+      UserModel.bulkWrite.resolves({ nModified: 2 });
+
+      const logger = {
+        error: sinon.stub(),
+      };
+
+      // Call the function and make assertions
+      const result = await createGroup.assignUsersHybrid(request, {
+        UserModel,
+        GroupModel,
+        logger,
+      });
+      expect(result.success).to.equal(true);
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.message).to.include("All users have been assigned");
+    });
+
+    it("should handle invalid group ID", async () => {
+      // Create mock data and stubs
+      const request = {
+        params: { grp_id: "invalid_group_id" },
+        body: { user_ids: ["user1"] },
+        query: { tenant: "test_tenant" },
+      };
+      const GroupModel = {
+        findById: sinon.stub().resolves(null), // Group not found
+      };
+
+      const logger = {
+        error: sinon.stub(),
+      };
+
+      // Call the function and make assertions
+      const result = await createGroup.assignUsersHybrid(request, {
+        GroupModel,
+        logger,
+      });
+      expect(result.success).to.equal(false);
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.include("Invalid group ID");
+    });
+
+    // Add more test cases for different scenarios
+
+    // Don't forget to clean up stubs after each test.
+    afterEach(() => {
+      sinon.restore();
+    });
+  });
   describe("assignOneUser()", () => {
     let requestMock;
 
@@ -1651,6 +1724,45 @@ describe("createGroup Module", () => {
 
       GroupModel(tenant).findById.restore();
       UserModel(tenant).aggregate.restore();
+    });
+  });
+  describe("listAllGroupUsers()", () => {
+    it("should return a valid response for a valid group ID", async () => {
+      const request = {
+        query: { tenant: "airqo" },
+        params: { grp_id: "validGroupId" },
+      };
+
+      // Mock the GroupModel's findById method to return a valid group
+      sinon.stub(GroupModel("airqo"), "findById").resolves({
+        _id: "validGroupId",
+        // Other properties...
+      });
+
+      // Mock the UserModel's aggregate method to return some users
+      sinon.stub(UserModel("airqo"), "aggregate").resolves([
+        // Mocked user data...
+      ]);
+
+      // Mock the AccessRequestModel's aggregate method to return some access requests
+      sinon.stub(AccessRequestModel("airqo"), "aggregate").resolves([
+        // Mocked access request data...
+      ]);
+
+      // Call the function and get the result
+      const result = await createGroup.listAllGroupUsers(request);
+
+      // Assert the result
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      // Add more assertions based on the expected behavior of your function
+    });
+
+    // Add more test cases as needed...
+
+    // Clean up sinon stubs after each test
+    afterEach(() => {
+      sinon.restore();
     });
   });
 });

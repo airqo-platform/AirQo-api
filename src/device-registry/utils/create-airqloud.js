@@ -17,6 +17,7 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const { HttpError } = require("@utils/errors");
 
 const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
 const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
@@ -45,7 +46,6 @@ const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
   },
   {}
 );
-
 const getDocumentsByNetworkId = async (tenantId, network, category) => {
   try {
     if (category === "summary") {
@@ -113,7 +113,6 @@ const getDocumentsByNetworkId = async (tenantId, network, category) => {
     };
   }
 };
-
 const getDocumentsByGroupId = async (tenantId, groupId, category) => {
   try {
     if (category === "summary") {
@@ -187,15 +186,22 @@ const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
   },
-  hasNoWhiteSpace: (word) => {
+  hasNoWhiteSpace: (word, next) => {
     try {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
-    } catch (e) {
-      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  retrieveCoordinates: async (request, entity) => {
+  retrieveCoordinates: async (request, entity, next) => {
     try {
       let entityInstance = {};
       if (entity === "location") {
@@ -246,16 +252,17 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -270,7 +277,8 @@ const createAirqloud = {
 
         let responseFromRetrieveCoordinates = await createAirqloud.retrieveCoordinates(
           requestForCoordinateRetrieval,
-          "location"
+          "location",
+          next
         );
 
         if (responseFromRetrieveCoordinates.success === true) {
@@ -292,7 +300,8 @@ const createAirqloud = {
       }
 
       const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
-        requestForCalucaltionAirQloudCenter
+        requestForCalucaltionAirQloudCenter,
+        next
       );
       logObject(
         "responseFromCalculateGeographicalCenter",
@@ -306,7 +315,8 @@ const createAirqloud = {
       }
 
       const responseFromRegisterAirQloud = await AirQloudModel(tenant).register(
-        modifiedBody
+        modifiedBody,
+        next
       );
 
       logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
@@ -335,60 +345,69 @@ const createAirqloud = {
       } else if (responseFromRegisterAirQloud.success === false) {
         return responseFromRegisterAirQloud;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       let { query, body } = request;
       let { tenant } = query;
 
       let update = body;
-      let filter = generateFilter.airqlouds(request);
+      let filter = generateFilter.airqlouds(request, next);
 
-      let responseFromModifyAirQloud = await AirQloudModel(tenant).modify({
-        filter,
-        update,
-      });
+      let responseFromModifyAirQloud = await AirQloudModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       return responseFromModifyAirQloud;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       let { query } = request;
       let { tenant } = query;
-      let filter = generateFilter.airqlouds(request);
-      let responseFromRemoveAirQloud = await AirQloudModel(tenant).remove({
-        filter,
-      });
+      let filter = generateFilter.airqlouds(request, next);
+      let responseFromRemoveAirQloud = await AirQloudModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
 
       return responseFromRemoveAirQloud;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to delete airqloud",
-        errors: err.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  refresh: async (request) => {
+  refresh: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant, id, name, admin_level } = query;
@@ -402,9 +421,10 @@ const createAirqloud = {
       requestForCoordinateRetrieval["query"]["id"] = id;
       requestForCoordinateRetrieval["query"]["tenant"] = tenant;
 
-      let responseFromRetrieveCoordinates = await createAirqloud.retrieveCoordinates(
+      const responseFromRetrieveCoordinates = await createAirqloud.retrieveCoordinates(
         requestForCoordinateRetrieval,
-        "airqloud"
+        "airqloud",
+        next
       );
 
       if (responseFromRetrieveCoordinates.success === true) {
@@ -414,7 +434,10 @@ const createAirqloud = {
         return responseFromRetrieveCoordinates;
       }
 
-      const responseFromFindSites = await createAirqloud.findSites(request);
+      const responseFromFindSites = await createAirqloud.findSites(
+        request,
+        next
+      );
       if (responseFromFindSites.success === true) {
         const sites = responseFromFindSites.data;
         requestForUpdateAirQloud["body"]["sites"] = sites;
@@ -429,7 +452,8 @@ const createAirqloud = {
         requestForUpdateAirQloud.body.location.coordinates;
 
       const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
-        requestForCalucaltionAirQloudCenter
+        requestForCalucaltionAirQloudCenter,
+        next
       );
 
       if (responseFromCalculateGeographicalCenter.success === true) {
@@ -440,7 +464,8 @@ const createAirqloud = {
       }
 
       const responseFromUpdateAirQloud = await createAirqloud.update(
-        requestForUpdateAirQloud
+        requestForUpdateAirQloud,
+        next
       );
       if (responseFromUpdateAirQloud.success === true) {
         return {
@@ -453,16 +478,17 @@ const createAirqloud = {
         return responseFromUpdateAirQloud;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  calculateGeographicalCenter: async (request) => {
+  calculateGeographicalCenter: async (request, next) => {
     try {
       const { body, query } = request;
       const { coordinates } = body;
@@ -470,7 +496,10 @@ const createAirqloud = {
       let coordinatesForCalculatingCenter = [];
 
       if (!isEmpty(id)) {
-        const responseFromListAirQloud = await createAirqloud.list(request);
+        const responseFromListAirQloud = await createAirqloud.list(
+          request,
+          next
+        );
         if (responseFromListAirQloud.success === true) {
           if (responseFromListAirQloud.data.length === 1) {
             coordinatesForCalculatingCenter =
@@ -506,15 +535,17 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  findSites: async (request) => {
+  findSites: async (request, next) => {
     try {
       const { query, body } = request;
       const { id, tenant, name, admin_level } = query;
@@ -528,7 +559,8 @@ const createAirqloud = {
       requestForAirQlouds["query"]["name"] = name;
       requestForAirQlouds["query"]["tenant"] = tenant;
       const responseFromListAirQlouds = await createAirqloud.list(
-        requestForAirQlouds
+        requestForAirQlouds,
+        next
       );
 
       if (responseFromListAirQlouds.success === true) {
@@ -556,9 +588,12 @@ const createAirqloud = {
 
         filter = {};
 
-        let responseFromListSites = await SiteModel(tenant).list({
-          filter,
-        });
+        let responseFromListSites = await SiteModel(tenant).list(
+          {
+            filter,
+          },
+          next
+        );
 
         if (responseFromListSites.success === true) {
           const sites = responseFromListSites.data;
@@ -611,35 +646,41 @@ const createAirqloud = {
         return responseFromListAirQlouds;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.airqlouds(request);
-      const responseFromListAirQloud = await AirQloudModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.airqlouds(request, next);
+      const responseFromListAirQloud = await AirQloudModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListAirQloud;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to list airqloud",
-        errors: err.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listCohortsAndGrids: async (request) => {
+  listCohortsAndGrids: async (request, next) => {
     try {
       const { params, query } = request;
       const groupId = params.group_id;
@@ -694,12 +735,14 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

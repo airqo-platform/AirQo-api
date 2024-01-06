@@ -1,285 +1,244 @@
-const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("@utils/log");
-const errors = require("@utils/errors");
+const httpStatus = require("http-status");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-health-tip-controller`
 );
-const { validationResult } = require("express-validator");
 const createHealthTipUtil = require("@utils/create-health-tips");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createHealthTips = {
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      const { body, query } = req;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        return;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
-      const responseFromListHealthTip = await createHealthTipUtil.list(request);
-      logObject(
-        "responseFromListHealthTip in controller",
-        responseFromListHealthTip
-      );
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (responseFromListHealthTip.success === true) {
-        const status = responseFromListHealthTip.status
-          ? responseFromListHealthTip.status
-          : HTTPStatus.OK;
+      const result = await createHealthTipUtil.list(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListHealthTip.message,
-          tips: responseFromListHealthTip.data,
+          message: result.message,
+          tips: result.data,
         });
-      } else if (responseFromListHealthTip.success === false) {
-        const status = responseFromListHealthTip.status
-          ? responseFromListHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListHealthTip.message,
-          errors: responseFromListHealthTip.errors
-            ? responseFromListHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      logElement("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      const { body, query } = req;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        return;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromCreateHealthTip = await createHealthTipUtil.create(
-        request
-      );
-      logObject("responseFromCreateHealthTip", responseFromCreateHealthTip);
-      if (responseFromCreateHealthTip.success === true) {
-        const status = responseFromCreateHealthTip.status
-          ? responseFromCreateHealthTip.status
-          : HTTPStatus.OK;
+      const result = await createHealthTipUtil.create(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateHealthTip.message,
-          created_tip: responseFromCreateHealthTip.data
-            ? responseFromCreateHealthTip.data
-            : [],
+          message: result.message,
+          created_tip: result.data ? result.data : [],
         });
-      } else if (responseFromCreateHealthTip.success === false) {
-        const status = responseFromCreateHealthTip.status
-          ? responseFromCreateHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateHealthTip.message,
-          errors: responseFromCreateHealthTip.errors
-            ? responseFromCreateHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      const { body, query } = req;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        return;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
-      const responseFromDeleteHealthTip = await createHealthTipUtil.delete(
-        request
-      );
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      logObject("responseFromDeleteHealthTip", responseFromDeleteHealthTip);
+      const result = await createHealthTipUtil.delete(request, next);
 
-      if (responseFromDeleteHealthTip.success === true) {
-        const status = responseFromDeleteHealthTip.status
-          ? responseFromDeleteHealthTip.status
-          : HTTPStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeleteHealthTip.message,
-          deleted_tip: responseFromDeleteHealthTip.data,
+          message: result.message,
+          deleted_tip: result.data,
         });
-      } else if (responseFromDeleteHealthTip.success === false) {
-        const status = responseFromDeleteHealthTip.status
-          ? responseFromDeleteHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeleteHealthTip.message,
-          errors: responseFromDeleteHealthTip.errors
-            ? responseFromDeleteHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      const { body, query } = req;
-      let { tenant } = query;
-
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK;
+        return;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      request["query"]["tenant"] = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromUpdateHealthTip = await createHealthTipUtil.update(
-        request
-      );
+      const result = await createHealthTipUtil.update(request, next);
 
-      logObject("responseFromUpdateHealthTip", responseFromUpdateHealthTip);
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (responseFromUpdateHealthTip.success === true) {
-        const status = responseFromUpdateHealthTip.status
-          ? responseFromUpdateHealthTip.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateHealthTip.message,
-          updated_tip: responseFromUpdateHealthTip.data,
+          message: result.message,
+          updated_tip: result.data,
         });
-      } else if (responseFromUpdateHealthTip.success === false) {
-        const status = responseFromUpdateHealthTip.status
-          ? responseFromUpdateHealthTip.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateHealthTip.message,
-          errors: responseFromUpdateHealthTip.errors
-            ? responseFromUpdateHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

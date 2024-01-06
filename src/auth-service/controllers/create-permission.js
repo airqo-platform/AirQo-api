@@ -1,243 +1,213 @@
-const { validationResult } = require("express-validator");
 const controlAccessUtil = require("@utils/control-access");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logText } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- permission-controller`
+);
 
 const createPermission = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
       logText("creating permission.....");
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.createPermission(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-
-      const responseFromCreatePermission =
-        await controlAccessUtil.createPermission(request);
-
-      if (responseFromCreatePermission.success === true) {
-        const status = responseFromCreatePermission.status
-          ? responseFromCreatePermission.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreatePermission.message
-            ? responseFromCreatePermission.message
-            : "",
-          created_permission: responseFromCreatePermission.data
-            ? responseFromCreatePermission.data
-            : [],
+          message: result.message ? result.message : "",
+          created_permission: result.data ? result.data : [],
         });
-      } else if (responseFromCreatePermission.success === false) {
-        const status = responseFromCreatePermission.status
-          ? responseFromCreatePermission.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreatePermission.message
-            ? responseFromCreatePermission.message
-            : "",
-          errors: responseFromCreatePermission.errors
-            ? responseFromCreatePermission.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logObject("error", error);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromListPermissions =
-        await controlAccessUtil.listPermission(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      const result = await controlAccessUtil.listPermission(request, next);
 
-      if (responseFromListPermissions.success === true) {
-        const status = responseFromListPermissions.status
-          ? responseFromListPermissions.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListPermissions.message
-            ? responseFromListPermissions.message
-            : "",
-          permissions: responseFromListPermissions.data
-            ? responseFromListPermissions.data
-            : [],
+          message: result.message ? result.message : "",
+          permissions: result.data ? result.data : [],
         });
-      } else if (responseFromListPermissions.success === false) {
-        const status = responseFromListPermissions.status
-          ? responseFromListPermissions.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListPermissions.message
-            ? responseFromListPermissions.message
-            : "",
-          errors: responseFromListPermissions.errors
-            ? responseFromListPermissions.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.deletePermission(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromDeletePermission =
-        await controlAccessUtil.deletePermission(request);
-
-      if (responseFromDeletePermission.success === true) {
-        const status = responseFromDeletePermission.status
-          ? responseFromDeletePermission.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeletePermission.message
-            ? responseFromDeletePermission.message
-            : "",
-          deleted_permission: responseFromDeletePermission.data
-            ? responseFromDeletePermission.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_permission: result.data ? result.data : [],
         });
-      } else if (responseFromDeletePermission.success === false) {
-        const status = responseFromDeletePermission.status
-          ? responseFromDeletePermission.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeletePermission.message
-            ? responseFromDeletePermission.message
-            : "",
-          errors: responseFromDeletePermission.errors
-            ? responseFromDeletePermission.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.updatePermission(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromUpdatePermission =
-        await controlAccessUtil.updatePermission(request);
-
-      if (responseFromUpdatePermission.success === true) {
-        const status = responseFromUpdatePermission.status
-          ? responseFromUpdatePermission.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdatePermission.message
-            ? responseFromUpdatePermission.message
-            : "",
-          updated_permission: responseFromUpdatePermission.data
-            ? responseFromUpdatePermission.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_permission: result.data ? result.data : [],
         });
-      } else if (responseFromUpdatePermission.success === false) {
-        const status = responseFromUpdatePermission.status
-          ? responseFromUpdatePermission.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdatePermission.message
-            ? responseFromUpdatePermission.message
-            : "",
-          errors: responseFromUpdatePermission.errors
-            ? responseFromUpdatePermission.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

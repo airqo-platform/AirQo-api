@@ -19,12 +19,12 @@ from data.preprocess import data_to_df, drop_missing_value, preprocess
 pd.set_option("mode.chained_assignment", None)
 
 
-def get_airqloud_polygon(tenant, airqloud):
+def get_airqloud_polygon(tenant, airqloud_id):
     """
     Gets the geometric polygon of a given airqloud
     """
-    params = {"tenant": tenant, "name": airqloud}
-    if configuration.API_TOKEN:
+    params = {"tenant": tenant, "id": airqloud_id}
+    if configuration.API_TOKEN != None:
         headers = {"Authorization": configuration.API_TOKEN}
         coords = requests.get(
             configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers
@@ -217,7 +217,7 @@ def periodic_function(tenant, airqloud, aq_id):
     """
 
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
-        tenant, airqloud)
+        tenant, aq_id)
     all_sites_data = get_airqloud_data(airqloud_id=aq_id)
 
     if len(all_sites_data) >= 1:
@@ -260,7 +260,7 @@ def get_all_airqlouds(tenant):
     names = [aq["name"] for aq in airqlouds]
     aq_ids = [aq["_id"] for aq in airqlouds]
     # Esxcluding Country level AirQloud
-    exclude = ['kenya', 'uganda', 'cameroon', 'senegal','ghana','nigeria']
+    exclude = ['kenya', 'uganda', 'cameroon', 'senegal','ghana','nigeria','madagascar']
     names_update = set(names).difference(set(exclude))
     exclude_ind = list(map(names.index, exclude))
     aq_ids_update = [
@@ -283,3 +283,5 @@ if __name__ == "__main__":
             f"thread{index} = Thread(target=periodic_function, args = [args.tenant, name, aq_ids[index]])"
         )
         exec(f"thread{index}.start()")
+        exec(f"thread{index}.join()")
+

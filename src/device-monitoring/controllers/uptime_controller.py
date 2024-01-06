@@ -19,6 +19,8 @@ uptime_bp = Blueprint(
     "startDateTime|required:datetime",
     "endDateTime|required:datetime",
     "airqloud|optional:str",
+    "cohort|optional:str",
+    "grid|optional:str",
     "threshold|optional:int",
     "site|optional:str",
     "devices|optional:list",
@@ -31,6 +33,8 @@ def get_uptime():
     site = json_data.get("site", "")
     threshold = json_data.get("threshold", None)
     airqloud = json_data.get("airqloud", "")
+    cohort = json_data.get("cohort", "")
+    grid = json_data.get("grid", "")
 
     data = Uptime.get_uptime(
         start_date_time=start_date_time,
@@ -38,6 +42,8 @@ def get_uptime():
         devices=devices,
         site=site,
         airqloud=airqloud,
+        cohort=cohort,
+        grid=grid,
     )
     uptime = Uptime.compute_uptime_summary(
         start_date_time=start_date_time,
@@ -46,6 +52,8 @@ def get_uptime():
         devices=devices,
         site=site,
         airqloud=airqloud,
+        cohort=cohort,
+        grid=grid,
         threshold=threshold,
     )
     response = dict(message="Successful", data=uptime)

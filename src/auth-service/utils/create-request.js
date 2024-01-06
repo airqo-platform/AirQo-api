@@ -2,7 +2,7 @@ const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -13,12 +13,12 @@ const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
 );
-const accessCodeGenerator = require("generate-password");
 const createNetworkUtil = require("@utils/create-network");
 const createGroupUtil = require("@utils/create-group");
+const { HttpError } = require("@utils/errors");
 
 const createAccessRequest = {
-  requestAccessToGroup: async (request) => {
+  requestAccessToGroup: async (request, next) => {
     try {
       const {
         user: { _doc: user },
@@ -32,12 +32,11 @@ const createAccessRequest = {
       logObject("group", group);
       logObject("user._id", user._id);
       if (isEmpty(group) || isEmpty(user._id)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Group or User not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Group or User not found",
+          })
+        );
       }
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
@@ -47,44 +46,49 @@ const createAccessRequest = {
       });
 
       if (!isEmpty(existingRequest)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Access request already exists for this group" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Access request already exists for this group",
+          })
+        );
       }
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
         tenant
-      ).register({
-        user_id: user._id,
-        targetId: grp_id,
-        status: "pending",
-        requestType: "group",
-      });
+      ).register(
+        {
+          user_id: user._id,
+          email: user.email,
+          targetId: grp_id,
+          status: "pending",
+          requestType: "group",
+        },
+        next
+      );
 
       if (responseFromCreateAccessRequest.success === true) {
         const createdAccessRequest = await responseFromCreateAccessRequest.data;
         const firstName = user.firstName ? user.firstName : "Unknown";
         const lastName = user.lastName ? user.lastName : "Unknown";
         if (isEmpty(user.email)) {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message: "Unable to retrieve the requester's email address",
-            },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Unable to retrieve the requester's email address" }
+            )
+          );
         }
-        const responseFromSendEmail = await mailer.request({
-          firstName,
-          lastName,
-          email: user.email,
-          tenant,
-          entity_title: group.grp_title,
-        });
+        const responseFromSendEmail = await mailer.request(
+          {
+            firstName,
+            lastName,
+            email: user.email,
+            tenant,
+            entity_title: group.grp_title,
+          },
+          next
+        );
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -103,17 +107,18 @@ const createAccessRequest = {
         logger.error(`${responseFromCreateAccessRequest.message}`);
         return responseFromCreateAccessRequest;
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  requestAccessToGroupByEmail: async (request) => {
+  requestAccessToGroupByEmail: async (request, next) => {
     try {
       const { tenant, emails, user, grp_id } = {
         ...request,
@@ -129,23 +134,25 @@ const createAccessRequest = {
       const inviterId = inviter._id;
       const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
       if (isEmpty(inviterDetails) || isEmpty(inviter)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Inviter does not exit" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Inviter does not exit",
+            }
+          )
+        );
       }
 
       const group = await GroupModel(tenant).findById(grp_id);
       logObject("group", group);
       if (isEmpty(group)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Group not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Group not found",
+          })
+        );
       }
 
       const existingRequests = [];
@@ -164,12 +171,15 @@ const createAccessRequest = {
         } else {
           const responseFromCreateAccessRequest = await AccessRequestModel(
             tenant
-          ).register({
-            email: email,
-            targetId: grp_id,
-            status: "pending",
-            requestType: "group",
-          });
+          ).register(
+            {
+              email: email,
+              targetId: grp_id,
+              status: "pending",
+              requestType: "group",
+            },
+            next
+          );
 
           logObject(
             "responseFromCreateAccessRequest",
@@ -180,24 +190,35 @@ const createAccessRequest = {
             const createdAccessRequest =
               await responseFromCreateAccessRequest.data;
             if (isEmpty(email)) {
-              return {
-                success: false,
-                message: "Internal Server Error",
-                errors: {
-                  message: "Unable to retrieve the requester's email address",
-                },
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-              };
+              next(
+                new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  {
+                    message: "Unable to retrieve the requester's email address",
+                  }
+                )
+              );
             }
 
+            const userExists = await UserModel(tenant).exists({ email });
+
+            logObject("userExists", userExists);
+
             const responseFromSendEmail =
-              await mailer.requestToJoinGroupByEmail({
-                email,
-                tenant,
-                entity_title: group.grp_title,
-                targetId: grp_id,
-                inviterEmail,
-              });
+              await mailer.requestToJoinGroupByEmail(
+                {
+                  email,
+                  tenant,
+                  entity_title: group.grp_title,
+                  targetId: grp_id,
+                  inviterEmail,
+                  userExists,
+                },
+                next
+              );
+
+            logObject("responseFromSendEmail", responseFromSendEmail);
 
             if (responseFromSendEmail.success === true) {
               successResponses.push({
@@ -220,16 +241,13 @@ const createAccessRequest = {
       }
 
       if (existingRequests.length > 0 && successResponses.length === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Access requests were already sent for the following emails",
             existingRequests,
-          },
-        };
+          })
+        );
       }
 
       if (failureResponses.length > 0) {
@@ -242,17 +260,19 @@ const createAccessRequest = {
       if (successResponses.length > 0) {
         return successResponses[0];
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logObject("error", error);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  acceptInvitation: async (request) => {
+  acceptInvitation: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password, grids, target_id } =
         {
@@ -263,12 +283,11 @@ const createAccessRequest = {
 
       const user = await UserModel(tenant).find({ email });
       if (!isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "The User already exists in AirQo Analytics" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "The User already exists in AirQo Analytics",
+          })
+        );
       }
 
       const accessRequest = await AccessRequestModel(tenant).find({
@@ -279,15 +298,12 @@ const createAccessRequest = {
 
       logObject("accessRequest", accessRequest);
       if (isEmpty(accessRequest)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "Access Request not found, please crosscheck provided details",
-          },
-        };
+          })
+        );
       }
 
       let newUser = {};
@@ -300,7 +316,8 @@ const createAccessRequest = {
       };
 
       const responseFromCreateNewUser = await UserModel(tenant).register(
-        bodyForCreatingNewUser
+        bodyForCreatingNewUser,
+        next
       );
 
       if (
@@ -315,10 +332,13 @@ const createAccessRequest = {
 
         const responseFromUpdateAccessRequest = await AccessRequestModel(
           tenant
-        ).modify({
-          filter,
-          update,
-        });
+        ).modify(
+          {
+            filter,
+            update,
+          },
+          next
+        );
 
         const requestType = accessRequest[0].requestType;
 
@@ -363,7 +383,8 @@ const createAccessRequest = {
                 username: email,
                 email,
                 entity_title,
-              }
+              },
+              next
             );
             if (responseFromSendEmail.success === true) {
               return {
@@ -388,17 +409,17 @@ const createAccessRequest = {
         return responseFromCreateNewUser;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  requestAccessToNetwork: async (request) => {
+  requestAccessToNetwork: async (request, next) => {
     try {
       const {
         user: { _doc: user },
@@ -409,12 +430,11 @@ const createAccessRequest = {
 
       const network = await NetworkModel(tenant).findById(net_id);
       if (isEmpty(network) || isEmpty(user._id)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Network or User not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network or User not found",
+          })
+        );
       }
 
       const existingRequest = await AccessRequestModel(tenant).findOne({
@@ -424,22 +444,24 @@ const createAccessRequest = {
       });
 
       if (!isEmpty(existingRequest)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Access request already exists for this network" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Access request already exists for this network",
+          })
+        );
       }
 
       const responseFromCreateAccessRequest = await AccessRequestModel(
         tenant
-      ).register({
-        user_id: user._id,
-        targetId: net_id,
-        status: "pending",
-        requestType: "network",
-      });
+      ).register(
+        {
+          user_id: user._id,
+          targetId: net_id,
+          status: "pending",
+          requestType: "network",
+        },
+        next
+      );
 
       if (responseFromCreateAccessRequest.success === true) {
         const createdAccessRequest = await responseFromCreateAccessRequest.data;
@@ -457,13 +479,16 @@ const createAccessRequest = {
           };
         }
 
-        const responseFromSendEmail = await mailer.request({
-          firstName,
-          lastName,
-          email: user.email,
-          tenant,
-          entity_title: network.net_name,
-        });
+        const responseFromSendEmail = await mailer.request(
+          {
+            firstName,
+            lastName,
+            email: user.email,
+            tenant,
+            entity_title: network.net_name,
+          },
+          next
+        );
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -482,17 +507,18 @@ const createAccessRequest = {
         logger.error(`${responseFromCreateAccessRequest.message}`);
         return responseFromCreateAccessRequest;
       }
-    } catch (e) {
-      logger.error(`Internal Server Error ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  approveAccessRequest: async (request) => {
+  approveAccessRequest: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
@@ -502,23 +528,21 @@ const createAccessRequest = {
       );
       logObject("accessRequest", accessRequest);
       if (isEmpty(accessRequest)) {
-        return {
-          success: false,
-          message: "Not Found",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "Access request not found" },
-        };
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Access request not found",
+          })
+        );
       }
 
       const user = await UserModel(tenant).findById(accessRequest.user_id);
 
       if (isEmpty(user)) {
-        return {
-          success: false,
-          message: "Not Found",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "User Details in Access Request Not Found" },
-        };
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "User Details in Access Request Not Found",
+          })
+        );
       }
 
       const update = { status: "approved" };
@@ -526,17 +550,17 @@ const createAccessRequest = {
 
       const responseFromUpdateAccessRequest = await AccessRequestModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUpdateAccessRequest.success === true) {
         const { firstName, lastName, email } = user;
         if (accessRequest.requestType === "group") {
-          const group = await GroupModel(tenant)
-            .findById(accessRequest.targetId)
-            .lean();
           const request = {
             params: {
               grp_id: accessRequest.targetId,
@@ -553,12 +577,15 @@ const createAccessRequest = {
           );
 
           if (responseFromAssignUserToGroup.success === true) {
-            const group_name = group.grp_title ? group.grp_title : "";
+            const updatedUserDetails = { groups: 1 };
             const responseFromSendEmail = await mailer.update(
-              email,
-              firstName,
-              lastName,
-              { groups: 1 }
+              {
+                email,
+                firstName,
+                lastName,
+                updatedUserDetails,
+              },
+              next
             );
 
             if (responseFromSendEmail.success === true) {
@@ -574,9 +601,6 @@ const createAccessRequest = {
             return responseFromAssignUserToGroup;
           }
         } else if (accessRequest.requestType === "network") {
-          const network = await NetworkModel(tenant)
-            .findById(accessRequest.targetId)
-            .lean();
           const request = {
             params: {
               net_id: accessRequest.targetId,
@@ -588,12 +612,10 @@ const createAccessRequest = {
             await createNetworkUtil.assignOneUser(request);
 
           if (responseFromAssignUserToNetwork.success === true) {
-            const network_name = network.net_name ? network.net_name : "";
+            const updatedUserDetails = { networks: 1 };
             const responseFromSendEmail = await mailer.update(
-              email,
-              firstName,
-              lastName,
-              { networks: 1 }
+              { email, firstName, lastName, updatedUserDetails },
+              next
             );
 
             if (responseFromSendEmail.success === true) {
@@ -613,110 +635,105 @@ const createAccessRequest = {
         return responseFromUpdateAccessRequest;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-
-      const responseFromFilter = generateFilter.requests(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-
-      logObject("listing filter", filter);
-
+      const filter = generateFilter.requests(request, next);
       const responseFromListAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListAccessRequest;
-    } catch (e) {
-      logger.error(`${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
-
-      const responseFromFilter = generateFilter.requests(request);
-      logObject("responseFromFilter", responseFromFilter);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.requests(request, next);
       const update = body;
       const tenant = query.tenant;
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject(
         "responseFromModifyAccessRequest",
         responseFromModifyAccessRequest
       );
       return responseFromModifyAccessRequest;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
 
-      const responseFromFilter = generateFilter.requests(request);
+      const filter = generateFilter.requests(request, next);
 
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
       const responseFromRemoveAccessRequest = await AccessRequestModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
+      logObject(
+        "responseFromRemoveAccessRequest",
+        responseFromRemoveAccessRequest
+      );
       return responseFromRemoveAccessRequest;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logObject("delete util error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

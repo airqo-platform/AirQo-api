@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -11,6 +11,7 @@ const { getModelByTenant } = require("@config/database");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- admin-level-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const adminLevelSchema = new Schema({
   name: {
@@ -52,12 +53,10 @@ adminLevelSchema.methods.toJSON = function() {
   };
 };
 
-adminLevelSchema.statics.register = async function(args) {
+adminLevelSchema.statics.register = async function(args, next) {
   try {
     let modifiedArgs = { ...args };
-
     const createdAdminLevel = await this.create(modifiedArgs);
-
     if (!isEmpty(createdAdminLevel)) {
       return {
         success: true,
@@ -66,41 +65,40 @@ adminLevelSchema.statics.register = async function(args) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "adminLevel not created despite successful operation",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: "adminLevel not created despite successful operation",
-        },
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "adminLevel not created despite successful operation",
+          }
+        )
+      );
     }
-  } catch (err) {
+  } catch (error) {
     let response = {
       message: "validation errors for some of the provided fields",
       success: false,
       status: httpStatus.CONFLICT,
     };
 
-    if (!isEmpty(err.errors)) {
+    if (!isEmpty(error.errors)) {
       response.errors = {};
-      Object.entries(err.errors).forEach(([key, value]) => {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.errors.message = value.message;
         response.errors[value.path] = value.message;
       });
     } else {
-      response.errors = { message: err.message };
+      response.errors = { message: error.message };
     }
-
-    return response;
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(new HttpError(response.message, response.status, response.errors));
   }
 };
-
-adminLevelSchema.statics.list = async function({
-  filter = {},
-  limit = 1000,
-  skip = 0,
-} = {}) {
+adminLevelSchema.statics.list = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
   try {
     const inclusionProjection = constants.ADMIN_LEVEL_INCLUSION_PROJECTION;
     const exclusionProjection = constants.ADMIN_LEVEL_EXCLUSION_PROJECTION(
@@ -143,20 +141,18 @@ adminLevelSchema.statics.list = async function({
         status: httpStatus.OK,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-adminLevelSchema.statics.modify = async function({
-  filter = {},
-  update = {},
-} = {}) {
+adminLevelSchema.statics.modify = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const options = {
       new: true,
@@ -182,24 +178,23 @@ adminLevelSchema.statics.modify = async function({
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "adminLevel does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "admin level does not exist, please crosscheck",
+        })
+      );
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-adminLevelSchema.statics.remove = async function({ filter = {} } = {}) {
+adminLevelSchema.statics.remove = async function({ filter = {} } = {}, next) {
   try {
     const options = {
       projection: {
@@ -222,20 +217,20 @@ adminLevelSchema.statics.remove = async function({ filter = {} } = {}) {
         status: httpStatus.OK,
       };
     } else {
-      return {
-        success: false,
-        message: "adminLevel does not exist, please crosscheck",
-        status: httpStatus.BAD_REQUEST,
-        errors: filter,
-      };
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "admin level does not exist, please crosscheck",
+        })
+      );
     }
-  } catch (err) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-      status: httpStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

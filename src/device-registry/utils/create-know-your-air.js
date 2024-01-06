@@ -6,18 +6,13 @@ const KnowYourAirQuizModel = require("@models/KnowYourAirQuiz");
 const KnowYourAirQuestionModel = require("@models/KnowYourAirQuestion");
 const KnowYourAirAnswerModel = require("@models/KnowYourAirAnswer");
 const KnowYourAirUserQuizProgressModel = require("@models/KnowYourAirUserQuizProgress");
-const { getModelByTenant } = require("@config/database");
-const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-kya-util`);
 const translateUtil = require("./translate");
-
-const mongoose = require("mongoose").set("debug", true);
-const ObjectId = mongoose.Types.ObjectId;
-
+const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -28,25 +23,24 @@ const createKnowYourAir = {
   sample: async (request) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   /*************** lessons *******************************/
-  listLesson: async (request) => {
+  listLesson: async (request, next) => {
     try {
       const { query, params } = request;
       const { tenant, limit, skip, language } = query;
       const { user_id } = params;
-      const filter = generateFilter.kyalessons(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyalessons(request, next);
+
       logObject("filter", filter);
       const responseFromListLessons = await KnowYourAirLessonModel(tenant).list(
         {
@@ -54,12 +48,13 @@ const createKnowYourAir = {
           limit,
           skip,
           user_id: user_id,
-        }
+        },
+        next
       );
       if (language !== undefined) {
         const translatedLessons = await translateUtil.translateLessons(
-          responseFromListLessons.data,
-          language
+          { lessons: responseFromListLessons.data, targetLanguage: language },
+          next
         );
         if (translatedLessons.success === true) {
           return translatedLessons;
@@ -68,79 +63,69 @@ const createKnowYourAir = {
       logObject("responseFromListLessons", responseFromListLessons);
       return responseFromListLessons;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteLesson: async (request) => {
+  deleteLesson: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyalessons(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyalessons(request, next);
+
       const responseFromRemoveKyaLesson = await KnowYourAirLessonModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromRemoveKyaLesson", responseFromRemoveKyaLesson);
       return responseFromRemoveKyaLesson;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateLesson: async (request) => {
+  updateLesson: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyalessons(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyalessons(request, next);
       const update = body;
       const opts = { new: true };
       const responseFromModifyKyaLesson = await KnowYourAirLessonModel(
         tenant
-      ).modify({ filter, update, opts });
+      ).modify({ filter, update, opts }, next);
       logObject("responseFromModifyKyaLesson", responseFromModifyKyaLesson);
       return responseFromModifyKyaLesson;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createLesson: async (request) => {
+  createLesson: async (request, next) => {
     try {
       let { body, query } = request;
       let { tenant } = query;
 
       const responseFromRegisterKyaLesson = await KnowYourAirLessonModel(
         tenant
-      ).register(body);
+      ).register(body, next);
 
       logObject("responseFromRegisterKyaLesson", responseFromRegisterKyaLesson);
 
@@ -169,18 +154,17 @@ const createKnowYourAir = {
         return responseFromRegisterKyaLesson;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listAvailableTasks: async (request) => {
+  listAvailableTasks: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { lesson_id } = request.params;
@@ -222,16 +206,17 @@ const createKnowYourAir = {
         data: responseFromListAvailableTasks,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listAssignedTasks: async (request) => {
+  listAssignedTasks: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { lesson_id } = request.params;
@@ -270,141 +255,142 @@ const createKnowYourAir = {
         data: responseFromListAssignedTasks,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* tracking user progress ***************** */
-  listUserLessonProgress: async (request) => {
+  listUserLessonProgress: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaprogress(request, next);
       logObject("filter", filter);
 
       const responseFromListUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject(
         "responseFromListUserLessonProgress",
         responseFromListUserLessonProgress
       );
       return responseFromListUserLessonProgress;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteUserLessonProgress: async (request) => {
+  deleteUserLessonProgress: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaprogress(request, next);
       logObject("filter", filter);
       const responseFromDeleteUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject(
         "responseFromDeleteUserLessonProgress",
         responseFromDeleteUserLessonProgress
       );
       return responseFromDeleteUserLessonProgress;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateUserLessonProgress: async (request) => {
+  updateUserLessonProgress: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaprogress(request, next);
       let update = Object.assign({}, body);
       logObject("update", update);
       logObject("filter", filter);
       const responseFromUpdateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject(
         "responseFromUpdateUserLessonProgress",
         responseFromUpdateUserLessonProgress
       );
       return responseFromUpdateUserLessonProgress;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createUserLessonProgress: async (request) => {
+  createUserLessonProgress: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       let requestBody = Object.assign({}, body);
       const responseFromCreateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
-      ).register(requestBody);
+      ).register(requestBody, next);
       logObject(
         "responseFromCreateUserLessonProgress",
         responseFromCreateUserLessonProgress
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
-      logObject("error", JSON.stringify(error));
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  syncUserLessonProgress: async (request) => {
+  syncUserLessonProgress: async (request, next) => {
     try {
       const { query, body, params } = request;
       const { tenant } = query;
@@ -414,7 +400,8 @@ const createKnowYourAir = {
       if (progressList.length !== 0) {
         for (progress of progressList) {
           let responseFromListProgress = await createKnowYourAir.listUserLessonProgress(
-            request
+            request,
+            next
           );
           logObject("responseFromListProgress", responseFromListProgress);
           if (responseFromListProgress.success === false) {
@@ -434,7 +421,8 @@ const createKnowYourAir = {
               },
             };
             let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(
-              requestBody
+              requestBody,
+              next
             );
             logObject(
               "responseFromCreateUserLessonProgress",
@@ -454,7 +442,8 @@ const createKnowYourAir = {
               body: progress,
             };
             let responseFromUpdateUserLessonProgress = await createKnowYourAir.updateUserLessonProgress(
-              requestBody
+              requestBody,
+              next
             );
             logObject(
               "responseFromUpdateUserLessonProgress",
@@ -475,7 +464,8 @@ const createKnowYourAir = {
         },
       };
       let syncResponse = await createKnowYourAir.listUserLessonProgress(
-        requestBody
+        requestBody,
+        next
       );
 
       return syncResponse.success
@@ -487,107 +477,98 @@ const createKnowYourAir = {
           }
         : syncResponse;
     } catch (error) {
-      logObject("error", JSON.stringify(error));
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* tasks *******************************/
-  listTask: async (request) => {
+  listTask: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const filter = generateFilter.kyatasks(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyatasks(request, next);
 
-      const responseFromListKyaTask = await KnowYourAirTaskModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListKyaTask = await KnowYourAirTaskModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject("responseFromListKyaTask", responseFromListKyaTask);
       return responseFromListKyaTask;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteTask: async (request) => {
+  deleteTask: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyatasks(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyatasks(request, next);
+
       const responseFromRemoveKyaTask = await KnowYourAirTaskModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromRemoveKyaTask", responseFromRemoveKyaTask);
       return responseFromRemoveKyaTask;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateTask: async (request) => {
+  updateTask: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyatasks(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-
+      const filter = generateFilter.kyatasks(request, next);
       const update = body;
       const opts = { new: true };
       const responseFromModifyKyaTask = await KnowYourAirTaskModel(
         tenant
-      ).modify({ filter, update, opts });
+      ).modify({ filter, update, opts }, next);
 
       return responseFromModifyKyaTask;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createTask: async (request) => {
+  createTask: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
       const responseFromRegisterKyaTask = await KnowYourAirTaskModel(
         tenant
-      ).register(body);
+      ).register(body, next);
 
       logObject("responseFromRegisterKyaTask", responseFromRegisterKyaTask);
 
@@ -616,21 +597,19 @@ const createKnowYourAir = {
         return responseFromRegisterKyaTask;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* manage lessons *******************************/
-
-  assignTaskToLesson: async (request) => {
+  assignTaskToLesson: async (request, next) => {
     try {
       const { task_id, lesson_id } = request.params;
       const { tenant } = request.query;
@@ -686,16 +665,17 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignManyTasksToLesson: async (request) => {
+  assignManyTasksToLesson: async (request, next) => {
     try {
       const { lesson_id } = request.params;
       const { task_ids } = request.body;
@@ -774,15 +754,17 @@ const createKnowYourAir = {
         data: [],
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeTaskFromLesson: async (request) => {
+  removeTaskFromLesson: async (request, next) => {
     try {
       const { lesson_id, task_id } = request.params;
       const { tenant } = request.query;
@@ -834,16 +816,17 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeManyTasksFromLesson: async (request) => {
+  removeManyTasksFromLesson: async (request, next) => {
     try {
       const { task_ids } = request.body;
       const { lesson_id } = request.params;
@@ -908,7 +891,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -924,37 +907,38 @@ const createKnowYourAir = {
         data: [],
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /*************** quizzes *******************************/
-  listQuiz: async (request) => {
+  listQuiz: async (request, next) => {
     try {
       const { query, params } = request;
       const { tenant, limit, skip, language } = query;
       const { user_id } = params;
-      const filter = generateFilter.kyaquizzes(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquizzes(request, next);
       logObject("filter", filter);
-      const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list({
-        filter,
-        limit,
-        skip,
-        user_id: user_id,
-      });
+      const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+          user_id: user_id,
+        },
+        next
+      );
       if (language !== undefined) {
         const translatedQuizzes = await translateUtil.translateQuizzes(
-          responseFromListQuizzes.data,
-          language
+          { quizzes: responseFromListQuizzes.data, targetLanguage: language },
+          next
         );
         if (translatedQuizzes.success === true) {
           return translatedQuizzes;
@@ -963,79 +947,68 @@ const createKnowYourAir = {
       logObject("responseFromListQuizzes", responseFromListQuizzes);
       return responseFromListQuizzes;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteQuiz: async (request) => {
+  deleteQuiz: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquizzes(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquizzes(request, next);
       const responseFromRemoveKyaQuiz = await KnowYourAirQuizModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromRemoveKyaQuiz", responseFromRemoveKyaQuiz);
       return responseFromRemoveKyaQuiz;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateQuiz: async (request) => {
+  updateQuiz: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquizzes(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquizzes(request, next);
       const update = body;
       const opts = { new: true };
       const responseFromModifyKyaQuiz = await KnowYourAirQuizModel(
         tenant
-      ).modify({ filter, update, opts });
+      ).modify({ filter, update, opts }, next);
       logObject("responseFromModifyKyaQuiz", responseFromModifyKyaQuiz);
       return responseFromModifyKyaQuiz;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createQuiz: async (request) => {
+  createQuiz: async (request, next) => {
     try {
       let { body, query } = request;
       let { tenant } = query;
 
       const responseFromRegisterKyaQuiz = await KnowYourAirQuizModel(
         tenant
-      ).register(body);
+      ).register(body, next);
 
       logObject("responseFromRegisterKyaQuiz", responseFromRegisterKyaQuiz);
 
@@ -1064,142 +1037,140 @@ const createKnowYourAir = {
         return responseFromRegisterKyaQuiz;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* tracking user QUIZ progress ***************** */
-  listUserQuizProgress: async (request) => {
+  listUserQuizProgress: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-      logObject("filter", filter);
+      const filter = generateFilter.kyaprogress(request, next);
 
       const responseFromListUserQuizProgress = await KnowYourAirUserQuizProgressModel(
         tenant
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject(
         "responseFromListUserQuizProgress",
         responseFromListUserQuizProgress
       );
       return responseFromListUserQuizProgress;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteUserQuizProgress: async (request) => {
+  deleteUserQuizProgress: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-      logObject("filter", filter);
+      const filter = generateFilter.kyaprogress(request, next);
       const responseFromDeleteUserQuizProgress = await KnowYourAirUserQuizProgressModel(
         tenant
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject(
         "responseFromDeleteUserQuizProgress",
         responseFromDeleteUserQuizProgress
       );
       return responseFromDeleteUserQuizProgress;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateUserQuizProgress: async (request) => {
+  updateUserQuizProgress: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaprogress(request, next);
       let update = Object.assign({}, body);
       logObject("update", update);
       logObject("filter", filter);
       const responseFromUpdateUserQuizProgress = await KnowYourAirUserQuizProgressModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject(
         "responseFromUpdateUserQuizProgress",
         responseFromUpdateUserQuizProgress
       );
       return responseFromUpdateUserQuizProgress;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createUserQuizProgress: async (request) => {
+  createUserQuizProgress: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       let requestBody = Object.assign({}, body);
       const responseFromCreateUserQuizProgress = await KnowYourAirUserQuizProgressModel(
         tenant
-      ).register(requestBody);
+      ).register(requestBody, next);
       logObject(
         "responseFromCreateUserQuizProgress",
         responseFromCreateUserQuizProgress
       );
       return responseFromCreateUserQuizProgress;
     } catch (error) {
-      logObject("error", JSON.stringify(error));
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  syncUserQuizProgress: async (request) => {
+  syncUserQuizProgress: async (request, next) => {
     try {
       const { query, body, params } = request;
       const { tenant } = query;
@@ -1209,7 +1180,8 @@ const createKnowYourAir = {
       if (progressList.length !== 0) {
         for (progress of progressList) {
           let responseFromListProgress = await createKnowYourAir.listUserQuizProgress(
-            request
+            request,
+            next
           );
           logObject("responseFromListProgress", responseFromListProgress);
           if (responseFromListProgress.success === false) {
@@ -1229,7 +1201,8 @@ const createKnowYourAir = {
               },
             };
             let responseFromCreateUserQuizProgress = await createKnowYourAir.createUserQuizProgress(
-              requestBody
+              requestBody,
+              next
             );
             logObject(
               "responseFromCreateUserQuizProgress",
@@ -1249,12 +1222,10 @@ const createKnowYourAir = {
               body: progress,
             };
             let responseFromUpdateUserQuizProgress = await createKnowYourAir.updateUserQuizProgress(
-              requestBody
+              requestBody,
+              next
             );
-            logObject(
-              "responseFromUpdateUserQuizProgress",
-              responseFromUpdateUserQuizProgress
-            );
+
             if (responseFromUpdateUserQuizProgress.success === false) {
               return responseFromUpdateUserQuizProgress;
             }
@@ -1270,7 +1241,8 @@ const createKnowYourAir = {
         },
       };
       let syncResponse = await createKnowYourAir.listUserQuizProgress(
-        requestBody
+        requestBody,
+        next
       );
 
       return syncResponse.success
@@ -1282,109 +1254,100 @@ const createKnowYourAir = {
           }
         : syncResponse;
     } catch (error) {
-      logObject("error", JSON.stringify(error));
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* questions *******************************/
-  listQuestions: async (request) => {
+  listQuestions: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquestions(request, next);
 
       const responseFromListKyaQuestion = await KnowYourAirQuestionModel(
         tenant
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject("responseFromListKyaQuestion", responseFromListKyaQuestion);
       return responseFromListKyaQuestion;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteQuestion: async (request) => {
+  deleteQuestion: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquestions(request, next);
+
       const responseFromRemoveKyaQuestion = await KnowYourAirQuestionModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromRemoveKyaQuestion", responseFromRemoveKyaQuestion);
       return responseFromRemoveKyaQuestion;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateQuestion: async (request) => {
+  updateQuestion: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-
+      const filter = generateFilter.kyaquestions(request, next);
       const update = body;
       const opts = { new: true };
       const responseFromModifyKyaQuestion = await KnowYourAirQuestionModel(
         tenant
-      ).modify({ filter, update, opts });
+      ).modify({ filter, update, opts }, next);
 
       return responseFromModifyKyaQuestion;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createQuestion: async (request) => {
+  createQuestion: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
       const responseFromRegisterKyaQuestion = await KnowYourAirQuestionModel(
         tenant
-      ).register(body);
+      ).register(body, next);
 
       logObject(
         "responseFromRegisterKyaQuestion",
@@ -1416,110 +1379,100 @@ const createKnowYourAir = {
         return responseFromRegisterKyaQuestion;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* Answers *******************************/
-  listAnswers: async (request) => {
+  listAnswers: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
 
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquestions(request, next);
 
       const responseFromListKyaAnswer = await KnowYourAirAnswerModel(
         tenant
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject("responseFromListKyaAnswer", responseFromListKyaAnswer);
       return responseFromListKyaAnswer;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteAnswer: async (request) => {
+  deleteAnswer: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.kyaquestions(request, next);
+
       const responseFromRemoveKyaAnswer = await KnowYourAirAnswerModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromRemoveKyaAnswer", responseFromRemoveKyaAnswer);
       return responseFromRemoveKyaAnswer;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateAnswer: async (request) => {
+  updateAnswer: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.kyaquestions(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
-
+      const filter = generateFilter.kyaquestions(request, next);
       const update = body;
       const opts = { new: true };
       const responseFromModifyKyaAnswer = await KnowYourAirAnswerModel(
         tenant
-      ).modify({ filter, update, opts });
+      ).modify({ filter, update, opts }, next);
 
       return responseFromModifyKyaAnswer;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createAnswer: async (request) => {
+  createAnswer: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
       const responseFromRegisterKyaAnswer = await KnowYourAirAnswerModel(
         tenant
-      ).register(body);
+      ).register(body, next);
 
       logObject("responseFromRegisterKyaAnswer", responseFromRegisterKyaAnswer);
 
@@ -1548,21 +1501,19 @@ const createKnowYourAir = {
         return responseFromRegisterKyaAnswer;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************* manage Quizes *******************************/
-
-  assignManyQuestionsToQuiz: async (request) => {
+  assignManyQuestionsToQuiz: async (request, next) => {
     try {
       const { quiz_id } = request.params;
       const { question_ids } = request.body;
@@ -1639,15 +1590,17 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeManyQuestionsFromQuiz: async (request) => {
+  removeManyQuestionsFromQuiz: async (request, next) => {
     try {
       const { question_ids } = request.body;
       const { quiz_id } = request.params;
@@ -1715,7 +1668,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -1730,16 +1683,17 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignManyAnswersToQuestion: async (request) => {
+  assignManyAnswersToQuestion: async (request, next) => {
     try {
       const { question_id } = request.params;
       const { answer_ids } = request.body;
@@ -1820,15 +1774,17 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeManyAnswersFromQuestion: async (request) => {
+  removeManyAnswersFromQuestion: async (request, next) => {
     try {
       const { answer_ids } = request.body;
       const { question_id } = request.params;
@@ -1897,7 +1853,7 @@ const createKnowYourAir = {
         }
       } catch (error) {
         logObject("error", JSON.stringify(error));
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -1912,13 +1868,14 @@ const createKnowYourAir = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

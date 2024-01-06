@@ -2,11 +2,15 @@ const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logElement, logObject, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- health-tip-model`);
+
 const aqiRangeSchema = new Schema(
   {
     min: { type: Number, required: true },
@@ -61,7 +65,7 @@ tipsSchema.methods = {
 };
 
 tipsSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       logText("registering a new tip....");
       let modifiedArgs = Object.assign({}, args);
@@ -87,7 +91,6 @@ tipsSchema.statics = {
           modifiedArgs.aqi_category = { min: 250.5, max: 500 };
           break;
         default:
-        // code block
       }
       const createdTip = await this.create({ ...modifiedArgs });
       if (!isEmpty(createdTip)) {
@@ -95,43 +98,43 @@ tipsSchema.statics = {
           success: true,
           data: createdTip._doc,
           message: "tip created",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdTip)) {
-        return {
-          success: false,
-          message: "tip not created despite successful operation",
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "tip not created despite successful operation" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "tip not created despite successful operation",
+            }
+          )
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.keyPattern) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.keyPattern) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response.message = value.message;
           response[key] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       let response = await this.aggregate()
         .match(filter)
@@ -155,24 +158,25 @@ tipsSchema.statics = {
           success: true,
           message: "successfully retrieved the tip(s)",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "No tips found for this operation",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: [],
         };
       }
-    } catch (err) {
-      logObject("the error", err);
-      let response = { message: err.message };
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      let response = { message: error.message };
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (err.code === 11000) {
-        if (!isEmpty(err.keyPattern)) {
-          Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (error.code === 11000) {
+        if (!isEmpty(error.keyPattern)) {
+          Object.entries(error.keyPattern).forEach(([key, value]) => {
             response["message"] = "duplicate value";
             response[key] = "duplicate value";
             return response;
@@ -180,22 +184,18 @@ tipsSchema.statics = {
         } else {
           response.message = "duplicate value";
         }
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-  async modify({ filter = {}, update = {}, opts = { new: true } } = {}) {
+  async modify({ filter = {}, update = {}, opts = { new: true } } = {}, next) {
     try {
       logObject("the filter in the model", filter);
       logObject("the update in the model", update);
@@ -227,7 +227,6 @@ tipsSchema.statics = {
           modifiedUpdateBody.aqi_category = { min: 250.5, max: 500 };
           break;
         default:
-        // code block
       }
 
       let options = opts;
@@ -251,43 +250,39 @@ tipsSchema.statics = {
           success: true,
           message: "successfully modified the tip",
           data: updatedTip._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedTip)) {
-        return {
-          success: false,
-          message: "No tips found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No tips found for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No tips found for this operation",
+          })
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.code) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.code) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -304,40 +299,36 @@ tipsSchema.statics = {
           success: true,
           message: "successfully removed the tip",
           data: removedTip._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedTip)) {
-        return {
-          success: false,
-          message: "No tips found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No tips found for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No tips found for this operation",
+          })
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.code) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.code) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
 };

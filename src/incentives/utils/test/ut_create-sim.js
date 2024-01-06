@@ -12,6 +12,56 @@ const axios = require("axios");
 const xml2js = require("xml2js");
 
 describe("create-sim-util", () => {
+  describe("createBulkLocal()", () => {
+    it("should create SIM cards successfully", async () => {
+      const request = {
+        body: {
+          sims: [241434923144471, "231334544149644"],
+        },
+        query: {
+          tenant: "your-tenant",
+        },
+      };
+      const simData = {
+        _id: "653dec7f777af9759688916e",
+        msisdn: 241434723144471,
+      };
+      const simModelStub = sinon.stub(SimModel("your-tenant"), "create");
+      simModelStub.resolves(simData);
+
+      const result = await createSim.createBulkLocal(request);
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.message).to.equal("All SIM cards created successfully");
+      expect(result.failedCreations).to.be.an("array").that.is.empty;
+      expect(result.data).to.be.an("array").that.is.not.empty;
+
+      simModelStub.restore();
+    });
+    it("should handle SIM creation errors", async () => {
+      const request = {
+        body: {
+          sims: [241434723144471, "231334544143644"],
+        },
+        query: {
+          tenant: "your-tenant",
+        },
+      };
+      const simModelStub = sinon.stub(SimModel("your-tenant"), "create");
+      simModelStub.rejects(new Error("Sim creation failed"));
+
+      const result = await createSim.createBulkLocal(request);
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.message).to.equal("Internal Server Error");
+      expect(result.failedCreations).to.be.an("array").that.is.not.empty;
+      expect(result.data).to.be.an("array").that.is.empty;
+
+      simModelStub.restore();
+    });
+  });
   describe("createLocal()", () => {
     let fakeSimModel;
 

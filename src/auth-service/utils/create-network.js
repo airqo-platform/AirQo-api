@@ -12,6 +12,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
 const controlAccessUtil = require("@utils/control-access");
+const { HttpError } = require("@utils/errors");
 
 const isUserAssignedToNetwork = (user, networkId) => {
   if (user && user.network_roles && user.network_roles.length > 0) {
@@ -21,7 +22,6 @@ const isUserAssignedToNetwork = (user, networkId) => {
   }
   return false;
 };
-
 const findNetworkAssignmentIndex = (user, net_id) => {
   if (!user.network_roles || !Array.isArray(user.network_roles)) {
     return -1;
@@ -33,7 +33,7 @@ const findNetworkAssignmentIndex = (user, net_id) => {
 };
 
 const createNetwork = {
-  getNetworkFromEmail: async (request) => {
+  getNetworkFromEmail: async (request, next) => {
     try {
       const responseFromExtractOneNetwork =
         createNetwork.extractOneAcronym(request);
@@ -42,7 +42,6 @@ const createNetwork = {
 
       if (responseFromExtractOneNetwork.success === true) {
         const { tenant } = request.query;
-        let filter = {};
         const skip = 0;
         const limit = 1;
 
@@ -51,23 +50,15 @@ const createNetwork = {
         modifiedRequest["query"]["net_acronym"] =
           responseFromExtractOneNetwork.data;
 
-        const responseFromGenerateFilter =
-          generateFilter.networks(modifiedRequest);
-
-        logObject("responseFromGenerateFilter", responseFromGenerateFilter);
-
-        if (responseFromGenerateFilter.success === true) {
-          filter = responseFromGenerateFilter.data;
-          logObject("filter", filter);
-        } else if (responseFromGenerateFilter.success === false) {
-          return responseFromGenerateFilter;
-        }
-
-        const responseFromListNetworks = await NetworkModel(tenant).list({
-          filter,
-          limit,
-          skip,
-        });
+        const filter = generateFilter.networks(modifiedRequest, next);
+        const responseFromListNetworks = await NetworkModel(tenant).list(
+          {
+            filter,
+            limit,
+            skip,
+          },
+          next
+        );
 
         if (responseFromListNetworks.success === true) {
           const data = responseFromListNetworks.data;
@@ -89,15 +80,17 @@ const createNetwork = {
         return responseFromExtractOneNetwork;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  extractOneAcronym: (request) => {
+  extractOneAcronym: (request, next) => {
     try {
       const { net_email } = request.body;
       let segments = [];
@@ -110,14 +103,11 @@ const createNetwork = {
           segments = net_email.split("@").filter((segment) => segment);
           network = segments[1].split(".")[0];
         } else if (!isCompanyEmail) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "You need a company email for this operation",
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
+            })
+          );
         }
       }
 
@@ -128,18 +118,16 @@ const createNetwork = {
         message: "successfully removed the file extension",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
   sanitizeName: (name) => {
     try {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
@@ -147,11 +135,11 @@ const createNetwork = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       logElement("the sanitise name error", error.message);
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -177,14 +165,11 @@ const createNetwork = {
         .findOne({ net_website: modifiedBody.net_website })
         .lean();
       if (!isEmpty(networkObject)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network for ${modifiedBody.net_website} already exists`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const user = request.user;
@@ -195,17 +180,17 @@ const createNetwork = {
         modifiedBody.net_manager_firstname = user.firstName;
         modifiedBody.net_manager_lastname = user.lastName;
       } else if (isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "creator's details are not provided" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "creator's details are not provided",
+          })
+        );
       }
 
       logObject("modifiedBody", modifiedBody);
       const responseFromRegisterNetwork = await NetworkModel(tenant).register(
-        modifiedBody
+        modifiedBody,
+        next
       );
 
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
@@ -214,13 +199,15 @@ const createNetwork = {
         logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
         const net_id = responseFromRegisterNetwork.data._doc._id;
         if (isEmpty(net_id)) {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message: "Unable to retrieve the network Id of created network",
-            },
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Unable to retrieve the network Id of created network",
+              }
+            )
+          );
         }
 
         /**
@@ -253,15 +240,16 @@ const createNetwork = {
           logObject("responseFromCreateRole", responseFromCreateRole);
           const role_id = responseFromCreateRole.data._id;
           if (isEmpty(role_id)) {
-            return {
-              success: false,
-              message: "Internal Server Error",
-              errors: {
-                message:
-                  "Unable to retrieve the role id of the newly create super admin of this network",
-              },
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            };
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message:
+                    "Unable to retrieve the role id of the newly create super admin of this network",
+                }
+              )
+            );
           }
 
           logObject(
@@ -346,6 +334,7 @@ const createNetwork = {
                   network_roles: {
                     network: net_id,
                     role: role_id,
+                    userType: "user",
                   },
                 },
               },
@@ -353,14 +342,15 @@ const createNetwork = {
             );
 
             if (isEmpty(updatedUser)) {
-              return {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: {
-                  message: `Unable to assign the network to the User ${user._id}`,
-                },
-              };
+              next(
+                new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  {
+                    message: `Unable to assign the network to the User ${user._id}`,
+                  }
+                )
+              );
             }
 
             return responseFromRegisterNetwork;
@@ -369,18 +359,18 @@ const createNetwork = {
       } else if (responseFromRegisterNetwork.success === false) {
         return responseFromRegisterNetwork;
       }
-    } catch (err) {
-      logObject("error here is big", err);
-      return {
-        success: false,
-        message: "network util server errors",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  assignUsers: async (request) => {
+  assignUsersHybrid: async (request, next) => {
     try {
       const { net_id } = request.params;
       const { user_ids } = request.body;
@@ -389,101 +379,117 @@ const createNetwork = {
       const network = await NetworkModel(tenant).findById(net_id);
 
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: `Invalid network ID ${net_id}` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Invalid network ID ${net_id}`,
+          })
+        );
       }
+
+      const notAssignedUsers = [];
+      let assignedUsers = 0;
+      const bulkOperations = [];
+      const cleanupOperations = [];
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
 
         if (!user) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Invalid User ID ${user_id}, please crosscheck`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
+          notAssignedUsers.push({
+            user_id,
+            reason: `Invalid User ID ${user_id}, please crosscheck`,
+          });
+          continue; // Continue to the next user
         }
 
-        const existingAssignment = user.network_roles.find((assignment) => {
-          return assignment.network.toString() === net_id.toString();
-        });
+        const existingAssignment = user.network_roles.find(
+          (assignment) => assignment.network.toString() === net_id.toString()
+        );
 
         if (existingAssignment) {
-          return {
-            userId: user_id,
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `User ${user_id} is already assigned to the Network ${net_id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
-        }
-      }
-
-      const totalUsers = user_ids.length;
-      const assignments = user_ids.map((user_id) => {
-        return {
-          updateOne: {
-            filter: {
-              _id: user_id,
-            },
-            update: {
-              $addToSet: {
-                network_roles: {
-                  network: net_id,
+          notAssignedUsers.push({
+            user_id,
+            reason: `User ${user_id} is already assigned to the Network ${net_id}`,
+          });
+          continue;
+        } else {
+          bulkOperations.push({
+            updateOne: {
+              filter: { _id: user_id },
+              update: {
+                $addToSet: {
+                  network_roles: { network: net_id },
                 },
               },
             },
-          },
-        };
-      });
+          });
 
-      const { nModified, n } = await UserModel(tenant).bulkWrite(assignments);
-
-      const notFoundCount = totalUsers - nModified;
-      if (nModified === 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
-          status: httpStatus.BAD_REQUEST,
-        };
+          cleanupOperations.push({
+            updateOne: {
+              filter: {
+                _id: user_id,
+                network_roles: {
+                  $elemMatch: { network: { $exists: true, $eq: null } },
+                },
+              },
+              update: {
+                $pull: {
+                  network_roles: { network: { $exists: true, $eq: null } },
+                },
+              },
+            },
+          });
+        }
       }
 
-      if (notFoundCount > 0) {
-        return {
-          success: true,
-          message: `Operation partially successful; some ${notFoundCount} of the provided users were not found in the system`,
-          status: httpStatus.OK,
-        };
+      if (bulkOperations.length > 0) {
+        const { nModified } = await UserModel(tenant).bulkWrite(bulkOperations);
+        assignedUsers = nModified;
+      }
+
+      let message;
+      if (assignedUsers === 0) {
+        message = "No users assigned to the network.";
+      } else if (assignedUsers === user_ids.length) {
+        message = "All users have been assigned to the network.";
+      } else {
+        message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the network.`;
+      }
+
+      if (cleanupOperations.length > 0) {
+        await UserModel(tenant).bulkWrite(cleanupOperations);
+      }
+      if (notAssignedUsers.length > 0) {
+        next(
+          new HttpError(
+            message,
+            httpStatus.BAD_REQUEST,
+            notAssignedUsers.reduce((errors, user) => {
+              errors[user.user_id] = user.reason;
+              return errors;
+            }, {})
+          )
+        );
       }
 
       return {
         success: true,
-        message: "Successfully assigned all the provided users to the Network",
+        message,
         status: httpStatus.OK,
-        data: [],
+        data: assignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  assignOneUser: async (request) => {
+  assignOneUser: async (request, next) => {
     try {
       const { net_id, user_id } = request.params;
       const { tenant } = request.query;
@@ -492,12 +498,11 @@ const createNetwork = {
       const networkExists = await NetworkModel(tenant).exists({ _id: net_id });
 
       if (!userExists || !networkExists) {
-        return {
-          success: false,
-          message: "User or Network not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "User or Network not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User or Network not found",
+          })
+        );
       }
 
       const user = await UserModel(tenant).findById(user_id).lean();
@@ -507,12 +512,11 @@ const createNetwork = {
       const isAlreadyAssigned = isUserAssignedToNetwork(user, net_id);
 
       if (isAlreadyAssigned) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Network already assigned to User" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network already assigned to User",
+          })
+        );
       }
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
@@ -533,55 +537,47 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  unAssignUser: async (request) => {
+  unAssignUser: async (request, next) => {
     try {
       const { net_id, user_id } = request.params;
       const { tenant } = request.query;
 
-      // Check if the network exists
       const network = await NetworkModel(tenant).findById(net_id);
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Network not found" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
       }
 
-      // Check if the user exists
       let user = await UserModel(tenant).findById(user_id);
       if (!user) {
-        return {
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Bad Request Error",
-          errors: { message: "User not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
       }
 
       const networkAssignmentIndex = findNetworkAssignmentIndex(user, net_id);
 
       if (networkAssignmentIndex === -1) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network ${net_id.toString()} is not assigned to the user`,
-          },
-        };
+          })
+        );
       }
 
       // Remove the network assignment from the user's network_roles array
@@ -601,17 +597,17 @@ const createNetwork = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignManyUsers: async (request) => {
+  unAssignManyUsers: async (request, next) => {
     try {
       const { user_ids } = request.body;
       const { net_id } = request.params;
@@ -620,12 +616,11 @@ const createNetwork = {
       // Check if network exists
       const network = await NetworkModel(tenant).findById(net_id);
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Network not found" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
       }
 
       //check of all these provided users actually do exist?
@@ -639,14 +634,11 @@ const createNetwork = {
           (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
         );
 
-        return {
-          success: false,
-          message: `Bad Request Error`,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The following users do not exist: ${nonExistentUsers}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       // Check if all the provided user_ids are assigned to the network in network_roles
@@ -656,14 +648,11 @@ const createNetwork = {
       });
 
       if (users.length !== user_ids.length) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Some of the provided User IDs are not assigned to this network ${net_id}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       // Remove the network assignment from each user's network_roles array
@@ -683,12 +672,11 @@ const createNetwork = {
 
         const notFoundCount = totalUsers - nModified;
         if (nModified === 0) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: { message: "No matching User found in the system" },
-            status: httpStatus.BAD_REQUEST,
-          };
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "No matching User found in the system",
+            })
+          );
         }
 
         if (notFoundCount > 0) {
@@ -699,13 +687,14 @@ const createNetwork = {
           };
         }
       } catch (error) {
-        logger.error(`Internal Server Error ${error.message}`);
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: error.message },
-        };
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
       }
 
       return {
@@ -715,66 +704,58 @@ const createNetwork = {
         data: [],
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  setManager: async (request) => {
+  setManager: async (request, next) => {
     try {
       const { net_id, user_id } = request.params;
       const { tenant } = request.query;
-
       const user = await UserModel(tenant).findById(user_id).lean();
       const network = await NetworkModel(tenant).findById(net_id).lean();
 
       if (isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User not found" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
       }
 
       if (isEmpty(network)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Network not found" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
       }
 
       if (
         network.net_manager &&
         network.net_manager.toString() === user_id.toString()
       ) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id.toString()} is already the network manager`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       if (
         !user.networks.map((id) => id.toString()).includes(net_id.toString())
       ) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network ${net_id.toString()} is not part of User's networks, not authorized to manage this network`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const updatedNetwork = await NetworkModel(tenant).findByIdAndUpdate(
@@ -791,26 +772,24 @@ const createNetwork = {
           data: updatedNetwork,
         };
       } else {
-        return {
-          success: false,
-          message: "Bad Request",
-          errors: { message: "No network record was updated" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "No network record was updated",
+          })
+        );
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { body, query, params } = request;
       const { action } = request;
@@ -819,60 +798,48 @@ const createNetwork = {
       logElement("action", action);
       update["action"] = action;
 
-      let filter = {};
-      const responseFromGeneratefilter = generateFilter.networks(request);
+      const filter = generateFilter.networks(request, next);
 
-      if (responseFromGeneratefilter.success === true) {
-        filter = responseFromGeneratefilter.data;
-      } else if (responseFromGeneratefilter.success === false) {
-        return responseFromGeneratefilter;
-      }
-
-      const responseFromModifyNetwork = await NetworkModel(tenant).modify({
-        update,
-        filter,
-      });
+      const responseFromModifyNetwork = await NetworkModel(tenant).modify(
+        {
+          update,
+          filter,
+        },
+        next
+      );
       return responseFromModifyNetwork;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Network deletion temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "Network deletion temporarily disabled" },
+      };
       logText("the delete operation.....");
       const { query } = request;
       const { tenant } = query;
-      let filter = {};
 
-      const responseFromGenerateFilter = generateFilter.networks(request);
-
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
-
-      if (responseFromGenerateFilter.success === true) {
-        filter = responseFromGenerateFilter.data;
-      } else if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      }
-
-      logObject("the filter", filter);
+      const filter = generateFilter.networks(request, next);
 
       if (isEmpty(filter._id)) {
-        return {
-          success: false,
-          message: "Bad Request",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "the network ID is missing -- required when updating corresponding users",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const result = await UserModel(tenant).updateMany(
@@ -891,60 +858,50 @@ const createNetwork = {
           `Network ${filter._id} was not found in any users' network_roles.`
         );
       }
-      const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveNetwork = await NetworkModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
       return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      return {
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-        success: false,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       let { skip, limit, tenant } = request.query;
-      let filter = {};
-
-      const responseFromGenerateFilter = generateFilter.networks(request);
-
-      if (responseFromGenerateFilter.success === true) {
-        filter = responseFromGenerateFilter.data;
-        logObject("filter", filter);
-      } else if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      }
-
-      const responseFromListNetworks = await NetworkModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-
-      if (responseFromListNetworks.success === true) {
-        return responseFromListNetworks;
-      } else if (responseFromListNetworks.success === false) {
-        return responseFromListNetworks;
-      }
+      const filter = generateFilter.networks(request, next);
+      const responseFromListNetworks = await NetworkModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      return responseFromListNetworks;
     } catch (error) {
-      logElement("internal server error", error.message);
-      logObject("error here again", error);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  refresh: async (request) => {
+  refresh: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { net_id } = request.params;
@@ -955,14 +912,11 @@ const createNetwork = {
       const network = await NetworkModel(tenant).findById(net_id);
 
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       /**
@@ -998,12 +952,11 @@ const createNetwork = {
       );
 
       if (isEmpty(updatedNetwork)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Network not found" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
       }
 
       return {
@@ -1013,31 +966,27 @@ const createNetwork = {
         data: updatedNetwork,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Bad Request Errors",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAvailableUsers: async (request) => {
+  listAvailableUsers: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { net_id } = request.params;
-
       const network = await NetworkModel(tenant).findById(net_id);
-
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const filter = {
@@ -1045,13 +994,11 @@ const createNetwork = {
         category: "networks",
       };
 
-      let responseFromListAvailableUsers = await UserModel(tenant).list({
-        filter,
-      });
-
-      logObject(
-        "responseFromListAvailableUsers.data",
-        responseFromListAvailableUsers.data
+      let responseFromListAvailableUsers = await UserModel(tenant).list(
+        {
+          filter,
+        },
+        next
       );
 
       if (responseFromListAvailableUsers.success === true) {
@@ -1059,18 +1006,17 @@ const createNetwork = {
       }
       return responseFromListAvailableUsers;
     } catch (error) {
-      logElement("internal server error", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  listAssignedUsers: async (request) => {
+  listAssignedUsers: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { net_id } = request.params;
@@ -1078,14 +1024,11 @@ const createNetwork = {
       const network = await NetworkModel(tenant).findById(net_id);
 
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid network ID ${net_id}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const filter = {
@@ -1093,9 +1036,12 @@ const createNetwork = {
         category: "networks",
       };
 
-      let responseFromListAssignedUsers = await UserModel(tenant).list({
-        filter,
-      });
+      let responseFromListAssignedUsers = await UserModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
 
       logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
 
@@ -1104,14 +1050,14 @@ const createNetwork = {
       }
       return responseFromListAssignedUsers;
     } catch (error) {
-      logElement("internal server error", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

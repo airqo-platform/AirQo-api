@@ -9,22 +9,16 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-site-util`
 );
-const distanceUtil = require("./distance");
-const createAirqloudUtil = require("./create-airqloud");
-const pointInPolygon = require("point-in-polygon");
+const distanceUtil = require("@utils/distance");
+const createAirqloudUtil = require("@utils/create-airqloud");
 const geolib = require("geolib");
-
-const {
-  threeMonthsFromNow,
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-} = require("./date");
-
+const { HttpError } = require("@utils/errors");
+const { generateDateFormatWithoutHrs, monthsInfront } = require("./date");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -32,16 +26,16 @@ const kafka = new Kafka({
 });
 
 const createSite = {
-  hasWhiteSpace: (name) => {
+  hasWhiteSpace: (name, next) => {
     try {
       return name.indexOf(" ") >= 0;
-    } catch (e) {
+    } catch (error) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${e.message}`
+        `create site util server error -- hasWhiteSpace -- ${error.message}`
       );
     }
   },
-  checkStringLength: (name) => {
+  checkStringLength: (name, next) => {
     try {
       //check if name has only white spaces
       name = name.trim();
@@ -50,19 +44,17 @@ const createSite = {
         return true;
       }
       return false;
-    } catch (e) {
+    } catch (error) {
       logger.error(
-        `internal server error -- check string length -- ${e.message}`
+        `internal server error -- check string length -- ${error.message}`
       );
     }
   },
-  findAirQlouds: async (request) => {
+  findAirQlouds: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { id, tenant } = query;
-      let filter = {};
-      filter["_id"] = id;
-      const responseFromListSites = await createSite.list({ tenant, filter });
+      const { query } = request;
+      const { tenant } = query;
+      const responseFromListSites = await createSite.list(request, next);
       if (responseFromListSites.success === true) {
         let data = responseFromListSites.data;
         if (data.length > 1 || data.length === 0) {
@@ -74,11 +66,12 @@ const createSite = {
           };
         }
         const { latitude, longitude } = data[0];
-        let requestForAirQlouds = {};
-        requestForAirQlouds["query"] = {};
-        requestForAirQlouds["query"]["tenant"] = tenant;
+        const requestForAirQlouds = {
+          query: { tenant },
+        };
         const responseFromListAirQlouds = await createAirqloudUtil.list(
-          requestForAirQlouds
+          requestForAirQlouds,
+          next
         );
         if (responseFromListAirQlouds.success === true) {
           const airqlouds = responseFromListAirQlouds.data;
@@ -123,21 +116,19 @@ const createSite = {
         return responseFromListSites;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  findNearestWeatherStation: async (request) => {
+  findNearestWeatherStation: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { id, tenant } = query;
-      let filter = {};
-      filter["_id"] = id;
-      const responseFromListSites = await createSite.list({ tenant, filter });
+      const responseFromListSites = await createSite.list(request, next);
       if (responseFromListSites.success === true) {
         let data = responseFromListSites.data;
         if (data.length > 1 || data.length === 0) {
@@ -148,7 +139,9 @@ const createSite = {
           };
         }
         const { latitude, longitude } = data[0];
-        const responseFromListWeatherStations = await createSite.listWeatherStations();
+        const responseFromListWeatherStations = await createSite.listWeatherStations(
+          next
+        );
         if (responseFromListWeatherStations.success === true) {
           const nearestWeatherStation = geolib.findNearest(
             { latitude, longitude },
@@ -167,16 +160,17 @@ const createSite = {
         return responseFromListSites;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listWeatherStations: async () => {
+  listWeatherStations: async (next) => {
     try {
       const url = constants.TAHMO_API_GET_STATIONS_URL;
       return await axios
@@ -238,32 +232,31 @@ const createSite = {
           };
         });
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  validateSiteName: (name) => {
+  validateSiteName: (name, next) => {
     try {
-      // let nameHasWhiteSpace = createSite.hasWhiteSpace(name);
-      let isValidStringLength = createSite.checkStringLength(name);
+      // let nameHasWhiteSpace = createSite.hasWhiteSpace(name,next);
+      let isValidStringLength = createSite.checkStringLength(name, next);
       if (isValidStringLength) {
         return true;
       }
       return false;
-    } catch (e) {
+    } catch (error) {
       logger.error(
-        `internal server error -- validate site name -- ${e.message}`
+        `internal server error -- validate site name -- ${error.message}`
       );
     }
   },
-  generateName: async (tenant) => {
+  generateName: async (tenant, next) => {
     try {
       let filter = {
         NAME: "site_0",
@@ -275,10 +268,13 @@ const createSite = {
 
       const responseFromModifyUniqueIdentifierCounter = await UniqueIdentifierCounterModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromModifyUniqueIdentifierCounter.success === false) {
         logger.error(
@@ -307,26 +303,26 @@ const createSite = {
             : httpStatus.OK,
         };
       }
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        errors: { message: e.message },
-        message: "generateName -- createSite util server error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (req) => {
+  create: async (request, next) => {
     try {
-      const { body, query } = req;
+      const { body, query } = request;
       const { tenant } = query;
       const { name, latitude, longitude, approximate_distance_in_km } = body;
 
-      let request = Object.assign({}, req);
-
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
-        { latitude, longitude, approximate_distance_in_km }
+        { latitude, longitude, approximate_distance_in_km },
+        next
       );
 
       if (responseFromApproximateCoordinates.success === true) {
@@ -349,7 +345,7 @@ const createSite = {
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
-      let isNameValid = createSite.validateSiteName(name);
+      let isNameValid = createSite.validateSiteName(name, next);
       if (!isNameValid) {
         return {
           success: false,
@@ -357,10 +353,13 @@ const createSite = {
         };
       }
 
-      let lat_long = createSite.generateLatLong(latitude, longitude);
+      let lat_long = createSite.generateLatLong(latitude, longitude, next);
       request["body"]["lat_long"] = lat_long;
 
-      let responseFromGenerateName = await createSite.generateName(tenant);
+      let responseFromGenerateName = await createSite.generateName(
+        tenant,
+        next
+      );
       logObject("responseFromGenerateName", responseFromGenerateName);
       if (responseFromGenerateName.success === true) {
         generated_name = responseFromGenerateName.data;
@@ -369,8 +368,9 @@ const createSite = {
         return responseFromGenerateName;
       }
 
-      let responseFromGenerateMetadata = await createSite.generateMetadata(
-        request
+      const responseFromGenerateMetadata = await createSite.generateMetadata(
+        request,
+        next
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
       if (responseFromGenerateMetadata.success === true) {
@@ -380,7 +380,8 @@ const createSite = {
       }
 
       const responseFromCreateSite = await SiteModel(tenant).register(
-        requestBodyForCreatingSite
+        requestBodyForCreatingSite,
+        next
       );
 
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
@@ -411,38 +412,43 @@ const createSite = {
       } else if (responseFromCreateSite.success === false) {
         return responseFromCreateSite;
       }
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
-      const filter = generateFilter.sites(request);
+      const filter = generateFilter.sites(request, next);
       const { tenant } = request.query;
       const update = request.body;
-      const responseFromModifySite = await SiteModel(tenant).modify({
-        filter,
-        update,
-      });
+      const responseFromModifySite = await SiteModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return responseFromModifySite;
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "create site util server error -- update",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  sanitiseName: (name) => {
+  sanitiseName: (name, next) => {
     try {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
       let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
@@ -452,7 +458,7 @@ const createSite = {
       logger.error(`internal server error -- sanitiseName-- ${error.message}`);
     }
   },
-  getRoadMetadata: async (latitude, longitude) => {
+  getRoadMetadata: async (latitude, longitude, next) => {
     try {
       let response = {};
       let promises = [];
@@ -519,16 +525,17 @@ const createSite = {
         }
       });
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  generateMetadata: async (req) => {
+  generateMetadata: async (req, next) => {
     try {
       let { query, body } = req;
       let { latitude, longitude } = body;
@@ -537,14 +544,12 @@ const createSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      // logger.info(`the body sent to generate metadata -- ${body}`);
-
       let responseFromGetAltitude = await createSite.getAltitude(
         latitude,
-        longitude
+        longitude,
+        next
       );
 
-      // logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
         altitudeResponseData["altitude"] = responseFromGetAltitude.data;
       } else if (responseFromGetAltitude.success === false) {
@@ -564,7 +569,8 @@ const createSite = {
 
       // let responseFromGetRoadMetadata = await createSite.getRoadMetadata(
       //   latitude,
-      //   longitude
+      //   longitude,
+      //   next
       // );
 
       // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
@@ -588,11 +594,10 @@ const createSite = {
 
       let responseFromReverseGeoCode = await createSite.reverseGeoCode(
         latitude,
-        longitude
+        longitude,
+        next
       );
-      // logger.info(
-      //   `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
-      // );
+
       if (responseFromReverseGeoCode.success === true) {
         reverseGeoCodeResponseData = responseFromReverseGeoCode.data;
         let google_site_tags = responseFromReverseGeoCode.data.site_tags;
@@ -618,33 +623,38 @@ const createSite = {
       } else if (responseFromReverseGeoCode.success === false) {
         return responseFromReverseGeoCode;
       }
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  pickAvailableValue: (valuesInObject) => {
+  pickAvailableValue: (valuesInObject, next) => {
     let arrayOfSiteNames = Object.values(valuesInObject);
     let availableName = arrayOfSiteNames.find(Boolean);
     return availableName;
   },
-  refresh: async (req) => {
+  refresh: async (req, next) => {
     try {
       const { tenant, id } = req.query;
-      let filter = generateFilter.sites(req);
+      let filter = generateFilter.sites(req, next);
       let update = {};
       let request = {};
       request["query"] = {};
       let generated_name = null;
       logObject("the filter being used to filter", filter);
 
-      const responseFromListSite = await SiteModel(tenant).list({
-        filter,
-      });
+      const responseFromListSite = await SiteModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
       if (responseFromListSite.success === true) {
         let siteDetails = { ...responseFromListSite.data[0] };
         request["body"] = siteDetails;
@@ -667,20 +677,23 @@ const createSite = {
 
       if (!name) {
         let siteNames = { name, parish, county, district };
-        let availableName = createSite.pickAvailableValue(siteNames);
-        let isNameValid = createSite.validateSiteName(availableName);
+        let availableName = createSite.pickAvailableValue(siteNames, next);
+        let isNameValid = createSite.validateSiteName(availableName, next);
         if (!isNameValid) {
-          let sanitisedName = createSite.sanitiseName(availableName);
+          let sanitisedName = createSite.sanitiseName(availableName, next);
           request["body"]["name"] = sanitisedName;
         }
         request["body"]["name"] = availableName;
       }
 
-      let lat_long = createSite.generateLatLong(latitude, longitude);
+      let lat_long = createSite.generateLatLong(latitude, longitude, next);
       request["body"]["lat_long"] = lat_long;
 
       if (isEmpty(request["body"]["generated_name"])) {
-        let responseFromGenerateName = await createSite.generateName(tenant);
+        let responseFromGenerateName = await createSite.generateName(
+          tenant,
+          next
+        );
         logObject("responseFromGenerateName", responseFromGenerateName);
         if (responseFromGenerateName.success === true) {
           generated_name = responseFromGenerateName.data;
@@ -695,7 +708,8 @@ const createSite = {
       requestForAirQloudsAndWeatherStations["query"]["tenant"] = tenant;
       requestForAirQloudsAndWeatherStations["query"]["id"] = id;
       let responseFromFindAirQlouds = await createSite.findAirQlouds(
-        requestForAirQloudsAndWeatherStations
+        requestForAirQloudsAndWeatherStations,
+        next
       );
 
       logObject("responseFromFindAirQlouds", responseFromFindAirQlouds);
@@ -709,7 +723,8 @@ const createSite = {
       }
 
       const responseFromNearestWeatherStation = await createSite.findNearestWeatherStation(
-        requestForAirQloudsAndWeatherStations
+        requestForAirQloudsAndWeatherStations,
+        next
       );
 
       if (responseFromNearestWeatherStation.success === true) {
@@ -748,13 +763,10 @@ const createSite = {
       // }
 
       request["query"]["tenant"] = tenant;
-      let responseFromGenerateMetadata = await createSite.generateMetadata(
-        request
+      const responseFromGenerateMetadata = await createSite.generateMetadata(
+        request,
+        next
       );
-
-      // logger.info(
-      //   `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
-      // );
 
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
@@ -762,17 +774,15 @@ const createSite = {
         return responseFromGenerateMetadata;
       }
 
-      // logger.info(`refresh -- update -- ${update}`);
+      const requestForUpdate = {
+        ...req,
+        body: { ...update },
+      };
 
-      let responseFromModifySite = await createSite.update(
-        tenant,
-        filter,
-        update
+      const responseFromModifySite = await createSite.update(
+        requestForUpdate,
+        next
       );
-
-      // logger.info(
-      //   `refresh -- responseFromModifySite -- ${responseFromModifySite} `
-      // );
 
       if (responseFromModifySite.success === true) {
         return {
@@ -784,16 +794,17 @@ const createSite = {
         return responseFromModifySite;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       return {
         success: false,
@@ -802,37 +813,41 @@ const createSite = {
         errors: { message: "Service Unavailable" },
       };
       const { tenant } = request.query;
-      let filter = generateFilter.sites(request);
+      let filter = generateFilter.sites(request, next);
       logObject("filter", filter);
-      const responseFromRemoveSite = await SiteModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveSite = await SiteModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
 
       return responseFromRemoveSite;
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "delete Site util server error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { skip, limit, tenant } = request.query;
-      logObject("the limit", limit);
-      logObject("the skip", skip);
-      let filter = generateFilter.sites(request);
+      const filter = generateFilter.sites(request, next);
+      const responseFromListSite = await SiteModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
-      const responseFromListSite = await SiteModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-
-      if (!responseFromListSite.success) {
+      if (responseFromListSite.success === false) {
         return responseFromListSite;
       }
 
@@ -842,27 +857,26 @@ const createSite = {
       };
 
       return modifiedResponseFromListSite;
-    } catch (e) {
-      logObject("error", e);
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  formatSiteName: (name) => {
+  formatSiteName: (name, next) => {
     try {
       let nameWithoutWhiteSpace = name.replace(/\s/g, "");
       return nameWithoutWhiteSpace.toLowerCase();
-    } catch (e) {
-      logElement("server error", { message: e.message });
+    } catch (error) {
+      logElement("server error", { message: error.message });
     }
   },
-  retrieveInformationFromAddress: (address) => {
+  retrieveInformationFromAddress: (address, next) => {
     try {
       let results = address.results[0];
       let address_components = results.address_components;
@@ -919,16 +933,18 @@ const createSite = {
         message: "retrieved the Google address details of this site",
         data: retrievedAddress,
       };
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "unable to transform the address",
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  reverseGeoCode: async (latitude, longitude) => {
+  reverseGeoCode: async (latitude, longitude, next) => {
     try {
       logText("reverseGeoCode...........");
       let url = constants.GET_ADDRESS_URL(latitude, longitude);
@@ -937,8 +953,9 @@ const createSite = {
         .then(async (response) => {
           let responseJSON = response.data;
           if (!isEmpty(responseJSON.results)) {
-            let responseFromTransformAddress = createSite.retrieveInformationFromAddress(
-              responseJSON
+            const responseFromTransformAddress = createSite.retrieveInformationFromAddress(
+              responseJSON,
+              next
             );
             return responseFromTransformAddress;
           } else {
@@ -965,16 +982,18 @@ const createSite = {
             message: "constants server side error",
           };
         });
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "unable to get the address values",
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  getAltitude: (lat, long) => {
+  getAltitude: (lat, long, next) => {
     try {
       return client
         .elevation(
@@ -1008,29 +1027,32 @@ const createSite = {
             status: httpStatus.BAD_GATEWAY,
           };
         });
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "get altitude server error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  generateLatLong: (lat, long) => {
+  generateLatLong: (lat, long, next) => {
     try {
       return `${lat}_${long}`;
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
-  findNearestSitesByCoordinates: async (request) => {
+  findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant } = request;
-      const responseFromListSites = await createSite.list({
-        tenant,
-      });
+      let { radius, latitude, longitude, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const responseFromListSites = await createSite.list(request, next);
 
       if (responseFromListSites.success === true) {
         let sites = responseFromListSites.data;
@@ -1040,11 +1062,18 @@ const createSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distanceBetweenTwoPoints = distanceUtil.distanceBtnTwoPoints(
-              latitude,
-              longitude,
-              site["latitude"],
-              site["longitude"]
+            {
+              latitude1, longitude1, latitude2, longitude2;
+            }
+
+            const distanceBetweenTwoPoints = distanceUtil.distanceBtnTwoPoints(
+              {
+                latitude1: latitude,
+                longitude1: longitude,
+                latitude2: site["latitude"],
+                longitude2: site["longitude"],
+              },
+              next
             );
 
             if (distanceBetweenTwoPoints < radius) {
@@ -1063,21 +1092,20 @@ const createSite = {
         return responseFromListSites;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createApproximateCoordinates: ({
-    latitude,
-    longitude,
-    approximate_distance_in_km,
-    bearing,
-  }) => {
+  createApproximateCoordinates: (
+    { latitude, longitude, approximate_distance_in_km, bearing },
+    next
+  ) => {
     try {
       const responseFromDistanceUtil = distanceUtil.createApproximateCoordinates(
         {
@@ -1085,7 +1113,8 @@ const createSite = {
           longitude,
           approximate_distance_in_km,
           bearing,
-        }
+        },
+        next
       );
 
       return {
@@ -1094,14 +1123,14 @@ const createSite = {
         message: "successfully approximated the GPS coordinates",
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

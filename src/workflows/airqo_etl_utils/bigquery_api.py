@@ -43,10 +43,14 @@ class BigQueryApi:
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.airqlouds_table = configuration.BIGQUERY_AIRQLOUDS_TABLE
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
+        self.grids_table = configuration.BIGQUERY_GRIDS_TABLE
+        self.cohorts_table = configuration.BIGQUERY_COHORTS_TABLE
+        self.grids_sites_table = configuration.BIGQUERY_GRIDS_SITES_TABLE
+        self.cohorts_devices_table = configuration.BIGQUERY_COHORTS_DEVICES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
-
+        self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
@@ -171,6 +175,14 @@ class BigQueryApi:
             schema_file = "airqlouds.json"
         elif table == self.airqlouds_sites_table:
             schema_file = "airqlouds_sites.json"
+        elif table == self.grids_table:
+            schema_file = "grids.json"
+        elif table == self.cohorts_table:
+            schema_file = "cohorts.json"
+        elif table == self.grids_sites_table:
+            schema_file = "grids_sites.json"
+        elif table == self.cohorts_devices_table:
+            schema_file = "cohorts_devices.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
         elif table == self.sites_meta_data_table:
@@ -293,9 +305,95 @@ class BigQueryApi:
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
+    def update_grids(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.grids_table
+        unique_cols = ["id", "tenant"]
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_cohorts(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.cohorts_table
+        unique_cols = ["id", "tenant"]
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.airqlouds_sites_table
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_grids_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.grids_sites_table
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_cohorts_devices_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(
@@ -602,42 +700,49 @@ class BigQueryApi:
     def fetch_data(
         self,
         start_date_time: str,
+        job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
         except ValueError:
             raise ValueError(f"Invalid start date time: {start_date_time}")
+
         query = f"""
         SELECT DISTINCT 
             t1.device_id, 
             t1.timestamp,  
-            t1.site_id, 
             t1.pm2_5_calibrated_value as pm2_5, 
             t2.latitude, 
-            t2.longitude, 
-            t3.device_category 
+            t2.longitude,"""
+
+        if job_type != "train":
+            query += """
+            t1.site_id,
+            """
+
+        query += f"""
         FROM `{self.hourly_measurements_table_prod}` t1 
-        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id 
-        JOIN `{self.devices_table}` t3 on t1.device_id = t3.device_id
+        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id """
+
+        query += f"""
         WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
         ORDER BY device_id, timestamp"""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-
         try:
             df = self.client.query(query, job_config).result().to_dataframe()
             return df
         except Exception as e:
-            print("Error fetching data from bigquery")
+            print("Error fetching data from bigquery", {e})
 
     @staticmethod
-    def save_forecasts_to_bigquery(df, table):
+    def save_data_to_bigquery(data: pd.DataFrame, table: str):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS
         )
-        df.to_gbq(
+        data.to_gbq(
             destination_table=f"{table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
             if_exists="append",

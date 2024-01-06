@@ -7,14 +7,13 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const generateFilter = {
-  hosts: (req) => {
+  hosts: (request, next) => {
     try {
-      const { id } = req.query;
-      const { host_id } = req.params;
+      const { id, host_id } = { ...request.query, ...request.params };
       let filter = {};
-
       if (id) {
         filter["_id"] = ObjectId(id);
       }
@@ -25,17 +24,24 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  transactions: (req) => {
+  transactions: (request, next) => {
     try {
-      let { id, status, transaction_id, host_id } = req.params;
+      let { id, status, transaction_id, host_id } = {
+        ...request.query,
+        ...request.params,
+      };
       let filter = {};
 
       if (host_id) {
@@ -56,18 +62,21 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  sims: (req) => {
+  sims: (request, next) => {
     try {
-      const { id, device_id } = req.query;
-      const { sim_id } = req.params;
+      const { id, device_id, sim_id } = { ...request.query, ...request.params };
       let filter = {};
 
       if (id) {
@@ -84,43 +93,51 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  networks: (req) => {
+  networks: (request, next) => {
     try {
+      const { name, net_id, network_codes, id } = {
+        ...request.query,
+        ...request.params,
+      };
       let filter = {};
-      if (req.query && req.query.name) {
-        filter["name"] = req.query.name;
+      if (name) {
+        filter["name"] = name;
       }
-
-      if (req.params && req.params.net_id) {
-        filter["_id"] = ObjectId(req.params.net_id);
+      if (net_id) {
+        filter["_id"] = ObjectId(net_id);
       }
-
-      if (req.query && req.query.network_codes) {
-        let networkCodesArray = req.query.network_codes.split(",");
+      if (network_codes) {
+        let networkCodesArray = network_codes.split(",");
         filter["network_codes"] = {};
         filter["network_codes"]["$in"] = networkCodesArray;
       }
-
-      if (req.query && req.query.id) {
-        filter["_id"] = ObjectId(req.query.id);
+      if (id) {
+        filter["_id"] = ObjectId(id);
       }
-
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

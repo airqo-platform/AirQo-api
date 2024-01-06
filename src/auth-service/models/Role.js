@@ -8,6 +8,7 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- role-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const RoleSchema = new mongoose.Schema(
   {
@@ -52,7 +53,6 @@ RoleSchema.pre("save", async function (next) {
   try {
     return next();
   } catch (err) {
-    // Handle errors
     next(err);
   }
 });
@@ -70,7 +70,7 @@ RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
 RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       logText("we are in the role model creating things");
       const newRole = await this.create({
@@ -113,17 +113,11 @@ RoleSchema.statics = {
           "the role_name and role_code must be unique for every role";
       }
 
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${message}`);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.ROLES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.ROLES_EXCLUSION_PROJECTION(
@@ -193,16 +187,17 @@ RoleSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -234,25 +229,24 @@ RoleSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedRole)) {
-        return {
-          success: true,
-          message: "role not found",
-          data: [],
-          status: httpStatus.OK,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "role not foun, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Errors",
-        error: error.message,
-        errors: { message: "internal server errors" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, role_name: 1, role_code: 1, role_status: 1 },
@@ -269,21 +263,21 @@ RoleSchema.statics = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Role does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Role does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
@@ -298,7 +292,6 @@ RoleSchema.methods = {
       role_permissions: this.role_permissions,
       role_description: this.role_description,
       network_id: this.network_id,
-      role_users: this.role_users,
     };
   },
 };

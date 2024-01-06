@@ -4,13 +4,14 @@ const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 const polygonSchema = new mongoose.Schema(
   {
     type: {
@@ -176,7 +177,7 @@ airqloudSchema.statics.sanitiseName = function(name) {
   }
 };
 
-airqloudSchema.statics.register = async function(args) {
+airqloudSchema.statics.register = async function(args, next) {
   try {
     const body = {
       ...args,
@@ -197,35 +198,29 @@ airqloudSchema.statics.register = async function(args) {
         success: true,
         data,
         message: "Airqloud created",
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     }
-  } catch (err) {
+  } catch (error) {
     let response = {};
     message = "validation errors for some of the provided fields";
-    const status = HTTPStatus.CONFLICT;
-    if (err.errors) {
-      Object.entries(err.errors).forEach(([key, value]) => {
+    const status = httpStatus.CONFLICT;
+    if (error.errors) {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[value.path] = value.message;
         return response;
       });
     }
 
-    return {
-      errors: response,
-      message,
-      success: false,
-      status,
-    };
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(new HttpError(message, status, response));
   }
 };
-
-airqloudSchema.statics.list = async function({
-  filter = {},
-  limit = 1000,
-  skip = 0,
-} = {}) {
+airqloudSchema.statics.list = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
   try {
     const inclusionProjection = constants.AIRQLOUDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.AIRQLOUDS_EXCLUSION_PROJECTION(
@@ -262,30 +257,29 @@ airqloudSchema.statics.list = async function({
         success: true,
         message: "Successfull Operation",
         data,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } else if (isEmpty(data)) {
       return {
         success: true,
         message: "There are no records for this search",
         data: [],
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: HTTPStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-airqloudSchema.statics.modify = async function({
-  filter = {},
-  update = {},
-} = {}) {
+airqloudSchema.statics.modify = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const options = {
       new: true,
@@ -319,27 +313,26 @@ airqloudSchema.statics.modify = async function({
         success: true,
         message: "Successfully modified the airqloud",
         data: updatedAirQloud._doc,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } else {
       return {
         success: false,
         message: "Airqloud does not exist, please crosscheck",
-        status: HTTPStatus.BAD_REQUEST,
+        status: httpStatus.BAD_REQUEST,
         errors: filter,
       };
     }
-  } catch (err) {
-    return {
-      errors: { message: err.message },
-      message: "Internal Server Error",
-      success: false,
-      status: HTTPStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
-airqloudSchema.statics.remove = async function({ filter = {} } = {}) {
+airqloudSchema.statics.remove = async function({ filter = {} } = {}, next) {
   try {
     const options = {
       projection: {
@@ -361,23 +354,23 @@ airqloudSchema.statics.remove = async function({ filter = {} } = {}) {
         success: true,
         message: "Successfully removed the airqloud",
         data: removedAirqloud._doc,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } else {
       return {
         success: false,
         message: "Airqloud does not exist, please crosscheck",
-        status: HTTPStatus.BAD_REQUEST,
+        status: httpStatus.BAD_REQUEST,
         errors: filter,
       };
     }
-  } catch (err) {
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-      status: HTTPStatus.INTERNAL_SERVER_ERROR,
-    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

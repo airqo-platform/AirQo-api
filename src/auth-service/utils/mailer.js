@@ -1,17 +1,21 @@
 const transporter = require("@config/mailer");
-const { logObject, logText } = require("./log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const msgs = require("./email.msgs");
-const msgTemplates = require("./email.templates");
+const msgs = require("@utils/email.msgs");
+const msgTemplates = require("@utils/email.templates");
 const httpStatus = require("http-status");
 const path = require("path");
-
+const { HttpError } = require("@utils/errors");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
-
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-util`);
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
 const imagePath = path.join(__dirname, "../config/images");
-const attachments = [
+let attachments = [
   {
     filename: "airqoLogo.png",
     path: imagePath + "/airqoLogo.png",
@@ -45,14 +49,15 @@ const attachments = [
 ];
 
 const mailer = {
-  candidate: async (firstName, lastName, email, tenant) => {
+  candidate: async (
+    { firstName, lastName, email, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
       let bcc = "";
-
       if (tenant.toLowerCase() === "airqo") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
       }
-
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -75,29 +80,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  request: async ({
-    email,
-    targetId,
-    tenant = "airqo",
-    entity_title = "",
-  } = {}) => {
+  request: async (
+    { email, targetId, tenant = "airqo", entity_title = "" } = {},
+    next
+  ) => {
     try {
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
@@ -110,7 +118,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        subject: `AirQo Analytics Request to Access ${processString(
+          entity_title
+        )} Team`,
         html: msgs.joinEntityRequest(email, entity_title),
         bcc,
         attachments: attachments,
@@ -126,47 +136,59 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  requestToJoinGroupByEmail: async ({
-    email,
-    targetId,
-    tenant = "airqo",
-    entity_title = "",
-    inviterEmail = "",
-  } = {}) => {
+  requestToJoinGroupByEmail: async (
+    {
+      email,
+      targetId,
+      tenant = "airqo",
+      entity_title = "",
+      inviterEmail = "",
+      userExists,
+    } = {},
+    next
+  ) => {
     try {
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
       }
-
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${entity_title} Team`,
+        subject: `AirQo Analytics Request to Access ${processString(
+          entity_title
+        )} Team`,
         html: msgTemplates.acceptInvitation({
           email,
           entity_title,
           targetId,
           inviterEmail,
+          userExists,
         }),
         bcc,
         attachments: attachments,
@@ -182,23 +204,42 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        // return {
+        //   success: false,
+        //   message: "Internal Server Error",
+        //   status: httpStatus.INTERNAL_SERVER_ERROR,
+        //   errors: {
+        //     message: "email not sent",
+        //     emailResults: data,
+        //   },
+        // };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("the error in the mailer", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  inquiry: async (fullName, email, category, message, tenant) => {
+  inquiry: async (
+    { fullName, email, category, message, tenant } = {},
+    next
+  ) => {
     try {
       let bcc = "";
       let html = "";
@@ -240,6 +281,15 @@ const mailer = {
         attachments,
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptionsForAirQo);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -250,24 +300,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  user: async (firstName, lastName, email, password, tenant, type) => {
+  user: async (
+    { firstName, lastName, email, password, tenant, type } = {},
+    next
+  ) => {
     try {
       let bcc = "";
       if (type === "confirm") {
@@ -301,6 +359,15 @@ const mailer = {
         };
       }
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -311,29 +378,38 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  verifyEmail: async ({
-    user_id = "",
-    token = "",
-    email = "",
-    firstName = "",
-    category = "",
-  } = {}) => {
+  verifyEmail: async (
+    {
+      user_id = "",
+      token = "",
+      email = "",
+      firstName = "",
+      category = "",
+    } = {},
+    next
+  ) => {
     try {
       const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -387,6 +463,15 @@ const mailer = {
         ],
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -397,28 +482,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  verifyMobileEmail: async ({
-    firebase_uid = "",
-    token = "",
-    email = "",
-  } = {}) => {
+  verifyMobileEmail: async (
+    { firebase_uid = "", token = "", email = "" } = {},
+    next
+  ) => {
     try {
       const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -470,6 +559,15 @@ const mailer = {
         ],
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
@@ -480,28 +578,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  afterEmailVerification: async ({
-    firstName = "",
-    username = "",
-    email = "",
-    password = "",
-  } = {}) => {
+  afterEmailVerification: async (
+    { firstName = "", username = "", email = "" } = {},
+    next
+  ) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
@@ -512,12 +614,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Welcome to AirQo!",
-        html: msgTemplates.afterEmailVerification(
-          firstName,
-          username,
-          password,
-          email
-        ),
+        html: msgTemplates.afterEmailVerification(firstName, username, email),
         bcc,
         attachments: attachments,
       };
@@ -532,28 +629,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  afterAcceptingInvitation: async ({
-    firstName,
-    username,
-    email,
-    entity_title,
-  } = {}) => {
+  afterAcceptingInvitation: async (
+    { firstName, username, email, entity_title } = {},
+    next
+  ) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
@@ -584,24 +685,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  forgot: async (email, token, tenant) => {
+  forgot: async ({ email, token, tenant } = {}, next) => {
     try {
       const mailOptions = {
         from: {
@@ -624,23 +730,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  signInWithEmailLink: async (email, token) => {
+  signInWithEmailLink: async ({ email, token } = {}, next) => {
     try {
       const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
@@ -653,6 +765,15 @@ const mailer = {
         html: msgs.join_by_email(email, token),
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -664,21 +785,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteMobileAccountEmail: async (email, token) => {
+  deleteMobileAccountEmail: async ({ email, token } = {}, next) => {
     try {
       const mailOptions = {
         from: {
@@ -690,6 +819,16 @@ const mailer = {
         html: msgTemplates.deleteMobileAccountEmail(email, token),
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -701,23 +840,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  authenticateEmail: async (email, token) => {
+  authenticateEmail: async ({ email, token } = {}, next) => {
     try {
       const mailOptions = {
         from: {
@@ -729,6 +874,16 @@ const mailer = {
         html: `${msgs.authenticate_email(token, email)}`,
         attachments: attachments,
       };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -740,23 +895,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (email, firstName, lastName, updatedUserDetails) => {
+  update: async (
+    { email = "", firstName = "", lastName = "", updatedUserDetails = {} } = {},
+    next
+  ) => {
     try {
       const mailOptions = {
         from: {
@@ -765,12 +929,12 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics account updated",
-        html: `${msgs.user_updated(
+        html: `${msgs.user_updated({
           firstName,
           lastName,
           updatedUserDetails,
-          email
-        )}`,
+          email,
+        })}`,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -784,24 +948,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assign: async (email, firstName, lastName, assignedTo) => {
+  assign: async ({ email, firstName, lastName, assignedTo } = {}, next) => {
     try {
       const mailOptions = {
         from: {
@@ -824,24 +993,32 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateForgottenPassword: async (email, firstName, lastName) => {
+  updateForgottenPassword: async (
+    { email, firstName, lastName } = {},
+    next
+  ) => {
     try {
       const mailOptions = {
         from: {
@@ -864,24 +1041,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateKnownPassword: async (email, firstName, lastName) => {
+  updateKnownPassword: async ({ email, firstName, lastName } = {}, next) => {
     try {
       const mailOptions = {
         from: {
@@ -904,24 +1086,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: data },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  newMobileAppUser: async ({ email, message, subject } = {}) => {
+  newMobileAppUser: async ({ email, message, subject } = {}, next) => {
     try {
       logObject("the values to send to email function", {
         email,
@@ -940,6 +1127,15 @@ const mailer = {
         bcc,
       };
 
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
       const response = await transporter.sendMail(mailOptions);
 
       const data = response;
@@ -951,25 +1147,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
       }
     } catch (error) {
-      return {
-        message: "internal server error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  feedback: async ({ email, message, subject } = {}) => {
+  feedback: async ({ email, message, subject } = {}, next) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
 
@@ -1005,22 +1205,190 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  sendReport: async (
+    { senderEmail, recepientEmails, pdfFile, csvFile } = {},
+    next
+  ) => {
+    try {
+      let formart;
+      let reportAttachments = [...attachments];
+
+      if (pdfFile) {
+        formart = "PDF";
+        const pdfBase64 = pdfFile.data.toString("base64");
+        const pdfAttachment = {
+          filename: "Report.pdf",
+          contentType: "application/pdf",
+          content: pdfBase64,
+          encoding: "base64",
+        };
+        reportAttachments.push(pdfAttachment);
+      }
+      if (csvFile) {
+        formart = "CSV";
+        const csvBase64 = csvFile.data.toString("base64");
+        const csvAttachment = {
+          filename: "Report.csv",
+          content: csvBase64,
+          encoding: "base64",
+        };
+        reportAttachments.push(csvAttachment);
+      }
+      const emailResults = [];
+
+      for (const recepientEmail of recepientEmails) {
+        if (recepientEmail === "automated-tests@airqo.net") {
+          return {
+            success: true,
+            message: "Email successfully sent",
+            data: [],
+            status: httpStatus.OK,
+          };
+        }
+
+        const mailOptions = {
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
+          subject: "AirQo Analytics Report",
+          html: msgs.report(senderEmail, recepientEmail, formart),
+          to: recepientEmail,
+          attachments: reportAttachments,
+        };
+
+        const response = await transporter.sendMail(mailOptions);
+
+        if (isEmpty(response.rejected) && !isEmpty(response.accepted)) {
+          emailResults.push({
+            success: true,
+            message: "Email successfully sent",
+            data: response,
+            status: httpStatus.OK,
+          });
+        } else {
+          emailResults.push({
+            success: false,
+            message: "Email not sent",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: response },
+          });
+        }
+      }
+      const hasFailedEmail = emailResults.some((result) => !result.success);
+
+      if (hasFailedEmail) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "One or more emails failed to send",
+              emailResults,
+            }
+          )
+        );
+      } else {
         return {
-          success: false,
-          message: "email not sent",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: data },
+          success: true,
+          message: "All emails successfully sent",
+          data: emailResults,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
-      return {
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        errors: {
-          message: error.message,
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  siteActivity: async (
+    {
+      email = "",
+      firstName = "",
+      lastName = "",
+      siteActivityDetails = {},
+    } = {},
+    next
+  ) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
         },
+        to: `${email}`,
+        subject:
+          "AirQo Analyitcs: Post-Activity Notification for Device Management Actions",
+        html: `${msgs.site_activity({
+          firstName,
+          lastName,
+          siteActivityDetails,
+          email,
+        })}`,
+        bcc: constants.HARDWARE_AND_DS_EMAILS || "",
+        attachments: attachments,
       };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+        return;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

@@ -52,7 +52,7 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(validatePagination);
 /******************* create device use-case ***************************/
-/*** decrypt read and write keys */
+/*** decrypt read and write provided keys */
 router.post(
   "/decrypt",
   oneOf([

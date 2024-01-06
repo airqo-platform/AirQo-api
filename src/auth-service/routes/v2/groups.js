@@ -113,6 +113,12 @@ router.put(
         .withMessage("the grp_industry should not be empty if provided")
         .bail()
         .trim(),
+      body("grp_image")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_image should not be empty if provided")
+        .bail()
+        .trim(),
       body("grp_website")
         .optional()
         .notEmpty()
@@ -134,8 +140,6 @@ router.put(
         ),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createGroupController.update
 );
 router.get(
@@ -232,6 +236,12 @@ router.post(
         .withMessage("the grp_country should not be empty if provided")
         .bail()
         .trim(),
+      body("grp_image")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_image should not be empty if provided")
+        .bail()
+        .trim(),
       body("grp_timezone")
         .optional()
         .notEmpty()
@@ -253,8 +263,6 @@ router.post(
         .withMessage("the grp_website must be a valid URL"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createGroupController.create
 );
 
@@ -368,6 +376,36 @@ router.get(
       }),
   ]),
   createGroupController.listAssignedUsers
+);
+router.get(
+  "/:grp_id/all-users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grp_id")
+      .exists()
+      .withMessage("the group ID parameter is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the group ID parameter must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGroupController.listAllGroupUsers
 );
 router.get(
   "/:grp_id/available-users",

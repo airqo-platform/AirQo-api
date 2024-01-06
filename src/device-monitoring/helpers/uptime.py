@@ -16,11 +16,17 @@ class Uptime:
         end_date_time: datetime,
         site: str,
         airqloud: str,
+        grid: str,
+        cohort: str
     ) -> list:
         data_table = f"`{Config.BIGQUERY_DEVICE_UPTIME_TABLE}`"
         sites_table = f"`{Config.BIGQUERY_SITES}`"
         airqlouds_sites_table = f"`{Config.BIGQUERY_AIRQLOUDS_SITES}`"
         airqlouds_table = f"`{Config.BIGQUERY_AIRQLOUDS}`"
+        grids_sites_table = f"`{Config.BIGQUERY_GRIDS_SITES}`"
+        grids_table = f"`{Config.BIGQUERY_GRIDS}`"
+        cohorts_devices_table = f"`{Config.BIGQUERY_COHORTS_DEVICES}`"
+        cohorts_table = f"`{Config.BIGQUERY_COHORTS}`"
 
         query = (
             f" SELECT {data_table}.timestamp ,  "
@@ -77,6 +83,70 @@ class Uptime:
                 f"WHERE meta_data.airqloud_id = '{airqloud}' "
             )
 
+        elif grid.strip() != "":
+            meta_data_query = (
+                f" SELECT {grids_sites_table}.grid_id , "
+                f" {grids_sites_table}.site_id , "
+                f" FROM {grids_sites_table} "
+                f" WHERE {grids_sites_table}.grid_id = '{grid}' "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {grids_table}.name AS grid_name , "
+                f" meta_data.* "
+                f" FROM {grids_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.grid_id = {grids_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            query = (
+                f" {query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f"WHERE meta_data.grid_id = '{grid}' "
+            )
+
+        elif cohort.strip() != "":
+            meta_data_query = (
+                f" SELECT {cohorts_devices_table}.cohort_id , "
+                f" {cohorts_devices_table}.site_id , "
+                f" FROM {cohorts_devices_table} "
+                f" WHERE {cohorts_devices_table}.cohort_id = '{cohort}' "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {cohorts_table}.name AS cohort_name , "
+                f" meta_data.* "
+                f" FROM {cohorts_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.cohort_id = {cohorts_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            query = (
+                f" {query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f"WHERE meta_data.cohort_id = '{cohort}' "
+            )
+
         query = (
             f"{query} "
             f"AND {data_table}.timestamp >= '{start_date_time}' "
@@ -109,6 +179,8 @@ class Uptime:
         end_date_time: datetime,
         site: str,
         airqloud: str,
+        grid: str,
+        cohort: str,
         data: list,
         threshold: int,
     ):
@@ -169,6 +241,76 @@ class Uptime:
                 "end_date_time": end_date_time,
                 "airqloud_id": devices_uptime.iloc[0]["airqloud_id"],
                 "airqloud_name": devices_uptime.iloc[0]["airqloud_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "sites": sites.to_dict("records"),
+                "devices": devices_uptime.to_dict("records"),
+            }
+        elif grid.strip() != "":
+            uptime = float(devices_uptime["uptime"].mean())
+            downtime = float(devices_uptime["downtime"].mean())
+            data_points = int(devices_uptime["data_points"].sum())
+            hourly_threshold = int(devices_uptime.iloc[0]["hourly_threshold"])
+
+            sites_uptime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["uptime"].mean()
+            sites_downtime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["downtime"].mean()
+            sites_data_points = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["data_points"].sum()
+
+            sites = pd.merge(
+                sites_uptime, sites_downtime, on=["site_id", "site_name"]
+            ).merge(sites_data_points, on=["site_id", "site_name"])
+            sites["hourly_threshold"] = hourly_threshold
+            sites["start_date_time"] = start_date_time
+            sites["end_date_time"] = end_date_time
+
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "grid_id": devices_uptime.iloc[0]["grid_id"],
+                "grid_name": devices_uptime.iloc[0]["grid_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "sites": sites.to_dict("records"),
+                "devices": devices_uptime.to_dict("records"),
+            }
+        elif cohort.strip() != "":
+            uptime = float(devices_uptime["uptime"].mean())
+            downtime = float(devices_uptime["downtime"].mean())
+            data_points = int(devices_uptime["data_points"].sum())
+            hourly_threshold = int(devices_uptime.iloc[0]["hourly_threshold"])
+
+            sites_uptime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["uptime"].mean()
+            sites_downtime = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["downtime"].mean()
+            sites_data_points = devices_uptime.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["data_points"].sum()
+
+            sites = pd.merge(
+                sites_uptime, sites_downtime, on=["site_id", "site_name"]
+            ).merge(sites_data_points, on=["site_id", "site_name"])
+            sites["hourly_threshold"] = hourly_threshold
+            sites["start_date_time"] = start_date_time
+            sites["end_date_time"] = end_date_time
+
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "cohort_id": devices_uptime.iloc[0]["cohort_id"],
+                "cohort_name": devices_uptime.iloc[0]["cohort_name"],
                 "uptime": uptime,
                 "downtime": downtime,
                 "data_points": data_points,

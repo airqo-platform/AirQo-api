@@ -1,3 +1,5 @@
+/* eslint-disable quotes */
+/* eslint-disable no-unused-vars */
 /* eslint-disable object-curly-spacing */
 /* eslint-disable require-jsdoc */
 /* eslint-disable indent */
@@ -220,8 +222,8 @@ module.exports = {
 
     email_notification: (userFavorites, userID) => {
         const { userEmail } = userFavorites[0];
-        const unSubsciptionUrl = `https://us-central1-airqo-250220.cloudfunctions.net/emailNotifsUnsubscribe?email=${userEmail}&userId=${userID}`;
-        const footerTemplate = module.exports.email_footer_template(userEmail, unSubsciptionUrl);
+        const unSubscriptionUrl = `https://us-central1-airqo-250220.cloudfunctions.net/emailNotifsUnsubscribe?email=${userEmail}&userId=${userID}`;
+        const footerTemplate = module.exports.email_footer_template(userEmail, unSubscriptionUrl);
         function generateFavoriteHTML(name, location) {
             return `
             <tr style="border: 1px #EBF1FF solid;">
@@ -275,7 +277,7 @@ module.exports = {
                                         <td
                                             style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
                                             <!-- Logo goes here -->
-                                            <img src="cid:AirQoEmailLogo" alt="logo" style="height: 100px; margin-right: 10px;">
+                                            <img src="cid:AirQoEmailLogoAlternate" alt="logo" style="height: 100px; margin-right: 10px;">
                                         </td>
                                     </tr>
                                 </table>
@@ -317,6 +319,112 @@ module.exports = {
                                             </table>
 
                                             ${favoritesContent}
+                                    <tr>
+                                        <td style=" height: 8px; background: #EBF1FF;"></td>
+                                    </tr>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Social media section -->
+                    ${footerTemplate}
+                    </td>
+                    </tr>
+                    </table>
+                </div>
+
+            </body>
+        </html> `;
+    },
+
+    favorite_forecast_email: (userFavorites, userID) => {
+        const { userEmail } = userFavorites[0];
+        const unSubscriptionUrl = `https://us-central1-airqo-250220.cloudfunctions.net/emailNotifsUnsubscribe?email=${userEmail}&userId=${userID}`;
+        const footerTemplate = module.exports.email_footer_template(userEmail, unSubscriptionUrl);
+        let favoritesContent = ``;
+
+        for (const favorite of userFavorites) {
+            const airQualityLevels = favorite.airQualityLevels;
+            const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+            favoritesContent += `
+              <!-- Location Content -->
+        <table style="width: 100%; text-align: center; background-color: #fff;">
+            <tr style="border: 1px #EBF1FF solid;">
+                <td style="text-align: center; padding: 10px;"><img src="cid:FavoriteIcon" style="height: 24px; width: 24px;"></td>
+                <td>
+                    <div style="text-align: start; width: 200px; color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">${favorite.name}</div>
+                    <div style="text-align: start; width: 200px; font-size: 14px; font-family: Inter; font-weight: 500; line-height: 20px; color: #8D8D8D;">${favorite.location}</div>
+                </td>
+                <td style="text-align: center; padding: 10px; display: grid; place-items: center;">
+                    <div style="width: 80px; background: #145DFF; border-radius: 6.09px; display: grid; align-content: center; justify-content: center; color: white; font-size: 14px; padding-top: 9.13px; padding-bottom: 9.13px;">View now</div>
+                </td>
+            </tr>
+        </table><br/>
+        <!-- Insights Calendar -->
+        <div style="border: 2px solid #EBF1FF; width: 80%; margin-left: 50px; display:flex; place-content: center;">
+            <table style="width: 60%; padding: 30px; display: revert; padding-left: 40px;">
+                <tr>${days.map((day) => `<td>${day}</td>`).join('')}</tr>
+                <tr>${airQualityLevels.map((level) => `<td><div style="height: 22.30px; position: relative; place-content: center; display: flex; padding-right: 5px;"><img src="cid:${level}Emoji" style="height: 24px; width: 24px;"></div></td>`).join('')}</tr>
+            </table>
+        </div>
+        <br/>
+        <br/>
+      `;
+        }
+
+        return `<!DOCTYPE html>
+        <html>
+
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+
+            <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+                <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+                    <!-- Email content container with white background -->
+                    <table
+                        style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;border-top-left-radius: 30px;border-top-right-radius: 30px;">
+                        <tr>
+                            <td>
+                                <table
+                                    style="width: 100%; background-color: #145DFF; border-top-left-radius: 30.46px;
+                                                                                                                                                                                                                                                                                                    border-top-right-radius: 30.46px;">
+                                    <tr>
+                                        <td
+                                            style="text-align: center; border-top-left-radius: 30.46px; border-top-right-radius: 30.46px;">
+                                            <!-- Logo goes here -->
+                                            <img src="cid:AirQoEmailLogoAlternate" alt="logo" style="height: 100px; margin-right: 10px;">
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 24px;">
+                                <!-- Email content section -->
+                                <table style="width: 100%;">
+                                    <tr>
+                                        <td>
+                                            <table style="width: 100%; text-align: center; background-color: #fff;">
+                                                <tr>
+                                                    <td>
+                                                        <br />
+                                                        <div
+                                                            style="text-align: center; color: #121723; font-size: 36.75px; font-family: Inter; font-weight: 500; line-height: 50px; word-wrap: break-word">
+                                                            Peek Into Your Favorites' Air Quality This Week</div>
+                                                        
+                                                        <br />
+                                                    </td>
+                                                </tr>
+                                               
+                                            </table>
+
+                                            ${favoritesContent}
+                                            <br />
+                                            <br />
                                     <tr>
                                         <td style=" height: 8px; background: #EBF1FF;"></td>
                                     </tr>

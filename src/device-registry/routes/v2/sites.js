@@ -42,23 +42,29 @@ const validatePagination = (req, res, next) => {
 };
 
 const headers = (req, res, next) => {
-  // const allowedOrigins = constants.DOMAIN_WHITELIST;
-  // const origin = req.headers.origin;
-  // if (allowedOrigins.includes(origin)) {
-  //   res.setHeader("Access-Control-Allow-Origin", origin);
-  // }
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "https://analytics.airqo.net, https://staging-analytics.airqo.net",
+    "https://platform.airqo.net",
+    "https://staging-platform.airqo.net"
+  );
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
+  // Check if the request method is OPTIONS (preflight request)
+  if (req.method === "OPTIONS") {
+    res.sendStatus(200); // Respond with a 200 status for preflight requests
+  } else {
+    next(); // Continue to the next middleware for non-preflight requests
+  }
 };
 router.use(headers);
 router.use(validatePagination);
 
-/****************************** create sites usecase *************** */
+/****************************** create sites use-case *************** */
 router.get(
   "/",
   oneOf([

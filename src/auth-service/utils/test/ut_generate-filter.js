@@ -822,4 +822,136 @@ describe("generate-filter util", function () {
       });
     });
   });
+  describe("preferences function", () => {
+    it("should construct a filter object with user_id", () => {
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.query.user_id = "user123";
+
+      const filter = generateFilterUtil.preferences(req);
+
+      expect(filter).to.deep.equal({ user_id: "user123" });
+    });
+
+    it("should construct a filter object with multiple parameters", () => {
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.params.grid_id = "grid123";
+      req.query.cohort_id = "cohort456";
+
+      const filter = generateFilterUtil.preferences(req);
+
+      expect(filter).to.deep.equal({
+        grid_id: "grid123",
+        cohort_id: "cohort456",
+      });
+    });
+
+    it("should handle errors and return an error response", () => {
+      // Stub the logger.error function
+      const logger = {
+        error: sinon.spy(),
+      };
+
+      // Create a request with an invalid parameter
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.query.invalid_param = "invalid_value";
+
+      const filter = generateFilterUtil.preferences(req, logger);
+
+      expect(filter).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Cannot read property" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+
+      // Verify that the logger.error function was called
+      sinon.assert.calledWith(
+        logger.error,
+        sinon.match(/internal server error/)
+      );
+    });
+  });
+  describe("checklists function", () => {
+    it("should construct a filter object with user_id", () => {
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.query.user_id = "user123";
+
+      const filter = generateFilterUtil.checklists(req);
+
+      expect(filter).to.deep.equal({ user_id: "user123" });
+    });
+
+    it("should construct a filter object with id", () => {
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.params.id = "checklist123";
+
+      const filter = generateFilterUtil.checklists(req);
+
+      expect(filter).to.deep.equal({ _id: "checklist123" });
+    });
+
+    it("should construct a filter object with both user_id and id", () => {
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.query.user_id = "user123";
+      req.params.id = "checklist123";
+
+      const filter = generateFilterUtil.checklists(req);
+
+      expect(filter).to.deep.equal({ user_id: "user123", _id: "checklist123" });
+    });
+
+    it("should handle errors and return an error response", () => {
+      // Stub the logger.error function
+      const logger = {
+        error: sinon.spy(),
+      };
+
+      // Create a request with an invalid parameter
+      const req = {
+        body: {},
+        query: {},
+        params: {},
+      };
+      req.query.invalid_param = "invalid_value";
+
+      const filter = generateFilterUtil.checklists(req, logger);
+
+      expect(filter).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Cannot read property" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+
+      // Verify that the logger.error function was called
+      sinon.assert.calledWith(
+        logger.error,
+        sinon.match(/internal server error/)
+      );
+    });
+  });
 });

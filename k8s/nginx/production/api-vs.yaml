@@ -15,6 +15,9 @@ spec:
     - name: data-mgt
       service: airqo-data-mgt-api-svc
       port: 3000
+    - name: data-proxy
+      service: airqo-data-proxy-api-svc
+      port: 3000
     - name: locate
       service: airqo-locate-api-svc
       port: 4001
@@ -73,6 +76,14 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+    - path: ~ /api\/v[1-2]\/data-proxy
+      action:
+        proxy:
+          upstream: data-proxy
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
     - path: ~ /api\/v[1-2]\/locate/map
       action:
         proxy:
@@ -89,6 +100,14 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+              - name: Access-Control-Allow-Origin
+                value: "*"
+              - name: Access-Control-Allow-Methods
+                value: "GET, POST, OPTIONS, PUT, DELETE, HEAD, PATCH"
+              - name: Access-Control-Allow-Headers
+                value: "Content-Type, Authorization, X-Requested-With, X-Auth-Token"
+              - name: Access-Control-Allow-Credentials
+                value: "true"
     - path: ~ /api\/v[1-2]\/predict
       action:
         proxy:

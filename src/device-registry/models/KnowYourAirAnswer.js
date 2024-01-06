@@ -2,11 +2,15 @@ const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const ObjectId = Schema.Types.ObjectId;
-const { logElement, logObject, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- kya-answer-model`);
+
 const knowYourAirAnswerSchema = new Schema(
   {
     title: {
@@ -50,7 +54,7 @@ knowYourAirAnswerSchema.methods = {
 };
 
 knowYourAirAnswerSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       logText("registering a new answer....");
       let modifiedArgs = Object.assign({}, args);
@@ -60,45 +64,42 @@ knowYourAirAnswerSchema.statics = {
           success: true,
           data: createdKnowYourAirAnswer._doc,
           message: "answer created",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdKnowYourAirAnswer)) {
-        return {
-          success: false,
-          message: "answer not created despite successful operation",
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message: "answer not created despite successful operation",
-          },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "answer not created despite successful operation",
+            }
+          )
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.keyPattern) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.keyPattern) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response.message = value.message;
           response[key] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.KYA_ANSWERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.KYA_ANSWERS_EXCLUSION_PROJECTION(
@@ -140,24 +141,25 @@ knowYourAirAnswerSchema.statics = {
           success: true,
           message: "successfully retrieved the answers",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "No answers found for this operation",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: [],
         };
       }
-    } catch (err) {
-      logObject("the error", err);
-      let response = { message: err.message };
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      let response = { message: error.message };
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (err.code === 11000) {
-        if (!isEmpty(err.keyPattern)) {
-          Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (error.code === 11000) {
+        if (!isEmpty(error.keyPattern)) {
+          Object.entries(error.keyPattern).forEach(([key, value]) => {
             response["message"] = "duplicate value";
             response[key] = "duplicate value";
             return response;
@@ -165,22 +167,18 @@ knowYourAirAnswerSchema.statics = {
         } else {
           response.message = "duplicate value";
         }
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
-  async modify({ filter = {}, update = {}, opts = { new: true } } = {}) {
+  async modify({ filter = {}, update = {}, opts = { new: true } } = {}, next) {
     try {
       logObject("the filter in the model", filter);
       logObject("the update in the model", update);
@@ -189,11 +187,7 @@ knowYourAirAnswerSchema.statics = {
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-
       let options = opts;
-
-      logObject("the new modifiedUpdateBody", modifiedUpdateBody);
-
       const updatedKnowYourAirAnswer = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
@@ -205,43 +199,38 @@ knowYourAirAnswerSchema.statics = {
           success: true,
           message: "successfully modified the answer",
           data: updatedKnowYourAirAnswer._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedKnowYourAirAnswer)) {
-        return {
-          success: false,
-          message: "No answers found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No answers found for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No answers found for this operation",
+          })
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.code) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.code) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -260,40 +249,36 @@ knowYourAirAnswerSchema.statics = {
           success: true,
           message: "successfully removed the answer",
           data: removedKnowYourAirAnswer._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedKnowYourAirAnswer)) {
-        return {
-          success: false,
-          message: "No answers found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No answers found for this operation" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No answers found for this operation",
+          })
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (!isEmpty(err.code) && err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.code) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
           response["message"] = "duplicate value";
           return response;
         });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] = value.message;
           return response;
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      next(new HttpError(message, status, response));
     }
   },
 };

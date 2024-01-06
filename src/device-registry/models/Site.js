@@ -2,10 +2,11 @@ const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 
 const log4js = require("log4js");
@@ -460,7 +461,7 @@ siteSchema.methods = {
 };
 
 siteSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       modifiedArgs.description = modifiedArgs.name;
@@ -488,37 +489,36 @@ siteSchema.statics = {
           success: true,
           data,
           message: "site created",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdSite)) {
-        return {
-          success: true,
-          message: "site not created despite successful operation",
-          status: HTTPStatus.ACCEPTED,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "site not created despite successful operation",
+            }
+          )
+        );
       }
-    } catch (err) {
-      logObject("the error", err);
-      const stingifiedMessage = JSON.stringify(err ? err : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+    } catch (error) {
+      logObject("the error", error);
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.message = value.message;
         response[key] = value.message;
         return response;
       });
 
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
@@ -571,28 +571,30 @@ siteSchema.statics = {
           success: true,
           message: "successfully retrieved the site details",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "no sites match this search",
           data: [],
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
       let modifiedUpdateBody = update;
@@ -660,28 +662,28 @@ siteSchema.statics = {
           success: true,
           message: "successfully modified the site",
           data: updatedSite._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedSite)) {
-        return {
-          success: false,
-          message: "site does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "site does not exist" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "site does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -699,25 +701,25 @@ siteSchema.statics = {
           success: true,
           message: "successfully removed the site",
           data: removedSite._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedSite)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "site does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "site does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

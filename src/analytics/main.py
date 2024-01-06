@@ -29,7 +29,6 @@ def initialize_blueprints(application):
 
     application.register_blueprint(middleware_blueprint)
 
-
 def create_app(rest_api, config=CONFIGURATIONS):
     """creates a flask app object from a config object"""
 

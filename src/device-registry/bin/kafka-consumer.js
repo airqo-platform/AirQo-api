@@ -10,6 +10,7 @@ const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
+const { HttpError } = require("@utils/errors");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
@@ -109,13 +110,13 @@ const consumeHourlyMeasurements = async (messageData) => {
             site_latitude,
             site_longitude,
           } = value[detail.path[0]];
-          return {
-            message: detail.message,
-            key: detail.context.key,
-            value: detail.context.value,
-            device_number: device_number ? device_number : undefined,
-            timestamp: timestamp ? timestamp : undefined,
-          };
+          // return {
+          //   message: detail.message,
+          //   key: detail.context.key,
+          //   value: detail.context.value,
+          //   device_number: device_number ? device_number : undefined,
+          //   timestamp: timestamp ? timestamp : undefined,
+          // };
         });
         // logger.error(
         //   `KAFKA: Input validation formatted errors -- ${JSON.stringify(
@@ -130,34 +131,31 @@ const consumeHourlyMeasurements = async (messageData) => {
         // logger.info(
         //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
         // );
-      } else {
-        logObject("value", value);
-        logObject("cleanedMeasurements", cleanedMeasurements);
-        const request = {
-          body: cleanedMeasurements,
-        };
-        const responseFromInsertMeasurements = await createEvent.create(
-          request
-        );
+      }
+      logObject("value", value);
+      logObject("cleanedMeasurements", cleanedMeasurements);
+      const request = {
+        body: cleanedMeasurements,
+      };
+      const responseFromInsertMeasurements = await createEvent.create(request);
 
-        logObject(
-          "responseFromInsertMeasurements",
-          responseFromInsertMeasurements
-        );
+      logObject(
+        "responseFromInsertMeasurements",
+        responseFromInsertMeasurements
+      );
 
-        if (responseFromInsertMeasurements.success === false) {
-          //         logger.error(
-          //             `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
-          //   responseFromInsertMeasurements
-          // )}`
-          //         );
-        } else if (responseFromInsertMeasurements.success === true) {
-          // logger.info(
-          //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
-          //     responseFromInsertMeasurements.message :
-          //     "")}`
-          // );
-        }
+      if (responseFromInsertMeasurements.success === false) {
+        // logger.error(
+        //   `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+        //     responseFromInsertMeasurements
+        //   )}`
+        // );
+      } else if (responseFromInsertMeasurements.success === true) {
+        // logger.info(
+        //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+        //     responseFromInsertMeasurements.message :
+        //     "")}`
+        // );
       }
     }
   } catch (error) {

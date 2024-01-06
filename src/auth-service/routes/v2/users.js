@@ -82,6 +82,52 @@ router.post(
 );
 
 router.post(
+  "/login",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
+  ]),
+  setLocalAuth,
+  authLocal,
+  createUserController.login
+);
+
+router.get(
+  "/logout",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.logout
+);
+
+router.post(
   "/guest",
   oneOf([
     [
@@ -286,6 +332,72 @@ router.post(
 );
 
 router.post(
+  "/syncAnalyticsAndMobile",
+  oneOf([
+    body("firebase_uid")
+      .exists()
+      .withMessage(
+        "the firebase_uid is missing in body, consider using firebase_uid"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the firebase_uid must not be empty")
+      .bail()
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .notEmpty()
+      .withMessage("the email is missing in body, consider using email")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+    body("firstName").optional().trim(),
+    body("lastName").optional().trim(),
+  ]),
+  createUserController.syncAnalyticsAndMobile
+);
+
+router.post(
+  "/emailReport",
+  oneOf([
+    body("senderEmail")
+      .exists()
+      .withMessage("senderEmail is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("senderEmail should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("senderEmail is not valid"),
+
+    body("recepientEmails").isArray().withMessage("emails should be an array"),
+
+    body("recepientEmails.*")
+      .exists()
+      .withMessage("An email is missing in the array")
+      .bail()
+      .notEmpty()
+      .withMessage("An email in the array is empty")
+      .bail()
+      .isEmail()
+      .withMessage("One or more emails in the array are not valid"),
+  ]),
+
+  setJWTAuth,
+  authJWT,
+  createUserController.emailReport
+);
+
+router.post(
   "/firebase/verify",
   oneOf([
     [
@@ -341,7 +453,25 @@ router.post(
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
-  "/verify/:user_id/:token/:category",
+  "/combined",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listUsersAndAccessRequests
+);
+
+router.get(
+  "/verify/:user_id/:token",
   oneOf([
     [
       query("tenant")
@@ -369,15 +499,6 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      param("category")
-        .exists()
-        .withMessage("category is missing in your request")
-        .bail()
-        .isIn(["individual", "organisation"])
-        .withMessage(
-          "the category value is not among the expected ones: individual, organisation"
-        )
-        .trim(),
       param("token")
         .exists()
         .withMessage("the token param is missing in the request")
@@ -692,8 +813,6 @@ router.put(
         .withMessage("each network should be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createUserController.update
 );
 
@@ -742,8 +861,6 @@ router.put(
         .withMessage("each network should be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
   createUserController.update
 );
 
@@ -870,6 +987,24 @@ router.get(
 );
 
 router.get(
+  "/cache",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listCache
+);
+
+router.get(
   "/logs",
   oneOf([
     query("tenant")
@@ -885,6 +1020,24 @@ router.get(
   setJWTAuth,
   authJWT,
   createUserController.listLogs
+);
+
+router.get(
+  "/analytics",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.getUserStats
 );
 
 router.get(

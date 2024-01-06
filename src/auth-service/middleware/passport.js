@@ -1,5 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const createUserUtil = require("@utils/create-user");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
@@ -12,15 +13,23 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const mailer = require("@utils/mailer");
+const stringify = require("@utils/stringify");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- passport-middleware`
+);
 
-const setLocalOptions = (req) => {
+const setLocalOptions = (req, res, next) => {
   try {
+    if (Validator.isEmpty(req.body.userName)) {
+      next(
+        new HttpError("the userName field is missing", httpStatus.BAD_REQUEST)
+      );
+      return;
+    }
+
     let authenticationFields = {};
     if (
       !Validator.isEmpty(req.body.userName) &&
@@ -38,23 +47,14 @@ const setLocalOptions = (req) => {
       authenticationFields.passwordField = "password";
     }
 
-    if (Validator.isEmpty(req.body.userName)) {
-      return {
-        success: false,
-        message: "the userName field is missing",
-      };
-    }
-
     return {
       success: true,
       message: "the auth fields have been set",
       authenticationFields,
     };
   } catch (e) {
-    return {
-      success: false,
-      message: e.message,
-    };
+    next(new HttpError(e.message, httpStatus.BAD_REQUEST));
+    return;
   }
 };
 
@@ -82,7 +82,7 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req);
+  let localOptions = setLocalOptions(req, res, next);
   logObject("the localOptions", localOptions);
   if (localOptions.success === true) {
     logText("success state is true");
@@ -114,14 +114,58 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
+        } else if (user.analyticsVersion === 3 && user.verified === false) {
+          const verificationRequest = {
+            tenant: "airqo",
+            email: user.email,
+          };
+          try {
+            const verificationEmailResponse =
+              await createUserUtil.verificationReminder(verificationRequest);
+            if (verificationEmailResponse.success === false) {
+              logger.error(
+                `Internal Server Error --- ${stringify(
+                  verificationEmailResponse
+                )}`
+              );
+            }
+          } catch (error) {
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
+          }
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        req.auth.status = httpStatus.OK;
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -137,7 +181,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
-        next();
+        req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -155,11 +201,51 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
+        } else if (user.analyticsVersion === 3 && user.verified === false) {
+          try {
+            const verificationEmailResponse =
+              await createUserUtil.verificationReminder(verificationRequest);
+            if (verificationEmailResponse.success === false) {
+              logger.error(
+                `Internal Server Error --- ${stringify(
+                  verificationEmailResponse
+                )}`
+              );
+            }
+          } catch (error) {
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
+          }
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
@@ -176,9 +262,11 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       } catch (e) {
         req.auth = {};
         req.auth.success = false;
-        req.auth.message = "Server Error";
+        req.auth.message = "Internal Server Error";
         req.auth.error = e.message;
-        next();
+        req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -231,8 +319,19 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
             req.auth.message = "unable to create user";
+            req.auth.status =
+              responseFromRegisterUser.status ||
+              httpStatus.INTERNAL_SERVER_ERROR;
             cb(responseFromRegisterUser.errors, false);
-            next();
+
+            next(
+              new HttpError(
+                "unable to create user",
+                responseFromRegisterUser.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR
+              )
+            );
+            return;
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
@@ -242,13 +341,15 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
         }
       } catch (error) {
-        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         logObject("error", error);
         req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = error.message;
-        next();
+
+        next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -263,12 +364,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       logObject("req.headers['x-host-name']", req.headers["x-host-name"]);
       logObject("req.headers['x-client-ip']", req.headers["x-client-ip"]);
+      logObject(
+        "req.headers['x-client-original-ip']",
+        req.headers["x-client-original-ip"]
+      );
 
-      const clientIp = request.headers["x-client-ip"];
-      const hostName = request.headers["x-host-name"];
+      const clientIp = req.headers["x-client-ip"];
+      const hostName = req.headers["x-host-name"];
+      const endpoint = req.headers["x-original-uri"];
+      const clientOriginalIp = req.headers["x-client-original-ip"];
 
-      let service = req.headers["service"];
-      let userAction = "Unknown Action";
+      let service = req.headers["service"] || "unknown";
+      let userAction = "unknown";
 
       const specificRoutes = [
         {
@@ -468,7 +575,15 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
       ];
 
-      routesWithService.forEach((route) => {
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ _id: payload._id })
+        .exec();
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      routesWithService.forEach(async (route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
 
@@ -483,34 +598,72 @@ const useJWTStrategy = (tenant, req, res, next) =>
         ) {
           service = route.service;
           userAction = route.action;
+          logObject("Service", service);
+
+          if (
+            [
+              "device-deployment",
+              "device-maintenance",
+              "device-recall",
+            ].includes(service)
+          ) {
+            try {
+              const emailResponse = await mailer.siteActivity(
+                {
+                  email: user.email,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  siteActivityDetails: {
+                    service: service,
+                    userAction: userAction,
+                    actor: user.email,
+                  },
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            } catch (error) {
+              logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+            }
+          }
         }
       });
 
-      // ... other route checks
-      logObject("Service", service);
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({ _id: payload._id })
-        .exec();
+      const currentDate = new Date();
 
-      if (!user) {
-        return done(null, false);
-      }
+      await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+        user._id,
+        {
+          lastLogin: currentDate,
+          isActive: true,
+          ...(user.analyticsVersion !== 3 && user.verified === false
+            ? { $set: { verified: true } }
+            : {}),
+        },
+        { new: true }
+      );
 
       winstonLogger.info(userAction, {
         username: user.userName,
         email: user.email,
         service: service ? service : "unknown",
-        clientIp,
-        hostName,
+        clientIp: clientIp ? clientIp : "unknown",
+        hostName: hostName ? hostName : "unknown",
+        endpoint: endpoint ? endpoint : "unknown",
+        clientOriginalIp: clientOriginalIp ? clientOriginalIp : "unknown",
       });
 
       return done(null, user);
     } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(e)}`);
       return done(e, false);
     }
   });
-
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -596,43 +749,25 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
-    setLocalStrategy(tenant, req, res, next);
+    setLocalStrategy("airqo", req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
-
 function setGoogleAuth(req, res, next) {
   try {
-    /**
-     * do input validations and then just call the set
-     * set local strategy afterwards -- the function is called from here
-     */
-
     logText("we are setting the Google Auth");
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
     }
     let tenant = "airqo";
     if (req.query.tenant) {
@@ -642,33 +777,30 @@ function setGoogleAuth(req, res, next) {
     next();
   } catch (e) {
     logObject("e", e);
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
 function setJWTAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(
+        new HttpError(
+          "bad request errors",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          errors
+        )
       );
+      return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
-    logElement("the tenant for the job", tenant);
-    setJWTStrategy(tenant, req, res, next);
+    setJWTStrategy("airqo", req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res
-      .status(httpStatus.BAD_GATEWAY)
-      .json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+    return;
   }
 }
 const setGuestToken = (req, res) => {
@@ -721,5 +853,4 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
-  useJWTStrategy,
 };

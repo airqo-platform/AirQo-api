@@ -7,9 +7,9 @@ replicaCount: 2
 serviceAccountName: workflows-sa
 images:
   repositories:
-    initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
-    containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-15c1e29f-1698106757
+    initContainer: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom
+    containers: eu.gcr.io/airqo-250220/airqo-apache-airflow
+  tag: prod-cee8c996-1704500147
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

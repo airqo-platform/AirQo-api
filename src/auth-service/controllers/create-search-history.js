@@ -1,320 +1,280 @@
-const { validationResult } = require("express-validator");
 const createSearchHistoryUtil = require("@utils/create-search-history");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logText } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-    `${constants.ENVIRONMENT} -- create-search-history-controller`
+  `${constants.ENVIRONMENT} -- create-search-history-controller`
 );
 
 const createSearchHistory = {
-    syncSearchHistory: async (req, res) => {
-        try {
-            logText("Syncing Search History.....");
-            const { query } = req;
-            let { tenant } = query;
-            const hasErrors = !validationResult(req).isEmpty();
-            logObject("hasErrors", hasErrors);
-            if (hasErrors) {
-                let nestedErrors = validationResult(req).errors[0].nestedErrors;
-                return badRequest(
-                    res,
-                    "bad request errors",
-                    convertErrorArrayToObject(nestedErrors)
-                );
-            }
+  syncSearchHistory: async (req, res, next) => {
+    try {
+      logText("Syncing Search History.....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-            let request = Object.assign({}, req);
-            if (isEmpty(tenant)) {
-                request["query"]["tenant"] = constants.DEFAULT_TENANT;
-            }
+      const result = await createSearchHistoryUtil.syncSearchHistories(
+        request,
+        next
+      );
 
-            const responseFromSyncSearchHistories = await createSearchHistoryUtil.syncSearchHistories(
-                request
-            );
+      if (isEmpty(result)) {
+        return;
+      }
 
-            if (responseFromSyncSearchHistories.success === true) {
-                const status = responseFromSyncSearchHistories.status
-                    ? responseFromSyncSearchHistories.status
-                    : httpStatus.OK;
-                return res.status(status).json({
-                    success: true,
-                    message: responseFromSyncSearchHistories.message
-                        ? responseFromSyncSearchHistories.message
-                        : "",
-                    search_histories: responseFromSyncSearchHistories.data
-                        ? responseFromSyncSearchHistories.data
-                        : [],
-                });
-            } else if (responseFromSyncSearchHistories.success === false) {
-                const status = responseFromSyncSearchHistories.status
-                    ? responseFromSyncSearchHistories.status
-                    : httpStatus.INTERNAL_SERVER_ERROR;
-                return res.status(status).json({
-                    success: false,
-                    message: responseFromSyncSearchHistories.message
-                        ? responseFromSyncSearchHistories.message
-                        : "",
-                    errors: responseFromSyncSearchHistories.errors
-                        ? responseFromSyncSearchHistories.errors
-                        : { message: "Internal Server Error" },
-                });
-            }
-        } catch (err) {
-            logObject("error", error);
-            logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: error.message },
-            });
-        }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          search_histories: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  create: async (req, res, next) => {
+    try {
+      logText("creating Search History.....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-    },
+      const result = await createSearchHistoryUtil.create(request, next);
 
-    create: async (req, res) => {
-        try {
-            logText("creating Search History.....");
-            const { query } = req;
-            let { tenant } = query;
-            const hasErrors = !validationResult(req).isEmpty();
-            logObject("hasErrors", hasErrors);
-            if (hasErrors) {
-                let nestedErrors = validationResult(req).errors[0].nestedErrors;
-                return badRequest(
-                    res,
-                    "bad request errors",
-                    convertErrorArrayToObject(nestedErrors)
-                );
-            }
+      if (isEmpty(result)) {
+        return;
+      }
 
-            let request = Object.assign({}, req);
-            if (isEmpty(tenant)) {
-                request["query"]["tenant"] = constants.DEFAULT_TENANT;
-            }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          created_search_history: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  list: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-            const responseFromCreatesearchHistory = await createSearchHistoryUtil.create(
-                request
-            );
+      const result = await createSearchHistoryUtil.list(request, next);
 
-            if (responseFromCreatesearchHistory.success === true) {
-                const status = responseFromCreatesearchHistory.status
-                    ? responseFromCreatesearchHistory.status
-                    : httpStatus.OK;
-                return res.status(status).json({
-                    success: true,
-                    message: responseFromCreatesearchHistory.message
-                        ? responseFromCreatesearchHistory.message
-                        : "",
-                    created_search_history: responseFromCreatesearchHistory.data
-                        ? responseFromCreatesearchHistory.data
-                        : [],
-                });
-            } else if (responseFromCreatesearchHistory.success === false) {
-                const status = responseFromCreatesearchHistory.status
-                    ? responseFromCreatesearchHistory.status
-                    : httpStatus.INTERNAL_SERVER_ERROR;
-                return res.status(status).json({
-                    success: false,
-                    message: responseFromCreatesearchHistory.message
-                        ? responseFromCreatesearchHistory.message
-                        : "",
-                    errors: responseFromCreatesearchHistory.errors
-                        ? responseFromCreatesearchHistory.errors
-                        : { message: "Internal Server Error" },
-                });
-            }
-        } catch (error) {
-            logObject("error", error);
-            logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: error.message },
-            });
-        }
-    },
+      if (isEmpty(result)) {
+        return;
+      }
 
-    list: async (req, res) => {
-        console.log("In controller")
-        try {
-            const { query } = req;
-            let { tenant } = query;
-            const hasErrors = !validationResult(req).isEmpty();
-            logObject("hasErrors", hasErrors);
-            if (hasErrors) {
-                let nestedErrors = validationResult(req).errors[0].nestedErrors;
-                return badRequest(
-                    res,
-                    "bad request errors",
-                    convertErrorArrayToObject(nestedErrors)
-                );
-            }
-            let request = Object.assign({}, req);
-            if (isEmpty(tenant)) {
-                request["query"]["tenant"] = constants.DEFAULT_TENANT;
-            }
-            const responseFromListSearchHistories = await createSearchHistoryUtil.list(request);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          search_histories: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  delete: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-            if (responseFromListSearchHistories.success === true) {
-                const status = responseFromListSearchHistories.status
-                    ? responseFromListSearchHistories.status
-                    : httpStatus.OK;
-                return res.status(status).json({
-                    success: true,
-                    message: responseFromListSearchHistories.message
-                        ? responseFromListSearchHistories.message
-                        : "",
-                    search_histories: responseFromListSearchHistories.data
-                        ? responseFromListSearchHistories.data
-                        : [],
-                });
-            } else if (responseFromListSearchHistories.success === false) {
-                const status = responseFromListSearchHistories.status
-                    ? responseFromListSearchHistories.status
-                    : httpStatus.INTERNAL_SERVER_ERROR;
-                return res.status(status).json({
-                    success: false,
-                    message: responseFromListSearchHistories.message
-                        ? responseFromListSearchHistories.message
-                        : "",
-                    errors: responseFromListSearchHistories.errors
-                        ? responseFromListSearchHistories.errors
-                        : { message: "Internal Server Error" },
-                });
-            }
-        } catch (error) {
-            logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: error.message },
-            });
-        }
-    },
+      const result = await createSearchHistoryUtil.delete(request, next);
 
-    delete: async (req, res) => {
-        try {
-            const { query } = req;
-            let { tenant } = query;
-            const hasErrors = !validationResult(req).isEmpty();
-            logObject("hasErrors", hasErrors);
-            if (hasErrors) {
-                let nestedErrors = validationResult(req).errors[0].nestedErrors;
-                return badRequest(
-                    res,
-                    "bad request errors",
-                    convertErrorArrayToObject(nestedErrors)
-                );
-            }
+      if (isEmpty(result)) {
+        return;
+      }
 
-            let request = Object.assign({}, req);
-            if (isEmpty(tenant)) {
-                request["query"]["tenant"] = constants.DEFAULT_TENANT;
-            }
-            const responseFromDeleteSearchHistories = await createSearchHistoryUtil.delete(
-                request
-            );
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          deleted_search_histories: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  update: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-            if (responseFromDeleteSearchHistories.success === true) {
-                const status = responseFromDeleteSearchHistories.status
-                    ? responseFromDeleteSearchHistories.status
-                    : httpStatus.OK;
-                return res.status(status).json({
-                    success: true,
-                    message: responseFromDeleteSearchHistories.message
-                        ? responseFromDeleteSearchHistories.message
-                        : "",
-                    deleted_search_histories: responseFromDeleteSearchHistories.data
-                        ? responseFromDeleteSearchHistories.data
-                        : [],
-                });
-            } else if (responseFromDeleteSearchHistories.success === false) {
-                const status = responseFromDeleteSearchHistories.status
-                    ? responseFromDeleteSearchHistories.status
-                    : httpStatus.INTERNAL_SERVER_ERROR;
-                return res.status(status).json({
-                    success: false,
-                    message: responseFromDeleteSearchHistories.message
-                        ? responseFromDeleteSearchHistories.message
-                        : "",
-                    errors: responseFromDeleteSearchHistories.errors
-                        ? responseFromDeleteSearchHistories.errors
-                        : { message: "Internal Server Error" },
-                });
-            }
-        } catch (error) {
-            logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: error.message },
-            });
-        }
-    },
+      const result = await createSearchHistoryUtil.update(request, next);
 
-    update: async (req, res) => {
-        try {
-            const { query } = req;
-            let { tenant } = query;
-            const hasErrors = !validationResult(req).isEmpty();
-            logObject("hasErrors", hasErrors);
-            if (hasErrors) {
-                let nestedErrors = validationResult(req).errors[0].nestedErrors;
-                return badRequest(
-                    res,
-                    "bad request errors",
-                    convertErrorArrayToObject(nestedErrors)
-                );
-            }
+      if (isEmpty(result)) {
+        return;
+      }
 
-            let request = Object.assign({}, req);
-            if (isEmpty(tenant)) {
-                request["query"]["tenant"] = constants.DEFAULT_TENANT;
-            }
-            const responseFromUpdateSearchHistories = await createSearchHistoryUtil.update(
-                request
-            );
-
-            if (responseFromUpdateSearchHistories.success === true) {
-                const status = responseFromUpdateSearchHistories.status
-                    ? responseFromUpdateSearchHistories.status
-                    : httpStatus.OK;
-                return res.status(status).json({
-                    success: true,
-                    message: responseFromUpdateSearchHistories.message
-                        ? responseFromUpdateSearchHistories.message
-                        : "",
-                    updated_search_history: responseFromUpdateSearchHistories.data
-                        ? responseFromUpdateSearchHistories.data
-                        : [],
-                });
-            } else if (responseFromUpdateSearchHistories.success === false) {
-                const status = responseFromUpdateSearchHistories.status
-                    ? responseFromUpdateSearchHistories.status
-                    : httpStatus.INTERNAL_SERVER_ERROR;
-                return res.status(status).json({
-                    success: false,
-                    message: responseFromUpdateSearchHistories.message
-                        ? responseFromUpdateSearchHistories.message
-                        : "",
-                    errors: responseFromUpdateSearchHistories.errors
-                        ? responseFromUpdateSearchHistories.errors
-                        : { message: "Internal Server Error" },
-                });
-            }
-        } catch (error) {
-            logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: error.message },
-            });
-        }
-    },
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          updated_search_history: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
 };
 
 module.exports = createSearchHistory;

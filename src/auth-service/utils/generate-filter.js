@@ -8,6 +8,7 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const {
   addMonthsToProvideDateTime,
@@ -15,16 +16,26 @@ const {
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
-} = require("./date");
+} = require("@utils/date");
 
 const filter = {
-  users: (req) => {
+  users: (req, next) => {
     try {
-      let { privilege, id, username, active, email_address, role_id } =
-        req.query;
-      let { email, resetPasswordToken, user } = req.body;
-      const { user_id } = req.params;
+      let {
+        privilege,
+        id,
+        username,
+        active,
+        email_address,
+        role_id,
+        email,
+        resetPasswordToken,
+        user,
+        user_id,
+      } = { ...req.body, ...req.query, ...req.params };
+
       let filter = {};
+
       if (email) {
         filter["email"] = email;
       }
@@ -38,9 +49,6 @@ const filter = {
       }
       if (!isEmpty(resetPasswordToken)) {
         filter["resetPasswordToken"] = resetPasswordToken;
-        // filter["resetPasswordExpires"] = {
-        //   $gt: Date.now(),
-        // };
       }
       if (privilege) {
         filter["privilege"] = privilege;
@@ -64,24 +72,23 @@ const filter = {
       if (username) {
         filter["userName"] = username;
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-      };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  networks: (req) => {
+  networks: (req, next) => {
     try {
       const {
+        net_id,
         net_email,
         net_category,
         net_tenant,
@@ -90,9 +97,7 @@ const filter = {
         net_website,
         net_acronym,
         category,
-      } = req.query;
-
-      const { net_id } = req.params;
+      } = { ...req.query, ...req.params };
 
       let filter = {};
       if (net_email) {
@@ -126,25 +131,25 @@ const filter = {
       if (net_status) {
         filter["net_status"] = net_status;
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-      };
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  candidates: (req) => {
+  candidates: (req, next) => {
     try {
-      let { category, id, email_address, network_id } = req.query;
-      let { email } = req.body;
+      let { category, id, email_address, email, network_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
       if (email) {
         filter["email"] = email;
@@ -161,30 +166,36 @@ const filter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
-    } catch (e) {
-      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  requests: (req) => {
+  requests: (req, next) => {
     try {
-      const { id, user_id, requestType, targetId, status, category } =
-        req.query;
+      const {
+        id,
+        user_id,
+        requestType,
+        targetId,
+        status,
+        category,
+        request_id,
+        grp_id,
+        net_id,
+      } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
 
-      const { request_id, grp_id, net_id } = req.params;
       let filter = {};
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
@@ -217,33 +228,63 @@ const filter = {
       if (request_id) {
         filter["_id"] = ObjectId(request_id);
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
-    } catch (e) {
-      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  defaults: (req) => {
+  defaults: (req, next) => {
     try {
-      let { id, user, site, airqloud } = req.query;
+      let {
+        id,
+        user,
+        user_id,
+        site,
+        airqloud,
+        grid,
+        cohort,
+        group_id,
+        network_id,
+      } = {
+        ...req.query,
+        ...req.params,
+      };
       let filter = {};
       if (user) {
         filter["user"] = ObjectId(user);
       }
+
+      if (user_id) {
+        filter["user"] = ObjectId(user_id);
+      }
+
       if (id) {
         filter["_id"] = ObjectId(id);
       }
+
+      if (grid) {
+        filter["grid"] = ObjectId(grid);
+      }
+
+      if (cohort) {
+        filter["cohort"] = ObjectId(cohort);
+      }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
+
       if (site) {
         filter["site"] = ObjectId(site);
       }
@@ -252,28 +293,111 @@ const filter = {
         filter["airqloud"] = ObjectId(airqloud);
       }
 
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  inquiry: (req) => {
+  preferences: (req, next) => {
     try {
-      let { category, id } = req.query;
-      let { email } = req.body;
+      let {
+        // id,
+        user_id,
+        // airqloud_id,
+        // grid_id,
+        // cohort_id,
+        // group_id,
+        // network_id,
+      } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      // if (id) {
+      //   filter["_id"] = ObjectId(id);
+      // }
+
+      // if (grid_id) {
+      //   filter["grid_id"] = ObjectId(grid_id);
+      // }
+
+      // if (cohort_id) {
+      //   filter["cohort_id"] = ObjectId(cohort_id);
+      // }
+
+      // if (airqloud_id) {
+      //   filter["airqloud_id"] = ObjectId(airqloud_id);
+      // }
+
+      // if (group_id) {
+      //   filter["group_id"] = ObjectId(group_id);
+      // }
+
+      // if (network_id) {
+      //   filter["network_id"] = ObjectId(network_id);
+      // }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  checklists: (req, next) => {
+    try {
+      let { id, user_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  inquiry: (req, next) => {
+    try {
+      let { category, id, email } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+
       let filter = {};
       if (email) {
         filter["email"] = email;
@@ -284,25 +408,20 @@ const filter = {
       if (id) {
         filter["_id"] = id;
       }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  roles: (req) => {
+  roles: (req, next) => {
     try {
       const { query, params } = req;
       const {
@@ -342,18 +461,18 @@ const filter = {
         filter["role_status"] = role_status;
       }
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  permissions: (req) => {
+  permissions: (req, next) => {
     try {
       const { query, params } = req;
       const { id, network, permission } = query;
@@ -381,18 +500,18 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  tokens: (req) => {
+  tokens: (req, next) => {
     try {
       const { query, params } = req;
       const { id } = query;
@@ -416,18 +535,50 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
+  ips: (req, next) => {
+    try {
+      const { id, ip, range } = {
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
 
-  clients: (req) => {
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (ip) {
+        filter["ip"] = ip;
+      }
+
+      if (range) {
+        filter["range"] = range;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  clients: (req, next) => {
     try {
       const { query, params } = req;
       const { id } = query;
@@ -447,18 +598,18 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  scopes: (req) => {
+  scopes: (req, next) => {
     try {
       const { query, params } = req;
       const { id, scope } = query;
@@ -481,20 +632,22 @@ const filter = {
         filter["network_id"] = ObjectId(network_id);
       }
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  departments: (req) => {
+  departments: (req, next) => {
     try {
       const {
+        dep_id,
+        user_id,
         dep_email,
         dep_title,
         dep_network_id,
@@ -504,9 +657,7 @@ const filter = {
         dep_acronym,
         dep_children,
         dep_status,
-      } = req.query;
-
-      const { dep_id, user_id } = req.params;
+      } = { ...req.query, ...req.params };
 
       let filter = {};
 
@@ -526,23 +677,22 @@ const filter = {
         filter["dep_children"] = dep_children;
       }
       return filter;
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  groups: (req) => {
+  groups: (req, next) => {
     try {
       const { grp_title, grp_status, category, grp_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
       let filter = {};
 
@@ -561,21 +711,22 @@ const filter = {
       }
       logObject("the filter we are sending", filter);
       return filter;
-    } catch (err) {
-      logger.error(`internal server error, ${JSON.stringify(err)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  logs: (req) => {
+  logs: (req, next) => {
     try {
       const { service, startTime, endTime, email } = req.query;
-      const today = monthsInfront(0);
-      const oneWeekBack = addDays(-7);
+      const today = monthsInfront(0, next);
+      const oneWeekBack = addDays(-7, next);
 
       let filter = {
         timestamp: {
@@ -594,7 +745,8 @@ const filter = {
         if (isTimeEmpty(startTime) === false) {
           filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
             startTime,
-            1
+            1,
+            next
           );
         } else {
           delete filter["timestamp"];
@@ -604,7 +756,11 @@ const filter = {
       if (endTime && isEmpty(startTime)) {
         logText("startTime absent and endTime is present");
         if (isTimeEmpty(endTime) === false) {
-          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(endTime, -1);
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+            endTime,
+            -1,
+            next
+          );
         } else {
           delete filter["timestamp"];
         }
@@ -618,7 +774,8 @@ const filter = {
           if (isTimeEmpty(endTime) === false) {
             filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
               endTime,
-              -1
+              -1,
+              next
             );
           } else {
             delete filter["timestamp"];
@@ -633,22 +790,20 @@ const filter = {
 
       return filter;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error`, error.message);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  favorites: (req) => {
+  favorites: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { firebase_user_id, favorite_id } = params;
+      const { firebase_user_id, favorite_id, id } = { ...query, ...params };
       let filter = {};
 
       if (id) {
@@ -662,22 +817,24 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  location_histories: (req) => {
+  location_histories: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { firebase_user_id, location_history_id } = params;
+      const { firebase_user_id, location_history_id, id } = {
+        ...query,
+        ...params,
+      };
       let filter = {};
 
       if (id) {
@@ -691,22 +848,24 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  search_histories: (req) => {
+  search_histories: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { firebase_user_id, search_history_id } = params;
+      const { firebase_user_id, search_history_id, id } = {
+        ...query,
+        ...params,
+      };
       let filter = {};
 
       if (id) {
@@ -720,14 +879,15 @@ const filter = {
       }
 
       return filter;
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

@@ -7,12 +7,13 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`
 );
@@ -363,7 +364,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+    },
   }
 );
 
@@ -378,7 +381,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+    },
   }
 );
 
@@ -391,7 +396,9 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+    partialFilterExpression: {
+      nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+    },
   }
 );
 
@@ -469,6 +476,7 @@ const getConfiguredProjection = (metadata, brief) => {
     projection["average_pm2_5"] = 0;
     projection["device_number"] = 0;
     projection["pm2_5.uncertaintyValue"] = 0;
+    projection["pm2_5.calibratedValue"] = 0;
     projection["pm2_5.standardDeviationValue"] = 0;
     projection["site"] = 0;
     projection["deviceDetails"] = 0;
@@ -1316,12 +1324,15 @@ eventSchema.statics = {
       ...args,
     });
   },
-  async list({
-    skip = DEFAULT_SKIP,
-    limit = DEFAULT_LIMIT,
-    filter = {},
-    page = DEFAULT_PAGE,
-  } = {}) {
+  async list(
+    {
+      skip = DEFAULT_SKIP,
+      limit = DEFAULT_LIMIT,
+      filter = {},
+      page = DEFAULT_PAGE,
+    } = {},
+    next
+  ) {
     try {
       const {
         metadata,
@@ -1334,6 +1345,11 @@ eventSchema.statics = {
       } = filter;
 
       logObject("filter", filter);
+
+      const startTime = filter["values.time"]["$gte"];
+      const endTime = filter["values.time"]["$lte"];
+      let idField;
+      // const visibilityFilter = true;
 
       let search = filter;
       let groupId = "$device";
@@ -1369,6 +1385,8 @@ eventSchema.statics = {
             1,
           ],
         },
+        startTime,
+        endTime,
       };
       let siteProjection = {};
       let deviceProjection = {};
@@ -1407,9 +1425,7 @@ eventSchema.statics = {
         projection["stc_adc"] = 0;
         projection["stc_v"] = 0;
         projection["stc"] = 0;
-        projection["no2"] = 0;
         projection["pm1"] = 0;
-        projection["pm10"] = 0;
         projection["externalHumidity"] = 0;
         projection["externalAltitude"] = 0;
         projection["internalHumidity"] = 0;
@@ -1419,6 +1435,7 @@ eventSchema.statics = {
         projection["satellites"] = 0;
         projection["speed"] = 0;
         projection["altitude"] = 0;
+        projection["site_image"] = 0;
         projection["location"] = 0;
         projection["network"] = 0;
         projection["battery"] = 0;
@@ -1426,12 +1443,20 @@ eventSchema.statics = {
         projection["average_pm2_5"] = 0;
         projection["device_number"] = 0;
         projection["pm2_5.uncertaintyValue"] = 0;
+        projection["pm2_5.calibratedValue"] = 0;
         projection["pm2_5.standardDeviationValue"] = 0;
+        projection["pm10.uncertaintyValue"] = 0;
+        projection["pm10.calibratedValue"] = 0;
+        projection["pm10.standardDeviationValue"] = 0;
+        projection["no2.uncertaintyValue"] = 0;
+        projection["no2.standardDeviationValue"] = 0;
+        projection["no2.calibratedValue"] = 0;
         projection["site"] = 0;
         projection[as] = 0;
       }
 
       if (!metadata || metadata === "device" || metadata === "device_id") {
+        idField = "$device";
         groupId = "$" + metadata ? metadata : groupId;
         localField = metadata ? metadata : localField;
         if (metadata === "device_id") {
@@ -1450,6 +1475,7 @@ eventSchema.statics = {
       }
 
       if (metadata === "site_id" || metadata === "site") {
+        idField = "$site_id";
         groupId = "$" + metadata;
         localField = metadata;
         if (metadata === "site") {
@@ -1477,6 +1503,7 @@ eventSchema.statics = {
       if (running === "yes") {
         delete projection["pm2_5.uncertaintyValue"];
         delete projection["pm2_5.standardDeviationValue"];
+        delete projection["pm2_5.calibratedValue"];
 
         Object.assign(projection, {
           site_image: 0,
@@ -1544,6 +1571,16 @@ eventSchema.statics = {
             as: "device_details",
           })
           .lookup({
+            from: "cohorts",
+            localField: "device_details.cohorts",
+            foreignField: "_id",
+            as: "cohort_details",
+          })
+          .match({
+            "cohort_details.visibility": { $ne: false },
+          })
+          // .match({ "device_details.visibility": visibilityFilter })
+          .lookup({
             from,
             localField,
             foreignField,
@@ -1572,7 +1609,7 @@ eventSchema.statics = {
           })
           .sort(sort)
           .group({
-            _id: "$device",
+            _id: idField,
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
             site_image: {
@@ -1619,7 +1656,14 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
-
+          .addFields({
+            timeDifferenceHours: {
+              $divide: [
+                { $subtract: [new Date(), "$time"] },
+                1000 * 60 * 60, // milliseconds to hours
+              ],
+            },
+          })
           .project({
             "health_tips.aqi_category": 0,
             "health_tips.value": 0,
@@ -1843,11 +1887,63 @@ eventSchema.statics = {
             },
           })
           .allowDiskUse(true);
+
+        data[0].data.forEach((record) => {
+          if (
+            constants.ENVIRONMENT &&
+            constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
+          ) {
+            if (record.timeDifferenceHours > 14) {
+              logObject(
+                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, frequency ${
+                  record.frequency ? record.frequency : ""
+                }, time ${record.time ? record.time : ""} and site ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+              logger.info(
+                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, Frequency: ${
+                  record.frequency ? record.frequency : ""
+                }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+            }
+
+            if (record.pm2_5 === null) {
+              logObject(
+                `😲😲 Null pm2_5 value for device: ${
+                  record.device ? record.device : ""
+                }, frequency ${
+                  record.frequency ? record.frequency : ""
+                }, time ${record.time ? record.time : ""} and site ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+              logger.info(
+                `😲😲 Null pm2_5 value for device: ${
+                  record.device ? record.device : ""
+                }, Frequency: ${
+                  record.frequency ? record.frequency : ""
+                }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+            }
+          }
+        });
+
+        data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
+
         return {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
 
@@ -1863,6 +1959,14 @@ eventSchema.statics = {
             as,
           })
           .sort(sort)
+          .addFields({
+            timeDifferenceHours: {
+              $divide: [
+                { $subtract: [new Date(), "$time"] },
+                1000 * 60 * 60, // milliseconds to hours
+              ],
+            },
+          })
           .project({
             _device: "$device",
             _time: "$time",
@@ -1961,32 +2065,88 @@ eventSchema.statics = {
             },
           })
           .allowDiskUse(true);
+
+        data[0].data.forEach((record) => {
+          if (
+            constants.ENVIRONMENT &&
+            constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
+          ) {
+            if (record.timeDifferenceHours > 14) {
+              logObject(
+                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, frequency ${
+                  record.frequency ? record.frequency : ""
+                }, time ${record.time ? record.time : ""} and site ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+              logger.info(
+                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+                  record.device ? record.device : ""
+                }, Frequency: ${
+                  record.frequency ? record.frequency : ""
+                }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+            }
+
+            if (record.pm2_5 === null) {
+              logObject(
+                `😲😲 Null pm2_5 value for device: ${
+                  record.device ? record.device : ""
+                }, frequency ${
+                  record.frequency ? record.frequency : ""
+                }, time ${record.time ? record.time : ""} and site ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+              logger.info(
+                `😲😲 Null pm2_5 value for device: ${
+                  record.device ? record.device : ""
+                }, Frequency: ${
+                  record.frequency ? record.frequency : ""
+                }, Time: ${record.time ? record.time : ""}, Site Name: ${
+                  record.siteDetails ? record.siteDetails.name : ""
+                }`
+              );
+            }
+          }
+        });
+
+        data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
         return {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`list events -- ${error.message}`);
+      logger.error(
+        `Internal Server Error --- list events --- ${error.message}`
+      );
       logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
-
-eventSchema.statics.view = async ({
-  skip = DEFAULT_SKIP,
-  limit = DEFAULT_LIMIT,
-  filter = {},
-  page = DEFAULT_PAGE,
-} = {}) => {
+eventSchema.statics.view = async (
+  {
+    skip = DEFAULT_SKIP,
+    limit = DEFAULT_LIMIT,
+    filter = {},
+    page = DEFAULT_PAGE,
+  } = {},
+  next
+) => {
   try {
     const { recent } = filter;
     const isRecent = !recent || recent === "yes";
@@ -2030,7 +2190,7 @@ eventSchema.statics.view = async ({
       success: true,
       data,
       message: "Successfully returned the measurements",
-      status: HTTPStatus.OK,
+      status: httpStatus.OK,
       meta: {
         total: totalDevices,
         skip,
@@ -2040,14 +2200,16 @@ eventSchema.statics.view = async ({
       },
     };
   } catch (error) {
-    logger.error(`list events -- ${error.message}`);
+    logger.error(
+      `🐛🐛 Internal Server Error -- view events -- ${error.message}`
+    );
     logObject("error", error);
-    return {
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: error.message },
-      status: HTTPStatus.INTERNAL_SERVER_ERROR,
-    };
+
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 

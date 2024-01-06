@@ -1,4 +1,11 @@
 const constants = require("../config/constants");
+const { logObject, logText } = require("@utils/log");
+
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
 
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
@@ -48,7 +55,9 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to access ${entity_title} has been received, we shall get back to you as soon as possible.
+                                    Your request to access ${processString(
+                                      entity_title
+                                    )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
@@ -211,19 +220,59 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-  user_updated: (firstName, lastName, updatedData, email) => {
-    const updatedFields = Object.keys(updatedData)
-      .map((field) => `• ${field}`)
-      .join("\n");
+  user_updated: ({
+    firstName = "",
+    lastName = "",
+    updatedUserDetails = {},
+    email = "",
+  } = {}) => {
+    let updatedFields = "<ol>\n";
+    Object.keys(updatedUserDetails).forEach((field) => {
+      updatedFields += ` <li> ${field}</li>\n`;
+    });
+    updatedFields += "</ol>";
+
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Your AirQo Analytics account details have been updated.
                                     <br />
                                     The following fields have been updated:
-                                    <ol>
+                                    
                                         ${updatedFields}
-                                    </ol>
+                                    
+                                    <br />
+                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                    <br />
+                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    const name = firstName + " " + lastName;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  site_activity: ({
+    firstName = "",
+    lastName = "",
+    siteActivityDetails = {},
+    email = "",
+  } = {}) => {
+    let updatedFields = "<ol>\n";
+    Object.entries(siteActivityDetails).forEach(([key, value]) => {
+      updatedFields += ` <li> ${key}: "${value}"</li>\n`;
+    });
+    updatedFields += "</ol>";
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                You have just performed an activity on an AirQo Device or Site.
+                                    <br />
+                                    The following are the details:
+                                   
+                                        ${updatedFields}
+                                
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
@@ -327,5 +376,28 @@ module.exports = {
                                 </td>
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
+  },
+
+  report: (senderEmail, recepientEmail, formart) => {
+    const content = `
+    <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                This is an automated notification to inform you that ${senderEmail} has shared an air quality data report with you.
+                                The attached report was generated from our analytics dashboard and provides insights into key air quality metrics for the specified time period.
+                                <br />
+                                <br />
+                               Report Details:
+                               <ul>
+                                <li>Format: ${formart}</li>
+
+                               </ul>
+                                    <br />
+                                    You can access the report under the attachments. If you have any questions or require further clarification regarding
+                                    the data presented in the report. Please feel free to reach out to ${senderEmail} directly or contact us.
+                                </td>
+                            </tr>
+  `;
+    return constants.EMAIL_BODY(recepientEmail, content);
   },
 };

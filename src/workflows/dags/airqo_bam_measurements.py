@@ -146,7 +146,8 @@ def airqo_bam_realtime_measurements():
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
-    update_latest_data_topic(measurements)
+    if configuration.ENVIRONMENT == "staging":
+        update_latest_data_topic(measurements)
 
 
 airqo_bam_realtime_measurements()
