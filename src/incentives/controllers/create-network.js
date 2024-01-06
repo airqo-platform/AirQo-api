@@ -9,6 +9,35 @@ const logger = log4js.getLogger(
 );
 const isEmpty = require("is-empty");
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
+
 const createNetwork = {
   create: async (req, res, next) => {
     try {
@@ -26,33 +55,29 @@ const createNetwork = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateNetwork = await createNetworkUtil.create(
-        request,
-        next
-      );
-      logObject(
-        "responseFromCreateNetwork in controller",
-        responseFromCreateNetwork
-      );
-      if (responseFromCreateNetwork.success === true) {
-        const status = responseFromCreateNetwork.status
-          ? responseFromCreateNetwork.status
-          : httpStatus.OK;
+      const result = await createNetworkUtil.create(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateNetwork.message,
-          new_network: responseFromCreateNetwork.data,
+          message: result.message,
+          new_network: result.data,
         });
-      } else if (responseFromCreateNetwork.success === false) {
-        const status = responseFromCreateNetwork.status
-          ? responseFromCreateNetwork.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateNetwork.message,
-          errors: responseFromCreateNetwork.errors
-            ? responseFromCreateNetwork.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -85,32 +110,31 @@ const createNetwork = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListNetworks = await createNetworkUtil.list(
-        request,
-        next
-      );
+      const result = await createNetworkUtil.list(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing cohorts been successful?",
-        responseFromListNetworks.success
+        result.success
       );
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListNetworks.message,
-          networks: responseFromListNetworks.data,
+          message: result.message,
+          networks: result.data,
         });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -143,30 +167,29 @@ const createNetwork = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateNetwork = await createNetworkUtil.update(
-        request,
-        next
-      );
-      logObject("responseFromUpdateNetwork", responseFromUpdateNetwork);
-      if (responseFromUpdateNetwork.success === true) {
-        const status = responseFromUpdateNetwork.status
-          ? responseFromUpdateNetwork.status
-          : httpStatus.OK;
+      const result = await createNetworkUtil.update(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateNetwork.message,
-          updated_network: responseFromUpdateNetwork.data,
+          message: result.message,
+          updated_network: result.data,
         });
-      } else if (responseFromUpdateNetwork.success === false) {
-        const status = responseFromUpdateNetwork.status
-          ? responseFromUpdateNetwork.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateNetwork.message,
-          errors: responseFromUpdateNetwork.errors
-            ? responseFromUpdateNetwork.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
@@ -199,29 +222,28 @@ const createNetwork = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveNetwork = await createNetworkUtil.delete(
-        request,
-        next
-      );
+      const result = await createNetworkUtil.delete(request, next);
 
-      if (responseFromRemoveNetwork.success === true) {
-        const status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveNetwork.message,
-          deleted_network: responseFromRemoveNetwork.data,
+          message: result.message,
+          deleted_network: result.data,
         });
-      } else if (responseFromRemoveNetwork.success === false) {
-        const status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveNetwork.message,
-          errors: responseFromRemoveNetwork.errors
-            ? responseFromRemoveNetwork.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
