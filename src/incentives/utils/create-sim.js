@@ -47,7 +47,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -125,7 +127,9 @@ const createSim = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createBulkLocal --  ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -159,7 +163,9 @@ const createSim = {
       return responseFromListSim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- listLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -185,7 +191,9 @@ const createSim = {
       return responseFromRemoveSim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deleteLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -224,7 +232,9 @@ const createSim = {
       return responseFromModifySim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -358,7 +368,7 @@ const createSim = {
         .catch((error) => {
           logObject("the error inside the checkStatus util", error);
           logger.error(
-            `Internal Server Error --- checkStatus --- ${stringify(error)}`
+            `🐛🐛 internal Server Error --- checkStatus --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -369,7 +379,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkStatus -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -456,7 +468,7 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- activateSim --- ${stringify(error)}`
+            `🐛🐛 internal Server Error --- activateSim --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -467,7 +479,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- activateSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -555,7 +569,9 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- deactivateSim --- ${stringify(error)}`
+            `🐛🐛 internal Server Error --- deactivateSim --- ${stringify(
+              error
+            )}`
           );
           return {
             success: false,
@@ -566,7 +582,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deactivateSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -655,7 +673,9 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- updateSimName --- ${stringify(error)}`
+            `🐛🐛 internal Server Error --- updateSimName --- ${stringify(
+              error
+            )}`
           );
           return {
             success: false,
@@ -666,7 +686,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateSimName -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -755,7 +777,7 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- rechargeSim --- ${stringify(error)}`
+            `🐛🐛 internal Server Error --- rechargeSim --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -766,7 +788,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- rechargeSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",

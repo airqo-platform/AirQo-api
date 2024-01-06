@@ -53,7 +53,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -86,7 +86,7 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -108,7 +108,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -141,7 +141,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createBulk -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -164,7 +166,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -199,7 +201,7 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -221,7 +223,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -254,7 +256,7 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- update -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -277,7 +279,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -313,7 +315,7 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- list -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -336,7 +338,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -370,7 +372,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkStatus -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -393,7 +397,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -429,7 +433,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- activateSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -452,7 +458,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -488,7 +494,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deactivateSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -511,7 +519,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -547,7 +555,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateSimName -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -570,7 +580,7 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -606,7 +616,9 @@ const createSim = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- rechargeSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",

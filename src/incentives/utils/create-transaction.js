@@ -83,7 +83,7 @@ const getFirstBearerToken = async () => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error --- getFirstBearerToken --- ${stringify(
+          `🐛🐛 internal server error --- getFirstBearerToken --- ${stringify(
             error
           )}`
         );
@@ -103,7 +103,9 @@ const getFirstBearerToken = async () => {
       });
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getFirstBearerToken --- ${stringify(error)}`
+      `🐛🐛 Internal Server Error --- getFirstBearerToken --- ${stringify(
+        error
+      )}`
     );
     return {
       success: false,
@@ -151,7 +153,7 @@ const getSecondBearerToken = async (firstBearerToken) => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error --- getSecondBearerToken --- ${stringify(
+          `🐛🐛 internal server error --- getSecondBearerToken --- ${stringify(
             error
           )}`
         );
@@ -171,7 +173,9 @@ const getSecondBearerToken = async (firstBearerToken) => {
       });
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getSecondBearerToken --- ${stringify(error)}`
+      `🐛🐛 Internal Server Error --- getSecondBearerToken --- ${stringify(
+        error
+      )}`
     );
     return {
       success: false,
@@ -324,7 +328,9 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- sendMoneyToHost -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -404,7 +410,7 @@ const createTransaction = {
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received --- addMoneyToOrganisationAccount --- ${stringify(
+              `🐛🐛 No response received --- addMoneyToOrganisationAccount --- ${stringify(
                 error.request
               )}`
             );
@@ -419,7 +425,7 @@ const createTransaction = {
           } else {
             logObject("Error", error.message);
             logger.error(
-              `Internal Server Error --- addMoneyToOrganisationAccount --- ${stringify(
+              `🐛🐛 Internal Server Error --- addMoneyToOrganisationAccount --- ${stringify(
                 error
               )}`
             );
@@ -451,7 +457,11 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- addMoneyToOrganisationAccount -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -548,7 +558,7 @@ const createTransaction = {
             } else if (error.request) {
               logObject("No response received", error.request);
               logger.error(
-                `No response received --- receiveMoneyFromHost --- ${stringify(
+                `🐛🐛 No response received --- receiveMoneyFromHost --- ${stringify(
                   error.request
                 )}`
               );
@@ -563,7 +573,7 @@ const createTransaction = {
             } else {
               logObject("Error", error.message);
               logger.error(
-                `Internal Server Error --- receiveMoneyFromHost --- ${stringify(
+                `🐛🐛 Internal Server Error --- receiveMoneyFromHost --- ${stringify(
                   error
                 )}`
               );
@@ -596,7 +606,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- receiveMoneyFromHost -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -642,7 +656,7 @@ const createTransaction = {
         } else if (error.request) {
           logObject("No response received", error.request);
           logger.error(
-            `No response received --- getTransactionDetails --- ${stringify(
+            `🐛🐛 No response received --- getTransactionDetails --- ${stringify(
               error.request
             )}`
           );
@@ -657,7 +671,7 @@ const createTransaction = {
         } else {
           logObject("Error", error.message);
           logger.error(
-            `Internal Server Error --- getTransactionDetails --- ${stringify(
+            `🐛🐛 Internal Server Error --- getTransactionDetails --- ${stringify(
               error
             )}`
           );
@@ -680,7 +694,11 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- getTransactionDetails -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -710,7 +728,9 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- listTransactions -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -787,7 +807,7 @@ const createTransaction = {
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received --- loadDataBundle --- ${stringify(
+              `🐛🐛 No response received --- loadDataBundle --- ${stringify(
                 error.request
               )}`
             );
@@ -802,7 +822,9 @@ const createTransaction = {
           } else {
             logObject("Error", error.message);
             logger.error(
-              `Internal Server Error --- loadDataBundle --- ${stringify(error)}`
+              `🐛🐛 Internal Server Error --- loadDataBundle --- ${stringify(
+                error
+              )}`
             );
             return {
               success: false,
@@ -830,7 +852,9 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- loadDataBundle -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -857,7 +881,11 @@ const createTransaction = {
        */
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkRemainingDataBundleBalance -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
