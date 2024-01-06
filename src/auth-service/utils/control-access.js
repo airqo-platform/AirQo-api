@@ -293,7 +293,16 @@ const isIPBlacklistedHelper = async (
         logger.error(
           `🐛🐛 Failed to store record for this new IP address ${ip}.`
         );
+        if (retries > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return isIPBlacklistedHelper(
+            { ip, email, token, token_name, endpoint },
+            retries - 1,
+            delay
+          );
+        }
       }
+      return false;
     } else {
       const checkDoc = await UnknownIPModel("airqo").findOne({
         ip,
@@ -319,6 +328,7 @@ const isIPBlacklistedHelper = async (
         };
 
         await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+        return false;
       } else {
         const update = {
           $addToSet: {
@@ -332,10 +342,9 @@ const isIPBlacklistedHelper = async (
           },
         };
         await UnknownIPModel("airqo").findOneAndUpdate(filter, update);
+        return false;
       }
     }
-
-    return false;
   } catch (error) {
     logObject("the error", error);
     if (
