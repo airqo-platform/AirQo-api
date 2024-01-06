@@ -5,7 +5,7 @@ const createHostUtil = require("@utils/create-host");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-host-controller`
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-host-controller`
 );
 const isEmpty = require("is-empty");
 function handleResponse({

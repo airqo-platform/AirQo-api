@@ -8,7 +8,7 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- transaction-model`
+  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- transaction-model`
 );
 const { HttpError } = require("@utils/errors");
 
