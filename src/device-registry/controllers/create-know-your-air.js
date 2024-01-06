@@ -8,6 +8,34 @@ const logger = log4js.getLogger(
 );
 const createKnowYourAirUtil = require("@utils/create-know-your-air");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createKnowYourAir = {
   /*********** lessons ********************************/
@@ -27,30 +55,25 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListKYALesson = await createKnowYourAirUtil.listLesson(
-        request,
-        next
-      );
-
-      if (responseFromListKYALesson.success === true) {
-        const status = responseFromListKYALesson.status
-          ? responseFromListKYALesson.status
-          : httpStatus.OK;
+      const result = await createKnowYourAirUtil.listLesson(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListKYALesson.message,
-          kya_lessons: responseFromListKYALesson.data,
+          message: result.message,
+          kya_lessons: result.data,
         });
-      } else if (responseFromListKYALesson.success === false) {
-        const status = responseFromListKYALesson.status
-          ? responseFromListKYALesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListKYALesson.message,
-          errors: responseFromListKYALesson.errors
-            ? responseFromListKYALesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -81,32 +104,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateKYALesson = await createKnowYourAirUtil.createLesson(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.createLesson(request, next);
 
-      if (responseFromCreateKYALesson.success === true) {
-        const status = responseFromCreateKYALesson.status
-          ? responseFromCreateKYALesson.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateKYALesson.message,
-          created_kya_lesson: responseFromCreateKYALesson.data
-            ? responseFromCreateKYALesson.data
-            : [],
+          message: result.message,
+          created_kya_lesson: result.data ? result.data : [],
         });
-      } else if (responseFromCreateKYALesson.success === false) {
-        const status = responseFromCreateKYALesson.status
-          ? responseFromCreateKYALesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateKYALesson.message,
-          errors: responseFromCreateKYALesson.errors
-            ? responseFromCreateKYALesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -137,32 +155,29 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteKYALesson = await createKnowYourAirUtil.deleteLesson(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.deleteLesson(request, next);
 
-      logObject("responseFromDeleteKYALesson", responseFromDeleteKYALesson);
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (responseFromDeleteKYALesson.success === true) {
-        const status = responseFromDeleteKYALesson.status
-          ? responseFromDeleteKYALesson.status
-          : httpStatus.OK;
+      logObject("result", result);
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteKYALesson.message,
-          deleted_kya_lesson: responseFromDeleteKYALesson.data,
+          message: result.message,
+          deleted_kya_lesson: result.data,
         });
-      } else if (responseFromDeleteKYALesson.success === false) {
-        const status = responseFromDeleteKYALesson.status
-          ? responseFromDeleteKYALesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteKYALesson.message,
-          errors: responseFromDeleteKYALesson.errors
-            ? responseFromDeleteKYALesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -193,30 +208,26 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateKYALesson = await createKnowYourAirUtil.updateLesson(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.updateLesson(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (responseFromUpdateKYALesson.success === true) {
-        const status = responseFromUpdateKYALesson.status
-          ? responseFromUpdateKYALesson.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateKYALesson.message,
-          updated_kya_lesson: responseFromUpdateKYALesson.data,
+          message: result.message,
+          updated_kya_lesson: result.data,
         });
-      } else if (responseFromUpdateKYALesson.success === false) {
-        const status = responseFromUpdateKYALesson.status
-          ? responseFromUpdateKYALesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateKYALesson.message,
-          errors: responseFromUpdateKYALesson.errors
-            ? responseFromUpdateKYALesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -249,30 +260,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUserLessonProgress = await createKnowYourAirUtil.listUserLessonProgress(
+      const result = await createKnowYourAirUtil.listUserLessonProgress(
         request,
         next
       );
 
-      if (responseFromListUserLessonProgress.success === true) {
-        const status = responseFromListUserLessonProgress.status
-          ? responseFromListUserLessonProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUserLessonProgress.message,
-          kya_user_progress: responseFromListUserLessonProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromListUserLessonProgress.success === false) {
-        const status = responseFromListUserLessonProgress.status
-          ? responseFromListUserLessonProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUserLessonProgress.message,
-          errors: responseFromListUserLessonProgress.errors
-            ? responseFromListUserLessonProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -303,30 +314,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteUserLessonProgress = await createKnowYourAirUtil.deleteUserLessonProgress(
+      const result = await createKnowYourAirUtil.deleteUserLessonProgress(
         request,
         next
       );
 
-      if (responseFromDeleteUserLessonProgress.success === true) {
-        const status = responseFromDeleteUserLessonProgress.status
-          ? responseFromDeleteUserLessonProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteUserLessonProgress.message,
-          deleted_kya_user_progress: responseFromDeleteUserLessonProgress.data,
+          message: result.message,
+          deleted_kya_user_progress: result.data,
         });
-      } else if (responseFromDeleteUserLessonProgress.success === false) {
-        const status = responseFromDeleteUserLessonProgress.status
-          ? responseFromDeleteUserLessonProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteUserLessonProgress.message,
-          errors: responseFromDeleteUserLessonProgress.errors
-            ? responseFromDeleteUserLessonProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -357,30 +368,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateUserLessonProgress = await createKnowYourAirUtil.updateUserLessonProgress(
+      const result = await createKnowYourAirUtil.updateUserLessonProgress(
         request,
         next
       );
 
-      if (responseFromUpdateUserLessonProgress.success === true) {
-        const status = responseFromUpdateUserLessonProgress.status
-          ? responseFromUpdateUserLessonProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateUserLessonProgress.message,
-          kya_user_progress: responseFromUpdateUserLessonProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromUpdateUserLessonProgress.success === false) {
-        const status = responseFromUpdateUserLessonProgress.status
-          ? responseFromUpdateUserLessonProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUserLessonProgress.message,
-          errors: responseFromUpdateUserLessonProgress.errors
-            ? responseFromUpdateUserLessonProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -411,30 +422,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateUserLessonProgress = await createKnowYourAirUtil.createUserLessonProgress(
+      const result = await createKnowYourAirUtil.createUserLessonProgress(
         request,
         next
       );
 
-      if (responseFromCreateUserLessonProgress.success === true) {
-        const status = responseFromCreateUserLessonProgress.status
-          ? responseFromCreateUserLessonProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateUserLessonProgress.message,
-          kya_user_progress: responseFromCreateUserLessonProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromCreateUserLessonProgress.success === false) {
-        const status = responseFromCreateUserLessonProgress.status
-          ? responseFromCreateUserLessonProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateUserLessonProgress.message,
-          errors: responseFromCreateUserLessonProgress.errors
-            ? responseFromCreateUserLessonProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -465,30 +476,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSyncUserLessonProgress = await createKnowYourAirUtil.syncUserLessonProgress(
+      const result = await createKnowYourAirUtil.syncUserLessonProgress(
         request,
         next
       );
 
-      if (responseFromSyncUserLessonProgress.success === true) {
-        const status = responseFromSyncUserLessonProgress.status
-          ? responseFromSyncUserLessonProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSyncUserLessonProgress.message,
-          kya_user_progress: responseFromSyncUserLessonProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromSyncUserLessonProgress.success === false) {
-        const status = responseFromSyncUserLessonProgress.status
-          ? responseFromSyncUserLessonProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSyncUserLessonProgress.message,
-          errors: responseFromSyncUserLessonProgress.errors
-            ? responseFromSyncUserLessonProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -521,30 +532,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListKYATask = await createKnowYourAirUtil.listTask(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.listTask(request, next);
 
-      if (responseFromListKYATask.success === true) {
-        const status = responseFromListKYATask.status
-          ? responseFromListKYATask.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListKYATask.message,
-          kya_tasks: responseFromListKYATask.data,
+          message: result.message,
+          kya_tasks: result.data,
         });
-      } else if (responseFromListKYATask.success === false) {
-        const status = responseFromListKYATask.status
-          ? responseFromListKYATask.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListKYATask.message,
-          errors: responseFromListKYATask.errors
-            ? responseFromListKYATask.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -575,32 +583,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateKYATask = await createKnowYourAirUtil.createTask(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.createTask(request, next);
 
-      if (responseFromCreateKYATask.success === true) {
-        const status = responseFromCreateKYATask.status
-          ? responseFromCreateKYATask.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateKYATask.message,
-          created_kya_task: responseFromCreateKYATask.data
-            ? responseFromCreateKYATask.data
-            : [],
+          message: result.message,
+          created_kya_task: result.data ? result.data : [],
         });
-      } else if (responseFromCreateKYATask.success === false) {
-        const status = responseFromCreateKYATask.status
-          ? responseFromCreateKYATask.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateKYATask.message,
-          errors: responseFromCreateKYATask.errors
-            ? responseFromCreateKYATask.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -631,30 +634,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteKYATask = await createKnowYourAirUtil.deleteTask(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.deleteTask(request, next);
 
-      if (responseFromDeleteKYATask.success === true) {
-        const status = responseFromDeleteKYATask.status
-          ? responseFromDeleteKYATask.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteKYATask.message,
-          deleted_kya_task: responseFromDeleteKYATask.data,
+          message: result.message,
+          deleted_kya_task: result.data,
         });
-      } else if (responseFromDeleteKYATask.success === false) {
-        const status = responseFromDeleteKYATask.status
-          ? responseFromDeleteKYATask.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteKYATask.message,
-          errors: responseFromDeleteKYATask.errors
-            ? responseFromDeleteKYATask.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -685,30 +685,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateKYATask = await createKnowYourAirUtil.updateTask(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.updateTask(request, next);
 
-      if (responseFromUpdateKYATask.success === true) {
-        const status = responseFromUpdateKYATask.status
-          ? responseFromUpdateKYATask.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateKYATask.message,
-          updated_kya_task: responseFromUpdateKYATask.data,
+          message: result.message,
+          updated_kya_task: result.data,
         });
-      } else if (responseFromUpdateKYATask.success === false) {
-        const status = responseFromUpdateKYATask.status
-          ? responseFromUpdateKYATask.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateKYATask.message,
-          errors: responseFromUpdateKYATask.errors
-            ? responseFromUpdateKYATask.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -741,30 +738,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignTaskToLesson = await createKnowYourAirUtil.assignTaskToLesson(
+      const result = await createKnowYourAirUtil.assignTaskToLesson(
         request,
         next
       );
 
-      if (responseFromAssignTaskToLesson.success === true) {
-        const status = responseFromAssignTaskToLesson.status
-          ? responseFromAssignTaskToLesson.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignTaskToLesson.message,
-          updated_kya: responseFromAssignTaskToLesson.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromAssignTaskToLesson.success === false) {
-        const status = responseFromAssignTaskToLesson.status
-          ? responseFromAssignTaskToLesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignTaskToLesson.message,
-          errors: responseFromAssignTaskToLesson.errors
-            ? responseFromAssignTaskToLesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -795,30 +792,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignManyTasksToLesson = await createKnowYourAirUtil.assignManyTasksToLesson(
+      const result = await createKnowYourAirUtil.assignManyTasksToLesson(
         request,
         next
       );
 
-      if (responseFromAssignManyTasksToLesson.success === true) {
-        const status = responseFromAssignManyTasksToLesson.status
-          ? responseFromAssignManyTasksToLesson.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignManyTasksToLesson.message,
-          updated_kya: responseFromAssignManyTasksToLesson.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromAssignManyTasksToLesson.success === false) {
-        const status = responseFromAssignManyTasksToLesson.status
-          ? responseFromAssignManyTasksToLesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignManyTasksToLesson.message,
-          errors: responseFromAssignManyTasksToLesson.errors
-            ? responseFromAssignManyTasksToLesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -849,30 +846,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveTaskFromLesson = await createKnowYourAirUtil.removeTaskFromLesson(
+      const result = await createKnowYourAirUtil.removeTaskFromLesson(
         request,
         next
       );
 
-      if (responseFromRemoveTaskFromLesson.success === true) {
-        const status = responseFromRemoveTaskFromLesson.status
-          ? responseFromRemoveTaskFromLesson.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveTaskFromLesson.message,
-          updated_kya_task: responseFromRemoveTaskFromLesson.data,
+          message: result.message,
+          updated_kya_task: result.data,
         });
-      } else if (responseFromRemoveTaskFromLesson.success === false) {
-        const status = responseFromRemoveTaskFromLesson.status
-          ? responseFromRemoveTaskFromLesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveTaskFromLesson.message,
-          errors: responseFromRemoveTaskFromLesson.errors
-            ? responseFromRemoveTaskFromLesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -903,30 +900,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveManyTasksFromLesson = await createKnowYourAirUtil.removeManyTasksFromLesson(
+      const result = await createKnowYourAirUtil.removeManyTasksFromLesson(
         request,
         next
       );
 
-      if (responseFromRemoveManyTasksFromLesson.success === true) {
-        const status = responseFromRemoveManyTasksFromLesson.status
-          ? responseFromRemoveManyTasksFromLesson.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveManyTasksFromLesson.message,
-          updated_kya: responseFromRemoveManyTasksFromLesson.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromRemoveManyTasksFromLesson.success === false) {
-        const status = responseFromRemoveManyTasksFromLesson.status
-          ? responseFromRemoveManyTasksFromLesson.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveManyTasksFromLesson.message,
-          errors: responseFromRemoveManyTasksFromLesson.errors
-            ? responseFromRemoveManyTasksFromLesson.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -958,31 +955,31 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAvailableTasks = await createKnowYourAirUtil.listAvailableTasks(
+      const result = await createKnowYourAirUtil.listAvailableTasks(
         request,
         next
       );
 
-      if (responseFromListAvailableTasks.success === true) {
-        const status = responseFromListAvailableTasks.status
-          ? responseFromListAvailableTasks.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromListAvailableTasks.message,
-          available_tasks: responseFromListAvailableTasks.data,
+          message: result.message,
+          available_tasks: result.data,
         });
-      } else if (responseFromListAvailableTasks.success === false) {
-        const status = responseFromListAvailableTasks.status
-          ? responseFromListAvailableTasks.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableTasks.message,
-          errors: responseFromListAvailableTasks.errors
-            ? responseFromListAvailableTasks.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1014,16 +1011,18 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAssignedTasks = await createKnowYourAirUtil.listAssignedTasks(
+      const result = await createKnowYourAirUtil.listAssignedTasks(
         request,
         next
       );
 
-      if (responseFromListAssignedTasks.success === true) {
-        const status = responseFromListAssignedTasks.status
-          ? responseFromListAssignedTasks.status
-          : httpStatus.OK;
-        if (responseFromListAssignedTasks.data.length === 0) {
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        if (result.data.length === 0) {
           return res.status(status).json({
             success: true,
             message: "no assigned tasks to this network",
@@ -1033,19 +1032,17 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: "successfully retrieved the assigned tasks for this network",
-          assigned_tasks: responseFromListAssignedTasks.data,
+          assigned_tasks: result.data,
         });
-      } else if (responseFromListAssignedTasks.success === false) {
-        const status = responseFromListAssignedTasks.status
-          ? responseFromListAssignedTasks.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListAssignedTasks.message,
-          errors: responseFromListAssignedTasks.errors
-            ? responseFromListAssignedTasks.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1078,30 +1075,25 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListKYAQuiz = await createKnowYourAirUtil.listQuiz(
-        request,
-        next
-      );
-
-      if (responseFromListKYAQuiz.success === true) {
-        const status = responseFromListKYAQuiz.status
-          ? responseFromListKYAQuiz.status
-          : httpStatus.OK;
+      const result = await createKnowYourAirUtil.listQuiz(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListKYAQuiz.message,
-          kya_quizzes: responseFromListKYAQuiz.data,
+          message: result.message,
+          kya_quizzes: result.data,
         });
-      } else if (responseFromListKYAQuiz.success === false) {
-        const status = responseFromListKYAQuiz.status
-          ? responseFromListKYAQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListKYAQuiz.message,
-          errors: responseFromListKYAQuiz.errors
-            ? responseFromListKYAQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1132,32 +1124,25 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateKYAQuiz = await createKnowYourAirUtil.createQuiz(
-        request,
-        next
-      );
-
-      if (responseFromCreateKYAQuiz.success === true) {
-        const status = responseFromCreateKYAQuiz.status
-          ? responseFromCreateKYAQuiz.status
-          : httpStatus.OK;
+      const result = await createKnowYourAirUtil.createQuiz(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateKYAQuiz.message,
-          created_kya_quiz: responseFromCreateKYAQuiz.data
-            ? responseFromCreateKYAQuiz.data
-            : [],
+          message: result.message,
+          created_kya_quiz: result.data ? result.data : [],
         });
-      } else if (responseFromCreateKYAQuiz.success === false) {
-        const status = responseFromCreateKYAQuiz.status
-          ? responseFromCreateKYAQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateKYAQuiz.message,
-          errors: responseFromCreateKYAQuiz.errors
-            ? responseFromCreateKYAQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1188,30 +1173,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteKYAQuiz = await createKnowYourAirUtil.deleteQuiz(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.deleteQuiz(request, next);
 
-      if (responseFromDeleteKYAQuiz.success === true) {
-        const status = responseFromDeleteKYAQuiz.status
-          ? responseFromDeleteKYAQuiz.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteKYAQuiz.message,
-          deleted_kya_quiz: responseFromDeleteKYAQuiz.data,
+          message: result.message,
+          deleted_kya_quiz: result.data,
         });
-      } else if (responseFromDeleteKYAQuiz.success === false) {
-        const status = responseFromDeleteKYAQuiz.status
-          ? responseFromDeleteKYAQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteKYAQuiz.message,
-          errors: responseFromDeleteKYAQuiz.errors
-            ? responseFromDeleteKYAQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1242,30 +1224,25 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateKYAQuiz = await createKnowYourAirUtil.updateQuiz(
-        request,
-        next
-      );
-
-      if (responseFromUpdateKYAQuiz.success === true) {
-        const status = responseFromUpdateKYAQuiz.status
-          ? responseFromUpdateKYAQuiz.status
-          : httpStatus.OK;
+      const result = await createKnowYourAirUtil.updateQuiz(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateKYAQuiz.message,
-          updated_kya_quiz: responseFromUpdateKYAQuiz.data,
+          message: result.message,
+          updated_kya_quiz: result.data,
         });
-      } else if (responseFromUpdateKYAQuiz.success === false) {
-        const status = responseFromUpdateKYAQuiz.status
-          ? responseFromUpdateKYAQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateKYAQuiz.message,
-          errors: responseFromUpdateKYAQuiz.errors
-            ? responseFromUpdateKYAQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1298,30 +1275,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListUserQuizProgress = await createKnowYourAirUtil.listUserQuizProgress(
+      const result = await createKnowYourAirUtil.listUserQuizProgress(
         request,
         next
       );
 
-      if (responseFromListUserQuizProgress.success === true) {
-        const status = responseFromListUserQuizProgress.status
-          ? responseFromListUserQuizProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUserQuizProgress.message,
-          kya_user_progress: responseFromListUserQuizProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromListUserQuizProgress.success === false) {
-        const status = responseFromListUserQuizProgress.status
-          ? responseFromListUserQuizProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListUserQuizProgress.message,
-          errors: responseFromListUserQuizProgress.errors
-            ? responseFromListUserQuizProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1352,30 +1329,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteUserQuizProgress = await createKnowYourAirUtil.deleteUserQuizProgress(
+      const result = await createKnowYourAirUtil.deleteUserQuizProgress(
         request,
         next
       );
 
-      if (responseFromDeleteUserQuizProgress.success === true) {
-        const status = responseFromDeleteUserQuizProgress.status
-          ? responseFromDeleteUserQuizProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteUserQuizProgress.message,
-          deleted_kya_user_progress: responseFromDeleteUserQuizProgress.data,
+          message: result.message,
+          deleted_kya_user_progress: result.data,
         });
-      } else if (responseFromDeleteUserQuizProgress.success === false) {
-        const status = responseFromDeleteUserQuizProgress.status
-          ? responseFromDeleteUserQuizProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteUserQuizProgress.message,
-          errors: responseFromDeleteUserQuizProgress.errors
-            ? responseFromDeleteUserQuizProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1406,30 +1383,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateUserQuizProgress = await createKnowYourAirUtil.updateUserQuizProgress(
+      const result = await createKnowYourAirUtil.updateUserQuizProgress(
         request,
         next
       );
 
-      if (responseFromUpdateUserQuizProgress.success === true) {
-        const status = responseFromUpdateUserQuizProgress.status
-          ? responseFromUpdateUserQuizProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateUserQuizProgress.message,
-          kya_user_progress: responseFromUpdateUserQuizProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromUpdateUserQuizProgress.success === false) {
-        const status = responseFromUpdateUserQuizProgress.status
-          ? responseFromUpdateUserQuizProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUserQuizProgress.message,
-          errors: responseFromUpdateUserQuizProgress.errors
-            ? responseFromUpdateUserQuizProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1460,30 +1437,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateUserQuizProgress = await createKnowYourAirUtil.createUserQuizProgress(
+      const result = await createKnowYourAirUtil.createUserQuizProgress(
         request,
         next
       );
 
-      if (responseFromCreateUserQuizProgress.success === true) {
-        const status = responseFromCreateUserQuizProgress.status
-          ? responseFromCreateUserQuizProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateUserQuizProgress.message,
-          kya_user_progress: responseFromCreateUserQuizProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromCreateUserQuizProgress.success === false) {
-        const status = responseFromCreateUserQuizProgress.status
-          ? responseFromCreateUserQuizProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateUserQuizProgress.message,
-          errors: responseFromCreateUserQuizProgress.errors
-            ? responseFromCreateUserQuizProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1514,30 +1491,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromSyncUserQuizProgress = await createKnowYourAirUtil.syncUserQuizProgress(
+      const result = await createKnowYourAirUtil.syncUserQuizProgress(
         request,
         next
       );
 
-      if (responseFromSyncUserQuizProgress.success === true) {
-        const status = responseFromSyncUserQuizProgress.status
-          ? responseFromSyncUserQuizProgress.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSyncUserQuizProgress.message,
-          kya_user_progress: responseFromSyncUserQuizProgress.data,
+          message: result.message,
+          kya_user_progress: result.data,
         });
-      } else if (responseFromSyncUserQuizProgress.success === false) {
-        const status = responseFromSyncUserQuizProgress.status
-          ? responseFromSyncUserQuizProgress.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSyncUserQuizProgress.message,
-          errors: responseFromSyncUserQuizProgress.errors
-            ? responseFromSyncUserQuizProgress.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1570,30 +1547,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListKYAQuestion = await createKnowYourAirUtil.listQuestions(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.listQuestions(request, next);
 
-      if (responseFromListKYAQuestion.success === true) {
-        const status = responseFromListKYAQuestion.status
-          ? responseFromListKYAQuestion.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListKYAQuestion.message,
-          kya_questions: responseFromListKYAQuestion.data,
+          message: result.message,
+          kya_questions: result.data,
         });
-      } else if (responseFromListKYAQuestion.success === false) {
-        const status = responseFromListKYAQuestion.status
-          ? responseFromListKYAQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListKYAQuestion.message,
-          errors: responseFromListKYAQuestion.errors
-            ? responseFromListKYAQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1624,32 +1598,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateKYAQuestion = await createKnowYourAirUtil.createQuestion(
-        request,
-        next
-      );
-      logObject("responseFromCreateKYAQuestion", responseFromCreateKYAQuestion);
-      if (responseFromCreateKYAQuestion.success === true) {
-        const status = responseFromCreateKYAQuestion.status
-          ? responseFromCreateKYAQuestion.status
-          : httpStatus.OK;
+      const result = await createKnowYourAirUtil.createQuestion(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateKYAQuestion.message,
-          created_kya_question: responseFromCreateKYAQuestion.data
-            ? responseFromCreateKYAQuestion.data
-            : [],
+          message: result.message,
+          created_kya_question: result.data ? result.data : [],
         });
-      } else if (responseFromCreateKYAQuestion.success === false) {
-        const status = responseFromCreateKYAQuestion.status
-          ? responseFromCreateKYAQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateKYAQuestion.message,
-          errors: responseFromCreateKYAQuestion.errors
-            ? responseFromCreateKYAQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1680,30 +1649,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteKYAQuestion = await createKnowYourAirUtil.deleteQuestion(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.deleteQuestion(request, next);
 
-      if (responseFromDeleteKYAQuestion.success === true) {
-        const status = responseFromDeleteKYAQuestion.status
-          ? responseFromDeleteKYAQuestion.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteKYAQuestion.message,
-          deleted_kya_question: responseFromDeleteKYAQuestion.data,
+          message: result.message,
+          deleted_kya_question: result.data,
         });
-      } else if (responseFromDeleteKYAQuestion.success === false) {
-        const status = responseFromDeleteKYAQuestion.status
-          ? responseFromDeleteKYAQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteKYAQuestion.message,
-          errors: responseFromDeleteKYAQuestion.errors
-            ? responseFromDeleteKYAQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1734,30 +1700,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateKYAQuestion = await createKnowYourAirUtil.updateQuestion(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.updateQuestion(request, next);
 
-      if (responseFromUpdateKYAQuestion.success === true) {
-        const status = responseFromUpdateKYAQuestion.status
-          ? responseFromUpdateKYAQuestion.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateKYAQuestion.message,
-          updated_kya_question: responseFromUpdateKYAQuestion.data,
+          message: result.message,
+          updated_kya_question: result.data,
         });
-      } else if (responseFromUpdateKYAQuestion.success === false) {
-        const status = responseFromUpdateKYAQuestion.status
-          ? responseFromUpdateKYAQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateKYAQuestion.message,
-          errors: responseFromUpdateKYAQuestion.errors
-            ? responseFromUpdateKYAQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1790,30 +1753,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListKYAAnswer = await createKnowYourAirUtil.listAnswers(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.listAnswers(request, next);
 
-      if (responseFromListKYAAnswer.success === true) {
-        const status = responseFromListKYAAnswer.status
-          ? responseFromListKYAAnswer.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListKYAAnswer.message,
-          kya_answers: responseFromListKYAAnswer.data,
+          message: result.message,
+          kya_answers: result.data,
         });
-      } else if (responseFromListKYAAnswer.success === false) {
-        const status = responseFromListKYAAnswer.status
-          ? responseFromListKYAAnswer.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListKYAAnswer.message,
-          errors: responseFromListKYAAnswer.errors
-            ? responseFromListKYAAnswer.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1844,32 +1804,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateKYAAnswer = await createKnowYourAirUtil.createAnswer(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.createAnswer(request, next);
 
-      if (responseFromCreateKYAAnswer.success === true) {
-        const status = responseFromCreateKYAAnswer.status
-          ? responseFromCreateKYAAnswer.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateKYAAnswer.message,
-          created_kya_answer: responseFromCreateKYAAnswer.data
-            ? responseFromCreateKYAAnswer.data
-            : [],
+          message: result.message,
+          created_kya_answer: result.data ? result.data : [],
         });
-      } else if (responseFromCreateKYAAnswer.success === false) {
-        const status = responseFromCreateKYAAnswer.status
-          ? responseFromCreateKYAAnswer.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateKYAAnswer.message,
-          errors: responseFromCreateKYAAnswer.errors
-            ? responseFromCreateKYAAnswer.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1900,30 +1855,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteKYAAnswer = await createKnowYourAirUtil.deleteAnswer(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.deleteAnswer(request, next);
 
-      if (responseFromDeleteKYAAnswer.success === true) {
-        const status = responseFromDeleteKYAAnswer.status
-          ? responseFromDeleteKYAAnswer.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteKYAAnswer.message,
-          deleted_kya_answer: responseFromDeleteKYAAnswer.data,
+          message: result.message,
+          deleted_kya_answer: result.data,
         });
-      } else if (responseFromDeleteKYAAnswer.success === false) {
-        const status = responseFromDeleteKYAAnswer.status
-          ? responseFromDeleteKYAAnswer.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteKYAAnswer.message,
-          errors: responseFromDeleteKYAAnswer.errors
-            ? responseFromDeleteKYAAnswer.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -1954,30 +1906,27 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateKYAAnswer = await createKnowYourAirUtil.updateAnswer(
-        request,
-        next
-      );
+      const result = await createKnowYourAirUtil.updateAnswer(request, next);
 
-      if (responseFromUpdateKYAAnswer.success === true) {
-        const status = responseFromUpdateKYAAnswer.status
-          ? responseFromUpdateKYAAnswer.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateKYAAnswer.message,
-          updated_kya_answer: responseFromUpdateKYAAnswer.data,
+          message: result.message,
+          updated_kya_answer: result.data,
         });
-      } else if (responseFromUpdateKYAAnswer.success === false) {
-        const status = responseFromUpdateKYAAnswer.status
-          ? responseFromUpdateKYAAnswer.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateKYAAnswer.message,
-          errors: responseFromUpdateKYAAnswer.errors
-            ? responseFromUpdateKYAAnswer.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -2010,30 +1959,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignManyQuestionsToQuiz = await createKnowYourAirUtil.assignManyQuestionsToQuiz(
+      const result = await createKnowYourAirUtil.assignManyQuestionsToQuiz(
         request,
         next
       );
 
-      if (responseFromAssignManyQuestionsToQuiz.success === true) {
-        const status = responseFromAssignManyQuestionsToQuiz.status
-          ? responseFromAssignManyQuestionsToQuiz.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignManyQuestionsToQuiz.message,
-          updated_kya: responseFromAssignManyQuestionsToQuiz.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromAssignManyQuestionsToQuiz.success === false) {
-        const status = responseFromAssignManyQuestionsToQuiz.status
-          ? responseFromAssignManyQuestionsToQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignManyQuestionsToQuiz.message,
-          errors: responseFromAssignManyQuestionsToQuiz.errors
-            ? responseFromAssignManyQuestionsToQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -2064,30 +2013,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveManyQuestionsFromQuiz = await createKnowYourAirUtil.removeManyQuestionsFromQuiz(
+      const result = await createKnowYourAirUtil.removeManyQuestionsFromQuiz(
         request,
         next
       );
 
-      if (responseFromRemoveManyQuestionsFromQuiz.success === true) {
-        const status = responseFromRemoveManyQuestionsFromQuiz.status
-          ? responseFromRemoveManyQuestionsFromQuiz.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveManyQuestionsFromQuiz.message,
-          updated_kya: responseFromRemoveManyQuestionsFromQuiz.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromRemoveManyQuestionsFromQuiz.success === false) {
-        const status = responseFromRemoveManyQuestionsFromQuiz.status
-          ? responseFromRemoveManyQuestionsFromQuiz.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveManyQuestionsFromQuiz.message,
-          errors: responseFromRemoveManyQuestionsFromQuiz.errors
-            ? responseFromRemoveManyQuestionsFromQuiz.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -2118,30 +2067,28 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAssignManyAnswersToQuestion = await createKnowYourAirUtil.assignManyAnswersToQuestion(
+      const result = await createKnowYourAirUtil.assignManyAnswersToQuestion(
         request,
         next
       );
-
-      if (responseFromAssignManyAnswersToQuestion.success === true) {
-        const status = responseFromAssignManyAnswersToQuestion.status
-          ? responseFromAssignManyAnswersToQuestion.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignManyAnswersToQuestion.message,
-          updated_kya: responseFromAssignManyAnswersToQuestion.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromAssignManyAnswersToQuestion.success === false) {
-        const status = responseFromAssignManyAnswersToQuestion.status
-          ? responseFromAssignManyAnswersToQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignManyAnswersToQuestion.message,
-          errors: responseFromAssignManyAnswersToQuestion.errors
-            ? responseFromAssignManyAnswersToQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -2172,30 +2119,30 @@ const createKnowYourAir = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveManyAnswersFromQuestion = await createKnowYourAirUtil.removeManyAnswersFromQuestion(
+      const result = await createKnowYourAirUtil.removeManyAnswersFromQuestion(
         request,
         next
       );
 
-      if (responseFromRemoveManyAnswersFromQuestion.success === true) {
-        const status = responseFromRemoveManyAnswersFromQuestion.status
-          ? responseFromRemoveManyAnswersFromQuestion.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveManyAnswersFromQuestion.message,
-          updated_kya: responseFromRemoveManyAnswersFromQuestion.data,
+          message: result.message,
+          updated_kya: result.data,
         });
-      } else if (responseFromRemoveManyAnswersFromQuestion.success === false) {
-        const status = responseFromRemoveManyAnswersFromQuestion.status
-          ? responseFromRemoveManyAnswersFromQuestion.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveManyAnswersFromQuestion.message,
-          errors: responseFromRemoveManyAnswersFromQuestion.errors
-            ? responseFromRemoveManyAnswersFromQuestion.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {

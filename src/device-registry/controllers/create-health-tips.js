@@ -7,6 +7,34 @@ const logger = log4js.getLogger(
 );
 const createHealthTipUtil = require("@utils/create-health-tips");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status ?? defaultStatus;
+  const message = result.message ?? defaultMessage;
+  const data = result.data ?? [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors ?? { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createHealthTips = {
   list: async (req, res, next) => {
@@ -25,30 +53,27 @@ const createHealthTips = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListHealthTip = await createHealthTipUtil.list(
-        request,
-        next
-      );
+      const result = await createHealthTipUtil.list(request, next);
 
-      if (responseFromListHealthTip.success === true) {
-        const status = responseFromListHealthTip.status
-          ? responseFromListHealthTip.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListHealthTip.message,
-          tips: responseFromListHealthTip.data,
+          message: result.message,
+          tips: result.data,
         });
-      } else if (responseFromListHealthTip.success === false) {
-        const status = responseFromListHealthTip.status
-          ? responseFromListHealthTip.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListHealthTip.message,
-          errors: responseFromListHealthTip.errors
-            ? responseFromListHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -79,32 +104,27 @@ const createHealthTips = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateHealthTip = await createHealthTipUtil.create(
-        request,
-        next
-      );
+      const result = await createHealthTipUtil.create(request, next);
 
-      if (responseFromCreateHealthTip.success === true) {
-        const status = responseFromCreateHealthTip.status
-          ? responseFromCreateHealthTip.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateHealthTip.message,
-          created_tip: responseFromCreateHealthTip.data
-            ? responseFromCreateHealthTip.data
-            : [],
+          message: result.message,
+          created_tip: result.data ? result.data : [],
         });
-      } else if (responseFromCreateHealthTip.success === false) {
-        const status = responseFromCreateHealthTip.status
-          ? responseFromCreateHealthTip.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateHealthTip.message,
-          errors: responseFromCreateHealthTip.errors
-            ? responseFromCreateHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -135,30 +155,27 @@ const createHealthTips = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteHealthTip = await createHealthTipUtil.delete(
-        request,
-        next
-      );
+      const result = await createHealthTipUtil.delete(request, next);
 
-      if (responseFromDeleteHealthTip.success === true) {
-        const status = responseFromDeleteHealthTip.status
-          ? responseFromDeleteHealthTip.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeleteHealthTip.message,
-          deleted_tip: responseFromDeleteHealthTip.data,
+          message: result.message,
+          deleted_tip: result.data,
         });
-      } else if (responseFromDeleteHealthTip.success === false) {
-        const status = responseFromDeleteHealthTip.status
-          ? responseFromDeleteHealthTip.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeleteHealthTip.message,
-          errors: responseFromDeleteHealthTip.errors
-            ? responseFromDeleteHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
@@ -189,30 +206,27 @@ const createHealthTips = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateHealthTip = await createHealthTipUtil.update(
-        request,
-        next
-      );
+      const result = await createHealthTipUtil.update(request, next);
 
-      if (responseFromUpdateHealthTip.success === true) {
-        const status = responseFromUpdateHealthTip.status
-          ? responseFromUpdateHealthTip.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateHealthTip.message,
-          updated_tip: responseFromUpdateHealthTip.data,
+          message: result.message,
+          updated_tip: result.data,
         });
-      } else if (responseFromUpdateHealthTip.success === false) {
-        const status = responseFromUpdateHealthTip.status
-          ? responseFromUpdateHealthTip.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateHealthTip.message,
-          errors: responseFromUpdateHealthTip.errors
-            ? responseFromUpdateHealthTip.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
