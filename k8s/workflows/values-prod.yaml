@@ -1,7 +1,7 @@
 app:
   name: workflows
   label: workflows
-  namespace: workflows
+  namespace: pipeline
   configmap: workflows-config
 replicaCount: 2
 serviceAccountName: workflows-sa

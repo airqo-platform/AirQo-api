@@ -2,7 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: workflows
-  namespace: workflows
+  namespace: pipeline
 spec:
   host: platform.airqo.net
   upstreams:
@@ -115,7 +115,7 @@ spec:
       action:
         pass: platform-ui
     - path: /workflows
-      route: workflows/workflows
+      route: pipeline/workflows
     - path: /argocd
       route: cicd/argocd
     - path: /inventory
