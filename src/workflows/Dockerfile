@@ -39,7 +39,7 @@ USER airflow
 FROM base-builder as xcom-setup
 USER root
 COPY xcom-setup.sh /usr/local/bin/xcom-setup.sh
-COPY workflows_xcom/* /usr/local/bin/workflows_xcom/
+COPY airflow_xcom/* /usr/local/bin/airflow_xcom/
 RUN chmod 777 /usr/local/bin/xcom-setup.sh
 ENTRYPOINT ["/usr/local/bin/xcom-setup.sh"]
 
