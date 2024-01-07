@@ -478,7 +478,7 @@ jobs:
         run: |
           cd src/workflows/
           gcloud secrets versions access latest --secret="sta-env-airflow" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env workflows-config | kubectl replace -f - -n pipeline
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 
   ### predict api and jobs ###
   predict-service:
