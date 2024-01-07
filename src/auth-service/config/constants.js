@@ -4,5 +4,5 @@ const global = require("./global");
 function envConfig(env) {
   return { ...global, ...environments[env] };
 }
-
-module.exports = envConfig(process.env.NODE_ENV);
+const environment = process.env.NODE_ENV || "production";
+module.exports = envConfig(environment);
