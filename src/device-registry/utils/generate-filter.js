@@ -550,6 +550,135 @@ const generateFilter = {
 
     return filter;
   },
+  telemetry: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_id,
+      is_reading_primary,
+      site_id,
+      startTime,
+      endTime,
+      skip,
+      limit,
+      frequency,
+    } = { ...query, ...params };
+
+    // Constants for date calculations
+    const today = monthsInfront(0);
+    const oneWeekBack = addDays(-7);
+
+    // Initial filter object
+    const filter = {
+      time: {
+        $gte: oneWeekBack,
+        $lte: today,
+      },
+    };
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["time"]["$gte"] = start;
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["time"]["$lte"] = end;
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (startTime && endTime) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 1) {
+        if (!isTimeEmpty(endTime)) {
+          filter["time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["time"];
+        }
+      }
+    }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["device"]["$in"] = mergedArray;
+    } else {
+      delete filter["device"];
+    }
+
+    if (is_reading_primary) {
+      filter["is_reading_primary"] = is_reading_primary;
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["device_id"]["$in"] = deviceIdArray;
+      filter["metadata"] = "device_id";
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["frequency"] = frequency;
+    } else {
+      filter["frequency"] = "hourly";
+    }
+
+    return filter;
+  },
   devices: (req, next) => {
     const {
       name,

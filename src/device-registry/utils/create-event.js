@@ -914,7 +914,7 @@ const createEvent = {
       const {
         query: { tenant, language },
       } = request;
-      const filter = generateFilter.readings(request, next);
+      const filter = generateFilter.telemetry(request, next);
 
       try {
         const cacheResult = await Promise.race([
