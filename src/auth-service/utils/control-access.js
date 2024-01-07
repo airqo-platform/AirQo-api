@@ -251,41 +251,60 @@ const trampoline = (fn) => {
   return fn;
 };
 const isIPBlacklistedHelper = async (
-  { ip = "", email = "", token = "", token_name = "", endpoint = "" } = {},
+  { request, next } = {},
   retries = 3,
   delay = 1000
 ) => {
   try {
-    const [blacklistedIP, whitelistedIP, blacklistedRanges, unknownIP] =
-      await Promise.all([
-        BlacklistedIPModel("airqo").findOne({ ip }),
-        WhitelistedIPModel("airqo").findOne({ ip }),
-        BlacklistedIPRangeModel("airqo").find(),
-        UnknownIPModel("airqo").findOne({ ip }),
-      ]);
-
+    const day = getDay();
+    const ip =
+      request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
+    const endpoint = request.headers["x-original-uri"] || "taking";
+    let acessTokenFilter = generateFilter.tokens(request, next);
+    const timeZone = moment.tz.guess();
+    acessTokenFilter.expires = {
+      $gt: moment().tz(timeZone).toDate(),
+    };
+    const [
+      blacklistedIP,
+      whitelistedIP,
+      blacklistedRanges,
+      unknownIP,
+      accessToken,
+    ] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      BlacklistedIPRangeModel("airqo").find(),
+      UnknownIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+    ]);
     const isInRange = blacklistedRanges.some((range) =>
       rangeCheck(ip, range.range)
     );
+    function shouldLogIpAddress(ip, blockedIps) {
+      return !blockedIps.has(ip);
+    }
+    const blockedIps = new Set(["66"]); // Add more IP prefixes as needed
+    const { token, name, client_id } = accessToken._doc;
 
     if (whitelistedIP) {
       return false;
-    }
-
-    if (blacklistedIP || isInRange) {
+    } else if (!accessToken || blacklistedIP || isInRange) {
+      if (shouldLogIpAddress(ip, blockedIps)) {
+        logger.info(
+          `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+        );
+      }
       return true;
-    }
-
-    const day = getDay();
-    const filter = { ip };
-
-    if (!unknownIP) {
+    } else if (!unknownIP) {
       const document = await UnknownIPModel("airqo").create({
         ip,
-        emails: [email],
         tokens: [token],
-        token_names: [token_name],
+        token_names: [name],
         endpoints: [endpoint],
+        client_ids: [client_id],
         ipCounts: [{ day, count: 1 }],
       });
       if (!document) {
@@ -295,11 +314,7 @@ const isIPBlacklistedHelper = async (
         );
         if (retries > 0) {
           await new Promise((resolve) => setTimeout(resolve, delay));
-          return isIPBlacklistedHelper(
-            { ip, email, token, token_name, endpoint },
-            retries - 1,
-            delay
-          );
+          return isIPBlacklistedHelper({ request, next }, retries - 1, delay);
         }
       }
       return false;
@@ -311,9 +326,9 @@ const isIPBlacklistedHelper = async (
       if (checkDoc) {
         const update = {
           $addToSet: {
-            emails: email,
+            client_ids: client_id,
             tokens: token,
-            token_names: token_name,
+            token_names: name,
             endpoints: endpoint,
           },
           $inc: {
@@ -327,21 +342,21 @@ const isIPBlacklistedHelper = async (
           runValidators: true,
         };
 
-        await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+        await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
         return false;
       } else {
         const update = {
           $addToSet: {
-            emails: email,
+            client_ids: client_id,
             tokens: token,
-            token_names: token_name,
+            token_names: name,
             endpoints: endpoint,
           },
           $push: {
             ipCounts: { day, count: 1 },
           },
         };
-        await UnknownIPModel("airqo").findOneAndUpdate(filter, update);
+        await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update);
         return false;
       }
     }
@@ -362,11 +377,7 @@ const isIPBlacklistedHelper = async (
         `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return isIPBlacklisted(
-        { ip, email, token, token_name, endpoint },
-        retries - 1,
-        delay
-      );
+      return isIPBlacklisted({ request, next }, retries - 1, delay);
     } else if (error.name === "MongoError") {
       const jsonErrorString = stringify(error);
       switch (error.code) {
@@ -381,10 +392,9 @@ const isIPBlacklistedHelper = async (
     } else {
       const jsonErrorString = stringify(error);
       logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
+      return true;
     }
   }
-
-  return false;
 };
 
 const isIPBlacklisted = (...args) =>
@@ -689,139 +699,25 @@ const controlAccess = {
   },
   verifyToken: async (request, next) => {
     try {
-      const { tenant, limit, skip } = { ...request.query };
-      let filter = generateFilter.tokens(request, next);
-      const timeZone = moment.tz.guess();
-      filter.expires = {
-        $gt: moment().tz(timeZone).toDate(),
-      };
+      const ip =
+        request.headers["x-client-ip"] ||
+        request.headers["x-client-original-ip"];
 
-      const service = getService(request.headers);
-      if (service === "deprecated-version-number") {
+      if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
         return createUnauthorizedResponse();
       }
-      const userAction = getUserAction(request.headers);
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list(
-        {
-          skip,
-          limit,
-          filter,
-        },
-        next
-      );
-      // logObject(
-      //   "responseFromListAccessToken.data",
-      //   responseFromListAccessToken.data
-      // );
+      const isBlacklisted = await isIPBlacklisted({
+        request,
+        next,
+      });
 
-      // logObject(
-      //   "responseFromListAccessToken.data[0]",
-      //   responseFromListAccessToken.data[0]
-      // );
-      // logObject(
-      //   "request.headers[x-original-uri]",
-      //   request.headers["x-original-uri"]
-      // );
-      // logObject(
-      //   "request.headers[x-original-method]",
-      //   request.headers["x-original-method"]
-      // );
-
-      // logObject(
-      //   "request.headers['x-host-name']",
-      //   request.headers["x-host-name"]
-      // );
-      // logObject(
-      //   "request.headers['x-client-ip']",
-      //   request.headers["x-client-ip"]
-      // );
-
-      // logObject(
-      //   "request.headers['x-client-original-ip']",
-      //   request.headers["x-client-original-ip"]
-      // );
-
-      if (responseFromListAccessToken.success === true) {
-        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          return createUnauthorizedResponse();
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const clientIp = request.headers["x-client-ip"];
-          const hostName = request.headers["x-host-name"];
-          const endpoint = request.headers["x-original-uri"];
-          const clientOriginalIp = request.headers["x-client-original-ip"];
-
-          // logObject("service", service);
-          // logObject("userAction", userAction);
-
-          const {
-            name = "",
-            token = "",
-            user: { email = "", userName = "", _id = "" } = {},
-          } = responseFromListAccessToken.data[0];
-
-          // logObject("email", email);
-          // logObject("userName", userName);
-
-          if (service && userAction) {
-            if (!isEmpty(clientIp)) {
-              const ip = clientIp;
-              const token_name = name;
-
-              function shouldLogIpAddress(ip, blockedIps) {
-                return !blockedIps.has(ip);
-              }
-              const blockedIps = new Set(["66"]); // Add more IP prefixes as needed
-
-              const isBlacklisted = await isIPBlacklisted({
-                ip,
-                email,
-                token,
-                token_name,
-                endpoint,
-              });
-              if (isBlacklisted) {
-                if (shouldLogIpAddress(clientIp, blockedIps)) {
-                  logger.info(
-                    `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
-                  );
-                }
-                return createUnauthorizedResponse();
-              }
-            } else {
-              logger.info(
-                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
-              );
-              return createUnauthorizedResponse();
-            }
-
-            if (!isEmpty(_id)) {
-              const currentDate = new Date();
-              await UserModel("airqo").findByIdAndUpdate(_id, {
-                lastLogin: currentDate,
-                isActive: true,
-              });
-            }
-
-            winstonLogger.info(userAction, {
-              email,
-              username: userName,
-              service: service,
-              clientIp: clientIp ? clientIp : "unknown",
-              hostName: hostName ? hostName : "unknown",
-              endpoint: endpoint ? endpoint : "unknown",
-              clientOriginalIp: clientOriginalIp ? clientOriginalIp : "unknown",
-            });
-
-            return createValidTokenResponse();
-          } else {
-            logger.info(
-              `🚨🚨 An AirQo Analytics Access Token is being used without known service -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} -- ENDPOINT: ${endpoint}`
-            );
-          }
-        }
-      } else if (responseFromListAccessToken.success === false) {
-        return responseFromListAccessToken;
+      if (isBlacklisted) {
+        return createUnauthorizedResponse();
+      } else {
+        return createValidTokenResponse();
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

@@ -257,7 +257,6 @@ const dbProjections = {
 
     return projection;
   },
-
   USERS_INCLUSION_PROJECTION: {
     _id: 1,
     firstName: 1,
@@ -494,7 +493,6 @@ const dbProjections = {
 
     return projection;
   },
-
   ACCESS_REQUESTS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,
@@ -511,7 +509,6 @@ const dbProjections = {
     updatedAt: 1,
     user: { $arrayElemAt: ["$user", 0] },
   },
-
   ACCESS_REQUESTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       nothing: 0,
@@ -565,7 +562,6 @@ const dbProjections = {
 
     return projection;
   },
-
   CANDIDATES_INCLUSION_PROJECTION: {
     _id: 1,
     firstName: 1,
@@ -588,7 +584,6 @@ const dbProjections = {
     existing_user: { $arrayElemAt: ["$user", 0] },
     network: { $arrayElemAt: ["$network", 0] },
   },
-
   CANDIDATES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "existing_user.locationCount": 0,
@@ -625,7 +620,6 @@ const dbProjections = {
 
     return projection;
   },
-
   FAVORITES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
@@ -636,7 +630,6 @@ const dbProjections = {
     place_id: 1,
     firebase_user_id: 1,
   },
-
   FAVORITES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
@@ -646,7 +639,6 @@ const dbProjections = {
 
     return projection;
   },
-
   GROUPS_INCLUSION_PROJECTION: {
     _id: 1,
     grp_title: 1,
@@ -669,7 +661,6 @@ const dbProjections = {
     grp_users: "$grp_users",
     grp_manager: { $arrayElemAt: ["$grp_manager", 0] },
   },
-
   GROUPS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "grp_users.__v": 0,
@@ -740,7 +731,6 @@ const dbProjections = {
     }
     return projection;
   },
-
   LOCATION_HISTORIES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
@@ -752,7 +742,6 @@ const dbProjections = {
     firebase_user_id: 1,
     date_time: 1,
   },
-
   LOCATION_HISTORIES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
@@ -762,7 +751,6 @@ const dbProjections = {
 
     return projection;
   },
-
   SEARCH_HISTORIES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
@@ -773,7 +761,6 @@ const dbProjections = {
     firebase_user_id: 1,
     date_time: 1,
   },
-
   SEARCH_HISTORIES_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
@@ -783,7 +770,6 @@ const dbProjections = {
 
     return projection;
   },
-
   TOKENS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,
@@ -798,7 +784,6 @@ const dbProjections = {
     client: { $arrayElemAt: ["$client", 0] },
     user: { $arrayElemAt: ["$user", 0] },
   },
-
   TOKENS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
       "user._id": 0,
@@ -848,9 +833,40 @@ const dbProjections = {
     ipCounts: 1,
     createdAt: 1,
     updatedAt: 1,
+    clients: "$clients",
+    users: "$users",
   },
   IPS_EXCLUSION_PROJECTION: function (category) {
-    const initialProjection = { nothing: 0 };
+    const initialProjection = {
+      "clients.user_id": 0,
+      "clients.client_secret": 0,
+      "clients.createdAt": 0,
+      "clients.updatedAt": 0,
+      "clients.__v": 0,
+      "users.notifications": 0,
+      "users.emailConfirmed": 0,
+      "users.locationCount": 0,
+      "users.organization": 0,
+      "users.long_organization": 0,
+      "users.jobTitle": 0,
+      "users.website": 0,
+      "users.password": 0,
+      "users.description": 0,
+      "users.category": 0,
+      "users.privilege": 0,
+      "users.userName": 0,
+      "users.duration": 0,
+      "users.__v": 0,
+      "users.phoneNumber": 0,
+      "users.updatedAt": 0,
+      "users.networks": 0,
+      "users.role": 0,
+      "users.resetPasswordExpires": 0,
+      "users.resetPasswordToken": 0,
+      "users.network_roles": 0,
+      "users.group_roles": 0,
+      "users.isActive": 0,
+    };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
