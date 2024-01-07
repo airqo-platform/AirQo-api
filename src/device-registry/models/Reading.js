@@ -65,6 +65,12 @@ const ReadingsSchema = new Schema(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        fields: { time: 1 },
+        expireAfterSeconds: 60 * 60 * 24 * 60, // 2 months in seconds
+      },
+    ],
   }
 );
 
