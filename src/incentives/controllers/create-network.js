@@ -5,7 +5,7 @@ const createNetworkUtil = require("@utils/create-network");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-network-controller`
+  `${constants.ENVIRONMENT} -- create-network-controller`
 );
 const isEmpty = require("is-empty");
 

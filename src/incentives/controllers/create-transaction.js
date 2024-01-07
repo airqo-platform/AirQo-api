@@ -4,9 +4,7 @@ const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
-  `${
-    constants.ENVIRONMENT || "TEST ENVIRONMENT"
-  } -- create-transaction-controller`
+  `${constants.ENVIRONMENT} -- create-transaction-controller`
 );
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
