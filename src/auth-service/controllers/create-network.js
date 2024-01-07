@@ -29,7 +29,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.getNetworkFromEmail(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -80,7 +80,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -131,7 +131,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.assignUsersHybrid(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -181,7 +181,7 @@ const createNetwork = {
         : req.query.tenant;
 
       const result = await createNetworkUtil.assignOneUser(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -232,7 +232,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.unAssignUser(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -283,7 +283,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.unAssignManyUsers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -335,7 +335,7 @@ const createNetwork = {
         : req.query.tenant;
 
       const result = await createNetworkUtil.setManager(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -388,7 +388,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -439,7 +439,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.refresh(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -500,7 +500,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -551,7 +551,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -602,7 +602,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -652,7 +652,7 @@ const createNetwork = {
 
       const result = await controlAccessUtil.listRolesForNetwork(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -703,7 +703,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.listAssignedUsers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -761,7 +761,7 @@ const createNetwork = {
 
       const result = await createNetworkUtil.listAvailableUsers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

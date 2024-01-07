@@ -30,7 +30,7 @@ const createLocationHistory = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -83,7 +83,7 @@ const createLocationHistory = {
 
       const result = await createLocationHistoryUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -135,7 +135,7 @@ const createLocationHistory = {
 
       const result = await createLocationHistoryUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -187,7 +187,7 @@ const createLocationHistory = {
 
       const result = await createLocationHistoryUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -239,7 +239,7 @@ const createLocationHistory = {
 
       const result = await createLocationHistoryUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

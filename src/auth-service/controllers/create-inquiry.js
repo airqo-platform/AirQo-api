@@ -24,7 +24,7 @@ const inquiry = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createInquiryUtil.create(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -75,7 +75,7 @@ const inquiry = {
         : req.query.tenant;
 
       const result = await createInquiryUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -124,7 +124,7 @@ const inquiry = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createInquiryUtil.delete(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -175,7 +175,7 @@ const inquiry = {
         : req.query.tenant;
 
       const result = await createInquiryUtil.update(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

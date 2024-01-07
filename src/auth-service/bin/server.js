@@ -28,6 +28,7 @@ const logger = log4js.getLogger(
 );
 const { logText, logObject } = require("@utils/log");
 const fileUpload = require("express-fileupload");
+const stringify = require("@utils/stringify");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -81,64 +82,72 @@ app.use((req, res, next) => {
 });
 
 app.use(function (err, req, res, next) {
-  if (err instanceof HttpError) {
-    res.status(err.statusCode).json({
-      success: false,
-      message: err.message,
-      errors: err.errors,
-    });
-  } else if (err.status === 404) {
-    res.status(err.status).json({
-      success: false,
-      message: "This endpoint does not exist",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 400) {
-    logger.error(`Bad request error --- ${JSON.stringify(err)}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Bad request error",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 401) {
-    logger.error(`Unauthorized --- ${JSON.stringify(err)}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Unauthorized",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 403) {
-    logger.error(`Forbidden --- ${JSON.stringify(err)}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Forbidden",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 500) {
-    // logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
-    // logger.error(`Stack Trace: ${err.stack}`);
-    logObject("the error", err);
-    res.status(err.status).json({
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 502 || err.status === 503 || err.status === 504) {
-    logger.error(`${err.message} --- ${JSON.stringify(err)}`);
-    res.status(err.status).json({
-      success: false,
-      message: err.message,
-      errors: { message: err.message },
-    });
+  if (!res.headersSent) {
+    if (err instanceof HttpError) {
+      res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        errors: err.errors,
+      });
+    } else if (err.status === 404) {
+      res.status(err.status).json({
+        success: false,
+        message: "This endpoint does not exist",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 400) {
+      logger.error(`Bad request error --- ${JSON.stringify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Bad request error",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 401) {
+      logger.error(`Unauthorized --- ${JSON.stringify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Unauthorized",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 403) {
+      logger.error(`Forbidden --- ${JSON.stringify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Forbidden",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 500) {
+      // logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
+      // logger.error(`Stack Trace: ${err.stack}`);
+      logObject("the error", err);
+      res.status(err.status).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 502 || err.status === 503 || err.status === 504) {
+      logger.error(`${err.message} --- ${JSON.stringify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: err.message,
+        errors: { message: err.message },
+      });
+    } else {
+      logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
+      logObject("Internal Server Error", err);
+      logger.error(`Stack Trace: ${err.stack}`);
+      res.status(err.status || 500).json({
+        success: false,
+        message: "Internal Server Error - app entry",
+        errors: { message: err.message },
+      });
+    }
   } else {
-    logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
-    logObject("Internal Server Error", err);
-    logger.error(`Stack Trace: ${err.stack}`);
-    res.status(err.status || 500).json({
-      success: false,
-      message: "Internal Server Error - app entry",
-      errors: { message: err.message },
-    });
+    logger.error(
+      `Headers have already been sent, unable to send error response -- ${stringify(
+        err
+      )}`
+    );
   }
 });
 

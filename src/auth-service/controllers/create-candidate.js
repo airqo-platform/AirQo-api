@@ -60,7 +60,7 @@ const createCandidate = {
 
       const result = await createCandidateUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -112,7 +112,7 @@ const createCandidate = {
         : req.query.tenant;
 
       const result = await createCandidateUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -167,7 +167,7 @@ const createCandidate = {
         : req.query.tenant;
 
       const result = await createCandidateUtil.confirm(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -219,7 +219,7 @@ const createCandidate = {
 
       const result = await createCandidateUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -273,7 +273,7 @@ const createCandidate = {
 
       const result = await createCandidateUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

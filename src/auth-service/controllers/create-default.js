@@ -27,7 +27,7 @@ const defaults = {
 
       const result = await createDefaultUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -78,7 +78,7 @@ const defaults = {
 
       const result = await createDefaultUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -131,7 +131,7 @@ const defaults = {
 
       const result = await createDefaultUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -182,7 +182,7 @@ const defaults = {
 
       const result = await createDefaultUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

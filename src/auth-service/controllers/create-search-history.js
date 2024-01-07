@@ -31,7 +31,7 @@ const createSearchHistory = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -84,7 +84,7 @@ const createSearchHistory = {
 
       const result = await createSearchHistoryUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -136,7 +136,7 @@ const createSearchHistory = {
 
       const result = await createSearchHistoryUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -188,7 +188,7 @@ const createSearchHistory = {
 
       const result = await createSearchHistoryUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -240,7 +240,7 @@ const createSearchHistory = {
 
       const result = await createSearchHistoryUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

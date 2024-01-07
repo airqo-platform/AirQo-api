@@ -59,7 +59,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.createAccessToken(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -109,7 +109,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.listAccessToken(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -192,7 +192,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.deleteAccessToken(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       } else {
         handleResponse({
@@ -234,7 +234,7 @@ const createAccessToken = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -284,7 +284,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.updateAccessToken(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -339,7 +339,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.blackListIp(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -389,7 +389,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.blackListIps(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -439,7 +439,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.removeBlacklistedIp(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -489,7 +489,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.blackListIpRange(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -542,7 +542,7 @@ const createAccessToken = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -595,7 +595,7 @@ const createAccessToken = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -648,7 +648,7 @@ const createAccessToken = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -698,7 +698,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.whiteListIp(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -748,7 +748,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.removeWhitelistedIp(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -798,7 +798,7 @@ const createAccessToken = {
 
       const result = await controlAccessUtil.listUnknownIPs(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

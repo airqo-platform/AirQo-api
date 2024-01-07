@@ -1146,7 +1146,22 @@ const controlAccess = {
       const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody, next);
-      return responseFromCreateClient;
+
+      if (responseFromCreateClient.success === true) {
+        const ip = request.body.ip_address;
+        if (ip) {
+          const newWhitelistResponse = await WhitelistedIPModel(
+            tenant
+          ).register({ ip }, next);
+          if (newWhitelistResponse.success === false) {
+            return newWhitelistResponse;
+          } else {
+            return responseFromCreateClient;
+          }
+        }
+      } else if (responseFromCreateClient.success === false) {
+        return responseFromCreateClient;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1156,6 +1171,7 @@ const controlAccess = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateClientSecret: async (request, next) => {

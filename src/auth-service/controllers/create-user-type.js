@@ -31,7 +31,7 @@ const createUserType = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -86,7 +86,7 @@ const createUserType = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -139,7 +139,7 @@ const createUserType = {
 
       const result = await controlAccessUtil.assignUserType(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -194,7 +194,7 @@ const createUserType = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

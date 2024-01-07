@@ -27,7 +27,7 @@ const checklists = {
 
       const result = await createChecklistUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -78,7 +78,7 @@ const checklists = {
 
       const result = await createChecklistUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -131,7 +131,7 @@ const checklists = {
 
       const result = await createChecklistUtil.upsert(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -184,7 +184,7 @@ const checklists = {
 
       const result = await createChecklistUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -235,7 +235,7 @@ const checklists = {
 
       const result = await createChecklistUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
