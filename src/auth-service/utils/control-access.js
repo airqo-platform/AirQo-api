@@ -287,11 +287,17 @@ const isIPBlacklistedHelper = async (
       return !blockedIps.has(ip);
     }
     const blockedIps = new Set(["66"]); // Add more IP prefixes as needed
-    const { token, name, client_id } = accessToken._doc;
+    const {
+      token = "",
+      name = "",
+      client_id = "",
+    } = (accessToken && accessToken._doc) || {};
 
-    if (whitelistedIP) {
+    if (!accessToken) {
+      return true;
+    } else if (whitelistedIP) {
       return false;
-    } else if (!accessToken || blacklistedIP || isInRange) {
+    } else if (blacklistedIP || isInRange) {
       if (shouldLogIpAddress(ip, blockedIps)) {
         logger.info(
           `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
@@ -738,15 +744,15 @@ const controlAccess = {
 
       const filter = generateFilter.tokens(request, next);
 
-      if (isEmpty(token)) {
-        next(
-          new HttpError(
-            "service is temporarily disabled",
-            httpStatus.NOT_IMPLEMENTED,
-            { message: "service is temporarily disabled" }
-          )
-        );
-      }
+      // if (isEmpty(token)) {
+      //   next(
+      //     new HttpError(
+      //       "service is temporarily disabled",
+      //       httpStatus.NOT_IMPLEMENTED,
+      //       { message: "service is temporarily disabled" }
+      //     )
+      //   );
+      // }
 
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
