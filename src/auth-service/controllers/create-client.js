@@ -27,7 +27,7 @@ const createClient = {
 
       const result = await controlAccessUtil.createClient(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -77,7 +77,7 @@ const createClient = {
 
       const result = await controlAccessUtil.listClient(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -129,7 +129,7 @@ const createClient = {
 
       const result = await controlAccessUtil.deleteClient(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -179,7 +179,7 @@ const createClient = {
 
       const result = await controlAccessUtil.updateClient(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -233,7 +233,7 @@ const createClient = {
 
       const result = await controlAccessUtil.updateClientSecret(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

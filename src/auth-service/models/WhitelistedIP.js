@@ -34,9 +34,8 @@ WhitelistedIPSchema.index({ ip: 1 }, { unique: true });
 WhitelistedIPSchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = args;
       const data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
@@ -55,18 +54,26 @@ WhitelistedIPSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        const duplicate_record = args.ip ? args.ip : "";
+        response[duplicate_record] = `${duplicate_record} must be unique`;
+        response["message"] = "the ip must be unique";
       }
 
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError("input validation errors", httpStatus.CONFLICT, response)
-      );
+      next(new HttpError(message, status, response));
+      return;
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {

@@ -30,7 +30,7 @@ const createGroup = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -78,7 +78,7 @@ const createGroup = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createGroupUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -133,7 +133,7 @@ const createGroup = {
 
       const result = await controlAccessUtil.listRolesForGroup(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -182,7 +182,7 @@ const createGroup = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createGroupUtil.create(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -230,7 +230,7 @@ const createGroup = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createGroupUtil.update(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -277,7 +277,7 @@ const createGroup = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createGroupUtil.delete(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -327,7 +327,7 @@ const createGroup = {
 
       const result = await createGroupUtil.assignUsersHybrid(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -378,7 +378,7 @@ const createGroup = {
 
       const result = await createGroupUtil.assignOneUser(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -429,7 +429,7 @@ const createGroup = {
 
       const result = await createGroupUtil.unAssignUser(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -480,7 +480,7 @@ const createGroup = {
 
       const result = await createGroupUtil.unAssignManyUsers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -532,7 +532,7 @@ const createGroup = {
 
       const result = await createGroupUtil.listAssignedUsers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -580,7 +580,7 @@ const createGroup = {
         ? defaultTenant
         : req.query.tenant;
       const result = await createGroupUtil.listAvailableUsers(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -629,7 +629,7 @@ const createGroup = {
         : req.query.tenant;
 
       const result = await createGroupUtil.listAllGroupUsers(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -681,7 +681,7 @@ const createGroup = {
 
       const result = await createGroupUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

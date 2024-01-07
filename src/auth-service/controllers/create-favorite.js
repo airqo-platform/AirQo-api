@@ -28,7 +28,7 @@ const createFavorite = {
 
       const result = await createFavoriteUtil.syncFavorites(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -81,7 +81,7 @@ const createFavorite = {
 
       const result = await createFavoriteUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -132,7 +132,7 @@ const createFavorite = {
         : req.query.tenant;
       const result = await createFavoriteUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -183,7 +183,7 @@ const createFavorite = {
         : req.query.tenant;
       const result = await createFavoriteUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -235,7 +235,7 @@ const createFavorite = {
 
       const result = await createFavoriteUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

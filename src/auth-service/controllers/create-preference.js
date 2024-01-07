@@ -27,7 +27,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -78,7 +78,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -129,7 +129,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.upsert(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -180,7 +180,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.replace(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -233,7 +233,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -284,7 +284,7 @@ const preferences = {
 
       const result = await createPreferenceUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
