@@ -1,3 +1,4 @@
+#Not really needed, as deployments are created by the helm chart
 kind: Deployment
 apiVersion: apps/v1
 metadata:
