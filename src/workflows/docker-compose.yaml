@@ -1,3 +1,4 @@
+# Only for local development, not used in production setting only Dockerfile
 version: "3.4"
 
 x-common-data: &common-data
