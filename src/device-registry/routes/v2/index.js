@@ -6,6 +6,7 @@ router.use("/airqlouds", require("@routes/v2/airqlouds"));
 router.use("/sites", require("@routes/v2/sites"));
 router.use("/devices", require("@routes/v2/devices"));
 router.use("/events", require("@routes/v2/events"));
+router.use("/readings", require("@routes/v2/readings"));
 router.use("/measurements", require("@routes/v2/measurements"));
 router.use("/locations", require("@routes/v2/locations"));
 router.use("/photos", require("@routes/v2/photos"));

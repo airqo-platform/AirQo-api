@@ -69,9 +69,9 @@ async function fetchAndStoreData() {
               if (error.name === "MongoError" && error.code === 11000) {
                 bail(error); // Stop retrying and throw the error immediately
               }
-              logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
-              console.error("Insertion failed, retrying...", error);
-              throw error; // Retry the operation
+              // logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
+              // console.error("Insertion failed, retrying...", error);
+              // throw error; // Retry the operation
             }
           },
           {
@@ -95,7 +95,7 @@ async function fetchAndStoreData() {
       return;
     }
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
+    // logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
     console.error("Failed to insert data", error);
     return;
   }
