@@ -1,8 +1,6 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- errors-util`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- errors-util`);
 const { logObject } = require("@utils/log");
 const { validationResult } = require("express-validator");
 

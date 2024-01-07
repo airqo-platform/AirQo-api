@@ -7,9 +7,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- network-model`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-model`);
 const { getModelByTenant } = require("@config/database");
 const { HttpError } = require("@utils/errors");
 

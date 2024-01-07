@@ -6,7 +6,7 @@ const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT || "TEST ENVIRONMENT"} -- create-network-util`
+  `${constants.ENVIRONMENT} -- create-network-util`
 );
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
