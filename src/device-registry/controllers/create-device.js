@@ -128,7 +128,7 @@ const device = {
       let arrayOfEncryptedKeys = req.body;
       let result = createDeviceUtil.decryptManyKeys(arrayOfEncryptedKeys, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -180,7 +180,7 @@ const device = {
       let { encrypted_key } = req.body;
       let result = createDeviceUtil.decryptKey(encrypted_key, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -231,7 +231,7 @@ const device = {
 
       const result = await createDeviceUtil.getDevicesCount(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -282,7 +282,7 @@ const device = {
 
       const result = await createDeviceUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -332,7 +332,7 @@ const device = {
 
       const result = await createDeviceUtil.generateQR(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -384,7 +384,7 @@ const device = {
 
       const result = await createDeviceUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -436,7 +436,7 @@ const device = {
 
       const result = await createDeviceUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -488,7 +488,7 @@ const device = {
 
       const result = await createDeviceUtil.refresh(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -541,7 +541,7 @@ const device = {
 
       const result = await createDeviceUtil.encryptKeys(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -595,7 +595,7 @@ const device = {
 
       const result = await createDeviceUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement("is result in controller a success?", result.success);
@@ -649,7 +649,7 @@ const device = {
       request.query.category = "summary";
       const result = await createDeviceUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -712,7 +712,7 @@ const device = {
 
       const result = await createDeviceUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -762,7 +762,7 @@ const device = {
 
       const result = await createDeviceUtil.updateOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -814,7 +814,7 @@ const device = {
 
       const result = await createDeviceUtil.deleteOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -866,7 +866,7 @@ const device = {
 
       const result = await createDeviceUtil.createOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

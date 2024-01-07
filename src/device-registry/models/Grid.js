@@ -276,6 +276,7 @@ gridSchema.statics.list = async function(
         message: error.message,
       })
     );
+    return;
   }
 };
 
