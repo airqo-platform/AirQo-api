@@ -63,7 +63,7 @@ const processImage = {
 
       const result = await createPhotoUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -118,7 +118,7 @@ const processImage = {
 
       const result = await createPhotoUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -169,7 +169,7 @@ const processImage = {
 
       const result = await createPhotoUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -220,7 +220,7 @@ const processImage = {
 
       const result = await createPhotoUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -273,7 +273,7 @@ const processImage = {
 
       const result = await createPhotoUtil.createPhotoOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -324,7 +324,7 @@ const processImage = {
 
       const result = await createPhotoUtil.deletePhotoOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -375,7 +375,7 @@ const processImage = {
 
       const result = await createPhotoUtil.updatePhotoOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -430,7 +430,7 @@ const processImage = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -488,7 +488,7 @@ const processImage = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -546,7 +546,7 @@ const processImage = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

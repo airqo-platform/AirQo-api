@@ -92,7 +92,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result in controller", result);
@@ -149,7 +149,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -208,7 +208,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -261,7 +261,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.refresh(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -314,7 +314,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.findSites(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -369,7 +369,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -426,7 +426,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -487,7 +487,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(
@@ -547,7 +547,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -611,7 +611,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(
@@ -675,7 +675,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(

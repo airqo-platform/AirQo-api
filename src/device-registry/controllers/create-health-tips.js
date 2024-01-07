@@ -58,7 +58,7 @@ const createHealthTips = {
 
       const result = await createHealthTipUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -109,7 +109,7 @@ const createHealthTips = {
 
       const result = await createHealthTipUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -160,7 +160,7 @@ const createHealthTips = {
 
       const result = await createHealthTipUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -211,7 +211,7 @@ const createHealthTips = {
 
       const result = await createHealthTipUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

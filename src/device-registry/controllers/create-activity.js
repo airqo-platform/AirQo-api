@@ -59,7 +59,7 @@ const activity = {
 
       const result = await createActivityUtil.deploy(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -111,7 +111,7 @@ const activity = {
 
       const result = await createActivityUtil.recall(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -163,7 +163,7 @@ const activity = {
 
       const result = await createActivityUtil.maintain(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -281,7 +281,7 @@ const activity = {
 
       const result = await createActivityUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -336,7 +336,7 @@ const activity = {
 
       const result = await createActivityUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -389,7 +389,7 @@ const activity = {
 
       const result = await createActivityUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

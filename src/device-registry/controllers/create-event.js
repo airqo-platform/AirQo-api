@@ -511,7 +511,7 @@ const createEvent = {
 
       let result = await createEventUtil.insert(tenant, measurements, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -563,7 +563,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -626,7 +626,7 @@ const createEvent = {
 
       const result = await createEventUtil.latestFromBigQuery(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -698,7 +698,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -754,9 +754,11 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.list(request, next);
+      const result = await createEventUtil.view(request, next);
 
-      if (isEmpty(result)) {
+      // logObject("result", result);
+
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -811,7 +813,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -887,7 +889,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -969,7 +971,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -1035,7 +1037,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1104,7 +1106,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1163,7 +1165,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1221,7 +1223,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1279,7 +1281,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1336,7 +1338,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1393,7 +1395,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1447,7 +1449,7 @@ const createEvent = {
 
       const result = await createEventUtil.transformManyEvents(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1495,7 +1497,7 @@ const createEvent = {
         : req.query.tenant;
       const result = await createEventUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result util", result);
@@ -1551,7 +1553,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1608,7 +1610,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1658,7 +1660,7 @@ const createEvent = {
 
       const result = await createEventUtil.transmitValues(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1710,7 +1712,7 @@ const createEvent = {
 
       const result = await createEventUtil.clearEventsOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === false) {
@@ -1760,7 +1762,7 @@ const createEvent = {
 
       const result = await createEventUtil.addEvents(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1824,7 +1826,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -1904,7 +1906,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
         logObject("the result for listing events", result);
@@ -1984,7 +1986,7 @@ const createEvent = {
         logObject("the request.query we are sending", request.query);
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2064,7 +2066,7 @@ const createEvent = {
         logObject("the request.query we are sending", request.query);
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2145,7 +2147,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2226,7 +2228,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2302,7 +2304,7 @@ const createEvent = {
         radius,
       });
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);

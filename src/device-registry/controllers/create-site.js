@@ -156,7 +156,7 @@ const manageSite = {
         : req.query.tenant;
 
       const result = await createSiteUtil.create(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -207,7 +207,7 @@ const manageSite = {
 
       const result = await createSiteUtil.generateMetadata(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -257,7 +257,7 @@ const manageSite = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -307,7 +307,7 @@ const manageSite = {
 
       const result = await createSiteUtil.listWeatherStations(next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -357,7 +357,7 @@ const manageSite = {
 
       const result = await createSiteUtil.findAirQlouds(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -409,7 +409,7 @@ const manageSite = {
         : req.query.tenant;
 
       const result = await createSiteUtil.delete(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -459,7 +459,7 @@ const manageSite = {
         : req.query.tenant;
 
       const result = await createSiteUtil.update(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -510,7 +510,7 @@ const manageSite = {
         : req.query.tenant;
 
       const result = await createSiteUtil.refresh(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -564,7 +564,7 @@ const manageSite = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -616,7 +616,7 @@ const manageSite = {
       request.query.category = "summary";
 
       const result = await createSiteUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -667,7 +667,7 @@ const manageSite = {
         : req.query.tenant;
 
       const result = await createSiteUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -725,7 +725,7 @@ const manageSite = {
         { latitude, longitude, approximate_distance_in_km, bearing },
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {

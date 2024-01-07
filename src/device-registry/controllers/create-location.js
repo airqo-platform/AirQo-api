@@ -60,7 +60,7 @@ const createLocation = {
 
       const result = await createLocationUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -114,7 +114,7 @@ const createLocation = {
 
       const result = await createLocationUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -166,7 +166,7 @@ const createLocation = {
 
       const result = await createLocationUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -221,7 +221,7 @@ const createLocation = {
       request.query.summary = "yes";
 
       const result = await createLocationUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -274,7 +274,7 @@ const createLocation = {
 
       const result = await createLocationUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -327,7 +327,7 @@ const createLocation = {
 
       const result = await createLocationUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

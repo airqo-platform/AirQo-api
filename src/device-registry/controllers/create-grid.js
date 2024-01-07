@@ -60,7 +60,7 @@ const createGrid = {
 
       const result = await createGridUtil.listAdminLevels(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -114,7 +114,7 @@ const createGrid = {
 
       const result = await createGridUtil.updateAdminLevel(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -169,7 +169,7 @@ const createGrid = {
 
       const result = await createGridUtil.deleteAdminLevel(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -223,7 +223,7 @@ const createGrid = {
 
       const result = await createGridUtil.createAdminLevel(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -279,7 +279,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.create(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       // logObject("result in controller", result);
@@ -336,7 +336,7 @@ const createGrid = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -394,7 +394,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.delete(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -447,11 +447,11 @@ const createGrid = {
 
       const result = await createGridUtil.refresh(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -501,7 +501,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.findSites(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -554,7 +554,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.update(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -609,7 +609,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -664,7 +664,7 @@ const createGrid = {
       request.query.category = "summary";
 
       const result = await createGridUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -720,7 +720,7 @@ const createGrid = {
       request.query.dashboard = "yes";
 
       const result = await createGridUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -779,7 +779,7 @@ const createGrid = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === false) {
@@ -838,7 +838,7 @@ const createGrid = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === false) {
@@ -877,7 +877,7 @@ const createGrid = {
         : req.query.tenant;
 
       const result = await createGridUtil.listAvailableSites(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -932,7 +932,7 @@ const createGrid = {
 
       const result = await createGridUtil.listAssignedSites(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -994,7 +994,7 @@ const createGrid = {
 
       const result = await createGridUtil.getSiteAndDeviceIds(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1048,7 +1048,7 @@ const createGrid = {
 
       const result = await createGridUtil.filterOutPrivateSites(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
