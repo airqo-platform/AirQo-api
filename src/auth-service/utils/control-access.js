@@ -31,6 +31,7 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 const stringify = require("@utils/stringify");
+const async = require("async");
 
 const getDay = () => {
   const now = new Date();
@@ -161,6 +162,107 @@ const trampoline = (fn) => {
   }
   return fn;
 };
+
+let blacklistQueue = async.queue((task, callback) => {
+  let { ip, range } = task;
+  if (rangeCheck(ip, range)) {
+    // If the IP falls within the range, add it to the blacklist
+    BlacklistedIPModel("airqo")
+      .create({ ip })
+      .then(() => {
+        logger.info(`Added IP ${ip} to the blacklist.`);
+        callback();
+      });
+  } else {
+    callback();
+  }
+}, 2);
+
+let unknownIPQueue = async.queue((task, callback) => {
+  let { ip, token, name, client_id, endpoint, day } = task;
+  UnknownIPModel("airqo")
+    .findOne({
+      ip,
+      "ipCounts.day": day,
+    })
+    .then((checkDoc) => {
+      if (checkDoc) {
+        const update = {
+          $addToSet: {
+            client_ids: client_id,
+            tokens: token,
+            token_names: name,
+            endpoints: endpoint,
+          },
+          $inc: {
+            "ipCounts.$[elem].count": 1,
+          },
+        };
+        const options = {
+          arrayFilters: [{ "elem.day": day }],
+          upsert: true,
+          new: true,
+          runValidators: true,
+        };
+
+        UnknownIPModel("airqo")
+          .findOneAndUpdate({ ip }, update, options)
+          .then(() => {
+            callback();
+          });
+      } else {
+        const document = UnknownIPModel("airqo")
+          .create({
+            ip,
+            tokens: [token],
+            token_names: [name],
+            endpoints: [endpoint],
+            client_ids: [client_id],
+            ipCounts: [{ day, count: 1 }],
+          })
+          .then(() => {
+            callback();
+          });
+      }
+    });
+}, 2); // Limit the number of concurrent tasks to 2
+
+const postProcessing = async ({
+  ip,
+  token,
+  name,
+  client_id,
+  endpoint,
+  day,
+  unknownIP,
+}) => {
+  // When a blacklisted IP range is found, push it into the queue
+  let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
+  blacklistedRanges.forEach((range) => {
+    blacklistQueue.push({ ip, range });
+  });
+
+  if (!unknownIP) {
+    unknownIPQueue.push({
+      ip,
+      tokens: [token],
+      token_names: [name],
+      endpoints: [endpoint],
+      client_ids: [client_id],
+      day,
+    });
+  } else {
+    unknownIPQueue.push({
+      ip,
+      tokens: [token],
+      token_names: [name],
+      endpoints: [endpoint],
+      client_ids: [client_id],
+      day,
+    });
+  }
+};
+
 const isIPBlacklistedHelper = async (
   { request, next } = {},
   retries = 1,
@@ -170,54 +272,23 @@ const isIPBlacklistedHelper = async (
     const day = getDay();
     const ip =
       request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
-    const endpoint = request.headers["x-original-uri"] || "taking";
+    const endpoint = request.headers["x-original-uri"];
     let acessTokenFilter = generateFilter.tokens(request, next);
     const timeZone = moment.tz.guess();
     acessTokenFilter.expires = {
       $gt: moment().tz(timeZone).toDate(),
     };
-    // const [
-    //   blacklistedIP,
-    //   whitelistedIP,
-    //   blacklistedRanges,
-    //   unknownIP,
-    //   accessToken,
-    // ] = await Promise.all([
-    //   BlacklistedIPModel("airqo").findOne({ ip }),
-    //   WhitelistedIPModel("airqo").findOne({ ip }),
-    //   BlacklistedIPRangeModel("airqo").find(),
-    //   UnknownIPModel("airqo").findOne({ ip }),
-    //   AccessTokenModel("airqo")
-    //     .findOne(acessTokenFilter)
-    //     .select("name token client_id"),
-    // ]);
 
-    let promises = [];
-    promises.push(BlacklistedIPModel("airqo").findOne({ ip }));
-    promises.push(WhitelistedIPModel("airqo").findOne({ ip }));
-    promises.push(BlacklistedIPRangeModel("airqo").find());
-    promises.push(UnknownIPModel("airqo").findOne({ ip }));
-    promises.push(
-      AccessTokenModel("airqo")
-        .findOne(acessTokenFilter)
-        .select("name token client_id")
-    );
+    const [blacklistedIP, whitelistedIP, unknownIP, accessToken] =
+      await Promise.all([
+        BlacklistedIPModel("airqo").findOne({ ip }),
+        WhitelistedIPModel("airqo").findOne({ ip }),
+        UnknownIPModel("airqo").findOne({ ip }),
+        AccessTokenModel("airqo")
+          .findOne(acessTokenFilter)
+          .select("name token client_id"),
+      ]);
 
-    let results = await Promise.all(promises);
-
-    let blacklistedIP = results[0];
-    let whitelistedIP = results[1];
-    let blacklistedRanges = results[2];
-    let unknownIP = results[3];
-    let accessToken = results[4];
-
-    const isInRange = blacklistedRanges.some((range) =>
-      rangeCheck(ip, range.range)
-    );
-    function shouldLogIpAddress(ip, blockedIps) {
-      return !blockedIps.has(ip);
-    }
-    const blockedIps = new Set(["66"]); // Add more IP prefixes as needed
     const {
       token = "",
       name = "",
@@ -228,77 +299,19 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (whitelistedIP) {
       return false;
-    } else if (blacklistedIP || isInRange) {
-      if (shouldLogIpAddress(ip, blockedIps)) {
+    } else if (blacklistedIP) {
+      const BLOCKED_IP_PREFIXES = "65,66";
+      const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+      if (!blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
         logger.info(
           `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
         );
       }
       return true;
+    } else if (unknownIP) {
+      return false;
     }
-
-    // else if (!unknownIP) {
-    //   const document = await UnknownIPModel("airqo").create({
-    //     ip,
-    //     tokens: [token],
-    //     token_names: [name],
-    //     endpoints: [endpoint],
-    //     client_ids: [client_id],
-    //     ipCounts: [{ day, count: 1 }],
-    //   });
-    //   if (!document) {
-    //     logText(`🐛🐛 Failed to create record for this new IP address ${ip}.`);
-    //     logger.error(
-    //       `🐛🐛 Failed to store record for this new IP address ${ip}.`
-    //     );
-    //     if (retries > 0) {
-    //       await new Promise((resolve) => setTimeout(resolve, delay));
-    //       return isIPBlacklistedHelper({ request, next }, retries - 1, delay);
-    //     }
-    //   }
-    //   return false;
-    // } else {
-    //   const checkDoc = await UnknownIPModel("airqo").findOne({
-    //     ip,
-    //     "ipCounts.day": day,
-    //   });
-    //   if (checkDoc) {
-    //     const update = {
-    //       $addToSet: {
-    //         client_ids: client_id,
-    //         tokens: token,
-    //         token_names: name,
-    //         endpoints: endpoint,
-    //       },
-    //       $inc: {
-    //         "ipCounts.$[elem].count": 1,
-    //       },
-    //     };
-    //     const options = {
-    //       arrayFilters: [{ "elem.day": day }],
-    //       upsert: true,
-    //       new: true,
-    //       runValidators: true,
-    //     };
-
-    //     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
-    //     return false;
-    //   } else {
-    //     const update = {
-    //       $addToSet: {
-    //         client_ids: client_id,
-    //         tokens: token,
-    //         token_names: name,
-    //         endpoints: endpoint,
-    //       },
-    //       $push: {
-    //         ipCounts: { day, count: 1 },
-    //       },
-    //     };
-    //     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update);
-    //     return false;
-    //   }
-    // }
+    postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP });
   } catch (error) {
     logObject("the error", error);
     if (
