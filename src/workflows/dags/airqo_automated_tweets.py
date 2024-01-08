@@ -37,6 +37,4 @@ def create_forecast_tweets():
     site_forecasts = get_site_forecast(selected_sites)
     send_tweet(site_forecasts)
 
-
-if configuration.ENVIRONMENT == "production":
     create_forecast_tweets()
