@@ -310,6 +310,8 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (unknownIP) {
       return false;
+    } else {
+      return false;
     }
     postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP });
   } catch (error) {
