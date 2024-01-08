@@ -642,11 +642,11 @@ const controlAccess = {
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
 
-      // if (isEmpty(ip)) {
-      //   logText(`🚨🚨 Token is being accessed without an IP address`);
-      //   logger.error(`🚨🚨 Token is being accessed without an IP address`);
-      //   return createUnauthorizedResponse();
-      // }
+      if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
+        return createUnauthorizedResponse();
+      }
 
       const isBlacklisted = await isIPBlacklisted({
         request,
