@@ -308,8 +308,6 @@ const isIPBlacklistedHelper = async (
         );
       }
       return true;
-    } else if (unknownIP) {
-      return false;
     } else {
       return false;
     }
