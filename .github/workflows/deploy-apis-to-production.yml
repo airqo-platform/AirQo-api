@@ -476,7 +476,7 @@ jobs:
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/workflows/
-          gcloud secrets versions access latest --secret="prod-env-workflows" > .env
+          gcloud secrets versions access latest --secret="prod-env-airflow" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 
   #### Device Registry ######
