@@ -163,7 +163,7 @@ const trampoline = (fn) => {
 };
 const isIPBlacklistedHelper = async (
   { request, next } = {},
-  retries = 3,
+  retries = 1,
   delay = 1000
 ) => {
   try {
@@ -176,21 +176,41 @@ const isIPBlacklistedHelper = async (
     acessTokenFilter.expires = {
       $gt: moment().tz(timeZone).toDate(),
     };
-    const [
-      blacklistedIP,
-      whitelistedIP,
-      blacklistedRanges,
-      unknownIP,
-      accessToken,
-    ] = await Promise.all([
-      BlacklistedIPModel("airqo").findOne({ ip }),
-      WhitelistedIPModel("airqo").findOne({ ip }),
-      BlacklistedIPRangeModel("airqo").find(),
-      UnknownIPModel("airqo").findOne({ ip }),
+    // const [
+    //   blacklistedIP,
+    //   whitelistedIP,
+    //   blacklistedRanges,
+    //   unknownIP,
+    //   accessToken,
+    // ] = await Promise.all([
+    //   BlacklistedIPModel("airqo").findOne({ ip }),
+    //   WhitelistedIPModel("airqo").findOne({ ip }),
+    //   BlacklistedIPRangeModel("airqo").find(),
+    //   UnknownIPModel("airqo").findOne({ ip }),
+    //   AccessTokenModel("airqo")
+    //     .findOne(acessTokenFilter)
+    //     .select("name token client_id"),
+    // ]);
+
+    let promises = [];
+    promises.push(BlacklistedIPModel("airqo").findOne({ ip }));
+    promises.push(WhitelistedIPModel("airqo").findOne({ ip }));
+    promises.push(BlacklistedIPRangeModel("airqo").find());
+    promises.push(UnknownIPModel("airqo").findOne({ ip }));
+    promises.push(
       AccessTokenModel("airqo")
         .findOne(acessTokenFilter)
-        .select("name token client_id"),
-    ]);
+        .select("name token client_id")
+    );
+
+    let results = await Promise.all(promises);
+
+    let blacklistedIP = results[0];
+    let whitelistedIP = results[1];
+    let blacklistedRanges = results[2];
+    let unknownIP = results[3];
+    let accessToken = results[4];
+
     const isInRange = blacklistedRanges.some((range) =>
       rangeCheck(ip, range.range)
     );
@@ -657,15 +677,15 @@ const controlAccess = {
 
       const filter = generateFilter.tokens(request, next);
 
-      // if (isEmpty(token)) {
-      //   next(
-      //     new HttpError(
-      //       "service is temporarily disabled",
-      //       httpStatus.NOT_IMPLEMENTED,
-      //       { message: "service is temporarily disabled" }
-      //     )
-      //   );
-      // }
+      if (isEmpty(token)) {
+        next(
+          new HttpError(
+            "service is temporarily disabled",
+            httpStatus.NOT_IMPLEMENTED,
+            { message: "service is temporarily disabled" }
+          )
+        );
+      }
 
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
