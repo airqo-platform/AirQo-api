@@ -385,8 +385,13 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           uri: ["/api/v2/devices/measurements"],
-          service: "measurements-registry",
+          service: "events-registry",
           action: "Measurements API Access via JWT",
+        },
+        {
+          uri: ["/api/v2/devices/readings"],
+          service: "events-registry",
+          action: "Readings API Access via JWT",
         },
         {
           uri: ["/api/v1/devices"],
@@ -480,22 +485,21 @@ const useJWTStrategy = (tenant, req, res, next) =>
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Creation",
         },
         {
           method: "PUT",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Update",
         },
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Deletion",
         },
-
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/activities/maintain"],
@@ -514,7 +518,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-deployment",
           action: "Deploy Device",
         },
-
         {
           method: "POST",
           uriIncludes: ["api/v2/users", "api/v1/users"],
@@ -533,7 +536,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "auth",
           action: "Delete User",
         },
-
         {
           method: "POST",
           uriIncludes: [
@@ -552,29 +554,93 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "incentives",
           action: "Send Money to Host",
         },
-
         {
           method: "POST",
           uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
           service: "calibrate",
           action: "calibrate device",
         },
-
         {
           method: "POST",
           uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
           service: "locate",
           action: "Identify Suitable Device Locations",
         },
-
         {
           method: "POST",
           uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
           service: "fault-detection",
           action: "Detect Faults",
         },
+        {
+          uriIncludes: ["/api/v1/devices"],
+          service: "deprecated-version-number",
+        },
+        {
+          method: "GET",
+          uriIncludes: [
+            "/api/v2/devices/measurements",
+            "/api/v2/devices/events",
+            "/api/v2/devices/readings",
+          ],
+          service: "events-registry",
+          action: " Retrieve Measurements",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data"],
+          service: "data-mgt",
+          action: "Retrieve Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data-proxy"],
+          service: "data-proxy",
+          action: "Retrieve Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics"],
+          service: "analytics",
+          action: "Retrieve Analytics Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict"],
+          service: "predict",
+          action: "Retrieve Predicts Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/monitor"],
+          service: "monitor",
+          action: "Retrieve Network Statistics Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/meta-data"],
+          service: "meta-data",
+          action: "Retrieve Metadata",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/view"],
+          service: "view",
+          action: "Retrieve View Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/network-uptime"],
+          service: "network-uptime",
+          action: "Retrieve Network Uptime Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/notifications"],
+          service: "notifications",
+          action: "Retrieve Notifications",
+        },
       ];
-
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
         .exec();
