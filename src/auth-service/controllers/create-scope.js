@@ -25,7 +25,7 @@ const createScope = {
         : req.query.tenant;
 
       const result = await controlAccessUtil.createScope(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -75,7 +75,7 @@ const createScope = {
 
       const result = await controlAccessUtil.listScope(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -125,7 +125,7 @@ const createScope = {
 
       const result = await controlAccessUtil.deleteScope(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -174,7 +174,7 @@ const createScope = {
         : req.query.tenant;
 
       const result = await controlAccessUtil.updateScope(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {

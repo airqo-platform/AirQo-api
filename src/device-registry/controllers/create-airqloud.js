@@ -27,12 +27,15 @@ function handleResponse({
     ? "Operation Successful"
     : "Internal Server Error";
 
-  const status = result.status ?? defaultStatus;
-  const message = result.message ?? defaultMessage;
-  const data = result.data ?? [];
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
   const errors = isSuccess
     ? undefined
-    : result.errors ?? { message: "Internal Server Error" };
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -89,7 +92,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result in controller", result);
@@ -146,7 +149,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -205,7 +208,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -258,7 +261,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.refresh(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -311,7 +314,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.findSites(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -366,7 +369,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -423,7 +426,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -484,7 +487,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(
@@ -544,7 +547,7 @@ const createAirqloud = {
 
       const result = await createAirQloudUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -608,7 +611,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(
@@ -672,7 +675,7 @@ const createAirqloud = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(

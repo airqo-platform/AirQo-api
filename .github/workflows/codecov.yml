@@ -38,11 +38,11 @@ jobs:
       REDIS_SERVER: ${{ secrets.REDIS_SERVER }}
       REDIS_PORT: ${{ secrets.REDIS_PORT }}
 
-  # setup for airflow and predict microservices
-  airflow-predict:
+  # setup for workflows and predict microservices
+  workflows-predict:
     strategy:
       matrix:
-        microservice: [airflow, predict]
+        microservice: [workflows, predict]
     runs-on: ubuntu-latest
     continue-on-error: true
     name: Code coverage for ${{ matrix.microservice }}
@@ -58,7 +58,7 @@ jobs:
         run: |
           cd src/${{ matrix.microservice }}
           pip install -r requirements.txt
-          if [ "${{ matrix.microservice }}" == "airflow" ]; then
+          if [ "${{ matrix.microservice }}" == "workflows" ]; then
             pytest --cov airqo_etl_utils/tests/ --cov-report=xml
           else
             pytest --cov api/tests/ --cov-report=xml

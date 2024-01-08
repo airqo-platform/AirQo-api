@@ -94,6 +94,7 @@
         "chai-as-promised": "^7.1.1",
         "chai-http": "^4.3.0",
         "faker": "^5.5.3",
+        "js-yaml": "^4.1.0",
         "mocha": "^8.4.0",
         "mock-req-res": "^1.2.1",
         "nodemon": "^1.19.3",

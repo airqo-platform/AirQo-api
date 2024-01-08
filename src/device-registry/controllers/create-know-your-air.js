@@ -27,12 +27,15 @@ function handleResponse({
     ? "Operation Successful"
     : "Internal Server Error";
 
-  const status = result.status ?? defaultStatus;
-  const message = result.message ?? defaultMessage;
-  const data = result.data ?? [];
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
   const errors = isSuccess
     ? undefined
-    : result.errors ?? { message: "Internal Server Error" };
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -56,7 +59,7 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const result = await createKnowYourAirUtil.listLesson(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -106,7 +109,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.createLesson(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -157,7 +160,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.deleteLesson(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -209,7 +212,7 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const result = await createKnowYourAirUtil.updateLesson(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -265,7 +268,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -319,7 +322,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -373,7 +376,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -427,7 +430,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -481,7 +484,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -534,7 +537,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.listTask(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -585,7 +588,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.createTask(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -636,7 +639,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.deleteTask(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -687,7 +690,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.updateTask(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -743,7 +746,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -797,7 +800,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -851,7 +854,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -905,7 +908,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -960,7 +963,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1016,7 +1019,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1076,7 +1079,7 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const result = await createKnowYourAirUtil.listQuiz(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -1125,7 +1128,7 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const result = await createKnowYourAirUtil.createQuiz(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -1175,7 +1178,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.deleteQuiz(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1225,7 +1228,7 @@ const createKnowYourAir = {
         : req.query.tenant;
 
       const result = await createKnowYourAirUtil.updateQuiz(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -1280,7 +1283,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1334,7 +1337,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1388,7 +1391,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1442,7 +1445,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1496,7 +1499,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1549,7 +1552,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.listQuestions(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1600,7 +1603,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.createQuestion(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -1651,7 +1654,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.deleteQuestion(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1702,7 +1705,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.updateQuestion(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1755,7 +1758,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.listAnswers(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1806,7 +1809,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.createAnswer(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1857,7 +1860,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.deleteAnswer(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1908,7 +1911,7 @@ const createKnowYourAir = {
 
       const result = await createKnowYourAirUtil.updateAnswer(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1964,7 +1967,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -2018,7 +2021,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -2071,7 +2074,7 @@ const createKnowYourAir = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -2124,7 +2127,7 @@ const createKnowYourAir = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

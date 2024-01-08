@@ -27,12 +27,15 @@ function handleResponse({
     ? "Operation Successful"
     : "Internal Server Error";
 
-  const status = result.status ?? defaultStatus;
-  const message = result.message ?? defaultMessage;
-  const data = result.data ?? [];
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
   const errors = isSuccess
     ? undefined
-    : result.errors ?? { message: "Internal Server Error" };
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -56,7 +59,7 @@ const createCohort = {
 
       const result = await createCohortUtil.createNetwork(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result in controller", result);
@@ -110,7 +113,7 @@ const createCohort = {
 
       const result = await createCohortUtil.listNetworks(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logElement(
@@ -166,7 +169,7 @@ const createCohort = {
 
       const result = await createCohortUtil.updateNetwork(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -221,7 +224,7 @@ const createCohort = {
 
       const result = await createCohortUtil.deleteNetwork(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -274,7 +277,7 @@ const createCohort = {
 
       const result = await createCohortUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -331,7 +334,7 @@ const createCohort = {
 
       const result = await createCohortUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -386,7 +389,7 @@ const createCohort = {
 
       const result = await createCohortUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -439,7 +442,7 @@ const createCohort = {
 
       const result = await createCohortUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -497,7 +500,7 @@ const createCohort = {
 
       const result = await createCohortUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -553,7 +556,7 @@ const createCohort = {
 
       const result = await createCohortUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -607,7 +610,7 @@ const createCohort = {
 
       const result = await createCohortUtil.listAvailableDevices(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -664,7 +667,7 @@ const createCohort = {
 
       const result = await createCohortUtil.listAssignedDevices(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -732,7 +735,7 @@ const createCohort = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -790,7 +793,7 @@ const createCohort = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -850,7 +853,7 @@ const createCohort = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -908,7 +911,7 @@ const createCohort = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -963,7 +966,7 @@ const createCohort = {
 
       const result = await createCohortUtil.getSiteAndDeviceIds(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1020,7 +1023,7 @@ const createCohort = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

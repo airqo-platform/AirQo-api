@@ -30,12 +30,15 @@ function handleResponse({
     ? "Operation Successful"
     : "Internal Server Error";
 
-  const status = result.status ?? defaultStatus;
-  const message = result.message ?? defaultMessage;
-  const data = result.data ?? [];
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
   const errors = isSuccess
     ? undefined
-    : result.errors ?? { message: "Internal Server Error" };
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -58,7 +61,7 @@ const createUser = {
 
       const result = await createUserUtil.listStatistics(tenant, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -112,7 +115,7 @@ const createUser = {
 
       const result = await createUserUtil.listLogs(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       } else {
         handleResponse({
@@ -151,7 +154,7 @@ const createUser = {
 
       const result = await createUserUtil.getUserStats(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -203,7 +206,7 @@ const createUser = {
 
       const result = await createUserUtil.listCache(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -255,7 +258,7 @@ const createUser = {
 
       const result = await createUserUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -310,7 +313,7 @@ const createUser = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -427,7 +430,7 @@ const createUser = {
 
       const result = await controlAccessUtil.verifyEmail(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -479,7 +482,7 @@ const createUser = {
 
       const result = await createUserUtil.deleteMobileUserData(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -559,7 +562,7 @@ const createUser = {
 
       const result = await createUserUtil.emailReport(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -610,7 +613,7 @@ const createUser = {
 
       const result = await createUserUtil.lookUpFirebaseUser(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -665,7 +668,7 @@ const createUser = {
         : req.query.tenant;
 
       const result = await createUserUtil.syncAnalyticsAndMobile(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -713,7 +716,7 @@ const createUser = {
 
       const result = await createUserUtil.signUpWithFirebase(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -768,7 +771,7 @@ const createUser = {
 
       const result = await createUserUtil.loginWithFirebase(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -825,7 +828,7 @@ const createUser = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -878,7 +881,7 @@ const createUser = {
 
       const result = await createUserUtil.createFirebaseUser(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -932,7 +935,7 @@ const createUser = {
 
       const result = await createUserUtil.sendFeedback(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -988,7 +991,7 @@ const createUser = {
 
       const result = await createUserUtil.forgotPassword(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1043,7 +1046,7 @@ const createUser = {
 
       const result = await createUserUtil.register(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1098,7 +1101,7 @@ const createUser = {
 
       const result = await createUserUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -1286,7 +1289,7 @@ const createUser = {
 
       const result = await createUserUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1340,7 +1343,7 @@ const createUser = {
 
       const result = await createUserUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1395,7 +1398,7 @@ const createUser = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1459,7 +1462,7 @@ const createUser = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1517,7 +1520,7 @@ const createUser = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1570,7 +1573,7 @@ const createUser = {
 
       const result = await createUserUtil.updateKnownPassword(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1625,7 +1628,7 @@ const createUser = {
       }
       const result = await createUserUtil.subscribeToNewsLetter(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

@@ -28,7 +28,7 @@ const createPermission = {
 
       const result = await controlAccessUtil.createPermission(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -77,7 +77,7 @@ const createPermission = {
         : req.query.tenant;
       const result = await controlAccessUtil.listPermission(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -127,7 +127,7 @@ const createPermission = {
 
       const result = await controlAccessUtil.deletePermission(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -177,7 +177,7 @@ const createPermission = {
 
       const result = await controlAccessUtil.updatePermission(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

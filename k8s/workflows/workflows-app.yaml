@@ -1,0 +1,183 @@
+#Not really needed, as deployments are created by the helm chart
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: workflows
+  namespace: pipeline
+spec:
+  selector:
+    matchLabels:
+      app: workflows
+  replicas: 2
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: workflows
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+      serviceAccountName: workflows-sa
+      initContainers:
+        - name: workflows-xcom
+          image: eu.gcr.io/airqo-250220/airqo-workflows-xcom:latest
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: workflows-config
+          volumeMounts:
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
+      containers:
+        - name: airflow-scheduler
+          image: eu.gcr.io/airqo-250220/airqo-workflows:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: workflows-config-config
+          command: ["airflow"]
+          args: ["scheduler"]
+          resources:
+            requests:
+              # Average usage was 0.5 vCPU and 3.5Gi over the last 30 days
+              cpu: 500m
+              memory: 3000Mi
+            limits:
+              cpu: 1500m
+              memory: 4500Mi
+          volumeMounts:
+            - name: workflows-config-volume
+              mountPath: /etc/config
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
+        - name: airflow-webserver
+          image: eu.gcr.io/airqo-250220/airqo-workflows:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: workflows-config
+          command: ["airflow"]
+          args: ["webserver"]
+          resources: {}
+          readinessProbe:
+            initialDelaySeconds: 120
+            timeoutSeconds: 120
+            httpGet:
+              path: /workflows/health
+              port: 8080
+          volumeMounts:
+            - name: workflows-config-volume
+              mountPath: /etc/config
+            - name: workflows-xcom-config-volume
+              mountPath: /etc/workflows_xcom
+      volumes:
+        - name: workflows-config-volume
+          configMap:
+            name: workflows-config-files
+        - name: workflows-xcom-config-volume
+          emptyDir: {}
+      restartPolicy: Always
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: workflows-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: workflows
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: workflows-svc
+  namespace: pipeline
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+      nodePort: 30036
+  selector:
+    app: workflows
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: airflow-sa
+#   namespace: pipeline
+
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: airflow-cluster-role
+# rules:
+#   - apiGroups: [""]
+#     resources: ["services"]
+#     verbs: ["get", "list", "watch"]
+#   - apiGroups: [""]
+#     resources: ["pods", "pods/exec", "pods/log"]
+#     verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+#   - apiGroups: ["extensions"]
+#     resources: ["ingresses"]
+#     verbs: ["get", "watch", "list"]
+#   - apiGroups: [""]
+#     resources: ["nodes"]
+#     verbs: ["get", "list", "watch"]
+
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: airflow-cluster-role-binding
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: airflow-cluster-role
+# subjects:
+#   - kind: ServiceAccount
+#     name: airflow-sa
+#     namespace: pipeline
+
+# ---
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: airflow-workers

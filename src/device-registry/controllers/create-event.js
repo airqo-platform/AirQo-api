@@ -32,16 +32,18 @@ function handleResponse({
     ? "Operation Successful"
     : "Internal Server Error";
 
-  const status = result.status ?? defaultStatus;
-  const message = result.message ?? defaultMessage;
-  const data = result.data ?? [];
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
   const errors = isSuccess
     ? undefined
-    : result.errors ?? { message: "Internal Server Error" };
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
-
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
     const airQloud = await AirQloudModel(tenant)
@@ -509,7 +511,7 @@ const createEvent = {
 
       let result = await createEventUtil.insert(tenant, measurements, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -561,7 +563,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -624,7 +626,7 @@ const createEvent = {
 
       const result = await createEventUtil.latestFromBigQuery(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -696,7 +698,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -708,6 +710,58 @@ const createEvent = {
           message: result.message,
           meta: result.data[0].meta,
           measurements: result.data[0].data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  readingsForMap: async (req, res, next) => {
+    try {
+      logText("the readings for the AirQo Map...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+        },
+      };
+
+      const result = await createEventUtil.read(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          measurements: result.data,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
@@ -752,9 +806,11 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.list(request, next);
+      const result = await createEventUtil.view(request, next);
 
-      if (isEmpty(result)) {
+      // logObject("result", result);
+
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -809,7 +865,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -885,7 +941,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -967,7 +1023,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -1033,7 +1089,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1102,7 +1158,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1161,7 +1217,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1219,7 +1275,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1277,7 +1333,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1334,7 +1390,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1391,7 +1447,7 @@ const createEvent = {
 
       const result = await createEventUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("the result for listing events", result);
@@ -1445,7 +1501,7 @@ const createEvent = {
 
       const result = await createEventUtil.transformManyEvents(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1493,7 +1549,7 @@ const createEvent = {
         : req.query.tenant;
       const result = await createEventUtil.create(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result util", result);
@@ -1549,7 +1605,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1606,7 +1662,7 @@ const createEvent = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1656,7 +1712,7 @@ const createEvent = {
 
       const result = await createEventUtil.transmitValues(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1708,7 +1764,7 @@ const createEvent = {
 
       const result = await createEventUtil.clearEventsOnPlatform(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === false) {
@@ -1758,7 +1814,7 @@ const createEvent = {
 
       const result = await createEventUtil.addEvents(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -1822,7 +1878,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -1902,7 +1958,7 @@ const createEvent = {
       if (locationErrors === 0) {
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
         logObject("the result for listing events", result);
@@ -1982,7 +2038,7 @@ const createEvent = {
         logObject("the request.query we are sending", request.query);
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2062,7 +2118,7 @@ const createEvent = {
         logObject("the request.query we are sending", request.query);
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2143,7 +2199,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2224,7 +2280,7 @@ const createEvent = {
 
         const result = await createEventUtil.list(request, next);
 
-        if (isEmpty(result)) {
+        if (isEmpty(result) || res.headersSent) {
           return;
         }
 
@@ -2300,7 +2356,7 @@ const createEvent = {
         radius,
       });
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);

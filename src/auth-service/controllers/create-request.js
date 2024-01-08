@@ -29,7 +29,7 @@ const createAccessRequest = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -85,7 +85,7 @@ const createAccessRequest = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -140,7 +140,7 @@ const createAccessRequest = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -195,7 +195,7 @@ const createAccessRequest = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -251,7 +251,7 @@ const createAccessRequest = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -306,7 +306,7 @@ const createAccessRequest = {
 
       const result = await createAccessRequestUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -360,7 +360,7 @@ const createAccessRequest = {
       request.query.status = "pending";
 
       const result = await createAccessRequestUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -415,7 +415,7 @@ const createAccessRequest = {
       request.query.requestType = "group";
 
       const result = await createAccessRequestUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       logObject("result", result);
@@ -471,7 +471,7 @@ const createAccessRequest = {
       request.query.requestType = "network";
 
       const result = await createAccessRequestUtil.list(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -523,7 +523,7 @@ const createAccessRequest = {
 
       const result = await createAccessRequestUtil.list(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -575,7 +575,7 @@ const createAccessRequest = {
 
       const result = await createAccessRequestUtil.delete(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -627,7 +627,7 @@ const createAccessRequest = {
 
       const result = await createAccessRequestUtil.update(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 

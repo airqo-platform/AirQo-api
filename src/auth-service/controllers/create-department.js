@@ -26,7 +26,7 @@ const createDepartment = {
 
       const result = await controlAccessUtil.listDepartment(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -78,7 +78,7 @@ const createDepartment = {
 
       const result = await controlAccessUtil.createDepartment(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -128,7 +128,7 @@ const createDepartment = {
 
       const result = await controlAccessUtil.updateDepartment(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -177,7 +177,7 @@ const createDepartment = {
 
       const result = await controlAccessUtil.deleteDepartment(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -229,7 +229,7 @@ const createDepartment = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -282,7 +282,7 @@ const createDepartment = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -334,7 +334,7 @@ const createDepartment = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -385,7 +385,7 @@ const createDepartment = {
         request,
         next
       );
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {

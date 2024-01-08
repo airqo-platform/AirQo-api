@@ -26,7 +26,7 @@ const createRole = {
         : req.query.tenant;
 
       const result = await controlAccessUtil.listRole(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -77,7 +77,7 @@ const createRole = {
 
       const result = await controlAccessUtil.listRole(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -127,7 +127,7 @@ const createRole = {
 
       const result = await controlAccessUtil.createRole(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -176,7 +176,7 @@ const createRole = {
         : req.query.tenant;
 
       const result = await controlAccessUtil.updateRole(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -224,7 +224,7 @@ const createRole = {
         : req.query.tenant;
 
       const result = await controlAccessUtil.deleteRole(request, next);
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
       if (result.success === true) {
@@ -275,7 +275,7 @@ const createRole = {
 
       const result = await controlAccessUtil.listUsersWithRole(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -330,7 +330,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -381,7 +381,7 @@ const createRole = {
 
       const result = await controlAccessUtil.assignUserToRole(request, next);
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -436,7 +436,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -491,7 +491,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -547,7 +547,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -602,7 +602,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -657,7 +657,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -711,7 +711,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -767,7 +767,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -821,7 +821,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
@@ -875,7 +875,7 @@ const createRole = {
         next
       );
 
-      if (isEmpty(result)) {
+      if (isEmpty(result) || res.headersSent) {
         return;
       }
 
