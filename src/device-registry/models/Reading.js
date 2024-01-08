@@ -154,7 +154,6 @@ ReadingsSchema.statics.register = async function(args, next) {
     return;
   }
 };
-
 ReadingsSchema.statics.list = async function(
   { filter = {}, limit = 1000, skip = 0 } = {},
   next
@@ -166,6 +165,50 @@ ReadingsSchema.statics.list = async function(
       .sort({ createdAt: -1 })
       .skip(skip ? skip : 0)
       .limit(limit ? limit : 1000)
+      .allowDiskUse(true);
+
+    const data = await pipeline;
+    if (!isEmpty(data)) {
+      return {
+        success: true,
+        message: "Successfull Operation",
+        data,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message: "There are no records for this search",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
+ReadingsSchema.statics.latest = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
+  try {
+    logText("we are inside model's latest list....");
+    const pipeline = this.aggregate()
+      .match(filter)
+      .sort({ time: -1 })
+      .group({
+        _id: "$site_id",
+        doc: { $first: "$$ROOT" },
+      })
+      .replaceRoot("$doc")
+      .skip(skip)
+      .limit(limit)
       .allowDiskUse(true);
 
     const data = await pipeline;
