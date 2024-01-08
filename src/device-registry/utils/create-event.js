@@ -1589,7 +1589,6 @@ const createEvent = {
   setCache: async (data, request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
-      logObject("cacheID", cacheID);
       await redisSetAsync(
         cacheID,
         jsonify({
