@@ -32,6 +32,7 @@
         "@log4js-node/slack": "^1.0.0",
         "@mailchimp/mailchimp_marketing": "^3.0.75",
         "app-module-path": "^2.2.0",
+        "async": "^3.2.5",
         "axios": "^1.4.0",
         "bcrypt": "^5.0.0",
         "body-parser": "^1.20.2",
