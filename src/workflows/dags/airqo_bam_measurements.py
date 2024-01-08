@@ -1,5 +1,6 @@
 from airflow.decorators import dag, task
 
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
