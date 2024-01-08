@@ -138,150 +138,7 @@ const generateClientSecret = (length) => {
   const clientSecret = crypto.randomBytes(numBytes).toString("hex");
   return clientSecret;
 };
-const routeDefinitions = [
-  {
-    uriIncludes: ["/api/v1/devices"],
-    service: "deprecated-version-number",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/measurements", "/api/v2/devices/events"],
-    service: "events-registry",
-  },
-  {
-    uriIncludes: ["/api/v2/users"],
-    service: "auth",
-  },
-  {
-    uriIncludes: ["/api/v2/devices"],
-    service: "device-registry",
-  },
-  {
-    uriIncludes: ["/api/v2/data"],
-    service: "data-mgt",
-  },
-  {
-    uriIncludes: ["/api/v2/data-proxy"],
-    service: "data-proxy",
-  },
-  {
-    uriIncludes: ["/api/v2/locate/map"],
-    service: "locate",
-  },
-  {
-    uriIncludes: ["/api/v2/analytics"],
-    service: "analytics",
-  },
-  {
-    uriIncludes: ["/api/v2/predict"],
-    service: "predict",
-  },
-  {
-    uriIncludes: ["/api/v2/monitor"],
-    service: "monitor",
-  },
-  {
-    uriIncludes: ["/api/v2/calibrate"],
-    service: "calibrate",
-  },
-  {
-    uriIncludes: ["/api/v2/incentives"],
-    service: "incentives",
-  },
-  {
-    uriIncludes: ["/api/v2/meta-data"],
-    service: "meta-data",
-  },
-  {
-    uriIncludes: ["/api/v2/view"],
-    service: "view",
-  },
-  {
-    uriIncludes: ["/api/v2/network-uptime"],
-    service: "network-uptime",
-  },
-  {
-    uriIncludes: ["/api/v2/predict-faults"],
-    service: "fault-detection",
-  },
-  {
-    uriIncludes: ["/api/v2/notifications"],
-    service: "notifications",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-export",
-      "/api/v1/analytics/data-export",
-    ],
-    service: "data-export-scheduling",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-download",
-      "/api/v1/analytics/data-download",
-    ],
-    service: "data-export-download",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/recall"],
-    service: "device-recall",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/deploy"],
-    service: "device-deployment",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/airqlouds"],
-    service: "airqloud-registry",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/maintain"],
-    service: "device-maintenance",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/sites"],
-    service: "site-registry",
-  },
-];
 
-const getService = (headers) => {
-  const uri = headers["x-original-uri"];
-  const serviceHeader = headers["service"];
-
-  if (uri) {
-    for (const route of routeDefinitions) {
-      if (route.uri && uri.includes(route.uri)) {
-        return route.service;
-      } else if (
-        route.uriEndsWith &&
-        route.uriEndsWith.some((suffix) => uri.endsWith(suffix))
-      ) {
-        return route.service;
-      } else if (
-        route.uriIncludes &&
-        route.uriIncludes.some((includes) => uri.includes(includes))
-      ) {
-        return route.service;
-      }
-    }
-  } else if (serviceHeader) {
-    return serviceHeader;
-  }
-
-  return "unknown";
-};
-const getUserAction = (headers) => {
-  if (headers["x-original-method"]) {
-    const method = headers["x-original-method"];
-    const actionMap = {
-      PUT: "update operation",
-      DELETE: "delete operation",
-      POST: "creation operation",
-      GET: "viewing data",
-    };
-    return actionMap[method] || "Unknown Action";
-  }
-  return "Unknown Action";
-};
 const createUnauthorizedResponse = () => {
   return {
     success: false,
@@ -358,68 +215,70 @@ const isIPBlacklistedHelper = async (
         );
       }
       return true;
-    } else if (!unknownIP) {
-      const document = await UnknownIPModel("airqo").create({
-        ip,
-        tokens: [token],
-        token_names: [name],
-        endpoints: [endpoint],
-        client_ids: [client_id],
-        ipCounts: [{ day, count: 1 }],
-      });
-      if (!document) {
-        logText(`🐛🐛 Failed to create record for this new IP address ${ip}.`);
-        logger.error(
-          `🐛🐛 Failed to store record for this new IP address ${ip}.`
-        );
-        if (retries > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          return isIPBlacklistedHelper({ request, next }, retries - 1, delay);
-        }
-      }
-      return false;
-    } else {
-      const checkDoc = await UnknownIPModel("airqo").findOne({
-        ip,
-        "ipCounts.day": day,
-      });
-      if (checkDoc) {
-        const update = {
-          $addToSet: {
-            client_ids: client_id,
-            tokens: token,
-            token_names: name,
-            endpoints: endpoint,
-          },
-          $inc: {
-            "ipCounts.$[elem].count": 1,
-          },
-        };
-        const options = {
-          arrayFilters: [{ "elem.day": day }],
-          upsert: true,
-          new: true,
-          runValidators: true,
-        };
-
-        await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
-        return false;
-      } else {
-        const update = {
-          $addToSet: {
-            client_ids: client_id,
-            tokens: token,
-            token_names: name,
-            endpoints: endpoint,
-          },
-          $push: {
-            ipCounts: { day, count: 1 },
-          },
-        };
-        await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update);
-        return false;
-      }
     }
+
+    // else if (!unknownIP) {
+    //   const document = await UnknownIPModel("airqo").create({
+    //     ip,
+    //     tokens: [token],
+    //     token_names: [name],
+    //     endpoints: [endpoint],
+    //     client_ids: [client_id],
+    //     ipCounts: [{ day, count: 1 }],
+    //   });
+    //   if (!document) {
+    //     logText(`🐛🐛 Failed to create record for this new IP address ${ip}.`);
+    //     logger.error(
+    //       `🐛🐛 Failed to store record for this new IP address ${ip}.`
+    //     );
+    //     if (retries > 0) {
+    //       await new Promise((resolve) => setTimeout(resolve, delay));
+    //       return isIPBlacklistedHelper({ request, next }, retries - 1, delay);
+    //     }
+    //   }
+    //   return false;
+    // } else {
+    //   const checkDoc = await UnknownIPModel("airqo").findOne({
+    //     ip,
+    //     "ipCounts.day": day,
+    //   });
+    //   if (checkDoc) {
+    //     const update = {
+    //       $addToSet: {
+    //         client_ids: client_id,
+    //         tokens: token,
+    //         token_names: name,
+    //         endpoints: endpoint,
+    //       },
+    //       $inc: {
+    //         "ipCounts.$[elem].count": 1,
+    //       },
+    //     };
+    //     const options = {
+    //       arrayFilters: [{ "elem.day": day }],
+    //       upsert: true,
+    //       new: true,
+    //       runValidators: true,
+    //     };
+
+    //     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update, options);
+    //     return false;
+    //   } else {
+    //     const update = {
+    //       $addToSet: {
+    //         client_ids: client_id,
+    //         tokens: token,
+    //         token_names: name,
+    //         endpoints: endpoint,
+    //       },
+    //       $push: {
+    //         ipCounts: { day, count: 1 },
+    //       },
+    //     };
+    //     await UnknownIPModel("airqo").findOneAndUpdate({ ip }, update);
+    //     return false;
+    //   }
+    // }
   } catch (error) {
     logObject("the error", error);
     if (
