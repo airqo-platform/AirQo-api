@@ -170,7 +170,7 @@ let blacklistQueue = async.queue((task, callback) => {
     BlacklistedIPModel("airqo")
       .create({ ip })
       .then(() => {
-        logger.info(`Added IP ${ip} to the blacklist.`);
+        logger.info(`🚨🚨Added IP ${ip} to the blacklist.`);
         callback();
       });
   } else {
