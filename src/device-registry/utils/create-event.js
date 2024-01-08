@@ -937,7 +937,7 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).list(filter, next);
+      const readingsResponse = await ReadingModel(tenant).latest(filter, next);
 
       if (language !== undefined && readingsResponse.success === true) {
         const data = readingsResponse.data;
@@ -1589,6 +1589,7 @@ const createEvent = {
   setCache: async (data, request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
+      logObject("cacheID", cacheID);
       await redisSetAsync(
         cacheID,
         jsonify({
