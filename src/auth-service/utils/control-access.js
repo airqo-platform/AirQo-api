@@ -143,36 +143,76 @@ const routeDefinitions = [
     uriIncludes: ["/api/v1/devices"],
     service: "deprecated-version-number",
   },
-  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
   {
-    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
+    uriIncludes: ["/api/v2/devices/measurements", "/api/v2/devices/events"],
+    service: "events-registry",
+  },
+  {
+    uriIncludes: ["/api/v2/users"],
+    service: "auth",
+  },
+  {
+    uriIncludes: ["/api/v2/devices"],
     service: "device-registry",
   },
-  { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
   {
-    uriIncludes: ["/api/v2/devices/activities/maintain"],
-    service: "device-maintenance",
+    uriIncludes: ["/api/v2/data"],
+    service: "data-mgt",
   },
   {
-    uriIncludes: ["/api/v2/devices/activities/deploy"],
-    service: "device-deployment",
+    uriIncludes: ["/api/v2/data-proxy"],
+    service: "data-proxy",
   },
   {
-    uriIncludes: ["/api/v2/devices/activities/recall"],
-    service: "device-recall",
+    uriIncludes: ["/api/v2/locate/map"],
+    service: "locate",
   },
-  { uriIncludes: ["/api/v2/users"], service: "auth" },
-  { uriIncludes: ["/api/v2/incentives"], service: "incentives" },
   {
-    uriIncludes: ["/api/v2/calibrate", "/api/v1/calibrate"],
+    uriIncludes: ["/api/v2/analytics"],
+    service: "analytics",
+  },
+  {
+    uriIncludes: ["/api/v2/predict"],
+    service: "predict",
+  },
+  {
+    uriIncludes: ["/api/v2/monitor"],
+    service: "monitor",
+  },
+  {
+    uriIncludes: ["/api/v2/calibrate"],
     service: "calibrate",
   },
-  { uriIncludes: ["/api/v2/locate", "/api/v1/locate"], service: "locate" },
   {
-    uriIncludes: ["/api/v2/predict-faults", "/api/v1/predict-faults"],
+    uriIncludes: ["/api/v2/incentives"],
+    service: "incentives",
+  },
+  {
+    uriIncludes: ["/api/v2/meta-data"],
+    service: "meta-data",
+  },
+  {
+    uriIncludes: ["/api/v2/view"],
+    service: "view",
+  },
+  {
+    uriIncludes: ["/api/v2/network-uptime"],
+    service: "network-uptime",
+  },
+  {
+    uriIncludes: ["/api/v2/predict-faults"],
     service: "fault-detection",
+  },
+  {
+    uriIncludes: ["/api/v2/notifications"],
+    service: "notifications",
+  },
+  {
+    uriIncludes: [
+      "/api/v2/analytics/data-export",
+      "/api/v1/analytics/data-export",
+    ],
+    service: "data-export-scheduling",
   },
   {
     uriIncludes: [
@@ -182,13 +222,27 @@ const routeDefinitions = [
     service: "data-export-download",
   },
   {
-    uriIncludes: [
-      "/api/v2/analytics/data-export",
-      "/api/v1/analytics/data-export",
-    ],
-    service: "data-export-scheduling",
+    uriIncludes: ["/api/v2/devices/activities/recall"],
+    service: "device-recall",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/activities/deploy"],
+    service: "device-deployment",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/activities/maintain"],
+    service: "device-maintenance",
+  },
+  {
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
   },
 ];
+
 const getService = (headers) => {
   const uri = headers["x-original-uri"];
   const serviceHeader = headers["service"];

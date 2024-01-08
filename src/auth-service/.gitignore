@@ -10,3 +10,4 @@ coverage/
 utils/scripts/csv.txt
 utils/scripts/array-*
 utils/scripts/json.txt
+utils/scripts/services.yaml
