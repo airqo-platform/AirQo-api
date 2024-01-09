@@ -11,7 +11,6 @@ const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
 const morgan = require("morgan");
-require("./fetch-and-store-readings");
 const compression = require("compression");
 const helmet = require("helmet");
 const { HttpError } = require("@utils/errors");

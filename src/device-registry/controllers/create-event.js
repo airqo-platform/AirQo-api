@@ -488,6 +488,12 @@ const processAirQloudIds = async (airqloud_ids, request) => {
     request.query.site_id = validSiteIdResults.join(",");
   }
 };
+function getThreeDaysBackMidnight() {
+  const currentDate = new Date();
+  currentDate.setDate(currentDate.getDate() - 7);
+  currentDate.setUTCHours(0, 0, 0, 0);
+  return currentDate;
+}
 
 const createEvent = {
   addValues: async (req, res, next) => {
@@ -710,6 +716,63 @@ const createEvent = {
           message: result.message,
           meta: result.data[0].meta,
           measurements: result.data[0].data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  fetchAndStoreData: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const startTime = getThreeDaysBackMidnight();
+      const request = {
+        query: {
+          frequency: "hourly",
+          startTime,
+          metadata: "site_id",
+          recent: "yes",
+          brief: "yes",
+        },
+      };
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createEventUtil.fetchAndStoreData(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("the result for inserting readings", result);
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
