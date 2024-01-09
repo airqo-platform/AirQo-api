@@ -245,13 +245,6 @@ const postProcessing = async ({
   unknownIP,
 }) => {
   logText("we are now postProcessing()....");
-  logObject("received ip", ip);
-  logObject("received token", token);
-  logObject("received name", name);
-  logObject("received client_id", client_id);
-  logObject("received endpoint", endpoint);
-  logObject("received day", day);
-  logObject("received unknownIP", unknownIP);
   // When a blacklisted IP range is found, push it into the queue
   // let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
   // blacklistedRanges.forEach((range) => {
@@ -315,13 +308,6 @@ const isIPBlacklistedHelper = async (
       }
       return true;
     } else {
-      logObject("ip", ip);
-      logObject("token", token);
-      logObject("name", name);
-      logObject("client_id", client_id);
-      logObject("endpoint", endpoint);
-      logObject("day", day);
-      logObject("unknownIP", unknownIP);
       Promise.resolve().then(() =>
         postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
       );
