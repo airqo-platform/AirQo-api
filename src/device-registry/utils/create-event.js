@@ -911,9 +911,9 @@ const createEvent = {
   },
   fetchAndStoreData: async (request, next) => {
     try {
-      const filter = generateFilter.readings(request);
+      const filter = generateFilter.readings(request, next);
       // Fetch the data
-      const viewEventsResponse = await EventModel("airqo").view(filter);
+      const viewEventsResponse = await EventModel("airqo").view(filter, next);
       logText("we are running running the data insertion script");
 
       if (viewEventsResponse.success === true) {
