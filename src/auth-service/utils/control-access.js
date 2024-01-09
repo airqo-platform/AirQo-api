@@ -290,8 +290,6 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    logObject("accessToken._doc", accessToken._doc);
-
     if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
