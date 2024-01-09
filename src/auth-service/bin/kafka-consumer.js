@@ -67,7 +67,7 @@ const operationForNewMobileAppUser = async (messageData) => {
     }
   } catch (error) {
     logger.error(
-      `KAFKA: internal server error -- operationForNewMobileAppUser() -- ${stringify(
+      `🐛🐛 KAFKA: internal server error -- operationForNewMobileAppUser() -- ${stringify(
         error
       )}`
     );
@@ -116,7 +116,7 @@ const operationForBlacklistedIPs = async (messageData) => {
     }
   } catch (error) {
     logger.error(
-      `KAFKA: internal server error -- operationForBlacklistedIPs() -- ${stringify(
+      `🐛🐛 KAFKA: Internal Server Error -- operationForBlacklistedIPs() -- ${stringify(
         error
       )}`
     );
@@ -158,7 +158,7 @@ const kafkaConsumer = async () => {
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic}: ${stringify(
+                `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
                   error
                 )}`
               );
@@ -169,7 +169,7 @@ const kafkaConsumer = async () => {
     );
   } catch (error) {
     logObject("Error connecting to Kafka", error);
-    logger.error(`Error connecting to Kafka: ${stringify(error)}`);
+    logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
   }
 };
 
