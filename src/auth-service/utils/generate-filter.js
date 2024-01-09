@@ -548,7 +548,7 @@ const filter = {
   },
   ips: (req, next) => {
     try {
-      const { id, ip, range } = {
+      const { id, ip, range, count } = {
         ...req.query,
         ...req.params,
       };
@@ -564,6 +564,16 @@ const filter = {
 
       if (range) {
         filter["range"] = range;
+      }
+
+      if (count) {
+        filter["ipCounts"] = {
+          $elemMatch: {
+            count: {
+              $gte: parseInt(count),
+            },
+          },
+        };
       }
 
       return filter;
