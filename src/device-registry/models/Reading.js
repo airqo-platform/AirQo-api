@@ -68,7 +68,7 @@ const ReadingsSchema = new Schema(
     indexes: [
       {
         fields: { time: 1 },
-        expireAfterSeconds: 60 * 60 * 24 * 60, // 2 months in seconds
+        expireAfterSeconds: 60 * 60 * 24 * 30, // 1 month in seconds
       },
     ],
   }
