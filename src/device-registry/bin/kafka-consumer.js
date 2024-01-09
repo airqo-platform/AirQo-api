@@ -4,6 +4,8 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/kafka-consumer`
 );
+const EventModel = require("@models/Event");
+const ReadingModel = require("@models/Reading");
 const { logText, logObject, logElement } = require("@utils/log");
 const createEvent = require("@utils/create-event");
 const Joi = require("joi");
@@ -11,6 +13,8 @@ const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const { HttpError } = require("@utils/errors");
+const jsonify = require("@utils/jsonify");
+const asyncRetry = require("async-retry");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
@@ -63,9 +67,7 @@ const consumeHourlyMeasurements = async (messageData) => {
   try {
     if (isEmpty(messageData)) {
       logger.error(
-        `KAFKA: the sent message in undefined --- ${JSON.stringify(
-          messageData
-        )}`
+        `KAFKA: the sent message in undefined --- ${jsonify(messageData)}`
       );
     }
     const repairedJSONString = jsonrepair(messageData);
@@ -75,7 +77,7 @@ const consumeHourlyMeasurements = async (messageData) => {
     // const measurements = JSON.parse(repairedJSONString);
     if (!Array.isArray(measurements) || isEmpty(measurements)) {
       // logger.error(
-      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
+      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${jsonify(
       //     measurements
       //   )}`
       // );
@@ -119,17 +121,17 @@ const consumeHourlyMeasurements = async (messageData) => {
           // };
         });
         // logger.error(
-        //   `KAFKA: Input validation formatted errors -- ${JSON.stringify(
+        //   `KAFKA: Input validation formatted errors -- ${jsonify(
         //     errorDetails
         //   )}`
         // );
 
         // logger.error(
-        //     `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+        //     `KAFKA: ALL the input validation errors --- ${jsonify(error.details)}`
         // );
 
         // logger.info(
-        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
+        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${jsonify(value)}`
         // );
       }
       logObject("value", value);
@@ -146,13 +148,13 @@ const consumeHourlyMeasurements = async (messageData) => {
 
       if (responseFromInsertMeasurements.success === false) {
         // logger.error(
-        //   `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+        //   `KAFKA: responseFromInsertMeasurements --- ${jsonify(
         //     responseFromInsertMeasurements
         //   )}`
         // );
       } else if (responseFromInsertMeasurements.success === true) {
         // logger.info(
-        //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+        //     `KAFKA: successfully inserted the measurements --- ${jsonify(responseFromInsertMeasurements.message ?
         //     responseFromInsertMeasurements.message :
         //     "")}`
         // );
@@ -161,18 +163,99 @@ const consumeHourlyMeasurements = async (messageData) => {
   } catch (error) {
     logObject("KAFKA error for consumeHourlyMeasurements()", error);
     logger.info(
-      `incoming KAFKA value which is causing errors --- ${message.value.toString()}`
+      `ℹ️ℹ️ incoming KAFKA value which is causing errors --- ${message.value.toString()}`
     );
     logger.info(
-      `incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`
+      `ℹ️ℹ️ incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`
     );
-    logger.error(`KAFKA: error message --- ${error.message}`);
-    logger.error(`KAFKA: full error object --- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
+    logger.error(`🐛🐛 KAFKA: full error object --- ${jsonify(error)}`);
   }
 };
 
-const operationFunction2 = async (messageData) => {
-  // Operation logic for topic2
+const fetchAndStoreDataIntoReadingsModel = async () => {
+  try {
+    const request = {
+      query: {
+        tenant: "airqo",
+        recent: "yes",
+        metadata: "site_id",
+        active: "yes",
+        brief: "yes",
+      },
+    };
+    const filter = generateFilter.readings(request);
+    // Fetch the data
+    const viewEventsResponse = await EventModel("airqo").view(filter);
+    logText("we are running running the data insertion script");
+
+    if (viewEventsResponse.success === true) {
+      const data = viewEventsResponse.data[0].data;
+      if (!data) {
+        logText(`🐛🐛 Didn't find any Events to insert into Readings`);
+        logger.error(`🐛🐛 Didn't find any Events to insert into Readings`);
+        return {
+          success: true,
+          message: `🐛🐛 Didn't find any Events to insert into Readings`,
+          status: httpStatus.OK,
+        };
+      }
+      // Prepare the data for batch insertion
+      const batchSize = 50; // Adjust this value based on your requirements
+      const batches = [];
+      for (let i = 0; i < data.length; i += batchSize) {
+        batches.push(data.slice(i, i + batchSize));
+      }
+
+      // Insert each batch in the 'readings' collection with retry logic
+      for (const batch of batches) {
+        await asyncRetry(
+          async (bail) => {
+            try {
+              const res = await ReadingModel("airqo").insertMany(batch, {
+                ordered: false,
+              });
+              logObject(
+                "Number of documents inserted in this batch",
+                res.insertedCount
+              );
+            } catch (error) {
+              if (error.name === "MongoError" && error.code === 11000) {
+                bail(error); // Stop retrying and throw the error immediately
+              }
+              // logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
+              // throw error; // Retry the operation
+            }
+          },
+          {
+            retries: 5, // Number of retry attempts
+            minTimeout: 1000, // Initial delay between retries (in milliseconds)
+            factor: 2, // Exponential factor for increasing delay between retries
+          }
+        );
+      }
+
+      logText(`All data inserted successfully`);
+      return;
+    } else {
+      logObject(
+        `🐛🐛 Unable to retrieve Events to insert into Readings`,
+        viewEventsResponse
+      );
+
+      logger.error(
+        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${jsonify(
+          viewEventsResponse
+        )}`
+      );
+      logText(`🐛🐛 Unable to retrieve Events to insert into Readings`);
+      return;
+    }
+  } catch (error) {
+    logObject("error", error);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    return;
+  }
 };
 
 const kafkaConsumer = async () => {
@@ -205,12 +288,13 @@ const kafkaConsumer = async () => {
                 // const messageData = JSON.parse(message.value.toString());
                 const messageData = message.value.toString();
                 await operation(messageData);
+                await fetchAndStoreDataIntoReadingsModel();
               } else {
-                logger.error(`No operation defined for topic: ${topic}`);
+                logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
               }
             } catch (error) {
               logger.error(
-                `Error processing Kafka message for topic ${topic}: ${JSON.stringify(
+                `🐛🐛 Error processing Kafka message for topic ${topic}: ${jsonify(
                   error
                 )}`
               );
@@ -221,7 +305,7 @@ const kafkaConsumer = async () => {
     );
   } catch (error) {
     logObject("Error connecting to Kafka", error);
-    logger.error(`Error connecting to Kafka: ${JSON.stringify(error)}`);
+    logger.error(`📶📶 Error connecting to Kafka: ${jsonify(error)}`);
   }
 };
 
