@@ -101,7 +101,7 @@ async function fetchAndStoreData() {
   }
 }
 
-cron.schedule("0 * * * *", () => {
+cron.schedule("30 * * * *", () => {
   fetchAndStoreData().catch((error) => {
     logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
     console.error("Cron job failed", error);
