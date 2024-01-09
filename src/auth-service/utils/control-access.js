@@ -211,8 +211,7 @@ let unknownIPQueue = async.queue(async (task, callback) => {
 
         await UnknownIPModel("airqo")
           .findOneAndUpdate({ ip }, update, options)
-          .then((result) => {
-            logObject("result", result);
+          .then(() => {
             logText(`stored the unknown IP ${ip} which had a day field`);
             callback();
           });
@@ -226,8 +225,7 @@ let unknownIPQueue = async.queue(async (task, callback) => {
             client_ids: [client_id],
             ipCounts: [{ day, count: 1 }],
           })
-          .then((result) => {
-            logObject("result", result);
+          .then(() => {
             logText(`stored the unknown IP ${ip} which had NO day field`);
             callback();
           });
