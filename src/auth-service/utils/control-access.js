@@ -180,7 +180,7 @@ let blacklistQueue = async.queue(async (task, callback) => {
   } else {
     callback();
   }
-}, 2); // Limit the number of concurrent tasks to 2
+}, 1); // Limit the number of concurrent tasks to 1
 
 let unknownIPQueue = async.queue(async (task, callback) => {
   let { ip, token, name, client_id, endpoint, day } = task;
@@ -231,7 +231,7 @@ let unknownIPQueue = async.queue(async (task, callback) => {
           });
       }
     });
-}, 2); // Limit the number of concurrent tasks to 2
+}, 1); // Limit the number of concurrent tasks to 1
 
 const postProcessing = async ({
   ip,
