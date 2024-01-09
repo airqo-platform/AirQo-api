@@ -163,29 +163,33 @@ const trampoline = (fn) => {
   return fn;
 };
 
-let blacklistQueue = async.queue((task, callback) => {
+let blacklistQueue = async.queue(async (task, callback) => {
   let { ip, range } = task;
-  if (rangeCheck(ip, range)) {
+  logText("we are in the IP range checker.....");
+  logObject("ip, range", `${(ip, range)}`);
+  logObject("rangeCheck(ip, range)", rangeCheck(ip, range.range));
+  if (rangeCheck(ip, range.range)) {
     // If the IP falls within the range, add it to the blacklist
-    BlacklistedIPModel("airqo")
+    await BlacklistedIPModel("airqo")
       .create({ ip })
       .then(() => {
+        logObject(`🚨🚨Added IP ${ip} to the blacklist.`);
         logger.info(`🚨🚨Added IP ${ip} to the blacklist.`);
         callback();
       });
   } else {
     callback();
   }
-}, 2);
+}, 2); // Limit the number of concurrent tasks to 2
 
-let unknownIPQueue = async.queue((task, callback) => {
+let unknownIPQueue = async.queue(async (task, callback) => {
   let { ip, token, name, client_id, endpoint, day } = task;
-  UnknownIPModel("airqo")
+  await UnknownIPModel("airqo")
     .findOne({
       ip,
       "ipCounts.day": day,
     })
-    .then((checkDoc) => {
+    .then(async (checkDoc) => {
       if (checkDoc) {
         const update = {
           $addToSet: {
@@ -205,13 +209,14 @@ let unknownIPQueue = async.queue((task, callback) => {
           runValidators: true,
         };
 
-        UnknownIPModel("airqo")
+        await UnknownIPModel("airqo")
           .findOneAndUpdate({ ip }, update, options)
           .then(() => {
+            logText(`stored the unknown IP ${ip} which had a day field`);
             callback();
           });
       } else {
-        const document = UnknownIPModel("airqo")
+        const document = await UnknownIPModel("airqo")
           .create({
             ip,
             tokens: [token],
@@ -221,6 +226,7 @@ let unknownIPQueue = async.queue((task, callback) => {
             ipCounts: [{ day, count: 1 }],
           })
           .then(() => {
+            logText(`stored the unknown IP ${ip} which had NO day field`);
             callback();
           });
       }
@@ -236,6 +242,7 @@ const postProcessing = async ({
   day,
   unknownIP,
 }) => {
+  logText("we are now postProcessing()....");
   // When a blacklisted IP range is found, push it into the queue
   let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
   blacklistedRanges.forEach((range) => {
@@ -309,9 +316,12 @@ const isIPBlacklistedHelper = async (
       }
       return true;
     } else {
+      Promise.resolve().then(() =>
+        postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
+      );
+      logText("I am now exiting the isIPBlacklistedHelper() function");
       return false;
     }
-    postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP });
   } catch (error) {
     logObject("the error", error);
     if (
@@ -651,6 +661,7 @@ const controlAccess = {
   },
   verifyToken: async (request, next) => {
     try {
+      logText("I have just entered the verifyToken() function");
       const ip =
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
@@ -665,7 +676,7 @@ const controlAccess = {
         request,
         next,
       });
-
+      logText("I have now returned back to the verifyToken() function");
       if (isBlacklisted) {
         return createUnauthorizedResponse();
       } else {
