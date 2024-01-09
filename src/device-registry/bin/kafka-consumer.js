@@ -15,6 +15,7 @@ const isEmpty = require("is-empty");
 const { HttpError } = require("@utils/errors");
 const jsonify = require("@utils/jsonify");
 const asyncRetry = require("async-retry");
+const generateFilter = require("@utils/generate-filter");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
