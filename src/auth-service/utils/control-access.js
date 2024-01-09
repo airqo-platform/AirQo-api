@@ -211,12 +211,13 @@ let unknownIPQueue = async.queue(async (task, callback) => {
 
         await UnknownIPModel("airqo")
           .findOneAndUpdate({ ip }, update, options)
-          .then(() => {
+          .then((result) => {
+            logObject("result", result);
             logText(`stored the unknown IP ${ip} which had a day field`);
             callback();
           });
       } else {
-        const document = await UnknownIPModel("airqo")
+        await UnknownIPModel("airqo")
           .create({
             ip,
             tokens: [token],
@@ -225,7 +226,8 @@ let unknownIPQueue = async.queue(async (task, callback) => {
             client_ids: [client_id],
             ipCounts: [{ day, count: 1 }],
           })
-          .then(() => {
+          .then((result) => {
+            logObject("result", result);
             logText(`stored the unknown IP ${ip} which had NO day field`);
             callback();
           });
@@ -238,36 +240,31 @@ const postProcessing = async ({
   token,
   name,
   client_id,
-  endpoint,
+  endpoint = "verification endpoint",
   day,
   unknownIP,
 }) => {
   logText("we are now postProcessing()....");
+  logObject("received ip", ip);
+  logObject("received token", token);
+  logObject("received name", name);
+  logObject("received client_id", client_id);
+  logObject("received endpoint", endpoint);
+  logObject("received day", day);
+  logObject("received unknownIP", unknownIP);
   // When a blacklisted IP range is found, push it into the queue
   // let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
   // blacklistedRanges.forEach((range) => {
   //   blacklistQueue.push({ ip, range });
   // });
-
-  if (!unknownIP) {
-    unknownIPQueue.push({
-      ip,
-      tokens: [token],
-      token_names: [name],
-      endpoints: [endpoint],
-      client_ids: [client_id],
-      day,
-    });
-  } else {
-    unknownIPQueue.push({
-      ip,
-      tokens: [token],
-      token_names: [name],
-      endpoints: [endpoint],
-      client_ids: [client_id],
-      day,
-    });
-  }
+  unknownIPQueue.push({
+    ip,
+    token,
+    name,
+    client_id,
+    endpoint,
+    day,
+  });
 };
 
 const isIPBlacklistedHelper = async (
@@ -302,6 +299,8 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
+    logObject("accessToken._doc", accessToken._doc);
+
     if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
@@ -316,6 +315,13 @@ const isIPBlacklistedHelper = async (
       }
       return true;
     } else {
+      logObject("ip", ip);
+      logObject("token", token);
+      logObject("name", name);
+      logObject("client_id", client_id);
+      logObject("endpoint", endpoint);
+      logObject("day", day);
+      logObject("unknownIP", unknownIP);
       Promise.resolve().then(() =>
         postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
       );
