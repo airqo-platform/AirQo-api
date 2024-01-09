@@ -244,10 +244,10 @@ const postProcessing = async ({
 }) => {
   logText("we are now postProcessing()....");
   // When a blacklisted IP range is found, push it into the queue
-  let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
-  blacklistedRanges.forEach((range) => {
-    blacklistQueue.push({ ip, range });
-  });
+  // let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
+  // blacklistedRanges.forEach((range) => {
+  //   blacklistQueue.push({ ip, range });
+  // });
 
   if (!unknownIP) {
     unknownIPQueue.push({
@@ -316,9 +316,9 @@ const isIPBlacklistedHelper = async (
       }
       return true;
     } else {
-      // Promise.resolve().then(() =>
-      //   postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
-      // );
+      Promise.resolve().then(() =>
+        postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
+      );
       logText("I am now exiting the isIPBlacklistedHelper() function");
       return false;
     }
