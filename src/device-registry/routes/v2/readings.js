@@ -52,5 +52,6 @@ router.use(validatePagination);
 /******************* create-events use-case *******************************/
 
 router.get("/map", eventController.readingsForMap);
+router.get("/fetchAndStoreData", eventController.fetchAndStoreData);
 
 module.exports = router;

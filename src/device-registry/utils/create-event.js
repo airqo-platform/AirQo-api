@@ -31,6 +31,7 @@ const redisGetAsync = util.promisify(redis.get).bind(redis);
 const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const jsonify = require("@utils/jsonify");
+const asyncRetry = require("async-retry");
 
 const listDevices = async (request, next) => {
   try {
@@ -893,6 +894,94 @@ const createEvent = {
           errors: viewEventsResponse.errors || { message: "" },
           status: viewEventsResponse.status || "",
           isCache: false,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  fetchAndStoreData: async (request, next) => {
+    try {
+      const filter = generateFilter.readings(request);
+      // Fetch the data
+      const viewEventsResponse = await EventModel("airqo").view(filter);
+      logText("we are running running the data insertion script");
+
+      if (viewEventsResponse.success === true) {
+        const data = viewEventsResponse.data[0].data;
+        if (!data) {
+          logText(`🐛🐛 Didn't find any Events to insert into Readings`);
+          logger.error(`🐛🐛 Didn't find any Events to insert into Readings`);
+          return {
+            success: true,
+            message: `🐛🐛 Didn't find any Events to insert into Readings`,
+            status: httpStatus.OK,
+          };
+        }
+        // Prepare the data for batch insertion
+        const batchSize = 50; // Adjust this value based on your requirements
+        const batches = [];
+        for (let i = 0; i < data.length; i += batchSize) {
+          batches.push(data.slice(i, i + batchSize));
+        }
+
+        // Insert each batch in the 'readings' collection with retry logic
+        for (const batch of batches) {
+          await asyncRetry(
+            async (bail) => {
+              try {
+                const res = await ReadingModel("airqo").insertMany(batch, {
+                  ordered: false,
+                });
+                logObject(
+                  "Number of documents inserted in this batch",
+                  res.insertedCount
+                );
+              } catch (error) {
+                if (error.name === "MongoError" && error.code === 11000) {
+                  bail(error); // Stop retrying and throw the error immediately
+                }
+                // logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
+                // throw error; // Retry the operation
+              }
+            },
+            {
+              retries: 5, // Number of retry attempts
+              minTimeout: 1000, // Initial delay between retries (in milliseconds)
+              factor: 2, // Exponential factor for increasing delay between retries
+            }
+          );
+        }
+
+        return {
+          success: true,
+          message: `All data inserted successfully`,
+          status: httpStatus.OK,
+        };
+      } else {
+        logObject(
+          `🐛🐛 Unable to retrieve Events to insert into Readings`,
+          viewEventsResponse
+        );
+
+        logger.error(
+          `🐛🐛 Unable to retrieve Events to insert into Readings -- ${jsonify(
+            viewEventsResponse
+          )}`
+        );
+        return {
+          success: true,
+          message: `🐛🐛 Unable to retrieve Events to insert into Readings`,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
