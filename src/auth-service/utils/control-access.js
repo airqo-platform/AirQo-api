@@ -240,7 +240,7 @@ const postProcessing = async ({
   token,
   name,
   client_id,
-  endpoint = "verification endpoint",
+  endpoint = "unknown",
   day,
   unknownIP,
 }) => {
