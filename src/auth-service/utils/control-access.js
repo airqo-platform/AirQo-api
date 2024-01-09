@@ -20,6 +20,7 @@ const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
+const stringify = require("@utils/stringify");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
 const rangeCheck = require("ip-range-check");
@@ -30,8 +31,12 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 const { HttpError } = require("@utils/errors");
-const stringify = require("@utils/stringify");
 const async = require("async");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const getDay = () => {
   const now = new Date();
@@ -164,21 +169,30 @@ const trampoline = (fn) => {
 };
 
 let blacklistQueue = async.queue(async (task, callback) => {
-  let { ip, range } = task;
+  let { ip } = task;
   logText("we are in the IP range checker.....");
-  logObject("ip, range", `${(ip, range)}`);
-  logObject("rangeCheck(ip, range)", rangeCheck(ip, range.range));
-  if (rangeCheck(ip, range.range)) {
-    // If the IP falls within the range, add it to the blacklist
-    await BlacklistedIPModel("airqo")
-      .create({ ip })
+  // If the IP falls within the range, publish it to the "ip-address" topic
+  try {
+    const kafkaProducer = kafka.producer({
+      groupId: constants.UNIQUE_PRODUCER_GROUP,
+    });
+    await kafkaProducer.connect();
+    await kafkaProducer
+      .send({
+        topic: "ip-address",
+        messages: [{ value: stringify({ ip }) }],
+      })
       .then(() => {
-        logObject(`🚨🚨Added IP ${ip} to the blacklist.`);
-        logger.info(`🚨🚨Added IP ${ip} to the blacklist.`);
+        logObject(`🚨🚨Published IP ${ip} to the "ip-address" topic.`);
+        logger.info(`🚨🚨Published IP ${ip} to the "ip-address" topic.`);
         callback();
       });
-  } else {
-    callback();
+    await kafkaProducer.disconnect();
+  } catch (error) {
+    logObject("error", error);
+    // logger.error(
+    //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
+    // );
   }
 }, 1); // Limit the number of concurrent tasks to 1
 
@@ -240,14 +254,9 @@ const postProcessing = async ({
   client_id,
   endpoint = "unknown",
   day,
-  unknownIP,
 }) => {
   logText("we are now postProcessing()....");
-  // When a blacklisted IP range is found, push it into the queue
-  // let blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
-  // blacklistedRanges.forEach((range) => {
-  //   blacklistQueue.push({ ip, range });
-  // });
+  blacklistQueue.push({ ip });
   unknownIPQueue.push({
     ip,
     token,
@@ -274,15 +283,13 @@ const isIPBlacklistedHelper = async (
       $gt: moment().tz(timeZone).toDate(),
     };
 
-    const [blacklistedIP, whitelistedIP, unknownIP, accessToken] =
-      await Promise.all([
-        BlacklistedIPModel("airqo").findOne({ ip }),
-        WhitelistedIPModel("airqo").findOne({ ip }),
-        UnknownIPModel("airqo").findOne({ ip }),
-        AccessTokenModel("airqo")
-          .findOne(acessTokenFilter)
-          .select("name token client_id"),
-      ]);
+    const [blacklistedIP, whitelistedIP, accessToken] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+    ]);
 
     const {
       token = "",
@@ -305,7 +312,7 @@ const isIPBlacklistedHelper = async (
       return true;
     } else {
       Promise.resolve().then(() =>
-        postProcessing({ ip, token, name, client_id, endpoint, day, unknownIP })
+        postProcessing({ ip, token, name, client_id, endpoint, day })
       );
       logText("I am now exiting the isIPBlacklistedHelper() function");
       return false;
@@ -654,11 +661,11 @@ const controlAccess = {
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
 
-      if (isEmpty(ip)) {
-        logText(`🚨🚨 Token is being accessed without an IP address`);
-        logger.error(`🚨🚨 Token is being accessed without an IP address`);
-        return createUnauthorizedResponse();
-      }
+      // if (isEmpty(ip)) {
+      //   logText(`🚨🚨 Token is being accessed without an IP address`);
+      //   logger.error(`🚨🚨 Token is being accessed without an IP address`);
+      //   return createUnauthorizedResponse();
+      // }
 
       const isBlacklisted = await isIPBlacklisted({
         request,
