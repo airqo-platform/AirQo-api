@@ -488,12 +488,6 @@ const processAirQloudIds = async (airqloud_ids, request) => {
     request.query.site_id = validSiteIdResults.join(",");
   }
 };
-function getThreeDaysBackMidnight() {
-  const currentDate = new Date();
-  currentDate.setDate(currentDate.getDate() - 7);
-  currentDate.setUTCHours(0, 0, 0, 0);
-  return currentDate;
-}
 
 const createEvent = {
   addValues: async (req, res, next) => {
@@ -746,21 +740,18 @@ const createEvent = {
         );
         return;
       }
-      const startTime = getThreeDaysBackMidnight();
+
       const request = {
+        ...req,
         query: {
-          frequency: "hourly",
-          startTime,
-          metadata: "site_id",
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
           recent: "yes",
+          metadata: "site_id",
+          active: "yes",
           brief: "yes",
         },
       };
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
       const result = await createEventUtil.fetchAndStoreData(request, next);
 
