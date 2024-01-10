@@ -106,6 +106,7 @@ const operationForBlacklistedIPs = async (messageData) => {
         // If the IP falls within the range, add it to the list of IPs to blacklist
         if (isBlacklisted.includes(true)) {
           ipsToBlacklist.push(ip);
+          logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
           break;
         }
       }
