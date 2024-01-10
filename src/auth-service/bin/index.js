@@ -20,14 +20,18 @@ try {
   }
 }
 
+const startKafka = async () => {
+  await kafkaConsumer().catch((error) => {
+    logObject("KAFKA error in the main()", error);
+    logger.error(
+      `🐛🐛 KAFKA: internal server error in the main() -- ${stringify(error)}`
+    );
+  });
+};
+
 const main = async () => {
   try {
-    await kafkaConsumer().catch((error) => {
-      logObject("KAFKA error in the main()", error);
-      logger.error(
-        `🐛🐛 KAFKA: internal server error in the main() -- ${stringify(error)}`
-      );
-    });
+    await startKafka();
     createServer();
   } catch (error) {
     logger.error(`🐛🐛 KAFKA error in the main() -- ${stringify(error)}`);

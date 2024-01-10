@@ -137,7 +137,7 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      // ["mobile-app-users-topic"]: operationForNewMobileAppUser,
+      // ["new-mobile-app-user-topic"]: operationForNewMobileAppUser,
       ["ip-address"]: operationForBlacklistedIPs,
       // topic2: operationFunction2,
     };
@@ -168,7 +168,7 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
-    logObject("Error connecting to Kafka", error);
+    logObject("📶📶 Error connecting to Kafka", error);
     logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
   }
 };
