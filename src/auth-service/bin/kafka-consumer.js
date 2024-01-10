@@ -73,6 +73,7 @@ const operationForNewMobileAppUser = async (messageData) => {
     );
   }
 };
+
 const operationForBlacklistedIPs = async (messageData) => {
   try {
     // Parse the message
@@ -97,9 +98,13 @@ const operationForBlacklistedIPs = async (messageData) => {
 
       // Iterate over each range
       for (const range of blacklistedRanges) {
-        // Check if the IP falls within the range
-        if (await rangeCheck(ip, range.range)) {
-          // If the IP falls within the range, add it to the list of IPs to blacklist
+        // Check if the IP falls within the range in parallel
+        const isBlacklisted = await Promise.all(
+          ipsToCheck.map((ip) => rangeCheck(ip, range.range))
+        );
+
+        // If the IP falls within the range, add it to the list of IPs to blacklist
+        if (isBlacklisted.includes(true)) {
           ipsToBlacklist.push(ip);
           break;
         }
@@ -122,6 +127,7 @@ const operationForBlacklistedIPs = async (messageData) => {
     );
   }
 };
+
 const operationFunction2 = async (messageData) => {};
 
 const kafkaConsumer = async () => {
@@ -129,6 +135,8 @@ const kafkaConsumer = async () => {
     const kafka = new Kafka({
       clientId: constants.KAFKA_CLIENT_ID,
       brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+      fetchMaxWaitMs: 500, // Set a maximum threshold for time-based batching
+      fetchMinBytes: 16384, // Set a minimum threshold for size-based batching
     });
 
     const consumer = kafka.consumer({
