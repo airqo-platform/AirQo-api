@@ -12,6 +12,7 @@ const { jsonrepair } = require("jsonrepair");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const stringify = require("@utils/stringify");
+const rangeCheck = require("ip-range-check");
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
