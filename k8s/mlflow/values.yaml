@@ -7,8 +7,7 @@ nameOverride: ""
 fullnameOverride: ""
 service:
   type: NodePort
-  port: 5000
-  name: http
+  port: 5024
 
 backendStore:
   databaseConnectionCheck: true
@@ -24,11 +23,11 @@ artifactRoot:
 
 resources:
   limits:
-    cpu: 500m
-    memory: 1000Mi
+    cpu: 1000m
+    memory: 2000Mi
   requests:
-    cpu: 350m
-    memory: 700Mi
+    cpu: 800m
+    memory: 1500Mi
 
 extraVolumes:
   - name: mlflow-pv
