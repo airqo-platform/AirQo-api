@@ -86,25 +86,23 @@ const operationForBlacklistedIPs = async (messageData) => {
     // Keep fetching and checking until we have gone through all records
     while (true) {
       // Fetch the next page of blacklisted ranges
-      blacklistedRanges = await BlacklistedIPRangeModel("airqo")
-        .find()
-        .skip((pageNumber - 1) * 1000)
-        .limit(1000);
+      blacklistedRanges = await Promise.all([
+        BlacklistedIPRangeModel("airqo")
+          .find()
+          .skip((pageNumber - 1) * 1000)
+          .limit(1000),
+      ]);
 
-      if (blacklistedRanges.length === 0) {
+      if (blacklistedRanges.length === 0 || blacklistedRanges[0].length === 0) {
         // If no more ranges, break the loop
         break;
       }
 
       // Iterate over each range
-      for (const range of blacklistedRanges) {
-        // Check if the IP falls within the range in parallel
-        const isBlacklisted = await Promise.all(
-          ipsToCheck.map((ip) => rangeCheck(ip, range.range))
-        );
-
-        // If the IP falls within the range, add it to the list of IPs to blacklist
-        if (isBlacklisted.includes(true)) {
+      for (const range of blacklistedRanges[0]) {
+        // Check if the IP falls within the range
+        if (await rangeCheck(ip, range.range)) {
+          // If the IP falls within the range, add it to the list of IPs to blacklist
           ipsToBlacklist.push(ip);
           logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
           break;
