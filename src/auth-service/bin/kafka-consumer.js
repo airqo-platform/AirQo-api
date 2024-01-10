@@ -137,7 +137,7 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      // ["mobile-app-users-topic"]: operationForNewMobileAppUser,
+      // ["new-mobile-app-user-topic"]: operationForNewMobileAppUser,
       ["ip-address"]: operationForBlacklistedIPs,
       // topic2: operationFunction2,
     };
