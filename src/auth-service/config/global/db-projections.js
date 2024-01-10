@@ -866,6 +866,14 @@ const dbProjections = {
       "users.network_roles": 0,
       "users.group_roles": 0,
       "users.isActive": 0,
+      "users.groups": 0,
+      "users.verified": 0,
+      "users.google_id": 0,
+      "users.permissions": 0,
+      "users.profilePicture": 0,
+      "users.createdAt": 0,
+      "users.updatedAt": 0,
+      "users.lastLogin": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
