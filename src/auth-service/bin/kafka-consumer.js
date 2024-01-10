@@ -168,7 +168,7 @@ const kafkaConsumer = async () => {
       })
     );
   } catch (error) {
-    logObject("Error connecting to Kafka", error);
+    logObject("📶📶 Error connecting to Kafka", error);
     logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
   }
 };
