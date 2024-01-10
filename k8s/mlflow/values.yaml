@@ -23,11 +23,11 @@ artifactRoot:
 
 resources:
   limits:
-    cpu: 1000m
-    memory: 2000Mi
+    cpu: 700m
+    memory: 1000Mi
   requests:
-    cpu: 800m
-    memory: 1500Mi
+    cpu: 500m
+    memory: 700Mi
 
 extraVolumes:
   - name: mlflow-pv
