@@ -184,7 +184,7 @@ let blacklistQueue = async.queue(async (task, callback) => {
       })
       .then(() => {
         logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+        // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         callback();
       });
     await kafkaProducer.disconnect();
