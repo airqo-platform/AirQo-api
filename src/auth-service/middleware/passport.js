@@ -428,11 +428,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "data-export-scheduling",
           action: "Schedule Data Download",
         },
+        /**** Sites */
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Creation",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "View Sites",
         },
         {
           method: "PUT",
@@ -446,6 +453,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "site-registry",
           action: "Site Deletion",
         },
+
+        /**** Devices */
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices?"],
@@ -471,6 +480,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Device SOFT Update",
         },
         {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "View Devices",
+        },
+        {
           method: "POST",
           uriIncludes: ["/api/v2/devices?"],
           service: "device-registry",
@@ -481,6 +496,73 @@ const useJWTStrategy = (tenant, req, res, next) =>
           uriIncludes: ["/api/v2/devices/soft?"],
           service: "device-registry",
           action: "Device SOFT Creation",
+        },
+        /**** Cohorts */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "View Cohorts",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Create Cohorts",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Update Cohort",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Delete Cohort",
+        },
+
+        /**** Grids */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "View Grids",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Update Grid",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Delete Grid",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Create Grid",
+        },
+
+        /**** AirQlouds */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqloud-registry",
+          action: "View AirQlouds",
         },
         {
           method: "POST",
@@ -500,6 +582,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "airqloud-registry",
           action: "AirQloud Deletion",
         },
+
+        /**** Site Activities */
+
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/activities/maintain"],
@@ -518,11 +603,19 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-deployment",
           action: "Deploy Device",
         },
+
+        /**** Users */
         {
           method: "POST",
           uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Create User",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "View Users",
         },
         {
           method: "PUT",
@@ -536,6 +629,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "auth",
           action: "Delete User",
         },
+
+        /****Incentives*/
         {
           method: "POST",
           uriIncludes: [
@@ -554,28 +649,32 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "incentives",
           action: "Send Money to Host",
         },
+
+        /**** Calibrate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
           service: "calibrate",
           action: "calibrate device",
         },
+
+        /**** Locate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
           service: "locate",
           action: "Identify Suitable Device Locations",
         },
+
+        /**** Fault Detection */
         {
           method: "POST",
           uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
           service: "fault-detection",
           action: "Detect Faults",
         },
-        {
-          uriIncludes: ["/api/v1/devices"],
-          service: "deprecated-version-number",
-        },
+
+        /**** Readings... */
         {
           method: "GET",
           uriIncludes: [
@@ -586,6 +685,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "events-registry",
           action: " Retrieve Measurements",
         },
+
+        /**** Data Proxy */
         {
           method: "GET",
           uriIncludes: ["/api/v2/data"],
@@ -598,47 +699,132 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "data-proxy",
           action: "Retrieve Data",
         },
+
+        /*****Analytics */
         {
           method: "GET",
-          uriIncludes: ["/api/v2/analytics"],
+          uriIncludes: ["/api/v2/analytics/dashboard/sites"],
           service: "analytics",
-          action: "Retrieve Analytics Data",
+          action: "Retrieve Sites on Analytics Page",
         },
         {
           method: "GET",
-          uriIncludes: ["/api/v2/predict"],
-          service: "predict",
-          action: "Retrieve Predicts Data",
+          uriIncludes: [
+            "/api/v2/analytics/dashboard/historical/daily-averages",
+          ],
+          service: "analytics",
+          action: "Retrieve Daily Averages on Analytics Page",
         },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
+          service: "analytics",
+          action: "Retrieve Exceedances on Analytics Page",
+        },
+
+        /*****KYA lessons */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Retrieve KYA lessons",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Create KYA lesson",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Update KYA lesson",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Delete KYA lesson",
+        },
+        /*****KYA Quizzes */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
+          service: "kya",
+          action: "Retrieve KYA quizzes",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Create KYA quizzes",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Update KYA quiz",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Delete KYA quiz",
+        },
+
+        /*****view */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/view/mobile-app/version-info"],
+          service: "mobile-version",
+          action: "View Mobile App Information",
+        },
+
+        /*****Predict */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/daily-forecast"],
+          service: "predict",
+          action: "Retrieve Daily Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/hourly-forecast"],
+          service: "predict",
+          action: "Retrieve Hourly Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/heatmap"],
+          service: "predict",
+          action: "Retrieve Heatmap",
+        },
+
+        /*****Device Monitoring */
         {
           method: "GET",
           uriIncludes: ["/api/v2/monitor"],
           service: "monitor",
           action: "Retrieve Network Statistics Data",
         },
+
         {
           method: "GET",
           uriIncludes: ["/api/v2/meta-data"],
           service: "meta-data",
           action: "Retrieve Metadata",
         },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/view"],
-          service: "view",
-          action: "Retrieve View Data",
-        },
+
         {
           method: "GET",
           uriIncludes: ["/api/v2/network-uptime"],
           service: "network-uptime",
           action: "Retrieve Network Uptime Data",
-        },
-        {
-          method: "GET",
-          uriIncludes: ["/api/v2/notifications"],
-          service: "notifications",
-          action: "Retrieve Notifications",
         },
       ];
       const user = await UserModel(tenant.toLowerCase())
