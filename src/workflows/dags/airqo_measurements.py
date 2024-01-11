@@ -176,6 +176,17 @@ def airqo_historical_hourly_measurements():
         else:
             print("The send to API parameter has been set to false")
 
+    @task()
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.AIRQO
+        )
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
+
     extracted_device_measurements = extract_device_measurements()
     extracted_weather_data = extract_weather_data()
     merged_data = merge_data(
@@ -185,6 +196,7 @@ def airqo_historical_hourly_measurements():
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
     send_hourly_measurements_to_api(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
 
 
 @dag(
@@ -489,11 +501,10 @@ def airqo_realtime_measurements():
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
     calibrated_data = calibrate(merged_data)
-    send_hourly_measurements_to_api(calibrated_data)
+    # send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    if configuration.ENVIRONMENT == "staging":
-        send_hourly_measurements_to_message_broker(calibrated_data)
-        update_latest_data_topic(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
+    update_latest_data_topic(calibrated_data)
 
 
 @dag(
