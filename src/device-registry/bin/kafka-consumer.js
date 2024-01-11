@@ -289,7 +289,15 @@ const kafkaConsumer = async () => {
                 // const messageData = JSON.parse(message.value.toString());
                 const messageData = message.value.toString();
                 await operation(messageData);
-                await fetchAndStoreDataIntoReadingsModel();
+                try {
+                  await fetchAndStoreDataIntoReadingsModel();
+                } catch (error) {
+                  logger.error(
+                    `🐛🐛 Internal Server Error when running fetchAndStoreDataIntoReadingsModel(): ${jsonify(
+                      error
+                    )}`
+                  );
+                }
               } else {
                 logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
               }
