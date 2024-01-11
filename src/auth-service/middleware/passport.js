@@ -612,6 +612,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Create User",
         },
         {
+          method: "GET",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "View Users",
+        },
+        {
           method: "PUT",
           uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
