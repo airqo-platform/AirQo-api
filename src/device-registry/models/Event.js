@@ -1168,6 +1168,10 @@ function filterNullAndReportOffDevices(data) {
 
   return data;
 }
+function filterNull(data) {
+  data = data.filter((record) => record.pm2_5 !== null);
+  return data;
+}
 function computeAveragePm2_5(transformedData) {
   let total = 0;
   transformedData.forEach((record) => {
@@ -2022,6 +2026,31 @@ eventSchema.statics.view = async function(filter, next) {
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
       })
+    );
+    return;
+  }
+};
+
+eventSchema.statics.fetch = async function(filter) {
+  try {
+    const request = filter;
+    request.skip = filter.skip ? filter.skip : DEFAULT_SKIP;
+    request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
+    request.page = filter.page ? filter.page : DEFAULT_PAGE;
+    const result = await fetchData(this, request);
+    const transformedData = filterNull(result[0].data);
+    result[0].data = transformedData;
+    const calculatedValues = computeAveragePm2_5(transformedData);
+    result[0].meta.pm2_5Avg = calculatedValues;
+    return {
+      success: true,
+      data: result,
+      message: "successfully returned the measurements",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error --- view events -- ${error.message}`
     );
     return;
   }
