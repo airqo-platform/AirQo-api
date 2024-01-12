@@ -187,7 +187,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
     };
     const filter = generateFilter.readings(request);
     // Fetch the data
-    const viewEventsResponse = await EventModel("airqo").view(filter);
+    const viewEventsResponse = await EventModel("airqo").fetch(filter);
     logText("we are running running the data insertion script");
 
     if (viewEventsResponse.success === true) {
