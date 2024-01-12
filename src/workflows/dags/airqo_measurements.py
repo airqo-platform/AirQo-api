@@ -501,7 +501,7 @@ def airqo_realtime_measurements():
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
     calibrated_data = calibrate(merged_data)
-    # send_hourly_measurements_to_api(calibrated_data)
+    send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     update_latest_data_topic(calibrated_data)
