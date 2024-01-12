@@ -860,7 +860,7 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.list(request, next);
+      const result = await createEventUtil.view(request, next);
 
       // logObject("result", result);
 
