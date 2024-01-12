@@ -185,7 +185,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
         brief: "yes",
       },
     };
-    const filter = generateFilter.readings(request);
+    const filter = generateFilter.fetch(request);
     // Fetch the data
     const viewEventsResponse = await EventModel("airqo").fetch(filter);
     logText("we are running running the data insertion script");
@@ -221,15 +221,20 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 res.insertedCount
               );
             } catch (error) {
-              // if (error.name === "MongoError" && error.code === 11000) {
-              //   bail(error); // Stop retrying and throw the error immediately
-              // }
+              if (error.name === "MongoError" && error.code !== 11000) {
+                logger.error(
+                  `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                    error
+                  )}`
+                );
+                throw error; // Retry the operation
+              }
               logger.error(
                 `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
                   error
                 )}`
               );
-              throw error; // Retry the operation
+              // bail(error); // Stop retrying and throw the error immediately
             }
           },
           {
