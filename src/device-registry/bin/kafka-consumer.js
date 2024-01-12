@@ -223,12 +223,17 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
             } catch (error) {
               if (error.name === "MongoError" && error.code !== 11000) {
                 logger.error(
-                  `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                  `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
                     error
                   )}`
                 );
                 throw error; // Retry the operation
               }
+              logger.error(
+                `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                  error
+                )}`
+              );
               // bail(error); // Stop retrying and throw the error immediately
             }
           },
