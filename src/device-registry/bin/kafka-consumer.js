@@ -229,11 +229,11 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 );
                 throw error; // Retry the operation
               }
-              logger.error(
-                `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
-                  error
-                )}`
-              );
+              // logger.error(
+              //   `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+              //     error
+              //   )}`
+              // );
               // bail(error); // Stop retrying and throw the error immediately
             }
           },
