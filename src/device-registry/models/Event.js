@@ -1137,13 +1137,15 @@ function filterNullAndReportOffDevices(data) {
           record.time ? record.time : ""
         } and site ${record.siteDetails ? record.siteDetails.name : ""}`
       );
-      logger.info(
-        `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
-          record.device ? record.device : ""
-        }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
-          record.time ? record.time : ""
-        }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
-      );
+      if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+        logger.info(
+          `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+            record.device ? record.device : ""
+          }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
+            record.time ? record.time : ""
+          }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
+        );
+      }
     }
 
     if (record.pm2_5 === null) {
@@ -1154,13 +1156,16 @@ function filterNullAndReportOffDevices(data) {
           record.time ? record.time : ""
         } and site ${record.siteDetails ? record.siteDetails.name : ""}`
       );
-      logger.info(
-        `😲😲 Null pm2_5 value for device: ${
-          record.device ? record.device : ""
-        }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
-          record.time ? record.time : ""
-        }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
-      );
+
+      if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+        logger.info(
+          `😲😲 Null pm2_5 value for device: ${
+            record.device ? record.device : ""
+          }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
+            record.time ? record.time : ""
+          }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
+        );
+      }
     }
   });
 
