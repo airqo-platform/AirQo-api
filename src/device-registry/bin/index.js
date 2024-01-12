@@ -21,15 +21,17 @@ try {
 }
 
 const startKafka = async () => {
-  await kafkaConsumer().catch((error) => {
-    logObject("KAFKA error in the main()", error);
-    logger.error(
-      `🐛🐛 KAFKA: internal server error in the main() -- ${jsonify(error)}`
-    );
-    logger.error(
-      `🐛🐛 KAFKA error message: internal server error in the main() -- ${error.message}`
-    );
-  });
+  if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+    await kafkaConsumer().catch((error) => {
+      logObject("KAFKA error in the main()", error);
+      logger.error(
+        `🐛🐛 KAFKA: internal server error in the main() -- ${jsonify(error)}`
+      );
+      logger.error(
+        `🐛🐛 KAFKA error message: internal server error in the main() -- ${error.message}`
+      );
+    });
+  }
 };
 
 const main = async () => {
