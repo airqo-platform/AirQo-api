@@ -202,7 +202,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
         };
       }
       // Prepare the data for batch insertion
-      const batchSize = 50; // Adjust this value based on your requirements
+      const batchSize = 100; // Adjust this value based on your requirements
       const batches = [];
       for (let i = 0; i < data.length; i += batchSize) {
         batches.push(data.slice(i, i + batchSize));
@@ -221,11 +221,15 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 res.insertedCount
               );
             } catch (error) {
-              if (error.name === "MongoError" && error.code === 11000) {
-                bail(error); // Stop retrying and throw the error immediately
-              }
-              // logger.error(`🐛🐛 Internal Server Error -- ${jsonify(error)}`);
-              // throw error; // Retry the operation
+              // if (error.name === "MongoError" && error.code === 11000) {
+              //   bail(error); // Stop retrying and throw the error immediately
+              // }
+              logger.error(
+                `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                  error
+                )}`
+              );
+              throw error; // Retry the operation
             }
           },
           {
