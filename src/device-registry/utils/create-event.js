@@ -928,7 +928,7 @@ const createEvent = {
           };
         }
         // Prepare the data for batch insertion
-        const batchSize = 100; // Adjust this value based on your requirements
+        const batchSize = 50; // Adjust this value based on your requirements
         const batches = [];
         for (let i = 0; i < data.length; i += batchSize) {
           batches.push(data.slice(i, i + batchSize));
@@ -936,41 +936,40 @@ const createEvent = {
 
         // Insert each batch in the 'readings' collection with retry logic
         for (const batch of batches) {
-          await asyncRetry(
-            async (bail) => {
-              try {
-                const res = await ReadingModel("airqo").insertMany(batch, {
-                  ordered: false,
-                });
-                logObject(
-                  "Number of documents inserted in this batch",
-                  res.insertedCount
-                );
-              } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry the operation
+          for (const doc of batch) {
+            await asyncRetry(
+              async (bail) => {
+                try {
+                  // logObject("document", doc);
+                  const res = await ReadingModel("airqo").updateOne(doc, doc, {
+                    upsert: true,
+                  });
+                  logObject("res", res);
+                  // logObject("Number of documents updated", res.modifiedCount);
+                } catch (error) {
+                  if (error.name === "MongoError" && error.code !== 11000) {
+                    logger.error(
+                      `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                        error
+                      )}`
+                    );
+                    throw error; // Retry the operation
+                  } else if (error.code === 11000) {
+                    // Ignore duplicate key errors
+                    console.warn(
+                      `Duplicate key error for document: ${jsonify(doc)}`
+                    );
+                  }
                 }
-                // logger.error(
-                //   `🐛🐛 Internal Server Error -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
-                //     error
-                //   )}`
-                // );
-                // bail(error); // Stop retrying and throw the error immediately
+              },
+              {
+                retries: 5, // Number of retry attempts
+                minTimeout: 1000, // Initial delay between retries (in milliseconds)
+                factor: 2, // Exponential factor for increasing delay between retries
               }
-            },
-            {
-              retries: 5, // Number of retry attempts
-              minTimeout: 1000, // Initial delay between retries (in milliseconds)
-              factor: 2, // Exponential factor for increasing delay between retries
-            }
-          );
+            );
+          }
         }
-
         return {
           success: true,
           message: `All data inserted successfully`,
