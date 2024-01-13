@@ -13,6 +13,7 @@ const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const stringify = require("@utils/stringify");
 const rangeCheck = require("ip-range-check");
+const asyncRetry = require("async-retry");
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
@@ -102,7 +103,7 @@ const operationForBlacklistedIPs = async (messageData) => {
       // Iterate over each range
       for (const range of blacklistedRanges[0]) {
         // Check if the IP falls within the range
-        if (await rangeCheck(ip, range.range)) {
+        if (rangeCheck(ip, range.range)) {
           // If the IP falls within the range, add it to the list of IPs to blacklist
           ipsToBlacklist.push(ip);
           logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
@@ -113,11 +114,59 @@ const operationForBlacklistedIPs = async (messageData) => {
       pageNumber++;
     }
 
-    // If there are any IPs to blacklist, add them to the blacklist in a single operation
+    // if (ipsToBlacklist.length > 0) {
+    //   await BlacklistedIPModel("airqo").insertMany(
+    //     ipsToBlacklist.map((ip) => ({ ip }))
+    //   );
+    // }
+
     if (ipsToBlacklist.length > 0) {
-      await BlacklistedIPModel("airqo").insertMany(
-        ipsToBlacklist.map((ip) => ({ ip }))
-      );
+      //prepare for batch operations....
+      const batchSize = 20;
+      const batches = [];
+      for (let i = 0; i < ipsToBlacklist.length; i += batchSize) {
+        batches.push(ipsToBlacklist.slice(i, i + batchSize));
+      }
+
+      for (const batch of batches) {
+        for (const ip of batch) {
+          const doc = { ip: ip };
+          await asyncRetry(
+            async (bail) => {
+              try {
+                const res = await BlacklistedIPModel("airqo").updateOne(
+                  doc,
+                  doc,
+                  {
+                    upsert: true,
+                  }
+                );
+                logObject("res", res);
+                // logObject("Number of documents updated", res.modifiedCount);
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- operationForBlacklistedIPs -- ${jsonify(
+                      error
+                    )}`
+                  );
+                  throw error; // Retry the operation
+                } else if (error.code === 11000) {
+                  // Ignore duplicate key errors
+                  console.warn(
+                    `Duplicate key error for document: ${jsonify(doc)}`
+                  );
+                }
+              }
+            },
+            {
+              retries: 5, // Number of retry attempts
+              minTimeout: 1000, // Initial delay between retries (in milliseconds)
+              factor: 2, // Exponential factor for increasing delay between retries
+            }
+          );
+        }
+      }
     }
   } catch (error) {
     logger.error(
