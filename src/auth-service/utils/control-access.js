@@ -1143,8 +1143,8 @@ const controlAccess = {
       ).register(modifiedBody, next);
 
       if (responseFromCreateClient.success === true) {
-        const ip = request.body.ip_address;
-        if (ip) {
+        const ip = modifiedBody.ip_address || "";
+        if (!isEmpty(ip)) {
           const newWhitelistResponse = await WhitelistedIPModel(
             tenant
           ).register({ ip }, next);
@@ -1153,6 +1153,8 @@ const controlAccess = {
           } else {
             return responseFromCreateClient;
           }
+        } else {
+          return responseFromCreateClient;
         }
       } else if (responseFromCreateClient.success === false) {
         return responseFromCreateClient;
