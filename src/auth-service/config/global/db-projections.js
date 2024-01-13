@@ -786,7 +786,6 @@ const dbProjections = {
   },
   TOKENS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
-      "user._id": 0,
       "user.notifications": 0,
       "user.verified": 0,
       "user.analyticsVersion": 0,
@@ -808,12 +807,20 @@ const dbProjections = {
       "user.resetPasswordToken": 0,
       "user.website": 0,
       "user.category": 0,
+      "user.network_roles": 0,
+      "user.group_roles": 0,
+      "user.isActive": 0,
+      "user.lastLogin": 0,
       "user.jobTitle": 0,
+      "user.userName": 0,
       "user.profilePicture": 0,
       "user.phoneNumber": 0,
       "user.description": 0,
       "user.country": 0,
       "client.__v": 0,
+      "client.client_secret": 0,
+      "client.createdAt": 0,
+      "client.updatedAt": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

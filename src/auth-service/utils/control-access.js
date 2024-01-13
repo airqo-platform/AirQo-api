@@ -308,6 +308,49 @@ const isIPBlacklistedHelper = async (
         logger.info(
           `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
         );
+        try {
+          const filter = { token };
+          const listTokenReponse = await AccessTokenModel("airqo").list(
+            { filter },
+            next
+          );
+
+          if (listTokenReponse.success === false) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+            );
+          } else {
+            const tokenDetails = listTokenReponse.data[0];
+            const tokenResponseLength = listTokenReponse.data.length;
+            if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
+              logger.error(
+                `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+              );
+            } else {
+              const {
+                user: { email, firstName, lastName },
+              } = tokenDetails;
+
+              const emailResponse = await mailer.compromisedToken(
+                {
+                  email,
+                  firstName,
+                  lastName,
+                  ip,
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            }
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+        }
       }
       return true;
     } else {
@@ -661,11 +704,11 @@ const controlAccess = {
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
 
-      // if (isEmpty(ip)) {
-      //   logText(`🚨🚨 Token is being accessed without an IP address`);
-      //   logger.error(`🚨🚨 Token is being accessed without an IP address`);
-      //   return createUnauthorizedResponse();
-      // }
+      if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
+        return createUnauthorizedResponse();
+      }
 
       const isBlacklisted = await isIPBlacklisted({
         request,
