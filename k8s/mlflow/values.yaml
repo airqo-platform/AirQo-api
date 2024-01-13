@@ -7,8 +7,7 @@ nameOverride: ""
 fullnameOverride: ""
 service:
   type: NodePort
-  port: 5000
-  name: http
+  port: 5024
 
 backendStore:
   databaseConnectionCheck: true
@@ -24,10 +23,10 @@ artifactRoot:
 
 resources:
   limits:
-    cpu: 500m
+    cpu: 700m
     memory: 1000Mi
   requests:
-    cpu: 350m
+    cpu: 500m
     memory: 700Mi
 
 extraVolumes:
