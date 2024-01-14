@@ -598,6 +598,10 @@ const createUserModule = {
       }
 
       const filter = generateFilter.users(request, next);
+      const user = await UserModel(tenant.toLowerCase())
+        .find(filter)
+        .lean()
+        .select("email firstName lastName");
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify(
@@ -612,7 +616,6 @@ const createUserModule = {
 
       if (responseFromModifyUser.success === true) {
         const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
-        logObject("updatedUserDetails", updatedUserDetails);
 
         if (
           constants.ENVIRONMENT &&
@@ -624,7 +627,6 @@ const createUserModule = {
             data: responseFromModifyUser.data,
           };
         } else {
-          logObject("user Object", user);
           const email = user[0].email;
           const firstName = user[0].firstName;
           const lastName = user[0].lastName;
