@@ -57,5 +57,6 @@ const envs = {
     process.env.GMAIL_VERIFICATION_SUCCESS_REDIRECT,
   SESSION_SECRET: process.env.SESSION_SECRET,
   HARDWARE_AND_DS_EMAILS: process.env.HARDWARE_AND_DS_EMAILS,
+  PLATFORM_AND_DS_EMAILS: process.env.PLATFORM_AND_DS_EMAILS,
 };
 module.exports = envs;
