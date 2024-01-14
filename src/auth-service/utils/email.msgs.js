@@ -295,8 +295,8 @@ module.exports = {
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>. On this note, the system has deactivated your TOKEN accordingly.</p>
-        <p>Consider changing your password. Alternatively, create a new CLIENT and whitelist your respective IP address during the CLIENT creation process before generating a new TOKEN.</p>
+        <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>.</p>
+        <p>Consider changing your AirQo Account password. Additionally, whitelist your respective IP address by updating the CLIENT associated with your TOKEN.</p>
         <p>Report any further suspicious activities.</p>
         <p><a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics right now: ${constants.LOGIN_PAGE}</p>
       </td>
