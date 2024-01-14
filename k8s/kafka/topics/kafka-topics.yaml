@@ -23,7 +23,7 @@ spec:
   partitions: 3
   replicas: 2
   config:
-    retention.ms: 86400000
+    retention.ms: 18000000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
