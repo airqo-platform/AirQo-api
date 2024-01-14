@@ -9,7 +9,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -37,7 +37,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -51,7 +51,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -65,7 +65,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000 
+    retention.ms: 86400000 
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -79,7 +79,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000 
+    retention.ms: 86400000 
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -93,7 +93,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -107,7 +107,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -121,7 +121,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -135,7 +135,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -149,7 +149,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -163,7 +163,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -177,7 +177,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -191,7 +191,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -205,7 +205,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -219,7 +219,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -233,7 +233,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -247,7 +247,7 @@ spec:
   partitions: 1
   replicas: 2
   config:
-    retention.ms: 18000000
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -258,7 +258,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 1
+  partitions: 3
   replicas: 2
   config:
     retention.ms: 18000000
