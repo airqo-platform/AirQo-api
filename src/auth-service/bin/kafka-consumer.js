@@ -190,6 +190,8 @@ const kafkaConsumer = async () => {
 
     const consumer = kafka.consumer({
       groupId: constants.UNIQUE_CONSUMER_GROUP,
+      enableAutoCommit: true,
+      autoOffsetReset: "latest",
     });
 
     // Define topic-to-operation function mapping
@@ -202,7 +204,7 @@ const kafkaConsumer = async () => {
     // Subscribe to all topics in the mapping
     await Promise.all(
       Object.keys(topicOperations).map(async (topic) => {
-        consumer.subscribe({ topic, fromBeginning: true });
+        consumer.subscribe({ topic, fromBeginning: false });
         await consumer.run({
           eachMessage: async ({ topic, partition, message }) => {
             try {
