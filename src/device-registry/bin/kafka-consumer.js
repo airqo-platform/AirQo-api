@@ -280,7 +280,8 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurements,
+      // ["hourly-measurements-topic"]: consumeHourlyMeasurements,
+      ["new-hourly-measurements-topic"]: consumeHourlyMeasurements,
       //topic2: operationFunction2,
       // Add more topics and their corresponding functions as needed
     };

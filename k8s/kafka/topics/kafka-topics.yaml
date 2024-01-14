@@ -248,4 +248,18 @@ spec:
   replicas: 2
   config:
     retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: new-hourly-measurements-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 1
+  replicas: 2
+  config:
+    retention.ms: 86400000
   
