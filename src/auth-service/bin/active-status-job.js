@@ -4,8 +4,9 @@ const constants = require("@config/constants");
 const inactiveThreshold = constants.INACTIVE_THRESHOLD || 2592000000; // 30 days
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/cronJob script`
+  `${constants.ENVIRONMENT} -- bin/active-status-job script`
 );
+const stringify = require("@utils/stringify");
 
 const checkStatus = async () => {
   try {
@@ -47,9 +48,7 @@ const checkStatus = async () => {
       skip += batchSize;
     }
   } catch (error) {
-    logger.error(
-      `An error occurred in the cron job --- ${JSON.stringify(error)}`
-    );
+    logger.error(`Internal Server Error --- ${stringify(error)}`);
   }
 };
 
