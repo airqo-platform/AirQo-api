@@ -179,7 +179,7 @@ const kafkaConsumer = async () => {
     const consumer = kafka.consumer({
       groupId: constants.UNIQUE_CONSUMER_GROUP,
       enableAutoCommit: true,
-      autoOffsetReset: "latest",
+      autoOffsetReset: "earliest",
     });
 
     // Define topic-to-operation function mapping
