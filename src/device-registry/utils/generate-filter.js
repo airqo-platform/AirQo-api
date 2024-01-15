@@ -566,7 +566,7 @@ const generateFilter = {
 
     // Constants for date calculations
     const today = monthsInfront(0);
-    const oneWeekBack = addDays(-7);
+    const oneWeekBack = addDays(-3);
 
     // Initial filter object
     const filter = {
