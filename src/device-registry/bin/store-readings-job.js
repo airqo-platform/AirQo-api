@@ -104,4 +104,8 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
   }
 };
 
-cron.schedule("30 * * * *", fetchAndStoreDataIntoReadingsModel);
+const schedule = "30 * * * *";
+cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
+  scheduled: true,
+  timezone: "Africa/Nairobi",
+});
