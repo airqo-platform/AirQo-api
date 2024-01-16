@@ -715,7 +715,11 @@ const createEvent = {
         next
       );
 
-      if (language !== undefined && responseFromListEvents.success === true) {
+      if (
+        language !== undefined &&
+        responseFromListEvents.success === true &&
+        !isEmpty(responseFromListEvents.data[0].data)
+      ) {
         const data = responseFromListEvents.data[0].data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
@@ -827,7 +831,11 @@ const createEvent = {
 
       const viewEventsResponse = await EventModel(tenant).view(filter, next);
 
-      if (language !== undefined && viewEventsResponse.success === true) {
+      if (
+        language !== undefined &&
+        viewEventsResponse.success === true &&
+        !isEmpty(viewEventsResponse.data[0].data)
+      ) {
         const data = viewEventsResponse.data[0].data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
@@ -1041,7 +1049,11 @@ const createEvent = {
         next,
       });
 
-      if (language !== undefined && readingsResponse.success === true) {
+      if (
+        language !== undefined &&
+        readingsResponse.success === true &&
+        !isEmpty(readingsResponse.data)
+      ) {
         const data = readingsResponse.data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
