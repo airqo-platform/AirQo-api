@@ -564,13 +564,14 @@ const generateFilter = {
       frequency,
     } = { ...query, ...params };
 
-    let threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const today = monthsInfront(0);
+    const threeDaysBack = addDays(-3);
 
     // Initial filter object
     const filter = {
       time: {
-        $gte: threeDaysAgo,
+        $gte: threeDaysBack,
+        $lte: today,
       },
     };
 
