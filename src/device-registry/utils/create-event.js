@@ -1009,7 +1009,7 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language },
+        query: { tenant, language, limit, skip },
       } = request;
       const filter = generateFilter.telemetry(request, next);
 
@@ -1034,7 +1034,12 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).latest(filter, next);
+      const readingsResponse = await ReadingModel(tenant).latest({
+        filter,
+        skip,
+        limit,
+        next,
+      });
 
       if (language !== undefined && readingsResponse.success === true) {
         const data = readingsResponse.data;
