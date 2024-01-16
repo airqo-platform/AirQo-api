@@ -34,7 +34,7 @@ const distance = {
 
       return nearest_devices;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
     }
   },
   getDistance({ lat1, lon1, lat2, lon2 } = {}, next) {
@@ -134,7 +134,7 @@ const distance = {
       const c = 2 * Math.asin(Math.sqrt(haversine));
       return radius * c;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
     }
   },
   degreesToRadians: (degrees) => {
@@ -142,7 +142,7 @@ const distance = {
       const pi = Math.PI;
       return degrees * (pi / 180);
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
     }
   },
   radiansToDegrees: (radians) => {
@@ -152,7 +152,7 @@ const distance = {
         return radians * (180 / pi);
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal server error -- ${error.message}`);
     }
   },
   generateRandomNumbers: (
@@ -230,7 +230,7 @@ const distance = {
         provided_longitude: parseFloat(longitude),
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

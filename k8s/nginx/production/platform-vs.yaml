@@ -1,18 +1,18 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
-  name: airflow
+  name: workflows
   namespace: pipeline
 spec:
   host: platform.airqo.net
   upstreams:
-    - name: airflow
-      service: airflow-svc
+    - name: workflows
+      service: workflows-svc
       port: 8080
   subroutes:
-    - path: /airflow
+    - path: /workflows
       action:
-        pass: airflow
+        pass: workflows
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -74,6 +74,9 @@ spec:
     - name: data-mgt
       service: airqo-data-mgt-api-svc
       port: 3000
+    - name: data-proxy
+      service: airqo-data-proxy-api-svc
+      port: 3000
     - name: locate
       service: airqo-locate-api-svc
       port: 4001
@@ -111,8 +114,8 @@ spec:
     - path: /
       action:
         pass: platform-ui
-    - path: /airflow
-      route: pipeline/airflow
+    - path: /workflows
+      route: pipeline/workflows
     - path: /argocd
       route: cicd/argocd
     - path: /inventory
@@ -137,6 +140,14 @@ spec:
       action:
         proxy:
           upstream: data-mgt
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/proxy
+      action:
+        proxy:
+          upstream: data-proxy
           responseHeaders:
             add:
               - name: Content-Type

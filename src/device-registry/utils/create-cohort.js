@@ -51,7 +51,7 @@ const createCohort = {
       );
       return responseFromListNetworks;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -121,7 +121,7 @@ const createCohort = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -174,7 +174,7 @@ const createCohort = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -199,7 +199,7 @@ const createCohort = {
       );
       return responseFromCreateNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -247,7 +247,7 @@ const createCohort = {
         return responseFromRegisterCohort;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -277,7 +277,7 @@ const createCohort = {
         return responseFromModifyCohort;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -304,7 +304,7 @@ const createCohort = {
         return responseFromRemoveCohort;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -328,7 +328,7 @@ const createCohort = {
       );
       return responseFromListCohort;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -336,6 +336,41 @@ const createCohort = {
           { message: error.message }
         )
       );
+    }
+  },
+  verify: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+      const response = await CohortModel(tenant)
+        .find(filter)
+        .lean()
+        .select("_id");
+
+      if (isEmpty(response)) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Bad Request Error",
+          errors: { message: "Invalid Cohort ID provided" },
+        };
+      } else {
+        return {
+          success: true,
+          status: httpStatus.OK,
+          message: "Cohort ID is Valid!!",
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   listAvailableDevices: async (request, next) => {
@@ -392,7 +427,7 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -456,7 +491,7 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -556,7 +591,7 @@ const createCohort = {
         data: cohort,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -651,7 +686,7 @@ const createCohort = {
           };
         }
       } catch (error) {
-        logger.error(`Internal Server Error ${error.message}`);
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
         return {
           success: false,
           message: "Internal Server Error",
@@ -667,7 +702,7 @@ const createCohort = {
         data: [],
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -729,7 +764,7 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -789,7 +824,7 @@ const createCohort = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -835,7 +870,7 @@ const createCohort = {
         data: { device_ids, site_ids },
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -880,7 +915,7 @@ const createCohort = {
         message: "operation successful",
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

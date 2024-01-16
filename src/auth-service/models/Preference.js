@@ -351,7 +351,7 @@ PreferenceSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -387,7 +387,7 @@ PreferenceSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

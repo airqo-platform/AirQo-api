@@ -73,7 +73,7 @@ const convertToLowerCaseWithUnderscore = (inputString) => {
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --  ${JSON.stringify(error)}`);
   }
 };
 
@@ -125,7 +125,7 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -199,7 +199,7 @@ GroupSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -257,7 +257,7 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -308,7 +308,7 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },

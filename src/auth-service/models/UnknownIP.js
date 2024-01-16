@@ -7,6 +7,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
 const { HttpError } = require("@utils/errors");
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 function getDay() {
   const now = new Date();
@@ -25,6 +26,10 @@ const UnknownIPSchema = new mongoose.Schema(
     },
     emails: {
       type: [{ type: String }],
+      default: [],
+    },
+    client_ids: {
+      type: [{ type: ObjectId }],
       default: [],
     },
     tokens: {
@@ -102,7 +107,7 @@ UnknownIPSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(
         new HttpError("input validation errors", httpStatus.CONFLICT, response)
       );
@@ -122,6 +127,18 @@ UnknownIPSchema.statics = {
 
       const response = await this.aggregate()
         .match(filter)
+        .lookup({
+          from: "clients",
+          localField: "client_ids",
+          foreignField: "_id",
+          as: "clients",
+        })
+        .lookup({
+          from: "users",
+          localField: "clients.user_id",
+          foreignField: "_id",
+          as: "users",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -145,7 +162,7 @@ UnknownIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -179,7 +196,7 @@ UnknownIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -213,7 +230,7 @@ UnknownIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

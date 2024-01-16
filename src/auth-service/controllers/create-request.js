@@ -17,6 +17,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,35 +25,36 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRequestAccessToGroup =
-        await createAccessRequestUtil.requestAccessToGroup(request, next);
+      const result = await createAccessRequestUtil.requestAccessToGroup(
+        request,
+        next
+      );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromRequestAccessToGroup.success === true) {
-        const status = responseFromRequestAccessToGroup.status
-          ? responseFromRequestAccessToGroup.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRequestAccessToGroup.message,
-          request: responseFromRequestAccessToGroup.data,
+          message: result.message,
+          request: result.data,
         });
-      } else if (responseFromRequestAccessToGroup.success === false) {
-        const status = responseFromRequestAccessToGroup.status
-          ? responseFromRequestAccessToGroup.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRequestAccessToGroup.message,
-          error: responseFromRequestAccessToGroup.error
-            ? responseFromRequestAccessToGroup.error
-            : "",
-          errors: responseFromRequestAccessToGroup.errors
-            ? responseFromRequestAccessToGroup.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -60,6 +62,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   requestAccessToGroupByEmail: async (req, res, next) => {
@@ -69,6 +72,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -76,35 +80,36 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRequestAccessToGroup =
-        await createAccessRequestUtil.requestAccessToGroupByEmail(
-          request,
-          next
-        );
+      const result = await createAccessRequestUtil.requestAccessToGroupByEmail(
+        request,
+        next
+      );
 
-      if (responseFromRequestAccessToGroup.success === true) {
-        const status = responseFromRequestAccessToGroup.status
-          ? responseFromRequestAccessToGroup.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRequestAccessToGroup.message,
-          request: responseFromRequestAccessToGroup.data,
+          message: result.message,
+          request: result.data,
         });
-      } else if (responseFromRequestAccessToGroup.success === false) {
-        const status = responseFromRequestAccessToGroup.status
-          ? responseFromRequestAccessToGroup.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRequestAccessToGroup.message,
-          errors: responseFromRequestAccessToGroup.errors
-            ? responseFromRequestAccessToGroup.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -112,6 +117,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   acceptInvitation: async (req, res, next) => {
@@ -121,6 +127,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -128,32 +135,36 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAcceptGroupInvitation =
-        await createAccessRequestUtil.acceptInvitation(request, next);
+      const result = await createAccessRequestUtil.acceptInvitation(
+        request,
+        next
+      );
 
-      if (responseFromAcceptGroupInvitation.success === true) {
-        const status = responseFromAcceptGroupInvitation.status
-          ? responseFromAcceptGroupInvitation.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAcceptGroupInvitation.message,
-          invite: responseFromAcceptGroupInvitation.data,
+          message: result.message,
+          invite: result.data,
         });
-      } else if (responseFromAcceptGroupInvitation.success === false) {
-        const status = responseFromAcceptGroupInvitation.status
-          ? responseFromAcceptGroupInvitation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAcceptGroupInvitation.message,
-          errors: responseFromAcceptGroupInvitation.errors
-            ? responseFromAcceptGroupInvitation.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -161,6 +172,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   requestAccessToNetwork: async (req, res, next) => {
@@ -170,6 +182,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -177,35 +190,37 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRequestAccessToNetwork =
-        await createAccessRequestUtil.requestAccessToNetwork(request, next);
+      const result = await createAccessRequestUtil.requestAccessToNetwork(
+        request,
+        next
+      );
 
-      if (responseFromRequestAccessToNetwork.success === true) {
-        const status = responseFromRequestAccessToNetwork.status
-          ? responseFromRequestAccessToNetwork.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRequestAccessToNetwork.message,
-          request: responseFromRequestAccessToNetwork.data,
+          message: result.message,
+          request: result.data,
         });
-      } else if (responseFromRequestAccessToNetwork.success === false) {
-        const status = responseFromRequestAccessToNetwork.status
-          ? responseFromRequestAccessToNetwork.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRequestAccessToNetwork.message,
-          error: responseFromRequestAccessToNetwork.error
-            ? responseFromRequestAccessToNetwork.error
-            : "",
-          errors: responseFromRequestAccessToNetwork.errors
-            ? responseFromRequestAccessToNetwork.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -213,6 +228,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   approveAccessRequest: async (req, res, next) => {
@@ -222,6 +238,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -229,36 +246,38 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromApproveAccessRequest =
-        await createAccessRequestUtil.approveAccessRequest(request, next);
+      const result = await createAccessRequestUtil.approveAccessRequest(
+        request,
+        next
+      );
 
-      if (responseFromApproveAccessRequest.success === true) {
-        const status = responseFromApproveAccessRequest.status
-          ? responseFromApproveAccessRequest.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromApproveAccessRequest.message,
-          requests: responseFromApproveAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromApproveAccessRequest.success === false) {
-        const status = responseFromApproveAccessRequest.status
-          ? responseFromApproveAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromApproveAccessRequest.message,
-          error: responseFromApproveAccessRequest.error
-            ? responseFromApproveAccessRequest.error
-            : "",
-          errors: responseFromApproveAccessRequest.errors
-            ? responseFromApproveAccessRequest.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -266,6 +285,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   rejectAccessRequest: async (req, res, next) => {
@@ -275,6 +295,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -283,36 +304,35 @@ const createAccessRequest = {
         : req.query.tenant;
       request.body.status = "rejected";
 
-      const responseFromRejectAccessRequest =
-        await createAccessRequestUtil.update(request, next);
+      const result = await createAccessRequestUtil.update(request, next);
 
-      if (responseFromRejectAccessRequest.success === true) {
-        const status = responseFromRejectAccessRequest.status
-          ? responseFromRejectAccessRequest.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRejectAccessRequest.message,
-          requests: responseFromRejectAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromRejectAccessRequest.success === false) {
-        const status = responseFromRejectAccessRequest.status
-          ? responseFromRejectAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromRejectAccessRequest.message,
-          error: responseFromRejectAccessRequest.error
-            ? responseFromRejectAccessRequest.error
-            : "",
-          errors: responseFromRejectAccessRequest.errors
-            ? responseFromRejectAccessRequest.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -320,6 +340,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listPendingAccessRequests: async (req, res, next) => {
@@ -329,6 +350,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -337,34 +359,32 @@ const createAccessRequest = {
         : req.query.tenant;
       request.query.status = "pending";
 
-      const responseFromListAccessRequest = await createAccessRequestUtil.list(
-        request,
-        next
-      );
-      logObject("responseFromListAccessRequest", responseFromListAccessRequest);
-      if (responseFromListAccessRequest.success === true) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
-          : httpStatus.OK;
+      const result = await createAccessRequestUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAccessRequest.message,
-          requests: responseFromListAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromListAccessRequest.success === false) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAccessRequest.message,
-          errors: responseFromListAccessRequest.errors
-            ? responseFromListAccessRequest.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -372,6 +392,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAccessRequestsForGroup: async (req, res, next) => {
@@ -382,6 +403,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -392,37 +414,33 @@ const createAccessRequest = {
       request.query.targetId = grp_id;
       request.query.requestType = "group";
 
-      const responseFromListAccessRequest = await createAccessRequestUtil.list(
-        request,
-        next
-      );
-      logObject("responseFromListAccessRequest", responseFromListAccessRequest);
-      if (responseFromListAccessRequest.success === true) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
-          : httpStatus.OK;
+      const result = await createAccessRequestUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAccessRequest.message,
-          requests: responseFromListAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromListAccessRequest.success === false) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAccessRequest.message,
-          error: responseFromListAccessRequest.error
-            ? responseFromListAccessRequest.error
-            : "",
-          errors: responseFromListAccessRequest.errors
-            ? responseFromListAccessRequest.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -430,6 +448,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   listAccessRequestsForNetwork: async (req, res, next) => {
@@ -440,6 +459,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -450,37 +470,32 @@ const createAccessRequest = {
       request.query.targetId = net_id;
       request.query.requestType = "network";
 
-      const responseFromListAccessRequest = await createAccessRequestUtil.list(
-        request,
-        next
-      );
-
-      if (responseFromListAccessRequest.success === true) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
-          : httpStatus.OK;
+      const result = await createAccessRequestUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAccessRequest.message,
-          requests: responseFromListAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromListAccessRequest.success === false) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAccessRequest.message,
-          error: responseFromListAccessRequest.error
-            ? responseFromListAccessRequest.error
-            : "",
-          errors: responseFromListAccessRequest.errors
-            ? responseFromListAccessRequest.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -488,6 +503,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -497,6 +513,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -504,34 +521,33 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAccessRequest = await createAccessRequestUtil.list(
-        request,
-        next
-      );
+      const result = await createAccessRequestUtil.list(request, next);
 
-      if (responseFromListAccessRequest.success === true) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAccessRequest.message,
-          requests: responseFromListAccessRequest.data,
+          message: result.message,
+          requests: result.data,
         });
-      } else if (responseFromListAccessRequest.success === false) {
-        const status = responseFromListAccessRequest.status
-          ? responseFromListAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAccessRequest.message,
-          errors: responseFromListAccessRequest.errors
-            ? responseFromListAccessRequest.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -539,6 +555,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -548,6 +565,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -555,32 +573,33 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteAccessRequest =
-        await createAccessRequestUtil.delete(request, next);
+      const result = await createAccessRequestUtil.delete(request, next);
 
-      if (responseFromDeleteAccessRequest.success === true) {
-        const status = responseFromDeleteAccessRequest.status
-          ? responseFromDeleteAccessRequest.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteAccessRequest.message,
-          request: responseFromDeleteAccessRequest.data,
+          message: result.message,
+          request: result.data,
         });
-      } else if (responseFromDeleteAccessRequest.success === false) {
-        const status = responseFromDeleteAccessRequest.status
-          ? responseFromDeleteAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteAccessRequest.message,
-          errors: responseFromDeleteAccessRequest.errors
-            ? responseFromDeleteAccessRequest.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -588,6 +607,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -597,6 +617,7 @@ const createAccessRequest = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -604,32 +625,33 @@ const createAccessRequest = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateAccessRequest =
-        await createAccessRequestUtil.update(request, next);
+      const result = await createAccessRequestUtil.update(request, next);
 
-      if (responseFromUpdateAccessRequest.success === true) {
-        const status = responseFromUpdateAccessRequest.status
-          ? responseFromUpdateAccessRequest.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateAccessRequest.message,
-          request: responseFromUpdateAccessRequest.data,
+          message: result.message,
+          request: result.data,
         });
-      } else if (responseFromUpdateAccessRequest.success === false) {
-        const status = responseFromUpdateAccessRequest.status
-          ? responseFromUpdateAccessRequest.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateAccessRequest.message,
-          errors: responseFromUpdateAccessRequest.errors
-            ? responseFromUpdateAccessRequest.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -637,6 +659,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

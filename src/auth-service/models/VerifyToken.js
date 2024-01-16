@@ -76,7 +76,7 @@ VerifyTokenSchema.statics = {
       }
       return { user: null, currentVerifyToken: null };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -137,7 +137,7 @@ VerifyTokenSchema.statics = {
         });
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(
         new HttpError("input validation errors", httpStatus.CONFLICT, response)
       );
@@ -180,7 +180,7 @@ VerifyTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -221,7 +221,7 @@ VerifyTokenSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -259,7 +259,7 @@ VerifyTokenSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

@@ -55,7 +55,7 @@ BlacklistedIPSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`Internal Server Error ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -108,7 +108,7 @@ BlacklistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -143,7 +143,7 @@ BlacklistedIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -177,7 +177,7 @@ BlacklistedIPSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

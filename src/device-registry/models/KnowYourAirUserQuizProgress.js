@@ -8,6 +8,10 @@ const constants = require("@config/constants");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- kya-quiz-progress-model`
+);
 
 const userQuizProgressSchema = new Schema(
   {
@@ -85,6 +89,7 @@ userQuizProgressSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -154,6 +159,7 @@ userQuizProgressSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = { message: error.message };
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -213,6 +219,7 @@ userQuizProgressSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -262,6 +269,7 @@ userQuizProgressSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;

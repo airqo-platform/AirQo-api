@@ -9,6 +9,38 @@ const logger = log4js.getLogger(
 );
 const { logText, logObject } = require("@utils/log");
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
+
 const createCandidate = {
   create: async (req, res, next) => {
     try {
@@ -17,6 +49,7 @@ const createCandidate = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = Object.assign({}, req);
@@ -25,32 +58,34 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.create(request, next);
+      const result = await createCandidateUtil.create(request, next);
 
-      if (candidateResponse.success === true) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: candidateResponse.message,
-          candidate: candidateResponse.data,
+          message: result.message,
+          candidate: result.data,
         });
-      } else if (candidateResponse.success === false) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = candidateResponse.errors
-          ? candidateResponse.errors
+        const errors = result.errors
+          ? result.errors
           : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: candidateResponse.message,
+          message: result.message,
           errors,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -58,6 +93,7 @@ const createCandidate = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -67,6 +103,7 @@ const createCandidate = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -74,33 +111,34 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.list(request, next);
-      logObject("candidateResponse", candidateResponse);
-      if (candidateResponse.success === true) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
-          : httpStatus.OK;
+      const result = await createCandidateUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: candidateResponse.message,
-          candidates: candidateResponse.data,
+          message: result.message,
+          candidates: result.data,
         });
-      } else if (candidateResponse.success === false) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: candidateResponse.message,
-          error: candidateResponse.error ? candidateResponse.error : "",
-          errors: candidateResponse.errors
-            ? candidateResponse.errors
+          message: result.message,
+          error: result.error ? result.error : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -108,6 +146,7 @@ const createCandidate = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   confirm: async (req, res, next) => {
@@ -118,6 +157,7 @@ const createCandidate = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = Object.assign({}, req);
@@ -126,34 +166,32 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.confirm(
-        request,
-        next
-      );
+      const result = await createCandidateUtil.confirm(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (candidateResponse.success === true) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: candidateResponse.message,
-          user: candidateResponse.data,
+          message: result.message,
+          user: result.data,
         });
-      } else if (candidateResponse.success === false) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: candidateResponse.message,
-          errors: candidateResponse.errors
-            ? candidateResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -161,6 +199,7 @@ const createCandidate = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -170,6 +209,7 @@ const createCandidate = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -177,32 +217,34 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.delete(request, next);
+      const result = await createCandidateUtil.delete(request, next);
 
-      if (candidateResponse.success === true) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: candidateResponse.message,
-          candidate: candidateResponse.data,
+          message: result.message,
+          candidate: result.data,
         });
-      } else if (candidateResponse.success === false) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: candidateResponse.message,
-          candidate: candidateResponse.data,
-          errors: candidateResponse.errors
-            ? candidateResponse.errors
+          message: result.message,
+          candidate: result.data,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -210,6 +252,7 @@ const createCandidate = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -219,6 +262,7 @@ const createCandidate = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const request = Object.assign({}, req);
@@ -227,34 +271,36 @@ const createCandidate = {
         ? defaultTenant
         : req.query.tenant;
 
-      const candidateResponse = await createCandidateUtil.update(request, next);
+      const result = await createCandidateUtil.update(request, next);
 
-      logObject("candidateResponse", candidateResponse);
-      if (candidateResponse.success === true) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: candidateResponse.message,
-          candidate: candidateResponse.data,
+          message: result.message,
+          candidate: result.data,
         });
-      } else if (candidateResponse.success === false) {
-        const status = candidateResponse.status
-          ? candidateResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: candidateResponse.message,
-          candidate: candidateResponse.data,
-          errors: candidateResponse.errors
-            ? candidateResponse.errors
+          message: result.message,
+          candidate: result.data,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -262,6 +308,7 @@ const createCandidate = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

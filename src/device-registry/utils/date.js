@@ -95,7 +95,7 @@ function addMonthsToProvidedDate(date, number, next) {
     );
     return `${newYear}-${formattedMonth}-${formattedDay}`;
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
   }
 }
 
@@ -122,7 +122,7 @@ function addMonthsToProvideDateTime(dateTime, number, next) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
   }
 }
 
@@ -139,7 +139,7 @@ function addWeeksToProvideDateTime(dateTime, number, next) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
   }
 }
 
@@ -156,7 +156,7 @@ function addDaysToProvideDateTime(dateTime, number, next) {
       return newDate;
     }
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
   }
 }
 
@@ -180,7 +180,7 @@ function monthsInfront(number, next) {
     logObject("date returned by function for monthsInfront()", d);
     return d;
   } catch (error) {
-    logger.error(`Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
   }
 }
 

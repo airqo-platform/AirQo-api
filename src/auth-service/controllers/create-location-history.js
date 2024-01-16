@@ -18,6 +18,7 @@ const createLocationHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -25,38 +26,35 @@ const createLocationHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const syncLocationHistoriesResponse =
-        await createLocationHistoryUtil.syncLocationHistories(request, next);
+      const result = await createLocationHistoryUtil.syncLocationHistories(
+        request,
+        next
+      );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (syncLocationHistoriesResponse.success === true) {
-        const status = syncLocationHistoriesResponse.status
-          ? syncLocationHistoriesResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: syncLocationHistoriesResponse.message
-            ? syncLocationHistoriesResponse.message
-            : "",
-          location_histories: syncLocationHistoriesResponse.data
-            ? syncLocationHistoriesResponse.data
-            : [],
+          message: result.message ? result.message : "",
+          location_histories: result.data ? result.data : [],
         });
-      } else if (syncLocationHistoriesResponse.success === false) {
-        const status = syncLocationHistoriesResponse.status
-          ? syncLocationHistoriesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: syncLocationHistoriesResponse.message
-            ? syncLocationHistoriesResponse.message
-            : "",
-          errors: syncLocationHistoriesResponse.errors
-            ? syncLocationHistoriesResponse.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -64,6 +62,7 @@ const createLocationHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -74,6 +73,7 @@ const createLocationHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -81,40 +81,33 @@ const createLocationHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const locationHistoryResponse = await createLocationHistoryUtil.create(
-        request,
-        next
-      );
+      const result = await createLocationHistoryUtil.create(request, next);
 
-      if (locationHistoryResponse.success === true) {
-        const status = locationHistoryResponse.status
-          ? locationHistoryResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: locationHistoryResponse.message
-            ? locationHistoryResponse.message
-            : "",
-          created_location_history: locationHistoryResponse.data
-            ? locationHistoryResponse.data
-            : [],
+          message: result.message ? result.message : "",
+          created_location_history: result.data ? result.data : [],
         });
-      } else if (locationHistoryResponse.success === false) {
-        const status = locationHistoryResponse.status
-          ? locationHistoryResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: locationHistoryResponse.message
-            ? locationHistoryResponse.message
-            : "",
-          errors: locationHistoryResponse.errors
-            ? locationHistoryResponse.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -122,6 +115,7 @@ const createLocationHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -131,6 +125,7 @@ const createLocationHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -138,40 +133,33 @@ const createLocationHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const locationHistoriesResponse = await createLocationHistoryUtil.list(
-        request,
-        next
-      );
+      const result = await createLocationHistoryUtil.list(request, next);
 
-      if (locationHistoriesResponse.success === true) {
-        const status = locationHistoriesResponse.status
-          ? locationHistoriesResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: locationHistoriesResponse.message
-            ? locationHistoriesResponse.message
-            : "",
-          location_histories: locationHistoriesResponse.data
-            ? locationHistoriesResponse.data
-            : [],
+          message: result.message ? result.message : "",
+          location_histories: result.data ? result.data : [],
         });
-      } else if (locationHistoriesResponse.success === false) {
-        const status = locationHistoriesResponse.status
-          ? locationHistoriesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: locationHistoriesResponse.message
-            ? locationHistoriesResponse.message
-            : "",
-          errors: locationHistoriesResponse.errors
-            ? locationHistoriesResponse.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -179,6 +167,7 @@ const createLocationHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -188,6 +177,7 @@ const createLocationHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -195,38 +185,33 @@ const createLocationHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const deleteLocationHistoriesResponse =
-        await createLocationHistoryUtil.delete(request, next);
+      const result = await createLocationHistoryUtil.delete(request, next);
 
-      if (deleteLocationHistoriesResponse.success === true) {
-        const status = deleteLocationHistoriesResponse.status
-          ? deleteLocationHistoriesResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: deleteLocationHistoriesResponse.message
-            ? deleteLocationHistoriesResponse.message
-            : "",
-          deleted_location_histories: deleteLocationHistoriesResponse.data
-            ? deleteLocationHistoriesResponse.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_location_histories: result.data ? result.data : [],
         });
-      } else if (deleteLocationHistoriesResponse.success === false) {
-        const status = deleteLocationHistoriesResponse.status
-          ? deleteLocationHistoriesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: deleteLocationHistoriesResponse.message
-            ? deleteLocationHistoriesResponse.message
-            : "",
-          errors: deleteLocationHistoriesResponse.errors
-            ? deleteLocationHistoriesResponse.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -234,6 +219,7 @@ const createLocationHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -243,6 +229,7 @@ const createLocationHistory = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -250,38 +237,33 @@ const createLocationHistory = {
         ? defaultTenant
         : req.query.tenant;
 
-      const updateLocationHistoriesResponse =
-        await createLocationHistoryUtil.update(request, next);
+      const result = await createLocationHistoryUtil.update(request, next);
 
-      if (updateLocationHistoriesResponse.success === true) {
-        const status = updateLocationHistoriesResponse.status
-          ? updateLocationHistoriesResponse.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: updateLocationHistoriesResponse.message
-            ? updateLocationHistoriesResponse.message
-            : "",
-          updated_location_history: updateLocationHistoriesResponse.data
-            ? updateLocationHistoriesResponse.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_location_history: result.data ? result.data : [],
         });
-      } else if (updateLocationHistoriesResponse.success === false) {
-        const status = updateLocationHistoriesResponse.status
-          ? updateLocationHistoriesResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: updateLocationHistoriesResponse.message
-            ? updateLocationHistoriesResponse.message
-            : "",
-          errors: updateLocationHistoriesResponse.errors
-            ? updateLocationHistoriesResponse.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -289,6 +271,7 @@ const createLocationHistory = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

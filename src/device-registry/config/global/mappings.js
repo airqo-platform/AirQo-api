@@ -4,6 +4,7 @@ const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const { logText } = require("@utils/log");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
+const envs = require("./envs");
 
 function generateDateFormatWithoutHrs(ISODate) {
   try {
@@ -420,7 +421,7 @@ const mappings = {
       item["filter"]["device"] = item.device;
       item["filter"]["device_id"] = item.device_id;
       item["filter"]["site_id"] = item.site_id;
-      item["filter"]["nValues"] = { $lt: parseInt(mappings.N_VALUES) };
+      item["filter"]["nValues"] = { $lt: parseInt(envs.N_VALUES || 500) };
       item["filter"]["day"] = item.day;
       item["filter"]["$or"] = [
         { "values.time": { $ne: item.time } },

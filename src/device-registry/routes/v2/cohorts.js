@@ -745,6 +745,38 @@ router.get(
   createCohortController.listNetworks
 );
 router.get(
+  "/verify/:cohort_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("cohort_id")
+        .exists()
+        .withMessage("the cohort ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the cohort ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createCohortController.verify
+);
+router.get(
   "/:cohort_id",
   oneOf([
     [

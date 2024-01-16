@@ -13,7 +13,7 @@ const locationHistories = {
   sample: async (request, next) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -34,7 +34,7 @@ const locationHistories = {
       ).list({ filter }, next);
       return responseFromListLocationHistories;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -59,7 +59,7 @@ const locationHistories = {
       );
       return responseFromDeleteLocationHistories;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -80,7 +80,7 @@ const locationHistories = {
       ).modify({ filter, update }, next);
       return responseFromUpdateLocationHistories;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -99,7 +99,7 @@ const locationHistories = {
       ).register(body, next);
       return responseFromCreateLocationHistory;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -189,7 +189,7 @@ const locationHistories = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

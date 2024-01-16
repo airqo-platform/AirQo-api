@@ -108,7 +108,7 @@ const createAccessRequest = {
         return responseFromCreateAccessRequest;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -261,7 +261,7 @@ const createAccessRequest = {
         return successResponses[0];
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       logObject("error", error);
       next(
         new HttpError(
@@ -409,7 +409,7 @@ const createAccessRequest = {
         return responseFromCreateNewUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -508,7 +508,7 @@ const createAccessRequest = {
         return responseFromCreateAccessRequest;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -635,7 +635,7 @@ const createAccessRequest = {
         return responseFromUpdateAccessRequest;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -662,7 +662,7 @@ const createAccessRequest = {
       );
       return responseFromListAccessRequest;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -694,7 +694,7 @@ const createAccessRequest = {
       );
       return responseFromModifyAccessRequest;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -726,7 +726,7 @@ const createAccessRequest = {
       return responseFromRemoveAccessRequest;
     } catch (error) {
       logObject("delete util error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

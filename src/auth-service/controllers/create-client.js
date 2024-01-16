@@ -1,6 +1,6 @@
 const controlAccessUtil = require("@utils/control-access");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logText } = require("@utils/log");
+const { logText, logObject } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -17,6 +17,7 @@ const createClient = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,40 +25,31 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateClient = await controlAccessUtil.createClient(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.createClient(request, next);
 
-      if (responseFromCreateClient.success === true) {
-        const status = responseFromCreateClient.status
-          ? responseFromCreateClient.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateClient.message
-            ? responseFromCreateClient.message
-            : "",
-          created_client: responseFromCreateClient.data
-            ? responseFromCreateClient.data
-            : [],
+          message: result.message ? result.message : "",
+          created_client: result.data ? result.data : [],
         });
-      } else if (responseFromCreateClient.success === false) {
-        const status = responseFromCreateClient.status
-          ? responseFromCreateClient.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateClient.message
-            ? responseFromCreateClient.message
-            : "",
-          errors: responseFromCreateClient.errors
-            ? responseFromCreateClient.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -65,6 +57,7 @@ const createClient = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -74,6 +67,7 @@ const createClient = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -81,40 +75,33 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListClients = await controlAccessUtil.listClient(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.listClient(request, next);
 
-      if (responseFromListClients.success === true) {
-        const status = responseFromListClients.status
-          ? responseFromListClients.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListClients.message
-            ? responseFromListClients.message
-            : "",
-          clients: responseFromListClients.data
-            ? responseFromListClients.data
-            : [],
+          message: result.message ? result.message : "",
+          clients: result.data ? result.data : [],
         });
-      } else if (responseFromListClients.success === false) {
-        const status = responseFromListClients.status
-          ? responseFromListClients.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListClients.message
-            ? responseFromListClients.message
-            : "",
-          errors: responseFromListClients.errors
-            ? responseFromListClients.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -122,6 +109,7 @@ const createClient = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -131,6 +119,7 @@ const createClient = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -138,40 +127,31 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteClient = await controlAccessUtil.deleteClient(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.deleteClient(request, next);
 
-      if (responseFromDeleteClient.success === true) {
-        const status = responseFromDeleteClient.status
-          ? responseFromDeleteClient.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteClient.message
-            ? responseFromDeleteClient.message
-            : "",
-          deleted_client: responseFromDeleteClient.data
-            ? responseFromDeleteClient.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_client: result.data ? result.data : [],
         });
-      } else if (responseFromDeleteClient.success === false) {
-        const status = responseFromDeleteClient.status
-          ? responseFromDeleteClient.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteClient.message
-            ? responseFromDeleteClient.message
-            : "",
-          errors: responseFromDeleteClient.errors
-            ? responseFromDeleteClient.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -179,6 +159,7 @@ const createClient = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -188,6 +169,7 @@ const createClient = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -195,40 +177,33 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateClient = await controlAccessUtil.updateClient(
-        request,
-        next
-      );
+      const result = await controlAccessUtil.updateClient(request, next);
 
-      if (responseFromUpdateClient.success === true) {
-        const status = responseFromUpdateClient.status
-          ? responseFromUpdateClient.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateClient.message
-            ? responseFromUpdateClient.message
-            : "",
-          updated_client: responseFromUpdateClient.data
-            ? responseFromUpdateClient.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_client: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateClient.success === false) {
-        const status = responseFromUpdateClient.status
-          ? responseFromUpdateClient.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateClient.message
-            ? responseFromUpdateClient.message
-            : "",
-          errors: responseFromUpdateClient.errors
-            ? responseFromUpdateClient.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -236,6 +211,7 @@ const createClient = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateClientSecret: async (req, res, next) => {
@@ -247,6 +223,7 @@ const createClient = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -254,38 +231,33 @@ const createClient = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateClient =
-        await controlAccessUtil.updateClientSecret(request, next);
+      const result = await controlAccessUtil.updateClientSecret(request, next);
 
-      if (responseFromUpdateClient.success === true) {
-        const status = responseFromUpdateClient.status
-          ? responseFromUpdateClient.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateClient.message
-            ? responseFromUpdateClient.message
-            : "",
-          updated_client_secret: responseFromUpdateClient.data
-            ? responseFromUpdateClient.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_client_secret: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateClient.success === false) {
-        const status = responseFromUpdateClient.status
-          ? responseFromUpdateClient.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateClient.message
-            ? responseFromUpdateClient.message
-            : "",
-          errors: responseFromUpdateClient.errors
-            ? responseFromUpdateClient.errors
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Errors" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -293,6 +265,7 @@ const createClient = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

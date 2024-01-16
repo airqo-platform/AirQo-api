@@ -8,6 +8,37 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-controller`
 );
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createLocation = {
   register: async (req, res, next) => {
@@ -27,34 +58,32 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateLocation = await createLocationUtil.create(
-        request
-      );
+      const result = await createLocationUtil.create(request, next);
 
-      if (responseFromCreateLocation.success === true) {
-        const status = responseFromCreateLocation.status
-          ? responseFromCreateLocation.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateLocation.message,
-          location: responseFromCreateLocation.data,
+          message: result.message,
+          location: result.data,
         });
-      } else if (responseFromCreateLocation.success === false) {
-        const status = responseFromCreateLocation.status
-          ? responseFromCreateLocation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateLocation.message,
-          errors: responseFromCreateLocation.errors
-            ? responseFromCreateLocation.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -83,33 +112,31 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveLocation = await createLocationUtil.delete(
-        request
-      );
+      const result = await createLocationUtil.delete(request, next);
 
-      if (responseFromRemoveLocation.success === true) {
-        const status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveLocation.message,
-          location: responseFromRemoveLocation.data,
+          message: result.message,
+          location: result.data,
         });
-      } else if (responseFromRemoveLocation.success === false) {
-        const status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveLocation.message,
-          errors: responseFromRemoveLocation.errors
-            ? responseFromRemoveLocation.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -137,34 +164,32 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateLocation = await createLocationUtil.update(
-        request
-      );
+      const result = await createLocationUtil.update(request, next);
 
-      if (responseFromUpdateLocation.success === true) {
-        const status = responseFromUpdateLocation.status
-          ? responseFromUpdateLocation.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateLocation.message,
-          location: responseFromUpdateLocation.data,
+          message: result.message,
+          location: result.data,
         });
-      } else if (responseFromUpdateLocation.success === false) {
-        const status = responseFromUpdateLocation.status
-          ? responseFromUpdateLocation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateLocation.message,
-          errors: responseFromUpdateLocation.errors
-            ? responseFromUpdateLocation.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -195,32 +220,30 @@ const createLocation = {
 
       request.query.summary = "yes";
 
-      const responseFromListLocations = await createLocationUtil.list(request);
-
-      if (responseFromListLocations.success === true) {
-        const status = responseFromListLocations.status
-          ? responseFromListLocations.status
-          : httpStatus.OK;
+      const result = await createLocationUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
 
         res.status(status).json({
           success: true,
-          message: responseFromListLocations.message,
-          airqlouds: responseFromListLocations.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListLocations.success === false) {
-        const status = responseFromListLocations.status
-          ? responseFromListLocations.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListLocations.message,
-          errors: responseFromListLocations.errors
-            ? responseFromListLocations.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -249,31 +272,31 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListLocations = await createLocationUtil.list(request);
+      const result = await createLocationUtil.list(request, next);
 
-      if (responseFromListLocations.success === true) {
-        const status = responseFromListLocations.status
-          ? responseFromListLocations.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListLocations.message,
-          locations: responseFromListLocations.data,
+          message: result.message,
+          locations: result.data,
         });
-      } else if (responseFromListLocations.success === false) {
-        const status = responseFromListLocations.status
-          ? responseFromListLocations.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListLocations.message,
-          errors: responseFromListLocations.errors
-            ? responseFromListLocations.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -302,33 +325,31 @@ const createLocation = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveLocation = await createLocationUtil.delete(
-        request
-      );
+      const result = await createLocationUtil.delete(request, next);
 
-      if (responseFromRemoveLocation.success === true) {
-        const status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveLocation.message,
-          location: responseFromRemoveLocation.data,
+          message: result.message,
+          location: result.data,
         });
-      } else if (responseFromRemoveLocation.success === false) {
-        const status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveLocation.message,
-          errors: responseFromRemoveLocation.errors
-            ? responseFromRemoveLocation.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

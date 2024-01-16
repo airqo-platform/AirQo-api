@@ -68,7 +68,7 @@ TransactionSchema.statics.register = async function (args, next) {
     }
 
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(new HttpError(message, httpStatus.INTERNAL_SERVER_ERROR, errors));
     return;
   }

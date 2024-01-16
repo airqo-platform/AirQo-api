@@ -1,4 +1,6 @@
 const constants = require("../config/constants");
+const { logObject, logText } = require("@utils/log");
+
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -221,21 +223,24 @@ module.exports = {
   user_updated: ({
     firstName = "",
     lastName = "",
-    updatedData = {},
+    updatedUserDetails = {},
     email = "",
   } = {}) => {
-    const updatedFields = Object.keys(updatedData)
-      .map((field) => `• ${field}`)
-      .join("\n");
+    let updatedFields = "<ol>\n";
+    Object.keys(updatedUserDetails).forEach((field) => {
+      updatedFields += ` <li> ${field}</li>\n`;
+    });
+    updatedFields += "</ol>";
+
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Your AirQo Analytics account details have been updated.
                                     <br />
                                     The following fields have been updated:
-                                    <ol>
+                                    
                                         ${updatedFields}
-                                    </ol>
+                                    
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
@@ -245,6 +250,58 @@ module.exports = {
                                 </td>
                             </tr>`;
     const name = firstName + " " + lastName;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  site_activity: ({
+    firstName = "",
+    lastName = "",
+    siteActivityDetails = {},
+    email = "",
+  } = {}) => {
+    let updatedFields = "<ol>\n";
+    Object.entries(siteActivityDetails).forEach(([key, value]) => {
+      updatedFields += ` <li> ${key}: "${value}"</li>\n`;
+    });
+    updatedFields += "</ol>";
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                You have just performed an activity on an AirQo Device or Site.
+                                    <br />
+                                    The following are the details:
+                                   
+                                        ${updatedFields}
+                                
+                                    <br />
+                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                    <br />
+                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    const name = firstName + " " + lastName;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  token_compromised: ({
+    firstName = "",
+    lastName = "",
+    ip = "",
+    email = "",
+  } = {}) => {
+    const name = firstName + " " + lastName;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>.</p>
+        <p>Consider changing your AirQo Account password. Additionally, whitelist your respective IP address by updating the CLIENT associated with your TOKEN.</p>
+        <p>Report any further suspicious activities.</p>
+        <p><a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics right now: ${constants.LOGIN_PAGE}</p>
+      </td>
+    </tr>
+   `;
 
     return constants.EMAIL_BODY(email, content, name);
   },

@@ -9,6 +9,38 @@ const logger = log4js.getLogger(
 );
 const isEmpty = require("is-empty");
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
+
 const createSim = {
   create: async (req, res, next) => {
     logText("registering sim.............");
@@ -21,41 +53,40 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateSim = await createSimUtil.createLocal(
-        request,
-        next
-      );
-      logObject("responseFromCreateSim in controller", responseFromCreateSim);
-      if (responseFromCreateSim.success === true) {
-        let status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
-          : httpStatus.OK;
+      const result = await createSimUtil.createLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        let status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateSim.message,
-          created_sim: responseFromCreateSim.data,
+          message: result.message,
+          created_sim: result.data,
         });
-      } else if (responseFromCreateSim.success === false) {
-        const status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateSim.message,
-          errors: responseFromCreateSim.errors
-            ? responseFromCreateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -77,41 +108,42 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateSim = await createSimUtil.createBulkLocal(
-        request
-      );
-      logObject("responseFromCreateSim in controller", responseFromCreateSim);
-      if (responseFromCreateSim.success === true) {
-        let status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
-          : httpStatus.OK;
+      const result = await createSimUtil.createBulkLocal(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        let status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateSim.message,
-          created_sims: responseFromCreateSim.data,
-          failures: responseFromCreateSim.failedCreations,
+          message: result.message,
+          created_sims: result.data,
+          failures: result.failedCreations,
         });
-      } else if (responseFromCreateSim.success === false) {
-        const status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateSim.message,
-          errors: responseFromCreateSim.errors
-            ? responseFromCreateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createBulk -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -134,43 +166,42 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveSim = await createSimUtil.deleteLocal(
-        request,
-        next
-      );
+      const result = await createSimUtil.deleteLocal(request, next);
 
-      logObject("responseFromRemoveSim", responseFromRemoveSim);
+      if (isEmpty(result)) {
+        return;
+      }
 
-      if (responseFromRemoveSim.success === true) {
-        const status = responseFromRemoveSim.status
-          ? responseFromRemoveSim.status
-          : httpStatus.OK;
+      logObject("result", result);
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveSim.message,
-          removed_sim: responseFromRemoveSim.data,
+          message: result.message,
+          removed_sim: result.data,
         });
-      } else if (responseFromRemoveSim.success === false) {
-        const status = responseFromRemoveSim.status
-          ? responseFromRemoveSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveSim.message,
-          errors: responseFromRemoveSim.errors
-            ? responseFromRemoveSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -192,41 +223,40 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateSim = await createSimUtil.updateLocal(
-        request,
-        next
-      );
-      logObject("responseFromUpdateSim", responseFromUpdateSim);
-      if (responseFromUpdateSim.success === true) {
-        const status = responseFromUpdateSim.status
-          ? responseFromUpdateSim.status
-          : httpStatus.OK;
+      const result = await createSimUtil.updateLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateSim.message,
-          updated_sim: responseFromUpdateSim.data,
+          message: result.message,
+          updated_sim: result.data,
         });
-      } else if (responseFromUpdateSim.success === false) {
-        const status = responseFromUpdateSim.status
-          ? responseFromUpdateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateSim.message,
-          errors: responseFromUpdateSim.errors
-            ? responseFromUpdateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- update -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -249,41 +279,43 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListSims = await createSimUtil.listLocal(request, next);
+      const result = await createSimUtil.listLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing sims been successful?",
-        responseFromListSims.success
+        result.success
       );
-      if (responseFromListSims.success === true) {
-        const status = responseFromListSims.status
-          ? responseFromListSims.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListSims.message,
-          sims: responseFromListSims.data,
+          message: result.message,
+          sims: result.data,
         });
-      } else if (responseFromListSims.success === false) {
-        const status = responseFromListSims.status
-          ? responseFromListSims.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListSims.message,
-          errors: responseFromListSims.errors
-            ? responseFromListSims.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- list -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -306,45 +338,43 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCheckStatus = await createSimUtil.checkStatus(
-        request,
-        next
-      );
+      const result = await createSimUtil.checkStatus(request, next);
 
-      logObject(
-        "responseFromCheckStatus in controller",
-        responseFromCheckStatus
-      );
-      if (responseFromCheckStatus.success === true) {
-        const status = responseFromCheckStatus.status
-          ? responseFromCheckStatus.status
-          : httpStatus.OK;
+      if (isEmpty(result)) {
+        return;
+      }
+
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCheckStatus.message,
-          status: responseFromCheckStatus.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromCheckStatus.success === false) {
-        const status = responseFromCheckStatus.status
-          ? responseFromCheckStatus.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCheckStatus.message,
-          errors: responseFromCheckStatus.errors
-            ? responseFromCheckStatus.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkStatus -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -367,44 +397,45 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromActivateSim = await createSimUtil.activateSim(
-        request,
-        next
-      );
+      const result = await createSimUtil.activateSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing sims been successful?",
-        responseFromActivateSim.success
+        result.success
       );
-      if (responseFromActivateSim.success === true) {
-        const status = responseFromActivateSim.status
-          ? responseFromActivateSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromActivateSim.message,
-          status: responseFromActivateSim.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromActivateSim.success === false) {
-        const status = responseFromActivateSim.status
-          ? responseFromActivateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromActivateSim.message,
-          errors: responseFromActivateSim.errors
-            ? responseFromActivateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- activateSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -427,43 +458,45 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeactivateSim = await createSimUtil.deactivateSim(
-        request
-      );
+      const result = await createSimUtil.deactivateSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing sims been successful?",
-        responseFromDeactivateSim.success
+        result.success
       );
-      if (responseFromDeactivateSim.success === true) {
-        const status = responseFromDeactivateSim.status
-          ? responseFromDeactivateSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeactivateSim.message,
-          status: responseFromDeactivateSim.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromDeactivateSim.success === false) {
-        const status = responseFromDeactivateSim.status
-          ? responseFromDeactivateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeactivateSim.message,
-          errors: responseFromDeactivateSim.errors
-            ? responseFromDeactivateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deactivateSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -486,43 +519,45 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateSimName = await createSimUtil.updateSimName(
-        request
-      );
+      const result = await createSimUtil.updateSimName(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing sims been successful?",
-        responseFromUpdateSimName.success
+        result.success
       );
-      if (responseFromUpdateSimName.success === true) {
-        const status = responseFromUpdateSimName.status
-          ? responseFromUpdateSimName.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateSimName.message,
-          status: responseFromUpdateSimName.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromUpdateSimName.success === false) {
-        const status = responseFromUpdateSimName.status
-          ? responseFromUpdateSimName.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateSimName.message,
-          errors: responseFromUpdateSimName.errors
-            ? responseFromUpdateSimName.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateSimName -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -545,44 +580,45 @@ const createSim = {
         return;
       }
 
-      const request = req;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRechargeSim = await createSimUtil.rechargeSim(
-        request,
-        next
-      );
+      const result = await createSimUtil.rechargeSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
       logElement(
         "has the response for listing sims been successful?",
-        responseFromRechargeSim.success
+        result.success
       );
-      if (responseFromRechargeSim.success === true) {
-        const status = responseFromRechargeSim.status
-          ? responseFromRechargeSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRechargeSim.message,
-          status: responseFromRechargeSim.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromRechargeSim.success === false) {
-        const status = responseFromRechargeSim.status
-          ? responseFromRechargeSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRechargeSim.message,
-          errors: responseFromRechargeSim.errors
-            ? responseFromRechargeSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- rechargeSim -- ${error.message}`
+      );
       next(
         new HttpError(
           "Internal Server Error",

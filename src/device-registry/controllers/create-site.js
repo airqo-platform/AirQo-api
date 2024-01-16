@@ -9,6 +9,37 @@ const { logObject } = require("../utils/log");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const manageSite = {
   bulkCreate: async (req, res, next) => {
@@ -32,7 +63,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -64,7 +95,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -96,7 +127,7 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -124,30 +155,29 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateSite = await createSiteUtil.create(request);
-      if (responseFromCreateSite.success === true) {
-        const status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
-          : httpStatus.OK;
+      const result = await createSiteUtil.create(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateSite.message,
-          site: responseFromCreateSite.data,
+          message: result.message,
+          site: result.data,
         });
-      } else if (responseFromCreateSite.success === false) {
-        const status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateSite.message,
-          errors: responseFromCreateSite.errors
-            ? responseFromCreateSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -175,27 +205,27 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        request
-      );
+      const result = await createSiteUtil.generateMetadata(request, next);
 
-      if (responseFromGenerateMetadata.success === true) {
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
         return res.status(httpStatus.OK).json({
           success: true,
-          message: responseFromGenerateMetadata.message,
-          metadata: responseFromGenerateMetadata.data,
+          message: result.message,
+          metadata: result.data,
         });
-      } else if (responseFromGenerateMetadata.success === false) {
+      } else if (result.success === false) {
         return res.status(httpStatus.BAD_GATEWAY).json({
           success: false,
-          message: responseFromGenerateMetadata.message,
-          errors: responseFromGenerateMetadata.errors
-            ? responseFromGenerateMetadata.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -222,32 +252,33 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindNearestSite = await createSiteUtil.findNearestWeatherStation(
-        request
+      const result = await createSiteUtil.findNearestWeatherStation(
+        request,
+        next
       );
-      if (responseFromFindNearestSite.success === true) {
-        const status = responseFromFindNearestSite.status
-          ? responseFromFindNearestSite.status
-          : httpStatus.OK;
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: "nearest site retrieved",
-          nearest_weather_station: responseFromFindNearestSite.data,
+          nearest_weather_station: result.data,
         });
-      } else if (responseFromFindNearestSite.success === false) {
-        const status = responseFromFindNearestSite.status
-          ? responseFromFindNearestSite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromFindNearestSite.message,
-          errors: responseFromFindNearestSite.errors
-            ? responseFromFindNearestSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -274,30 +305,30 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListTahmoStations = await createSiteUtil.listWeatherStations();
-      if (responseFromListTahmoStations.success === true) {
-        const status = responseFromListTahmoStations.status
-          ? responseFromListTahmoStations.status
-          : httpStatus.OK;
+      const result = await createSiteUtil.listWeatherStations(next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListTahmoStations.message,
-          stations: responseFromListTahmoStations.data,
+          message: result.message,
+          stations: result.data,
         });
-      } else if (responseFromListTahmoStations.success === false) {
-        const status = responseFromListTahmoStations.status
-          ? responseFromListTahmoStations.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListTahmoStations.message,
-          errors: responseFromListTahmoStations.errors
-            ? responseFromListTahmoStations.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -324,33 +355,31 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindAirQloud = await createSiteUtil.findAirQlouds(
-        request
-      );
+      const result = await createSiteUtil.findAirQlouds(request, next);
 
-      if (responseFromFindAirQloud.success === true) {
-        const status = responseFromFindAirQloud.status
-          ? responseFromFindAirQloud.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          airqlouds: responseFromFindAirQloud.data,
-          message: responseFromFindAirQloud.message,
+          airqlouds: result.data,
+          message: result.message,
         });
-      } else if (responseFromFindAirQloud.success === false) {
-        const status = responseFromFindAirQloud.status
-          ? responseFromFindAirQloud.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromFindAirQloud.message,
-          errors: responseFromFindAirQloud.errors
-            ? responseFromFindAirQloud.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -379,30 +408,29 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveSite = await createSiteUtil.delete(request);
-      if (responseFromRemoveSite.success === true) {
-        const status = responseFromRemoveSite.status
-          ? responseFromRemoveSite.status
-          : httpStatus.OK;
+      const result = await createSiteUtil.delete(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveSite.message,
-          site: responseFromRemoveSite.data,
+          message: result.message,
+          site: result.data,
         });
-      } else if (responseFromRemoveSite.success === false) {
-        const status = responseFromRemoveSite.status
-          ? responseFromRemoveSite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveSite.message,
-          errors: responseFromRemoveSite.errors
-            ? responseFromRemoveSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -430,29 +458,30 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateSite = await createSiteUtil.update(request);
+      const result = await createSiteUtil.update(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromUpdateSite.success === true) {
+      if (result.success === true) {
         return res.status(httpStatus.OK).json({
           success: true,
-          message: responseFromUpdateSite.message,
-          site: responseFromUpdateSite.data,
+          message: result.message,
+          site: result.data,
         });
-      } else if (responseFromUpdateSite.success === false) {
-        const status = responseFromUpdateSite.status
-          ? responseFromUpdateSite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateSite.message,
-          errors: responseFromUpdateSite.errors
-            ? responseFromUpdateSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -480,32 +509,29 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRefreshSite = await createSiteUtil.refresh(request);
+      const result = await createSiteUtil.refresh(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromRefreshSite.success === true) {
-        const status = responseFromRefreshSite.status
-          ? responseFromRefreshSite.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRefreshSite.message,
-          site: responseFromRefreshSite.data,
+          message: result.message,
+          site: result.data,
         });
-      } else if (responseFromRefreshSite.success === false) {
-        const status = responseFromRefreshSite.status
-          ? responseFromRefreshSite.status
-          : httpStatus.BAD_GATEWAY;
+      } else if (result.success === false) {
+        const status = result.status ? result.status : httpStatus.BAD_GATEWAY;
 
         return res.status(status).json({
           success: false,
-          message: responseFromRefreshSite.message,
-          errors: responseFromRefreshSite.errors
-            ? responseFromRefreshSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -533,34 +559,35 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
-        request
+      const result = await createSiteUtil.findNearestSitesByCoordinates(
+        request,
+        next
       );
 
-      if (responseFromFindNearestSite.success === true) {
-        const status = responseFromFindNearestSite.status
-          ? responseFromFindNearestSite.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromFindNearestSite.message,
-          sites: responseFromFindNearestSite.data,
+          message: result.message,
+          sites: result.data,
         });
-      } else if (responseFromFindNearestSite.success === false) {
-        const status = responseFromFindNearestSite.status
-          ? responseFromFindNearestSite.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromFindNearestSite.message,
-          errors: responseFromFindNearestSite.errors
-            ? responseFromFindNearestSite.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -588,32 +615,31 @@ const manageSite = {
         : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListSites = await createSiteUtil.list(request);
+      const result = await createSiteUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListSites.success === true) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListSites.message,
-          sites: responseFromListSites.data,
+          message: result.message,
+          sites: result.data,
         });
-      } else if (responseFromListSites.success === false) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
-          message: responseFromListSites.message,
-          errors: responseFromListSites.errors
-            ? responseFromListSites.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -640,38 +666,35 @@ const manageSite = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListSites = await createSiteUtil.list(request);
+      const result = await createSiteUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListSites.success === true) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListSites.message,
-          sites: responseFromListSites.data,
+          message: result.message,
+          sites: result.data,
         });
-      } else if (responseFromListSites.success === false) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromListSites.errors
-          ? responseFromListSites.errors
-          : { message: "" };
+        const errors = result.errors ? result.errors : { message: "" };
 
-        // next(new HttpError(responseFromListSites.message, status, errors));
+        // next(new HttpError(result.message, status, errors));
 
         res.status(status).json({
           success: false,
-          message: responseFromListSites.message,
-          errors: responseFromListSites.errors
-            ? responseFromListSites.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -698,38 +721,35 @@ const manageSite = {
         bearing,
       } = req.body;
 
-      const responseFromCreateApproximateCoordinates = createSiteUtil.createApproximateCoordinates(
+      const result = createSiteUtil.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km, bearing },
         next
       );
-
-      if (responseFromCreateApproximateCoordinates.success === true) {
-        const status = responseFromCreateApproximateCoordinates.status
-          ? responseFromCreateApproximateCoordinates.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateApproximateCoordinates.message,
-          approximate_coordinates:
-            responseFromCreateApproximateCoordinates.data,
+          message: result.message,
+          approximate_coordinates: result.data,
         });
       } else {
-        const status = responseFromCreateApproximateCoordinates.status
-          ? responseFromCreateApproximateCoordinates.status
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromCreateApproximateCoordinates.errors
-          ? responseFromCreateApproximateCoordinates.errors
-          : { message: "" };
+        const errors = result.errors ? result.errors : { message: "" };
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateApproximateCoordinates.message,
+          message: result.message,
           errors,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

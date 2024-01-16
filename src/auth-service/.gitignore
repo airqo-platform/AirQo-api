@@ -7,3 +7,7 @@ airqo-250220-*
 scripts/*
 coverage/
 .nyc_output
+utils/scripts/csv.txt
+utils/scripts/array-*
+utils/scripts/json.txt
+utils/scripts/services.yaml

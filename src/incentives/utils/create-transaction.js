@@ -13,6 +13,7 @@ const logger = log4js.getLogger(
 const axios = require("axios");
 const generateFilter = require("@utils/generate-filter");
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 /*********************************** Helper Functions ***********************************/
 const createProductItemForMobileMoneyPayout = (phone_number) => {
@@ -82,7 +83,7 @@ const getFirstBearerToken = async () => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error --- getFirstBearerToken --- ${JSON.stringify(
+          `🐛🐛 internal server error --- getFirstBearerToken --- ${stringify(
             error
           )}`
         );
@@ -102,7 +103,7 @@ const getFirstBearerToken = async () => {
       });
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getFirstBearerToken --- ${JSON.stringify(
+      `🐛🐛 Internal Server Error --- getFirstBearerToken --- ${stringify(
         error
       )}`
     );
@@ -152,7 +153,7 @@ const getSecondBearerToken = async (firstBearerToken) => {
       })
       .catch((error) => {
         logger.error(
-          `internal server error --- getSecondBearerToken --- ${JSON.stringify(
+          `🐛🐛 internal server error --- getSecondBearerToken --- ${stringify(
             error
           )}`
         );
@@ -172,7 +173,7 @@ const getSecondBearerToken = async (firstBearerToken) => {
       });
   } catch (error) {
     logger.error(
-      `Internal Server Error --- getSecondBearerToken --- ${JSON.stringify(
+      `🐛🐛 Internal Server Error --- getSecondBearerToken --- ${stringify(
         error
       )}`
     );
@@ -232,7 +233,7 @@ const createTransaction = {
           paymentProvider: constants.XENTE_PAYOUTS_PAYMENT_PROVIDER,
           productItem: createProductItemForMobileMoneyPayout(phone_number),
           amount: amount,
-          productReference: JSON.stringify(phone_number),
+          productReference: stringify(phone_number),
           paymentReference: constants.XENTE_PAYOUTS_PAYMENT_REFERENCE,
           type: constants.XENTE_PAYOUTS_TYPE,
           batchId,
@@ -285,7 +286,7 @@ const createTransaction = {
           .catch((error) => {
             logObject("API request error", error);
             logger.error(
-              `Response from EXT system, the status is outside of 2XX range --- sendMoneyToHost --- ${JSON.stringify(
+              `Response from EXT system, the status is outside of 2XX range --- sendMoneyToHost --- ${stringify(
                 error
               )}`
             );
@@ -327,7 +328,9 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- sendMoneyToHost -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -366,14 +369,14 @@ const createTransaction = {
       const collectMoneyRequestBody = {
         paymentProvider: createPaymentProviderForCollections(phone_number),
         productItem: constants.XENTE_COLLECTIONS_PRODUCT_ITEM,
-        amount: JSON.stringify(amount),
+        amount: stringify(amount),
         memo,
         channelId,
         customerId,
         customerPhone,
         customerEmail,
         productReference: constants.XENTE_COLLECTIONS_PRODUCT_REFERENCE,
-        paymentReference: JSON.stringify(phone_number),
+        paymentReference: stringify(phone_number),
         type: constants.XENTE_C0LLECTIONS_TYPE,
         metadata,
         batchId,
@@ -394,7 +397,7 @@ const createTransaction = {
             );
             logObject("Response data", error.response.data);
             logger.error(
-              `Response status outised of 2XX range --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+              `Response status outised of 2XX range --- addMoneyToOrganisationAccount --- ${stringify(
                 error.response
               )}`
             );
@@ -402,12 +405,12 @@ const createTransaction = {
               success: false,
               message: "Response status outised of 2XX range",
               errors: { message: "Response status outised of 2XX range" },
-              status: response.status,
+              status: error.response.status,
             };
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+              `🐛🐛 No response received --- addMoneyToOrganisationAccount --- ${stringify(
                 error.request
               )}`
             );
@@ -415,14 +418,14 @@ const createTransaction = {
               success: false,
               message: "No response received",
               errors: { message: "No response received" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else {
             logObject("Error", error.message);
             logger.error(
-              `Internal Server Error --- addMoneyToOrganisationAccount --- ${JSON.stringify(
+              `🐛🐛 Internal Server Error --- addMoneyToOrganisationAccount --- ${stringify(
                 error
               )}`
             );
@@ -430,8 +433,8 @@ const createTransaction = {
               success: false,
               message: "Internal Server Error",
               errors: { message: "Internal Server Error" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           }
@@ -454,7 +457,11 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- addMoneyToOrganisationAccount -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -509,15 +516,15 @@ const createTransaction = {
       } else {
         const collectMoneyRequestBody = {
           paymentProvider: createPaymentProviderForCollections(phone_number),
-          productItem: JSON.stringify(constants.XENTE_COLLECTIONS_PRODUCT_ITEM),
-          amount: JSON.stringify(amount),
+          productItem: stringify(constants.XENTE_COLLECTIONS_PRODUCT_ITEM),
+          amount: stringify(amount),
           memo,
           channelId,
           customerId,
           customerPhone,
           customerEmail,
           productReference: constants.XENTE_COLLECTIONS_PRODUCT_REFERENCE,
-          paymentReference: JSON.stringify(phone_number),
+          paymentReference: stringify(phone_number),
           type: constants.XENTE_C0LLECTIONS_TYPE,
           metadata,
           batchId,
@@ -538,7 +545,7 @@ const createTransaction = {
               );
               logObject("Response data", error.response.data);
               logger.error(
-                `Response status outised of 2XX range --- receiveMoneyFromHost --- ${JSON.stringify(
+                `Response status outised of 2XX range --- receiveMoneyFromHost --- ${stringify(
                   error.response
                 )}`
               );
@@ -551,7 +558,7 @@ const createTransaction = {
             } else if (error.request) {
               logObject("No response received", error.request);
               logger.error(
-                `No response received --- receiveMoneyFromHost --- ${JSON.stringify(
+                `🐛🐛 No response received --- receiveMoneyFromHost --- ${stringify(
                   error.request
                 )}`
               );
@@ -559,14 +566,14 @@ const createTransaction = {
                 success: false,
                 message: "No response received",
                 errors: { message: "No response received" },
-                status: response.status
-                  ? response.status
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             } else {
               logObject("Error", error.message);
               logger.error(
-                `Internal Server Error --- receiveMoneyFromHost --- ${JSON.stringify(
+                `🐛🐛 Internal Server Error --- receiveMoneyFromHost --- ${stringify(
                   error
                 )}`
               );
@@ -574,8 +581,8 @@ const createTransaction = {
                 success: false,
                 message: "Internal Server Error",
                 errors: { message: "Internal Server Error" },
-                status: response.status
-                  ? response.status
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             }
@@ -599,7 +606,11 @@ const createTransaction = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- receiveMoneyFromHost -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -632,7 +643,7 @@ const createTransaction = {
           );
           logObject("Response data", error.response.data);
           logger.error(
-            `Response status outised of 2XX range --- getTransactionDetails --- ${JSON.stringify(
+            `Response status outised of 2XX range --- getTransactionDetails --- ${stringify(
               error.response
             )}`
           );
@@ -640,12 +651,12 @@ const createTransaction = {
             success: false,
             message: "Response status outised of 2XX range",
             errors: { message: "Response status outised of 2XX range" },
-            status: response.status,
+            status: error.response.status,
           };
         } else if (error.request) {
           logObject("No response received", error.request);
           logger.error(
-            `No response received --- getTransactionDetails --- ${JSON.stringify(
+            `🐛🐛 No response received --- getTransactionDetails --- ${stringify(
               error.request
             )}`
           );
@@ -653,14 +664,14 @@ const createTransaction = {
             success: false,
             message: "No response received",
             errors: { message: "No response received" },
-            status: response.status
-              ? response.status
+            status: error.response.status
+              ? error.response.status
               : httpStatus.INTERNAL_SERVER_ERROR,
           };
         } else {
           logObject("Error", error.message);
           logger.error(
-            `Internal Server Error --- getTransactionDetails --- ${JSON.stringify(
+            `🐛🐛 Internal Server Error --- getTransactionDetails --- ${stringify(
               error
             )}`
           );
@@ -668,8 +679,8 @@ const createTransaction = {
             success: false,
             message: "Internal Server Error",
             errors: { message: "Internal Server Error" },
-            status: response.status
-              ? response.status
+            status: error.response.status
+              ? error.response.status
               : httpStatus.INTERNAL_SERVER_ERROR,
           };
         }
@@ -683,7 +694,11 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- getTransactionDetails -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -713,7 +728,9 @@ const createTransaction = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- listTransactions -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -751,9 +768,9 @@ const createTransaction = {
 
       const loadDataRequestObject = {
         paymentProvider: constants.XENTE_DATA_PAYMENT_PROVIDER,
-        productItem: JSON.stringify(product_item), //*
-        amount: JSON.stringify(amount), //*
-        productReference: JSON.stringify(phone_number), //*
+        productItem: stringify(product_item), //*
+        amount: stringify(amount), //*
+        productReference: stringify(phone_number), //*
         paymentReference: constants.XENTE_DATA_PAYMENT_REFERENCE,
         type: constants.XENTE_DATA_TYPE,
         batchId,
@@ -777,7 +794,7 @@ const createTransaction = {
             );
             logObject("Response data", error.response.data);
             logger.error(
-              `Response status outised of 2XX range --- loadDataBundle --- ${JSON.stringify(
+              `Response status outised of 2XX range --- loadDataBundle --- ${stringify(
                 error.response
               )}`
             );
@@ -785,12 +802,12 @@ const createTransaction = {
               success: false,
               message: "Response status outised of 2XX range",
               errors: { message: "Response status outised of 2XX range" },
-              status: response.status,
+              status: error.response.status,
             };
           } else if (error.request) {
             logObject("No response received", error.request);
             logger.error(
-              `No response received --- loadDataBundle --- ${JSON.stringify(
+              `🐛🐛 No response received --- loadDataBundle --- ${stringify(
                 error.request
               )}`
             );
@@ -798,14 +815,14 @@ const createTransaction = {
               success: false,
               message: "No response received",
               errors: { message: "No response received" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else {
             logObject("Error", error.message);
             logger.error(
-              `Internal Server Error --- loadDataBundle --- ${JSON.stringify(
+              `🐛🐛 Internal Server Error --- loadDataBundle --- ${stringify(
                 error
               )}`
             );
@@ -813,8 +830,8 @@ const createTransaction = {
               success: false,
               message: "Internal Server Error",
               errors: { message: "Internal Server Error" },
-              status: response.status
-                ? response.status
+              status: error.response.status
+                ? error.response.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
             };
           }
@@ -835,7 +852,9 @@ const createTransaction = {
       return responseFromSaveTransaction;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- loadDataBundle -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -862,7 +881,11 @@ const createTransaction = {
        */
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkRemainingDataBundleBalance -- ${stringify(
+          error
+        )}`
+      );
       next(
         new HttpError(
           "Internal Server Error",

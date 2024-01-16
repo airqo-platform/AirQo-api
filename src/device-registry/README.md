@@ -1,7 +1,7 @@
 # Device Registry
 
 This microservice handles device creation, site creation, events creation and the respective
-activities whch take place on a site.
+activities which take place on a site.
 
 ## Run Locally
 

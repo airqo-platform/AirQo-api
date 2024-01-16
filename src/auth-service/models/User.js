@@ -340,7 +340,7 @@ UserSchema.statics = {
           "the email and userName must be unique for every user";
       }
 
-      logger.error(`Internal Server Error -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
   },
@@ -427,7 +427,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -633,7 +633,7 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -706,7 +706,7 @@ UserSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -745,7 +745,7 @@ UserSchema.statics = {
       }
     } catch (error) {
       logObject("the models error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -862,7 +862,7 @@ UserSchema.methods.createToken = async function () {
       );
     }
   } catch (error) {
-    logger.error(`Internal Server Error --- ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
   }
 };
 

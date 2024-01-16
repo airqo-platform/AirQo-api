@@ -17,6 +17,7 @@ const checklists = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,35 +25,32 @@ const checklists = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateChecklist = await createChecklistUtil.update(
-        request,
-        next
-      );
+      const result = await createChecklistUtil.update(request, next);
 
-      if (responseFromUpdateChecklist.success === true) {
-        const status = responseFromUpdateChecklist.status
-          ? responseFromUpdateChecklist.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateChecklist.message,
-          checklist: responseFromUpdateChecklist.data,
+          message: result.message,
+          checklist: result.data,
         });
-      } else if (responseFromUpdateChecklist.success === false) {
-        const status = responseFromUpdateChecklist.status
-          ? responseFromUpdateChecklist.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateChecklist.message,
-          checklist: responseFromUpdateChecklist.data,
-          errors: responseFromUpdateChecklist.errors
-            ? responseFromUpdateChecklist.errors
-            : { message: "" },
+          message: result.message,
+          checklist: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -60,6 +58,7 @@ const checklists = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -69,6 +68,7 @@ const checklists = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -76,35 +76,34 @@ const checklists = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateChecklist = await createChecklistUtil.create(
-        request,
-        next
-      );
+      const result = await createChecklistUtil.create(request, next);
 
-      if (responseFromCreateChecklist.success === true) {
-        const status = responseFromCreateChecklist.status
-          ? responseFromCreateChecklist.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateChecklist.message,
-          checklist: responseFromCreateChecklist.data,
+          message: result.message,
+          checklist: result.data,
         });
-      } else if (responseFromCreateChecklist.success === false) {
-        const status = responseFromCreateChecklist.status
-          ? responseFromCreateChecklist.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateChecklist.message,
-          checklist: responseFromCreateChecklist.data,
-          errors: responseFromCreateChecklist.errors
-            ? responseFromCreateChecklist.errors
+          message: result.message,
+          checklist: result.data,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -112,6 +111,7 @@ const checklists = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   upsert: async (req, res, next) => {
@@ -121,6 +121,7 @@ const checklists = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -128,35 +129,32 @@ const checklists = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateChecklist = await createChecklistUtil.upsert(
-        request,
-        next
-      );
+      const result = await createChecklistUtil.upsert(request, next);
 
-      if (responseFromCreateChecklist.success === true) {
-        const status = responseFromCreateChecklist.status
-          ? responseFromCreateChecklist.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateChecklist.message,
-          checklist: responseFromCreateChecklist.data,
+          message: result.message,
+          checklist: result.data,
         });
-      } else if (responseFromCreateChecklist.success === false) {
-        const status = responseFromCreateChecklist.status
-          ? responseFromCreateChecklist.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateChecklist.message,
-          checklist: responseFromCreateChecklist.data,
-          errors: responseFromCreateChecklist.errors
-            ? responseFromCreateChecklist.errors
-            : { message: "" },
+          message: result.message,
+          checklist: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -164,6 +162,7 @@ const checklists = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -175,6 +174,7 @@ const checklists = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -182,34 +182,31 @@ const checklists = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListChecklists = await createChecklistUtil.list(
-        request,
-        next
-      );
+      const result = await createChecklistUtil.list(request, next);
 
-      if (responseFromListChecklists.success === true) {
-        const status = responseFromListChecklists.status
-          ? responseFromListChecklists.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListChecklists.message,
-          checklists: responseFromListChecklists.data,
+          message: result.message,
+          checklists: result.data,
         });
-      } else if (responseFromListChecklists.success === false) {
-        const status = responseFromListChecklists.status
-          ? responseFromListChecklists.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListChecklists.message,
-          errors: responseFromListChecklists.errors
-            ? responseFromListChecklists.errors
-            : "",
+          message: result.message,
+          errors: result.errors ? result.errors : "",
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -217,6 +214,7 @@ const checklists = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -227,6 +225,7 @@ const checklists = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -234,35 +233,34 @@ const checklists = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteChecklist = await createChecklistUtil.delete(
-        request,
-        next
-      );
+      const result = await createChecklistUtil.delete(request, next);
 
-      if (responseFromDeleteChecklist.success === true) {
-        const status = responseFromDeleteChecklist.status
-          ? responseFromDeleteChecklist.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteChecklist.message,
-          checklist: responseFromDeleteChecklist.data,
+          message: result.message,
+          checklist: result.data,
         });
-      } else if (responseFromDeleteChecklist.success === false) {
-        const status = responseFromDeleteChecklist.status
-          ? responseFromDeleteChecklist.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteChecklist.message,
-          checklist: responseFromDeleteChecklist.data,
-          errors: responseFromDeleteChecklist.errors
-            ? responseFromDeleteChecklist.errors
+          message: result.message,
+          checklist: result.data,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -270,6 +268,7 @@ const checklists = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

@@ -8,6 +8,37 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-grid-controller`
 );
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createGrid = {
   /***************** admin levels associated with Grids ****************/
@@ -27,34 +58,34 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAdminLevels = await createGridUtil.listAdminLevels(
-        request
-      );
+      const result = await createGridUtil.listAdminLevels(request, next);
 
-      if (responseFromListAdminLevels.success === true) {
-        const status = responseFromListAdminLevels.status
-          ? responseFromListAdminLevels.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListAdminLevels.message,
-          admin_levels: responseFromListAdminLevels.data,
+          message: result.message,
+          admin_levels: result.data,
         });
-      } else if (responseFromListAdminLevels.success === false) {
-        const status = responseFromListAdminLevels.status
-          ? responseFromListAdminLevels.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListAdminLevels.message,
-          errors: responseFromListAdminLevels.errors
-            ? responseFromListAdminLevels.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -81,37 +112,35 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateAdminLevel = await createGridUtil.updateAdminLevel(
-        request
-      );
-      logObject(
-        "responseFromUpdateAdminLevel in controller",
-        responseFromUpdateAdminLevel
-      );
-      if (responseFromUpdateAdminLevel.success === true) {
-        const status = responseFromUpdateAdminLevel.status
-          ? responseFromUpdateAdminLevel.status
-          : httpStatus.OK;
+      const result = await createGridUtil.updateAdminLevel(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateAdminLevel.message,
-          updated_admin_level: responseFromUpdateAdminLevel.data,
+          message: result.message,
+          updated_admin_level: result.data,
         });
-      } else if (responseFromUpdateAdminLevel.success === false) {
-        const status = responseFromUpdateAdminLevel.status
-          ? responseFromUpdateAdminLevel.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateAdminLevel.message,
-          errors: responseFromUpdateAdminLevel.errors
-            ? responseFromUpdateAdminLevel.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -138,34 +167,34 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteAdminLevel = await createGridUtil.deleteAdminLevel(
-        request
-      );
+      const result = await createGridUtil.deleteAdminLevel(request, next);
 
-      if (responseFromDeleteAdminLevel.success === true) {
-        const status = responseFromDeleteAdminLevel.status
-          ? responseFromDeleteAdminLevel.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteAdminLevel.message,
-          admin_levels: responseFromDeleteAdminLevel.data,
+          message: result.message,
+          admin_levels: result.data,
         });
-      } else if (responseFromDeleteAdminLevel.success === false) {
-        const status = responseFromDeleteAdminLevel.status
-          ? responseFromDeleteAdminLevel.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteAdminLevel.message,
-          errors: responseFromDeleteAdminLevel.errors
-            ? responseFromDeleteAdminLevel.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -192,37 +221,35 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateAdminLevel = await createGridUtil.createAdminLevel(
-        request
-      );
-      logObject(
-        "responseFromCreateAdminLevel in controller",
-        responseFromCreateAdminLevel
-      );
-      if (responseFromCreateAdminLevel.success === true) {
-        const status = responseFromCreateAdminLevel.status
-          ? responseFromCreateAdminLevel.status
-          : httpStatus.OK;
+      const result = await createGridUtil.createAdminLevel(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateAdminLevel.message,
-          admin_levels: responseFromCreateAdminLevel.data,
+          message: result.message,
+          admin_levels: result.data,
         });
-      } else if (responseFromCreateAdminLevel.success === false) {
-        const status = responseFromCreateAdminLevel.status
-          ? responseFromCreateAdminLevel.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateAdminLevel.message,
-          errors: responseFromCreateAdminLevel.errors
-            ? responseFromCreateAdminLevel.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -251,32 +278,33 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateGrid = await createGridUtil.create(request);
-      // logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
-      if (responseFromCreateGrid.success === true) {
-        const status = responseFromCreateGrid.status
-          ? responseFromCreateGrid.status
-          : httpStatus.OK;
+      const result = await createGridUtil.create(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      // logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateGrid.message,
-          grid: responseFromCreateGrid.data,
+          message: result.message,
+          grid: result.data,
         });
-      } else if (responseFromCreateGrid.success === false) {
-        const status = responseFromCreateGrid.status
-          ? responseFromCreateGrid.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateGrid.message,
-          errors: responseFromCreateGrid.errors
-            ? responseFromCreateGrid.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -303,40 +331,40 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCalculateGeographicalCenter = await createGridUtil.calculateGeographicalCenter(
-        request
+      const result = await createGridUtil.calculateGeographicalCenter(
+        request,
+        next
       );
 
-      if (responseFromCalculateGeographicalCenter.success === true) {
-        const status = responseFromCalculateGeographicalCenter.status
-          ? responseFromCalculateGeographicalCenter.status
-          : httpStatus.OK;
-        logObject(
-          "responseFromCalculateGeographicalCenter",
-          responseFromCalculateGeographicalCenter
-        );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        logObject("result", result);
         return res.status(status).json({
           success: true,
-          message: responseFromCalculateGeographicalCenter.message,
-          center_point: responseFromCalculateGeographicalCenter.data,
+          message: result.message,
+          center_point: result.data,
         });
-      } else if (responseFromCalculateGeographicalCenter.success === false) {
-        const status = responseFromCalculateGeographicalCenter.status
-          ? responseFromCalculateGeographicalCenter.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromCalculateGeographicalCenter.errors
-          ? responseFromCalculateGeographicalCenter.errors
+        const errors = result.errors
+          ? result.errors
           : { message: "Internal Server Error" };
 
         return res.status(status).json({
           success: false,
-          message: responseFromCalculateGeographicalCenter.message,
+          message: result.message,
           errors,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -365,31 +393,32 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveGrid = await createGridUtil.delete(request);
+      const result = await createGridUtil.delete(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromRemoveGrid.success === true) {
-        const status = responseFromRemoveGrid.status
-          ? responseFromRemoveGrid.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveGrid.message,
-          grid: responseFromRemoveGrid.data,
+          message: result.message,
+          grid: result.data,
         });
-      } else if (responseFromRemoveGrid.success === false) {
-        const status = responseFromRemoveGrid.status
-          ? responseFromRemoveGrid.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveGrid.message,
-          errors: responseFromRemoveGrid.errors
-            ? responseFromRemoveGrid.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -416,29 +445,35 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRefreshGrid = await createGridUtil.refresh(request);
-      if (responseFromRefreshGrid.success === true) {
-        const status = responseFromRefreshGrid.status
-          ? responseFromRefreshGrid.status
-          : httpStatus.OK;
+      const result = await createGridUtil.refresh(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRefreshGrid.message,
-          refreshed_grid: responseFromRefreshGrid.data,
+          message: result.message,
+          refreshed_grid: result.data,
         });
-      } else if (responseFromRefreshGrid.success === false) {
-        const status = responseFromRefreshGrid.status
-          ? responseFromRefreshGrid.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromRefreshGrid.message,
-          errors: responseFromRefreshGrid.errors
-            ? responseFromRefreshGrid.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -465,31 +500,32 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindSites = await createGridUtil.findSites(request);
+      const result = await createGridUtil.findSites(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromFindSites.success === true) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          sites: responseFromFindSites.data,
-          message: responseFromFindSites.message,
+          sites: result.data,
+          message: result.message,
         });
-      } else if (responseFromFindSites.success === false) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromFindSites.message,
-          errors: responseFromFindSites.errors
-            ? responseFromFindSites.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -517,32 +553,33 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateGrid = await createGridUtil.update(request);
+      const result = await createGridUtil.update(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromUpdateGrid.success === true) {
-        const status = responseFromUpdateGrid.status
-          ? responseFromUpdateGrid.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateGrid.message,
-          grid: responseFromUpdateGrid.data,
+          message: result.message,
+          grid: result.data,
         });
-      } else if (responseFromUpdateGrid.success === false) {
-        const status = responseFromUpdateGrid.status
-          ? responseFromUpdateGrid.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateGrid.message,
-          errors: responseFromUpdateGrid.errors
-            ? responseFromUpdateGrid.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -571,31 +608,32 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const result = await createGridUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListGrids.success === true) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListGrids.message,
-          grids: responseFromListGrids.data,
+          message: result.message,
+          grids: result.data,
         });
-      } else if (responseFromListGrids.success === false) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListGrids.message,
-          errors: responseFromListGrids.errors
-            ? responseFromListGrids.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -625,31 +663,32 @@ const createGrid = {
         : req.query.tenant;
       request.query.category = "summary";
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const result = await createGridUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListGrids.success === true) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListGrids.message,
-          grids: responseFromListGrids.data,
+          message: result.message,
+          grids: result.data,
         });
-      } else if (responseFromListGrids.success === false) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListGrids.message,
-          errors: responseFromListGrids.errors
-            ? responseFromListGrids.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -680,31 +719,32 @@ const createGrid = {
 
       request.query.dashboard = "yes";
 
-      const responseFromListGrids = await createGridUtil.list(request);
+      const result = await createGridUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListGrids.success === true) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListGrids.message,
-          grids: responseFromListGrids.data,
+          message: result.message,
+          grids: result.data,
         });
-      } else if (responseFromListGrids.success === false) {
-        const status = responseFromListGrids.status
-          ? responseFromListGrids.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListGrids.message,
-          errors: responseFromListGrids.errors
-            ? responseFromListGrids.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -735,30 +775,32 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromFindGridUsingGPSCoordinates = await createGridUtil.findGridUsingGPSCoordinates(
-        request
+      const result = await createGridUtil.findGridUsingGPSCoordinates(
+        request,
+        next
       );
-      if (responseFromFindGridUsingGPSCoordinates.success === false) {
-        const status = responseFromFindGridUsingGPSCoordinates.status
-          ? responseFromFindGridUsingGPSCoordinates.status
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromFindGridUsingGPSCoordinates.message,
-          errors: responseFromFindGridUsingGPSCoordinates.errors
-            ? responseFromFindGridUsingGPSCoordinates.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       } else {
-        const status = responseFromFindGridUsingGPSCoordinates.status
-          ? responseFromFindGridUsingGPSCoordinates.status
-          : httpStatus.OK;
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromFindGridUsingGPSCoordinates.message,
-          grid: responseFromFindGridUsingGPSCoordinates.data,
+          message: result.message,
+          grid: result.data,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -792,17 +834,21 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateGridFromShapefile = await createGridUtil.createGridFromShapefile(
-        request
+      const result = await createGridUtil.createGridFromShapefile(
+        request,
+        next
       );
-      if (responseFromCreateGridFromShapefile.success === false) {
-        const status = responseFromCreateGridFromShapefile.status
-          ? responseFromCreateGridFromShapefile.status
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json(responseFromCreateGridFromShapefile);
+        return res.status(status).json(result);
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -830,34 +876,33 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAvailableSites = await createGridUtil.listAvailableSites(
-        request
-      );
+      const result = await createGridUtil.listAvailableSites(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (responseFromListAvailableSites.success === true) {
-        const status = responseFromListAvailableSites.status
-          ? responseFromListAvailableSites.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromListAvailableSites.message,
-          available_grids: responseFromListAvailableSites.data,
+          message: result.message,
+          available_grids: result.data,
         });
-      } else if (responseFromListAvailableSites.success === false) {
-        const status = responseFromListAvailableSites.status
-          ? responseFromListAvailableSites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableSites.message,
-          errors: responseFromListAvailableSites.errors
-            ? responseFromListAvailableSites.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -885,15 +930,15 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListAssignedSites = await createGridUtil.listAssignedSites(
-        request
-      );
+      const result = await createGridUtil.listAssignedSites(request, next);
 
-      if (responseFromListAssignedSites.success === true) {
-        const status = responseFromListAssignedSites.status
-          ? responseFromListAssignedSites.status
-          : httpStatus.OK;
-        if (responseFromListAssignedSites.data.length === 0) {
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        if (result.data.length === 0) {
           return res.status(status).json({
             success: true,
             message: `no assigned sites to this grid ${req.params.grid_id}`,
@@ -902,24 +947,24 @@ const createGrid = {
         }
         return res.status(status).json({
           success: true,
-          message: responseFromListAssignedSites.message,
-          assigned_grids: responseFromListAssignedSites.data,
+          message: result.message,
+          assigned_grids: result.data,
         });
-      } else if (responseFromListAssignedSites.success === false) {
-        const status = responseFromListAssignedSites.status
-          ? responseFromListAssignedSites.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListAssignedSites.message,
-          errors: responseFromListAssignedSites.errors
-            ? responseFromListAssignedSites.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -947,34 +992,34 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromGetSiteAndDeviceIds = await createGridUtil.getSiteAndDeviceIds(
-        request
-      );
+      const result = await createGridUtil.getSiteAndDeviceIds(request, next);
 
-      if (responseFromGetSiteAndDeviceIds.success === true) {
-        const status = responseFromGetSiteAndDeviceIds.status
-          ? responseFromGetSiteAndDeviceIds.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromGetSiteAndDeviceIds.message,
-          sites_and_devices: responseFromGetSiteAndDeviceIds.data,
+          message: result.message,
+          sites_and_devices: result.data,
         });
-      } else if (responseFromGetSiteAndDeviceIds.success === false) {
-        const status = responseFromGetSiteAndDeviceIds.status
-          ? responseFromGetSiteAndDeviceIds.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromGetSiteAndDeviceIds.message,
-          errors: responseFromGetSiteAndDeviceIds.errors
-            ? responseFromGetSiteAndDeviceIds.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1001,29 +1046,29 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const filterResponse = await createGridUtil.filterOutPrivateSites(
-        request,
-        next
-      );
+      const result = await createGridUtil.filterOutPrivateSites(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
       const status =
-        filterResponse.status ||
-        (filterResponse.success
-          ? httpStatus.OK
-          : httpStatus.INTERNAL_SERVER_ERROR);
+        result.status ||
+        (result.success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
 
       res.status(status).json({
-        success: filterResponse.success,
-        message: filterResponse.message,
-        ...(filterResponse.success
-          ? { sites: filterResponse.data }
+        success: result.success,
+        message: result.message,
+        ...(result.success
+          ? { sites: result.data }
           : {
-              errors: filterResponse.errors || {
+              errors: result.errors || {
                 message: "Internal Server Error",
               },
             }),
       });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

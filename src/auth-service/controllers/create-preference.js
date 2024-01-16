@@ -17,6 +17,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,35 +25,32 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdatePreference = await createPreferenceUtil.update(
-        request,
-        next
-      );
+      const result = await createPreferenceUtil.update(request, next);
 
-      if (responseFromUpdatePreference.success === true) {
-        const status = responseFromUpdatePreference.status
-          ? responseFromUpdatePreference.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdatePreference.message,
-          preference: responseFromUpdatePreference.data,
+          message: result.message,
+          preference: result.data,
         });
-      } else if (responseFromUpdatePreference.success === false) {
-        const status = responseFromUpdatePreference.status
-          ? responseFromUpdatePreference.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdatePreference.message,
-          preference: responseFromUpdatePreference.data,
-          errors: responseFromUpdatePreference.errors
-            ? responseFromUpdatePreference.errors
-            : { message: "" },
+          message: result.message,
+          preference: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -60,6 +58,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -69,6 +68,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -76,34 +76,32 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreatePreference = await createPreferenceUtil.create(
-        request,
-        next
-      );
-      if (responseFromCreatePreference.success === true) {
-        const status = responseFromCreatePreference.status
-          ? responseFromCreatePreference.status
-          : httpStatus.OK;
+      const result = await createPreferenceUtil.create(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreatePreference.message,
-          preference: responseFromCreatePreference.data,
+          message: result.message,
+          preference: result.data,
         });
-      } else if (responseFromCreatePreference.success === false) {
-        const status = responseFromCreatePreference.status
-          ? responseFromCreatePreference.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreatePreference.message,
-          preference: responseFromCreatePreference.data,
-          errors: responseFromCreatePreference.errors
-            ? responseFromCreatePreference.errors
-            : { message: "" },
+          message: result.message,
+          preference: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -111,6 +109,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   upsert: async (req, res, next) => {
@@ -120,6 +119,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -127,35 +127,32 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpsertPreference = await createPreferenceUtil.upsert(
-        request,
-        next
-      );
+      const result = await createPreferenceUtil.upsert(request, next);
 
-      if (responseFromUpsertPreference.success === true) {
-        const status = responseFromUpsertPreference.status
-          ? responseFromUpsertPreference.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpsertPreference.message,
-          preference: responseFromUpsertPreference.data,
+          message: result.message,
+          preference: result.data,
         });
-      } else if (responseFromUpsertPreference.success === false) {
-        const status = responseFromUpsertPreference.status
-          ? responseFromUpsertPreference.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpsertPreference.message,
-          preference: responseFromUpsertPreference.data,
-          errors: responseFromUpsertPreference.errors
-            ? responseFromUpsertPreference.errors
-            : { message: "" },
+          message: result.message,
+          preference: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -163,6 +160,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   replace: async (req, res, next) => {
@@ -172,6 +170,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -179,35 +178,32 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromReplacePreference = await createPreferenceUtil.replace(
-        request,
-        next
-      );
+      const result = await createPreferenceUtil.replace(request, next);
 
-      if (responseFromReplacePreference.success === true) {
-        const status = responseFromReplacePreference.status
-          ? responseFromReplacePreference.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromReplacePreference.message,
-          preference: responseFromReplacePreference.data,
+          message: result.message,
+          preference: result.data,
         });
-      } else if (responseFromReplacePreference.success === false) {
-        const status = responseFromReplacePreference.status
-          ? responseFromReplacePreference.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromReplacePreference.message,
-          preference: responseFromReplacePreference.data,
-          errors: responseFromReplacePreference.errors
-            ? responseFromReplacePreference.errors
-            : { message: "" },
+          message: result.message,
+          preference: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -215,6 +211,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -226,6 +223,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -233,33 +231,31 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListPreferences = await createPreferenceUtil.list(
-        request,
-        next
-      );
-      if (responseFromListPreferences.success === true) {
-        const status = responseFromListPreferences.status
-          ? responseFromListPreferences.status
-          : httpStatus.OK;
+      const result = await createPreferenceUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListPreferences.message,
-          preferences: responseFromListPreferences.data,
+          message: result.message,
+          preferences: result.data,
         });
-      } else if (responseFromListPreferences.success === false) {
-        const status = responseFromListPreferences.status
-          ? responseFromListPreferences.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListPreferences.message,
-          errors: responseFromListPreferences.errors
-            ? responseFromListPreferences.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -267,6 +263,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -277,6 +274,7 @@ const preferences = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -284,35 +282,33 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeletePreference = await createPreferenceUtil.delete(
-        request,
-        next
-      );
-      logObject("responseFromDeletePreference", responseFromDeletePreference);
-      if (responseFromDeletePreference.success === true) {
-        const status = responseFromDeletePreference.status
-          ? responseFromDeletePreference.status
-          : httpStatus.OK;
+      const result = await createPreferenceUtil.delete(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeletePreference.message,
-          preference: responseFromDeletePreference.data,
+          message: result.message,
+          preference: result.data,
         });
-      } else if (responseFromDeletePreference.success === false) {
-        const status = responseFromDeletePreference.status
-          ? responseFromDeletePreference.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeletePreference.message,
-          preference: responseFromDeletePreference.data,
-          errors: responseFromDeletePreference.errors
-            ? responseFromDeletePreference.errors
-            : { message: "" },
+          message: result.message,
+          preference: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -320,6 +316,7 @@ const preferences = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

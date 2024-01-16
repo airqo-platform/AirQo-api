@@ -7,6 +7,7 @@ const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-host-util`);
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 const createHost = {
   create: async (request, next) => {
@@ -22,7 +23,7 @@ const createHost = {
       return responseFromRegisterHost;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -56,7 +57,7 @@ const createHost = {
       return responseFromModifyHost;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- update ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -84,7 +85,7 @@ const createHost = {
       return responseFromRemoveHost;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -122,7 +123,7 @@ const createHost = {
       return responseFromListHost;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

@@ -20,6 +20,7 @@ const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
+const stringify = require("@utils/stringify");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
 const rangeCheck = require("ip-range-check");
@@ -30,6 +31,12 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
 const { HttpError } = require("@utils/errors");
+const async = require("async");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const getDay = () => {
   const now = new Date();
@@ -38,14 +45,13 @@ const getDay = () => {
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-
 const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
     const uppercaseString = inputString.toUpperCase();
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -53,7 +59,6 @@ const convertToUpperCaseWithUnderscore = (inputString, next) => {
     );
   }
 };
-
 const isGroupRoleOrNetworkRole = (role) => {
   logObject("role", role);
   if (role && (role.group_id || role.network_id)) {
@@ -67,7 +72,6 @@ const isGroupRoleOrNetworkRole = (role) => {
   }
   return "none";
 };
-
 const findAssociatedIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -90,11 +94,9 @@ const findAssociatedIdForRole = async ({
   }
   return null;
 };
-
 const isNetwork = (net_id, grp_id) => {
   return !isEmpty(net_id) && isEmpty(grp_id);
 };
-
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
@@ -120,7 +122,6 @@ const isAssignedUserSuperAdmin = async ({
 
   return false;
 };
-
 const isRoleAlreadyAssigned = (roles, role_id) => {
   if (isEmpty(roles) || !Array.isArray(roles)) {
     return false;
@@ -135,7 +136,6 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
     });
   }
 };
-
 const generateClientSecret = (length) => {
   if (length % 2 !== 0) {
     throw new Error("Length must be an even number");
@@ -143,99 +143,6 @@ const generateClientSecret = (length) => {
   const numBytes = length / 2;
   const clientSecret = crypto.randomBytes(numBytes).toString("hex");
   return clientSecret;
-};
-
-const routeDefinitions = [
-  {
-    uriIncludes: ["/api/v1/devices"],
-    service: "deprecated-version-number",
-  },
-  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
-  {
-    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
-    service: "device-registry",
-  },
-  { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
-  {
-    uriIncludes: ["/api/v2/devices/activities/maintain"],
-    service: "device-maintenance",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/deploy"],
-    service: "device-deployment",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/recall"],
-    service: "device-recall",
-  },
-  { uriIncludes: ["/api/v2/users"], service: "auth" },
-  { uriIncludes: ["/api/v2/incentives"], service: "incentives" },
-  {
-    uriIncludes: ["/api/v2/calibrate", "/api/v1/calibrate"],
-    service: "calibrate",
-  },
-  { uriIncludes: ["/api/v2/locate", "/api/v1/locate"], service: "locate" },
-  {
-    uriIncludes: ["/api/v2/predict-faults", "/api/v1/predict-faults"],
-    service: "fault-detection",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-download",
-      "/api/v1/analytics/data-download",
-    ],
-    service: "data-export-download",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-export",
-      "/api/v1/analytics/data-export",
-    ],
-    service: "data-export-scheduling",
-  },
-];
-
-const getService = (headers) => {
-  const uri = headers["x-original-uri"];
-  const serviceHeader = headers["service"];
-
-  if (uri) {
-    for (const route of routeDefinitions) {
-      if (route.uri && uri.includes(route.uri)) {
-        return route.service;
-      } else if (
-        route.uriEndsWith &&
-        route.uriEndsWith.some((suffix) => uri.endsWith(suffix))
-      ) {
-        return route.service;
-      } else if (
-        route.uriIncludes &&
-        route.uriIncludes.some((includes) => uri.includes(includes))
-      ) {
-        return route.service;
-      }
-    }
-  } else if (serviceHeader) {
-    return serviceHeader;
-  }
-
-  return "unknown";
-};
-
-const getUserAction = (headers) => {
-  if (headers["x-original-method"]) {
-    const method = headers["x-original-method"];
-    const actionMap = {
-      PUT: "update operation",
-      DELETE: "delete operation",
-      POST: "creation operation",
-      GET: "viewing data",
-    };
-    return actionMap[method] || "Unknown Action";
-  }
-  return "Unknown Action";
 };
 
 const createUnauthorizedResponse = () => {
@@ -246,7 +153,6 @@ const createUnauthorizedResponse = () => {
     errors: { message: "Unauthorized" },
   };
 };
-
 const createValidTokenResponse = () => {
   return {
     success: true,
@@ -254,83 +160,251 @@ const createValidTokenResponse = () => {
     status: httpStatus.OK,
   };
 };
-const isIPBlacklisted = async ({
-  ip = "",
-  email = "",
-  token = "",
-  token_name = "",
-  endpoint = "",
-} = {}) => {
+
+const trampoline = (fn) => {
+  while (typeof fn === "function") {
+    fn = fn();
+  }
+  return fn;
+};
+
+let blacklistQueue = async.queue(async (task, callback) => {
+  let { ip } = task;
+  logText("we are in the IP range checker.....");
+  // If the IP falls within the range, publish it to the "ip-address" topic
+  try {
+    const kafkaProducer = kafka.producer({
+      groupId: constants.UNIQUE_PRODUCER_GROUP,
+    });
+    await kafkaProducer.connect();
+    await kafkaProducer
+      .send({
+        topic: "ip-address",
+        messages: [{ value: stringify({ ip }) }],
+      })
+      .then(() => {
+        logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+        // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+        callback();
+      });
+    await kafkaProducer.disconnect();
+  } catch (error) {
+    logObject("error", error);
+    // logger.error(
+    //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
+    // );
+  }
+}, 1); // Limit the number of concurrent tasks to 1
+
+let unknownIPQueue = async.queue(async (task, callback) => {
+  let { ip, token, name, client_id, endpoint, day } = task;
+  await UnknownIPModel("airqo")
+    .findOne({
+      ip,
+      "ipCounts.day": day,
+    })
+    .then(async (checkDoc) => {
+      if (checkDoc) {
+        const update = {
+          $addToSet: {
+            client_ids: client_id,
+            tokens: token,
+            token_names: name,
+            endpoints: endpoint,
+          },
+          $inc: {
+            "ipCounts.$[elem].count": 1,
+          },
+        };
+        const options = {
+          arrayFilters: [{ "elem.day": day }],
+          upsert: true,
+          new: true,
+          runValidators: true,
+        };
+
+        await UnknownIPModel("airqo")
+          .findOneAndUpdate({ ip }, update, options)
+          .then(() => {
+            logText(`stored the unknown IP ${ip} which had a day field`);
+            callback();
+          });
+      } else {
+        await UnknownIPModel("airqo")
+          .create({
+            ip,
+            tokens: [token],
+            token_names: [name],
+            endpoints: [endpoint],
+            client_ids: [client_id],
+            ipCounts: [{ day, count: 1 }],
+          })
+          .then(() => {
+            logText(`stored the unknown IP ${ip} which had NO day field`);
+            callback();
+          });
+      }
+    });
+}, 1); // Limit the number of concurrent tasks to 1
+
+const postProcessing = async ({
+  ip,
+  token,
+  name,
+  client_id,
+  endpoint = "unknown",
+  day,
+}) => {
+  logText("we are now postProcessing()....");
+  blacklistQueue.push({ ip });
+  unknownIPQueue.push({
+    ip,
+    token,
+    name,
+    client_id,
+    endpoint,
+    day,
+  });
+};
+
+const isIPBlacklistedHelper = async (
+  { request, next } = {},
+  retries = 1,
+  delay = 1000
+) => {
   try {
     const day = getDay();
-    const filter = { ip };
-    const update = {
-      $addToSet: {
-        emails: email,
-        tokens: token,
-        token_names: token_name,
-        endpoints: endpoint,
-      },
-    };
-    const options = {
-      upsert: true,
-      new: true,
-      arrayFilters: [{ "ipCounts.day": day }],
-      runValidators: true,
+    const ip =
+      request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
+    const endpoint = request.headers["x-original-uri"];
+    let acessTokenFilter = generateFilter.tokens(request, next);
+    const timeZone = moment.tz.guess();
+    acessTokenFilter.expires = {
+      $gt: moment().tz(timeZone).toDate(),
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    const [blacklistedIP, whitelistedIP, accessToken] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+    ]);
 
-    const document = await UnknownIPModel("airqo").findOne(filter);
-    if (document) {
-      let matchingDayEntry = document.ipCounts.find(
-        (entry) => entry.day === day
-      );
-      if (!matchingDayEntry) {
-        document.ipCounts.push({ day, count: 1 });
-      } else {
-        matchingDayEntry.count += 1;
+    const {
+      token = "",
+      name = "",
+      client_id = "",
+    } = (accessToken && accessToken._doc) || {};
+
+    if (!accessToken) {
+      return true;
+    } else if (whitelistedIP) {
+      return false;
+    } else if (blacklistedIP) {
+      const BLOCKED_IP_PREFIXES = "65,66";
+      const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+      if (!blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+        logger.info(
+          `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+        );
+        try {
+          const filter = { token };
+          const listTokenReponse = await AccessTokenModel("airqo").list(
+            { filter },
+            next
+          );
+
+          if (listTokenReponse.success === false) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+            );
+          } else {
+            const tokenDetails = listTokenReponse.data[0];
+            const tokenResponseLength = listTokenReponse.data.length;
+            if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
+              logger.error(
+                `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+              );
+            } else {
+              const {
+                user: { email, firstName, lastName },
+              } = tokenDetails;
+
+              const emailResponse = await mailer.compromisedToken(
+                {
+                  email,
+                  firstName,
+                  lastName,
+                  ip,
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            }
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+        }
       }
-      await document.save();
+      return true;
+    } else {
+      Promise.resolve().then(() =>
+        postProcessing({ ip, token, name, client_id, endpoint, day })
+      );
+      logText("I am now exiting the isIPBlacklistedHelper() function");
+      return false;
     }
   } catch (error) {
-    if (error.name === "MongoError" && error.code === 11000) {
-      logger.error(`IP address ${ip} already exists in the database.`);
+    logObject("the error", error);
+    if (
+      retries > 0 &&
+      [
+        "NetworkError",
+        "TimeoutError",
+        "MongooseServerSelectionError",
+        "MongoTimeoutError",
+        "serverSelectionTimeoutMS",
+        "SocketTimeoutError",
+      ].includes(error.name)
+    ) {
+      logger.error(
+        `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return isIPBlacklisted({ request, next }, retries - 1, delay);
+    } else if (error.name === "MongoError") {
+      const jsonErrorString = stringify(error);
+      switch (error.code) {
+        case 11000:
+          logger.error(
+            `🐛🐛 Duplicate key error: IP address ${ip} already exists in the database.`
+          );
+          break;
+        default:
+          logger.error(`🐛🐛 Unknown MongoDB error: ${jsonErrorString}`);
+      }
     } else {
-      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+      const jsonErrorString = stringify(error);
+      logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
+      return true;
     }
   }
-
-  const [blacklistedIP, whitelistedIP, blacklistedRanges] = await Promise.all([
-    BlacklistedIPModel("airqo").findOne({ ip }),
-    WhitelistedIPModel("airqo").findOne({ ip }),
-    BlacklistedIPRangeModel("airqo").find(),
-  ]);
-
-  if (blacklistedIP) {
-    return true;
-  }
-
-  if (whitelistedIP) {
-    return false;
-  }
-
-  const isInRange = blacklistedRanges.some((range) =>
-    rangeCheck(ip, range.range)
-  );
-
-  if (isInRange) {
-    return true;
-  }
-
-  return false;
 };
+
+const isIPBlacklisted = (...args) =>
+  trampoline(() => isIPBlacklistedHelper(...args));
 
 const controlAccess = {
   sample: async (request, next) => {
     try {
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -345,7 +419,7 @@ const controlAccess = {
     try {
       crypto.createHash("sha256").update(string).digest("base64");
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -359,7 +433,7 @@ const controlAccess = {
     try {
       Object.is(first_item, second_item);
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -496,7 +570,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -552,7 +626,7 @@ const controlAccess = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -590,7 +664,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -608,9 +682,11 @@ const controlAccess = {
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).remove({ filter }, next);
+      logObject("responseFromDeleteToken", responseFromDeleteToken);
       return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -618,143 +694,34 @@ const controlAccess = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   verifyToken: async (request, next) => {
     try {
-      const { tenant, limit, skip } = { ...request.query };
-      let filter = generateFilter.tokens(request, next);
-      const timeZone = moment.tz.guess();
-      filter.expires = {
-        $gt: moment().tz(timeZone).toDate(),
-      };
+      logText("I have just entered the verifyToken() function");
+      const ip =
+        request.headers["x-client-ip"] ||
+        request.headers["x-client-original-ip"];
 
-      const service = getService(request.headers);
-      if (service === "deprecated-version-number") {
+      if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
         return createUnauthorizedResponse();
       }
-      const userAction = getUserAction(request.headers);
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list(
-        {
-          skip,
-          limit,
-          filter,
-        },
-        next
-      );
-
-      logObject(
-        "responseFromListAccessToken.data",
-        responseFromListAccessToken.data
-      );
-
-      logObject(
-        "responseFromListAccessToken.data[0]",
-        responseFromListAccessToken.data[0]
-      );
-      logObject(
-        "request.headers[x-original-uri]",
-        request.headers["x-original-uri"]
-      );
-      logObject(
-        "request.headers[x-original-method]",
-        request.headers["x-original-method"]
-      );
-
-      logObject(
-        "request.headers['x-host-name']",
-        request.headers["x-host-name"]
-      );
-      logObject(
-        "request.headers['x-client-ip']",
-        request.headers["x-client-ip"]
-      );
-
-      logObject(
-        "request.headers['x-client-original-ip']",
-        request.headers["x-client-original-ip"]
-      );
-
-      if (responseFromListAccessToken.success === true) {
-        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          return createUnauthorizedResponse();
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const clientIp = request.headers["x-client-ip"];
-          const hostName = request.headers["x-host-name"];
-          const endpoint = request.headers["x-original-uri"];
-          const clientOriginalIp = request.headers["x-client-original-ip"];
-
-          logObject("service", service);
-          logObject("userAction", userAction);
-
-          const {
-            name = "",
-            token = "",
-            user: { email = "", userName = "", _id = "" } = {},
-          } = responseFromListAccessToken.data[0];
-
-          logObject("email", email);
-          logObject("userName", userName);
-
-          if (service && userAction) {
-            if (!isEmpty(clientIp)) {
-              const ip = clientIp;
-              const token_name = name;
-              const isBlacklisted = await isIPBlacklisted({
-                ip,
-                email,
-                token,
-                token_name,
-                endpoint,
-              });
-              if (isBlacklisted) {
-                logger.info(
-                  `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
-                );
-                return createUnauthorizedResponse();
-              }
-            } else {
-              logText(
-                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
-              );
-              logger.info(
-                `🚨🚨 An AirQo Analytics Access Token is being accessed without an IP -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name}`
-              );
-              return createUnauthorizedResponse();
-            }
-
-            if (!isEmpty(_id)) {
-              const currentDate = new Date();
-              await UserModel("airqo").findByIdAndUpdate(_id, {
-                lastLogin: currentDate,
-                isActive: true,
-              });
-            }
-
-            winstonLogger.info(userAction, {
-              email,
-              username: userName,
-              service: service,
-              clientIp: clientIp ? clientIp : "unknown",
-              hostName: hostName ? hostName : "unknown",
-              endpoint: endpoint ? endpoint : "unknown",
-              clientOriginalIp: clientOriginalIp ? clientOriginalIp : "unknown",
-            });
-
-            return createValidTokenResponse();
-          } else {
-            logger.info(
-              `🚨🚨 An AirQo Analytics Access Token is being used without known service -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} -- ENDPOINT: ${endpoint}`
-            );
-            // return createUnauthorizedResponse();
-          }
-        }
-      } else if (responseFromListAccessToken.success === false) {
-        return responseFromListAccessToken;
+      const isBlacklisted = await isIPBlacklisted({
+        request,
+        next,
+      });
+      logText("I have now returned back to the verifyToken() function");
+      if (isBlacklisted) {
+        return createUnauthorizedResponse();
+      } else {
+        return createValidTokenResponse();
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -787,7 +754,7 @@ const controlAccess = {
       ).list({ skip, limit, filter }, next);
       return responseFromListToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -836,7 +803,7 @@ const controlAccess = {
 
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -950,7 +917,7 @@ const controlAccess = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1070,7 +1037,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1096,7 +1063,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1116,7 +1083,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromDeleteClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1135,7 +1102,7 @@ const controlAccess = {
       ).list({ skip, limit, filter }, next);
       return responseFromListClient;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1174,9 +1141,26 @@ const controlAccess = {
       const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
       ).register(modifiedBody, next);
-      return responseFromCreateClient;
+
+      if (responseFromCreateClient.success === true) {
+        const ip = modifiedBody.ip_address || "";
+        if (!isEmpty(ip)) {
+          const newWhitelistResponse = await WhitelistedIPModel(
+            tenant
+          ).register({ ip }, next);
+          if (newWhitelistResponse.success === false) {
+            return newWhitelistResponse;
+          } else {
+            return responseFromCreateClient;
+          }
+        } else {
+          return responseFromCreateClient;
+        }
+      } else if (responseFromCreateClient.success === false) {
+        return responseFromCreateClient;
+      }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1184,6 +1168,7 @@ const controlAccess = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   updateClientSecret: async (request, next) => {
@@ -1222,7 +1207,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1245,7 +1230,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1265,7 +1250,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1286,7 +1271,7 @@ const controlAccess = {
       );
       return responseFromListToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1305,7 +1290,7 @@ const controlAccess = {
       ).register(body, next);
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1330,7 +1315,7 @@ const controlAccess = {
       );
       return responseFromListRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1402,7 +1387,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1474,7 +1459,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1526,7 +1511,7 @@ const controlAccess = {
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1548,7 +1533,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdateRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1612,7 +1597,7 @@ const controlAccess = {
 
       return responseFromCreateRole;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1677,7 +1662,7 @@ const controlAccess = {
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1815,7 +1800,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1976,7 +1961,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2038,7 +2023,7 @@ const controlAccess = {
         data: responseFromListAssignedUsers,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2154,7 +2139,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2344,7 +2329,7 @@ const controlAccess = {
       }
       return response;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2445,7 +2430,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2562,7 +2547,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2665,7 +2650,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2774,7 +2759,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2827,7 +2812,7 @@ const controlAccess = {
         return listRoleResponse;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2878,7 +2863,7 @@ const controlAccess = {
         return listRoleResponse;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2956,7 +2941,7 @@ const controlAccess = {
         );
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3031,7 +3016,7 @@ const controlAccess = {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3122,7 +3107,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3197,7 +3182,7 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3224,7 +3209,7 @@ const controlAccess = {
       );
       return responseFromListPermissions;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3249,7 +3234,7 @@ const controlAccess = {
       );
       return responseFromDeletePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3270,7 +3255,7 @@ const controlAccess = {
       ).modify({ filter, update }, next);
       return responseFromUpdatePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3289,7 +3274,7 @@ const controlAccess = {
       ).register(body, next);
       return responseFromCreatePermission;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3311,7 +3296,7 @@ const controlAccess = {
       ).register(modifiedBody, next);
       return responseFromRegisterDepartment;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3335,7 +3320,7 @@ const controlAccess = {
       ).modify({ update, filter }, next);
       return responseFromModifyDepartment;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3356,7 +3341,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3376,7 +3361,7 @@ const controlAccess = {
       ).list({ filter, limit, skip }, next);
       return responseFromListDepartments;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3403,7 +3388,7 @@ const controlAccess = {
       );
       return responseFromBlacklistIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3474,7 +3459,7 @@ const controlAccess = {
         message: finalMessage,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3497,7 +3482,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3524,7 +3509,7 @@ const controlAccess = {
       );
       return responseFromBlacklistIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3532,6 +3517,80 @@ const controlAccess = {
           { message: error.message }
         )
       );
+    }
+  },
+  bulkInsertBlacklistIpRanges: async (request, next) => {
+    try {
+      const { ranges, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ranges || !Array.isArray(ranges) || ranges.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid input. Please provide an array of IP address ranges.",
+          })
+        );
+        return;
+      }
+
+      const responses = await Promise.all(
+        ranges.map(async (range) => {
+          const result = await BlacklistedIPRangeModel(tenant).register(
+            { range },
+            next
+          );
+          return { range, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.range);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.range);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IP ranges have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IP ranges provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   removeBlacklistedIpRange: async (request, next) => {
@@ -3546,7 +3605,7 @@ const controlAccess = {
         await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
       return responseFromRemoveBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3574,7 +3633,7 @@ const controlAccess = {
       );
       return responseFromListBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3601,7 +3660,7 @@ const controlAccess = {
       );
       return responseFromWhitelistIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3624,7 +3683,7 @@ const controlAccess = {
       ).remove({ filter }, next);
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -3652,7 +3711,7 @@ const controlAccess = {
       );
       return responseFromListUnkownIP;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

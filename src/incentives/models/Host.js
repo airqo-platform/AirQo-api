@@ -93,7 +93,7 @@ HostSchema.statics.register = async function (args, next) {
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -137,7 +137,7 @@ HostSchema.statics.list = async function (
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -182,7 +182,7 @@ HostSchema.statics.modify = async function (
     }
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -207,7 +207,7 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}, next) {
       };
     } else {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           ...filter,
@@ -218,7 +218,7 @@ HostSchema.statics.remove = async function ({ filter = {} } = {}, next) {
     }
   } catch (error) {
     logObject("error", error);
-    logger.error(`Internal Server Error ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,

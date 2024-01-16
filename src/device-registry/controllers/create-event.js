@@ -13,7 +13,37 @@ const CohortModel = require("@models/Cohort");
 const GridModel = require("@models/Grid");
 const distanceUtil = require("@utils/distance");
 const generateFilter = require("@utils/generate-filter");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
 
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
     const airQloud = await AirQloudModel(tenant)
@@ -22,11 +52,14 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
     logObject("airQloud", airQloud);
 
     if (!airQloud) {
+      logger.error(
+        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `
+      );
       return {
         success: false,
         message: "Bad Request Error",
         status: httpStatus.BAD_REQUEST,
-        errors: { message: "No distinct AirQloud found in this search" },
+        errors: { message: "c" },
       };
     }
 
@@ -57,7 +90,7 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
     return {
       success: false,
       message: "Internal Server Error",
@@ -113,7 +146,7 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   } catch (error) {
     logObject("error", error);
-    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
     return {
       success: false,
       message: "Internal Server Error",
@@ -228,7 +261,7 @@ const getSitesFromLatitudeAndLongitude = async ({
       return responseFromListSites;
     }
   } catch (error) {
-    logger.error(`internal server error -- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
     return {
       success: false,
       message: "Internal Server Error",
@@ -252,14 +285,14 @@ const processGridIds = async (grid_ids, request) => {
 
       if (responseFromGetSitesOfGrid.success === false) {
         logger.error(
-          `Internal Server Error --- ${JSON.stringify(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
             responseFromGetSitesOfGrid
           )}`
         );
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.error(
-          `The provided Grid ID ${grid_id} does not have any associated Site IDs`
+          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
         );
         return {
           success: false,
@@ -296,7 +329,7 @@ const processGridIds = async (grid_ids, request) => {
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
@@ -326,14 +359,14 @@ const processCohortIds = async (cohort_ids, request) => {
 
       if (responseFromGetDevicesOfCohort.success === false) {
         logger.error(
-          `Internal Server Error --- ${JSON.stringify(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
             responseFromGetDevicesOfCohort
           )}`
         );
         return responseFromGetDevicesOfCohort;
       } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
         logger.error(
-          `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
+          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
         );
         return {
           success: false,
@@ -359,7 +392,7 @@ const processCohortIds = async (cohort_ids, request) => {
 
   if (!isEmpty(invalidDeviceIdResults)) {
     logger.error(
-      `Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
     );
   }
 
@@ -394,14 +427,14 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
       if (responseFromGetSitesOfAirQloud.success === false) {
         logger.error(
-          `Internal Server Error --- ${JSON.stringify(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
             responseFromGetSitesOfAirQloud
           )}`
         );
         return responseFromGetSitesOfAirQloud;
       } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
         logger.error(
-          `The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`
+          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`
         );
         return {
           success: false,
@@ -439,7 +472,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 
   if (!isEmpty(invalidSiteIdResults)) {
     logger.error(
-      `Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
     );
   }
   logObject("invalidSiteIdResults", invalidSiteIdResults);
@@ -476,13 +509,17 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      let response = await createEventUtil.insert(tenant, measurements);
+      let result = await createEventUtil.insert(tenant, measurements, next);
 
-      if (!response.success) {
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (!result.success) {
         return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message: "finished the operation with some errors",
-          errors: response.errors,
+          errors: result.errors,
         });
       } else {
         return res.status(httpStatus.OK).json({
@@ -491,7 +528,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -521,13 +558,17 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery(
-        req
+      const result = await createEventUtil.getMeasurementsFromBigQuery(
+        req,
+        next
       );
-      if (responseFromListFromBigQuery.success === true) {
-        const status = responseFromListFromBigQuery.status
-          ? responseFromListFromBigQuery.status
-          : httpStatus.OK;
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         if (format && format === "csv") {
           return res
             .status(status)
@@ -536,27 +577,27 @@ const createEvent = {
               "Content-Disposition": `attachment; filename="airqo-data-export.csv"`,
             })
             .type("text/csv")
-            .send(responseFromListFromBigQuery.data);
+            .send(result.data);
         }
         return res.status(status).json({
           success: true,
-          measurements: responseFromListFromBigQuery.data,
+          measurements: result.data,
           message: "successfully retrieved the measurements",
         });
-      } else if (responseFromListFromBigQuery.success === false) {
-        const status = responseFromListFromBigQuery.status
-          ? responseFromListFromBigQuery.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListFromBigQuery.message,
-          errors: responseFromListFromBigQuery.errors
-            ? responseFromListFromBigQuery.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -583,7 +624,11 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createEventUtil.latestFromBigQuery(request);
+      const result = await createEventUtil.latestFromBigQuery(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -606,7 +651,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -651,7 +696,11 @@ const createEvent = {
 
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logObject("the result for listing events", result);
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
@@ -671,7 +720,113 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  fetchAndStoreData: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+          recent: "yes",
+          metadata: "site_id",
+          active: "yes",
+          brief: "yes",
+        },
+      };
+
+      const result = await createEventUtil.fetchAndStoreData(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("the result for inserting readings", result);
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  readingsForMap: async (req, res, next) => {
+    try {
+      logText("the readings for the AirQo Map...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+        },
+      };
+
+      const result = await createEventUtil.read(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          measurements: result.data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -705,7 +860,13 @@ const createEvent = {
         },
       };
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.view(request, next);
+
+      // logObject("result", result);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       const status = result.status || httpStatus.OK;
       if (result.success === true) {
@@ -725,7 +886,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -756,7 +917,11 @@ const createEvent = {
       request.query.brief = "yes";
       request.query.metadata = "device";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -779,7 +944,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -828,7 +993,11 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
         if (result.success === true) {
@@ -862,7 +1031,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -906,7 +1075,11 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
         if (result.success === true) {
@@ -939,7 +1112,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -968,7 +1141,11 @@ const createEvent = {
 
       request.query.running = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1002,7 +1179,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1033,7 +1210,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1057,7 +1238,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1088,7 +1269,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1112,7 +1297,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1142,7 +1327,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
       logObject("the result for listing events", result);
       if (result.success === true) {
@@ -1166,7 +1355,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1196,7 +1385,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1219,7 +1412,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1249,7 +1442,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1272,7 +1469,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1302,7 +1499,11 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.brief = "yes";
 
-      const result = await createEventUtil.list(request);
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logObject("the result for listing events", result);
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
@@ -1325,7 +1526,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1352,31 +1553,29 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromTransformEvents = await createEventUtil.transformManyEvents(
-        request
-      );
+      const result = await createEventUtil.transformManyEvents(request, next);
 
-      if (responseFromTransformEvents.success === true) {
-        const status = responseFromTransformEvents.status
-          ? responseFromTransformEvents.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
-          message: responseFromTransformEvents.message,
-          transformedEvents: responseFromTransformEvents.data,
+          message: result.message,
+          transformedEvents: result.data,
         });
-      } else if (responseFromTransformEvents.success === false) {
-        const status = responseFromTransformEvents.status
-          ? responseFromTransformEvents.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromTransformEvents.message,
-          errors: responseFromTransformEvents.errors
-            ? responseFromTransformEvents.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1402,29 +1601,29 @@ const createEvent = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const responseFromCreateEvents = await createEventUtil.create(request);
-      logObject("responseFromCreateEvents util", responseFromCreateEvents);
-      if (responseFromCreateEvents.success === true) {
-        const status = responseFromCreateEvents.status
-          ? responseFromCreateEvents.status
-          : httpStatus.OK;
+      const result = await createEventUtil.create(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result util", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res
           .status(status)
-          .json({ success: true, message: responseFromCreateEvents.message });
-      } else if (responseFromCreateEvents.success === false) {
-        const status = responseFromCreateEvents.status
-          ? responseFromCreateEvents.status
+          .json({ success: true, message: result.message });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateEvents.message,
-          errors: responseFromCreateEvents.errors
-            ? responseFromCreateEvents.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1455,33 +1654,34 @@ const createEvent = {
 
       request.query.device_number = device_number || chid;
 
-      const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
-        request
+      const result = await createEventUtil.transmitMultipleSensorValues(
+        request,
+        next
       );
 
-      if (responseFromTransmitMultipleSensorValues.success === true) {
-        const status = responseFromTransmitMultipleSensorValues.status
-          ? responseFromTransmitMultipleSensorValues.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromTransmitMultipleSensorValues.message,
-          response: responseFromTransmitMultipleSensorValues.data,
+          message: result.message,
+          result: result.data,
         });
       } else {
-        const status = responseFromTransmitMultipleSensorValues.status
-          ? responseFromTransmitMultipleSensorValues.status
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromTransmitMultipleSensorValues.message,
-          errors: responseFromTransmitMultipleSensorValues.errors
-            ? responseFromTransmitMultipleSensorValues.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1511,32 +1711,33 @@ const createEvent = {
       const { device_number, chid } = req.query;
       request.query.device_number = device_number || chid;
 
-      const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
-        request
+      const result = await createEventUtil.bulkTransmitMultipleSensorValues(
+        request,
+        next
       );
 
-      if (responseFromBulkTransmitMultipleSensorValues.success === true) {
-        const status = responseFromBulkTransmitMultipleSensorValues.status
-          ? responseFromBulkTransmitMultipleSensorValues.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromBulkTransmitMultipleSensorValues.message,
+          message: result.message,
         });
       } else {
-        const status = responseFromBulkTransmitMultipleSensorValues.status
-          ? responseFromBulkTransmitMultipleSensorValues.status
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromBulkTransmitMultipleSensorValues.message,
-          errors: responseFromBulkTransmitMultipleSensorValues.errors
-            ? responseFromBulkTransmitMultipleSensorValues.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1563,33 +1764,31 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromTransmitValues = await createEventUtil.transmitValues(
-        request
-      );
+      const result = await createEventUtil.transmitValues(request, next);
 
-      if (responseFromTransmitValues.success === true) {
-        const status = responseFromTransmitValues.status
-          ? responseFromTransmitValues.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromTransmitValues.message,
-          response: responseFromTransmitValues.data,
+          message: result.message,
+          result: result.data,
         });
       } else {
-        const status = responseFromTransmitValues.status
-          ? responseFromTransmitValues.status
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromTransmitValues.message,
-          errors: responseFromTransmitValues.errors
-            ? responseFromTransmitValues.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1617,33 +1816,30 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
-        request
-      );
+      const result = await createEventUtil.clearEventsOnPlatform(request, next);
 
-      if (responseFromClearValuesOnPlatform.success === false) {
-        const status = responseFromClearValuesOnPlatform.status
-          ? responseFromClearValuesOnPlatform.status
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromClearValuesOnPlatform.message,
-          errors: responseFromClearValuesOnPlatform.error
-            ? responseFromClearValuesOnPlatform.error
-            : { message: "" },
+          message: result.message,
+          errors: result.error ? result.error : { message: "" },
         });
-      } else if (responseFromClearValuesOnPlatform.success === true) {
-        const status = responseFromClearValuesOnPlatform.status
-          ? responseFromClearValuesOnPlatform.status
-          : httpStatus.OK;
+      } else if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromClearValuesOnPlatform.message,
-          data: responseFromClearValuesOnPlatform.data,
+          message: result.message,
+          data: result.data,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1670,33 +1866,29 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromAddEventsUtil = await createEventUtil.addEvents(
-        request
-      );
+      const result = await createEventUtil.addEvents(request, next);
 
-      if (responseFromAddEventsUtil.success === false) {
-        const status = responseFromAddEventsUtil.status
-          ? responseFromAddEventsUtil.status
-          : httpStatus.FORBIDDEN;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === false) {
+        const status = result.status ? result.status : httpStatus.FORBIDDEN;
         return res.status(status).json({
           success: false,
           message: "finished the operation with some errors",
-          errors: responseFromAddEventsUtil.error
-            ? responseFromAddEventsUtil.error
-            : { message: "" },
+          errors: result.error ? result.error : { message: "" },
         });
-      } else if (responseFromAddEventsUtil.success === true) {
-        const status = responseFromAddEventsUtil.status
-          ? responseFromAddEventsUtil.status
-          : httpStatus.OK;
+      } else if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully added all the events",
-          stored_events: responseFromAddEventsUtil.data,
+          stored_events: result.data,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1738,7 +1930,11 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
 
@@ -1771,7 +1967,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1814,7 +2010,11 @@ const createEvent = {
       }
 
       if (locationErrors === 0) {
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
         logObject("the result for listing events", result);
 
         if (result.success === true) {
@@ -1846,7 +2046,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1890,7 +2090,11 @@ const createEvent = {
 
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
 
@@ -1923,7 +2127,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -1966,7 +2170,11 @@ const createEvent = {
 
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
 
@@ -1999,7 +2207,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2043,7 +2251,11 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
 
@@ -2076,7 +2288,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2120,7 +2332,11 @@ const createEvent = {
       if (locationErrors === 0) {
         logObject("the request.query we are sending", request.query);
 
-        const result = await createEventUtil.list(request);
+        const result = await createEventUtil.list(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
 
         logObject("the result for listing events", result);
 
@@ -2153,7 +2369,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2187,33 +2403,30 @@ const createEvent = {
       request.query.brief = "yes";
       request.query.recent = "yes";
 
-      const responseFromGetSitesFromLatitudeAndLongitude = await getSitesFromLatitudeAndLongitude(
-        { latitude, longitude, tenant, radius }
-      );
-      logObject(
-        "responseFromGetSitesFromLatitudeAndLongitude",
-        responseFromGetSitesFromLatitudeAndLongitude
-      );
-      if (responseFromGetSitesFromLatitudeAndLongitude.success === false) {
-        const status = responseFromGetSitesFromLatitudeAndLongitude.status
-          ? responseFromGetSitesFromLatitudeAndLongitude.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res
-          .status(status)
-          .json(responseFromGetSitesFromLatitudeAndLongitude);
-      } else if (
-        responseFromGetSitesFromLatitudeAndLongitude.success === true
-      ) {
-        const status = responseFromGetSitesFromLatitudeAndLongitude.status
-          ? responseFromGetSitesFromLatitudeAndLongitude.status
-          : httpStatus.OK;
-        if (isEmpty(responseFromGetSitesFromLatitudeAndLongitude.data)) {
-          res.status(status).json(responseFromGetSitesFromLatitudeAndLongitude);
-        } else {
-          request.query.site_id =
-            responseFromGetSitesFromLatitudeAndLongitude.data;
+      const result = await getSitesFromLatitudeAndLongitude({
+        latitude,
+        longitude,
+        tenant,
+        radius,
+      });
 
-          const result = await createEventUtil.list(request);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json(result);
+      } else if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        if (isEmpty(result.data)) {
+          res.status(status).json(result);
+        } else {
+          request.query.site_id = result.data;
+
+          const result = await createEventUtil.list(request, next);
 
           logObject("the result for listing events", result);
 
@@ -2239,7 +2452,7 @@ const createEvent = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

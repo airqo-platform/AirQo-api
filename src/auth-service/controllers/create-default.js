@@ -17,6 +17,7 @@ const defaults = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -24,35 +25,32 @@ const defaults = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateDefault = await createDefaultUtil.update(
-        request,
-        next
-      );
+      const result = await createDefaultUtil.update(request, next);
 
-      if (responseFromUpdateDefault.success === true) {
-        const status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromUpdateDefault.message,
-          default: responseFromUpdateDefault.data,
+          message: result.message,
+          default: result.data,
         });
-      } else if (responseFromUpdateDefault.success === false) {
-        const status = responseFromUpdateDefault.status
-          ? responseFromUpdateDefault.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromUpdateDefault.message,
-          default: responseFromUpdateDefault.data,
-          errors: responseFromUpdateDefault.errors
-            ? responseFromUpdateDefault.errors
-            : { message: "" },
+          message: result.message,
+          default: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -60,6 +58,7 @@ const defaults = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   create: async (req, res, next) => {
@@ -69,6 +68,7 @@ const defaults = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -76,35 +76,32 @@ const defaults = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromCreateDefault = await createDefaultUtil.create(
-        request,
-        next
-      );
-      logObject("responseFromCreateDefault", responseFromCreateDefault);
-      if (responseFromCreateDefault.success === true) {
-        const status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
-          : httpStatus.OK;
+      const result = await createDefaultUtil.create(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
+          message: result.message,
+          default: result.data,
         });
-      } else if (responseFromCreateDefault.success === false) {
-        const status = responseFromCreateDefault.status
-          ? responseFromCreateDefault.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromCreateDefault.message,
-          default: responseFromCreateDefault.data,
-          errors: responseFromCreateDefault.errors
-            ? responseFromCreateDefault.errors
-            : { message: "" },
+          message: result.message,
+          default: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -112,6 +109,7 @@ const defaults = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -123,6 +121,7 @@ const defaults = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -130,34 +129,31 @@ const defaults = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListDefaults = await createDefaultUtil.list(
-        request,
-        next
-      );
-      if (responseFromListDefaults.success === true) {
-        const status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
-          : httpStatus.OK;
+      const result = await createDefaultUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListDefaults.message,
-          defaults: responseFromListDefaults.data,
+          message: result.message,
+          defaults: result.data,
         });
-      } else if (responseFromListDefaults.success === false) {
-        const status = responseFromListDefaults.status
-          ? responseFromListDefaults.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListDefaults.message,
-          errors: responseFromListDefaults.errors
-            ? responseFromListDefaults.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -165,6 +161,7 @@ const defaults = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -175,6 +172,7 @@ const defaults = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -182,35 +180,32 @@ const defaults = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeleteDefault = await createDefaultUtil.delete(
-        request,
-        next
-      );
+      const result = await createDefaultUtil.delete(request, next);
 
-      if (responseFromDeleteDefault.success === true) {
-        const status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromDeleteDefault.message,
-          default: responseFromDeleteDefault.data,
+          message: result.message,
+          default: result.data,
         });
-      } else if (responseFromDeleteDefault.success === false) {
-        const status = responseFromDeleteDefault.status
-          ? responseFromDeleteDefault.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromDeleteDefault.message,
-          default: responseFromDeleteDefault.data,
-          errors: responseFromDeleteDefault.errors
-            ? responseFromDeleteDefault.errors
-            : { message: "" },
+          message: result.message,
+          default: result.data,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -218,6 +213,7 @@ const defaults = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

@@ -16,37 +16,39 @@ const inquiry = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const inquiryResponse = await createInquiryUtil.create(request, next);
+      const result = await createInquiryUtil.create(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (inquiryResponse.success === true) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: inquiryResponse.message,
-          inquiry: inquiryResponse.data,
+          message: result.message,
+          inquiry: result.data,
         });
-      } else if (inquiryResponse.success === false) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: inquiryResponse.message,
-          errors: inquiryResponse.errors
-            ? inquiryResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -54,6 +56,7 @@ const inquiry = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   list: async (req, res, next) => {
@@ -63,6 +66,7 @@ const inquiry = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -70,30 +74,31 @@ const inquiry = {
         ? defaultTenant
         : req.query.tenant;
 
-      const inquiryResponse = await createInquiryUtil.list(request, next);
-      if (inquiryResponse.success === true) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
-          : httpStatus.OK;
+      const result = await createInquiryUtil.list(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: inquiryResponse.message,
-          inquiries: inquiryResponse.data,
+          message: result.message,
+          inquiries: result.data,
         });
-      } else if (inquiryResponse.success === false) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: inquiryResponse.message,
-          errors: inquiryResponse.errors
-            ? inquiryResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -101,6 +106,7 @@ const inquiry = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   delete: async (req, res, next) => {
@@ -110,37 +116,39 @@ const inquiry = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      const inquiryResponse = await createInquiryUtil.delete(request, next);
+      const result = await createInquiryUtil.delete(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (inquiryResponse.success === true) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: inquiryResponse.message,
-          deleted_inquiry: inquiryResponse.data,
+          message: result.message,
+          deleted_inquiry: result.data,
         });
-      } else if (inquiryResponse.success === false) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: inquiryResponse.message,
-          errors: inquiryResponse.errors
-            ? inquiryResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -148,6 +156,7 @@ const inquiry = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   update: async (req, res, next) => {
@@ -157,6 +166,7 @@ const inquiry = {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -164,31 +174,32 @@ const inquiry = {
         ? defaultTenant
         : req.query.tenant;
 
-      const inquiryResponse = await createInquiryUtil.update(request, next);
+      const result = await createInquiryUtil.update(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
-      if (inquiryResponse.success === true) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: inquiryResponse.message,
-          updated_inquiry: inquiryResponse.data,
+          message: result.message,
+          updated_inquiry: result.data,
         });
-      } else if (inquiryResponse.success === false) {
-        const status = inquiryResponse.status
-          ? inquiryResponse.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: inquiryResponse.message,
-          errors: inquiryResponse.errors
-            ? inquiryResponse.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -196,6 +207,7 @@ const inquiry = {
           { message: error.message }
         )
       );
+      return;
     }
   },
 };

@@ -1,6 +1,6 @@
 const SimModel = require("@models/Sim");
 const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
+const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const generateFilter = require("@utils/generate-filter");
@@ -12,6 +12,7 @@ const thingsMobile = require("@config/things-mobile");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 const convertFromBytesToMegaBytes = (bytes) => {
   return bytes / (1000 * 1000);
@@ -46,7 +47,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -124,7 +127,9 @@ const createSim = {
       };
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createBulkLocal --  ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -158,7 +163,9 @@ const createSim = {
       return responseFromListSim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- listLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -184,7 +191,9 @@ const createSim = {
       return responseFromRemoveSim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deleteLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -223,7 +232,9 @@ const createSim = {
       return responseFromModifySim;
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateLocal -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -357,7 +368,7 @@ const createSim = {
         .catch((error) => {
           logObject("the error inside the checkStatus util", error);
           logger.error(
-            `Internal Server Error --- checkStatus --- ${JSON.stringify(error)}`
+            `🐛🐛 internal Server Error --- checkStatus --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -368,7 +379,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkStatus -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -455,7 +468,7 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- activateSim --- ${JSON.stringify(error)}`
+            `🐛🐛 internal Server Error --- activateSim --- ${stringify(error)}`
           );
           return {
             success: false,
@@ -466,7 +479,9 @@ const createSim = {
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- activateSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -554,20 +569,22 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- deactivateSim --- ${JSON.stringify(
+            `🐛🐛 internal Server Error --- deactivateSim --- ${stringify(
               error
             )}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- deactivateSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -656,20 +673,22 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- updateSimName --- ${JSON.stringify(
+            `🐛🐛 internal Server Error --- updateSimName --- ${stringify(
               error
             )}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateSimName -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -758,18 +777,20 @@ const createSim = {
         .catch((error) => {
           logObject("error", error);
           logger.error(
-            `Internal Server Error --- rechargeSim --- ${JSON.stringify(error)}`
+            `🐛🐛 internal Server Error --- rechargeSim --- ${stringify(error)}`
           );
           return {
             success: false,
-            errors: { message: JSON.stringify(error) },
+            errors: { message: stringify(error) },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             message: "Internal Server Error",
           };
         });
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- rechargeSim -- ${stringify(error)}`
+      );
       next(
         new HttpError(
           "Internal Server Error",

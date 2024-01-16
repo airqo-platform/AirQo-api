@@ -8,7 +8,37 @@ const logger = log4js.getLogger(
 );
 const createActivityUtil = require("@utils/create-activity");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
 
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 const activity = {
   deploy: async (req, res, next) => {
     try {
@@ -27,31 +57,32 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromDeployDevice = await createActivityUtil.deploy(request);
-      if (responseFromDeployDevice.success === true) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
-          : httpStatus.OK;
+      const result = await createActivityUtil.deploy(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeployDevice.message,
-          createdActivity: responseFromDeployDevice.data.createdActivity,
-          updatedDevice: responseFromDeployDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromDeployDevice.success === false) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeployDevice.message,
-          errors: responseFromDeployDevice.errors
-            ? responseFromDeployDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -78,31 +109,32 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRecallDevice = await createActivityUtil.recall(request);
-      if (responseFromRecallDevice.success === true) {
-        const status = responseFromRecallDevice.status
-          ? responseFromRecallDevice.status
-          : httpStatus.OK;
+      const result = await createActivityUtil.recall(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRecallDevice.message,
-          createdActivity: responseFromRecallDevice.data.createdActivity,
-          updatedDevice: responseFromRecallDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromRecallDevice.success === false) {
-        const status = responseFromRecallDevice.status
-          ? responseFromRecallDevice.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRecallDevice.message,
-          errors: responseFromRecallDevice.errors
-            ? responseFromRecallDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -129,33 +161,32 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromMaintainDevice = await createActivityUtil.maintain(
-        request
-      );
-      if (responseFromMaintainDevice.success === true) {
-        const status = responseFromMaintainDevice.status
-          ? responseFromMaintainDevice.status
-          : httpStatus.OK;
+      const result = await createActivityUtil.maintain(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromMaintainDevice.message,
-          createdActivity: responseFromMaintainDevice.data.createdActivity,
-          updatedDevice: responseFromMaintainDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromMaintainDevice.success === false) {
-        const status = responseFromMaintainDevice.status
-          ? responseFromMaintainDevice.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromMaintainDevice.message,
-          errors: responseFromMaintainDevice.errors
-            ? responseFromMaintainDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -188,7 +219,7 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -221,7 +252,7 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -248,34 +279,33 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromUpdateActivity = await createActivityUtil.update(
-        request
-      );
-      logObject("responseFromUpdateActivity", responseFromUpdateActivity);
-      if (responseFromUpdateActivity.success === true) {
-        const status = responseFromUpdateActivity.status
-          ? responseFromUpdateActivity.status
-          : httpStatus.OK;
+      const result = await createActivityUtil.update(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateActivity.message,
-          updated_activity: responseFromUpdateActivity.data,
+          message: result.message,
+          updated_activity: result.data,
         });
-      } else if (responseFromUpdateActivity.success === false) {
-        const status = responseFromUpdateActivity.status
-          ? responseFromUpdateActivity.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateActivity.message,
-          errors: responseFromUpdateActivity.errors
-            ? responseFromUpdateActivity.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -304,33 +334,31 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromRemoveActivity = await createActivityUtil.delete(
-        request
-      );
+      const result = await createActivityUtil.delete(request, next);
 
-      if (responseFromRemoveActivity.success === true) {
-        const status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveActivity.message,
-          deleted_activity: responseFromRemoveActivity.data,
+          message: result.message,
+          deleted_activity: result.data,
         });
-      } else if (responseFromRemoveActivity.success === false) {
-        const status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveActivity.message,
-          errors: responseFromRemoveActivity.errors
-            ? responseFromRemoveActivity.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -359,31 +387,31 @@ const activity = {
         ? defaultTenant
         : req.query.tenant;
 
-      const responseFromListActivities = await createActivityUtil.list(request);
+      const result = await createActivityUtil.list(request, next);
 
-      if (responseFromListActivities.success === true) {
-        const status = responseFromListActivities.status
-          ? responseFromListActivities.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListActivities.message,
-          site_activities: responseFromListActivities.data,
+          message: result.message,
+          site_activities: result.data,
         });
-      } else if (responseFromListActivities.success === false) {
-        const status = responseFromListActivities.status
-          ? responseFromListActivities.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListActivities.message,
-          errors: responseFromListActivities.errors
-            ? responseFromListActivities.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

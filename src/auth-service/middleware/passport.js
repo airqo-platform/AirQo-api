@@ -14,7 +14,8 @@ const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-
+const mailer = require("@utils/mailer");
+const stringify = require("@utils/stringify");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
@@ -142,13 +143,13 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
               await createUserUtil.verificationReminder(verificationRequest);
             if (verificationEmailResponse.success === false) {
               logger.error(
-                `Internal Server Error --- ${JSON.stringify(
+                `Internal Server Error --- ${stringify(
                   verificationEmailResponse
                 )}`
               );
             }
           } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
           req.auth.success = false;
           req.auth.message =
@@ -226,13 +227,13 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
               await createUserUtil.verificationReminder(verificationRequest);
             if (verificationEmailResponse.success === false) {
               logger.error(
-                `Internal Server Error --- ${JSON.stringify(
+                `Internal Server Error --- ${stringify(
                   verificationEmailResponse
                 )}`
               );
             }
           } catch (error) {
-            logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
           }
           req.auth.success = false;
           req.auth.message =
@@ -340,7 +341,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
         }
       } catch (error) {
-        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         logObject("error", error);
         req.auth = {};
         req.auth.success = false;
@@ -373,8 +374,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const endpoint = req.headers["x-original-uri"];
       const clientOriginalIp = req.headers["x-client-original-ip"];
 
-      let service = req.headers["service"];
-      let userAction = "Unknown Action";
+      let service = req.headers["service"] || "unknown";
+      let userAction = "unknown";
 
       const specificRoutes = [
         {
@@ -384,8 +385,13 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           uri: ["/api/v2/devices/measurements"],
-          service: "measurements-registry",
+          service: "events-registry",
           action: "Measurements API Access via JWT",
+        },
+        {
+          uri: ["/api/v2/devices/readings"],
+          service: "events-registry",
+          action: "Readings API Access via JWT",
         },
         {
           uri: ["/api/v1/devices"],
@@ -422,11 +428,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "data-export-scheduling",
           action: "Schedule Data Download",
         },
+        /**** Sites */
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Creation",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "View Sites",
         },
         {
           method: "PUT",
@@ -440,6 +453,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "site-registry",
           action: "Site Deletion",
         },
+
+        /**** Devices */
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices?"],
@@ -465,6 +480,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Device SOFT Update",
         },
         {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "View Devices",
+        },
+        {
           method: "POST",
           uriIncludes: ["/api/v2/devices?"],
           service: "device-registry",
@@ -476,24 +497,93 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-registry",
           action: "Device SOFT Creation",
         },
+        /**** Cohorts */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "View Cohorts",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Create Cohorts",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Update Cohort",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Delete Cohort",
+        },
+
+        /**** Grids */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "View Grids",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Update Grid",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Delete Grid",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Create Grid",
+        },
+
+        /**** AirQlouds */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqloud-registry",
+          action: "View AirQlouds",
+        },
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Creation",
         },
         {
           method: "PUT",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Update",
         },
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Deletion",
         },
+
+        /**** Site Activities */
 
         {
           method: "POST",
@@ -514,11 +604,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Deploy Device",
         },
 
+        /**** Users */
         {
           method: "POST",
           uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Create User",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "View Users",
         },
         {
           method: "PUT",
@@ -533,6 +630,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Delete User",
         },
 
+        /****Incentives*/
         {
           method: "POST",
           uriIncludes: [
@@ -552,6 +650,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Send Money to Host",
         },
 
+        /**** Calibrate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
@@ -559,6 +658,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "calibrate device",
         },
 
+        /**** Locate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
@@ -566,15 +666,176 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Identify Suitable Device Locations",
         },
 
+        /**** Fault Detection */
         {
           method: "POST",
           uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
           service: "fault-detection",
           action: "Detect Faults",
         },
-      ];
 
-      routesWithService.forEach((route) => {
+        /**** Readings... */
+        {
+          method: "GET",
+          uriIncludes: [
+            "/api/v2/devices/measurements",
+            "/api/v2/devices/events",
+            "/api/v2/devices/readings",
+          ],
+          service: "events-registry",
+          action: " Retrieve Measurements",
+        },
+
+        /**** Data Proxy */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data"],
+          service: "data-mgt",
+          action: "Retrieve Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data-proxy"],
+          service: "data-proxy",
+          action: "Retrieve Data",
+        },
+
+        /*****Analytics */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics/dashboard/sites"],
+          service: "analytics",
+          action: "Retrieve Sites on Analytics Page",
+        },
+        {
+          method: "GET",
+          uriIncludes: [
+            "/api/v2/analytics/dashboard/historical/daily-averages",
+          ],
+          service: "analytics",
+          action: "Retrieve Daily Averages on Analytics Page",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
+          service: "analytics",
+          action: "Retrieve Exceedances on Analytics Page",
+        },
+
+        /*****KYA lessons */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Retrieve KYA lessons",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Create KYA lesson",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Update KYA lesson",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Delete KYA lesson",
+        },
+        /*****KYA Quizzes */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
+          service: "kya",
+          action: "Retrieve KYA quizzes",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Create KYA quizzes",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Update KYA quiz",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Delete KYA quiz",
+        },
+
+        /*****view */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/view/mobile-app/version-info"],
+          service: "mobile-version",
+          action: "View Mobile App Information",
+        },
+
+        /*****Predict */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/daily-forecast"],
+          service: "predict",
+          action: "Retrieve Daily Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/hourly-forecast"],
+          service: "predict",
+          action: "Retrieve Hourly Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/heatmap"],
+          service: "predict",
+          action: "Retrieve Heatmap",
+        },
+
+        /*****Device Monitoring */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/monitor"],
+          service: "monitor",
+          action: "Retrieve Network Statistics Data",
+        },
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/meta-data"],
+          service: "meta-data",
+          action: "Retrieve Metadata",
+        },
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/network-uptime"],
+          service: "network-uptime",
+          action: "Retrieve Network Uptime Data",
+        },
+      ];
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ _id: payload._id })
+        .exec();
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      routesWithService.forEach(async (route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
 
@@ -589,18 +850,41 @@ const useJWTStrategy = (tenant, req, res, next) =>
         ) {
           service = route.service;
           userAction = route.action;
+          logObject("Service", service);
+
+          if (
+            [
+              "device-deployment",
+              "device-maintenance",
+              "device-recall",
+            ].includes(service)
+          ) {
+            try {
+              const emailResponse = await mailer.siteActivity(
+                {
+                  email: user.email,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  siteActivityDetails: {
+                    service: service,
+                    userAction: userAction,
+                    actor: user.email,
+                  },
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            } catch (error) {
+              logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+            }
+          }
         }
       });
-
-      // ... other route checks
-      logObject("Service", service);
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({ _id: payload._id })
-        .exec();
-
-      if (!user) {
-        return done(null, false);
-      }
 
       const currentDate = new Date();
 
@@ -628,7 +912,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       return done(null, user);
     } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(e)}`);
       return done(e, false);
     }
   });

@@ -183,6 +183,14 @@ router.put(
         .notEmpty()
         .withMessage("name should not be empty if provided")
         .trim(),
+      body("ip_address")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("the ip_address must not be empty IF provided")
+        .bail()
+        .isIP()
+        .withMessage("Invalid IP address"),
       body("redirect_url")
         .optional()
         .notEmpty()
