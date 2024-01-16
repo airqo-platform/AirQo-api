@@ -198,8 +198,9 @@ ReadingsSchema.statics.latest = async function(
   next
 ) {
   try {
+    logObject("filter in the Reading shema latest function", filter);
     const pipeline = this.aggregate()
-      .match({})
+      .match(filter)
       .sort({ time: -1 })
       .group({
         _id: "$site_id",

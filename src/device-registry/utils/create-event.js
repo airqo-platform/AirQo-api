@@ -1021,6 +1021,8 @@ const createEvent = {
       } = request;
       const filter = generateFilter.telemetry(request, next);
 
+      logObject("the filter from the generator", filter);
+
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
@@ -1042,12 +1044,14 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).latest({
-        filter,
-        skip,
-        limit,
-        next,
-      });
+      const readingsResponse = await ReadingModel(tenant).latest(
+        {
+          filter,
+          skip,
+          limit,
+        },
+        next
+      );
 
       if (
         language !== undefined &&
@@ -1712,8 +1716,8 @@ const createEvent = {
           data,
         })
       );
-      await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
-
+      // await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      await redisExpireAsync(cacheID, 0);
       return {
         success: true,
         message: "Response stored in cache",
