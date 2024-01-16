@@ -7,7 +7,10 @@ const { HttpError } = require("@utils/errors");
 const translate = new Translate();
 
 const translateUtil = {
-  translateTips: async ({ healthTips, targetLanguage } = {}, next) => {
+  translateTips: async (
+    { healthTips = [], targetLanguage = "" } = {},
+    next
+  ) => {
     try {
       const translatedHealthTips = [];
 
@@ -38,7 +41,10 @@ const translateUtil = {
       );
     }
   },
-  translateLessons: async ({ lessons, targetLanguage } = {}, next) => {
+  translateLessons: async (
+    { lessons = [], targetLanguage = "" } = {},
+    next
+  ) => {
     try {
       const translatedLessons = [];
 
@@ -79,7 +85,10 @@ const translateUtil = {
       );
     }
   },
-  translateQuizzes: async ({ quizzes, targetLanguage } = {}, next) => {
+  translateQuizzes: async (
+    { quizzes = [], targetLanguage = "" } = {},
+    next
+  ) => {
     try {
       const translatedQuizzes = [];
 
