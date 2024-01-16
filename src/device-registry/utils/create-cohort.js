@@ -338,6 +338,41 @@ const createCohort = {
       );
     }
   },
+  verify: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const filter = generateFilter.cohorts(request, next);
+      const response = await CohortModel(tenant)
+        .find(filter)
+        .lean()
+        .select("_id");
+
+      if (isEmpty(response)) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Bad Request Error",
+          errors: { message: "Invalid Cohort ID provided" },
+        };
+      } else {
+        return {
+          success: true,
+          status: httpStatus.OK,
+          message: "Cohort ID is Valid!!",
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   listAvailableDevices: async (request, next) => {
     try {
       const { tenant } = request.query;
