@@ -198,7 +198,6 @@ ReadingsSchema.statics.latest = async function(
   next
 ) {
   try {
-    logText("we are inside model's latest list....");
     const pipeline = this.aggregate()
       .match(filter)
       .sort({ time: -1 })
