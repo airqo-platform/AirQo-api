@@ -199,7 +199,7 @@ ReadingsSchema.statics.latest = async function(
 ) {
   try {
     const pipeline = this.aggregate()
-      .match(filter)
+      .match({})
       .sort({ time: -1 })
       .group({
         _id: "$site_id",
