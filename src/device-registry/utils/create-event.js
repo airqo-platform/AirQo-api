@@ -1019,8 +1019,6 @@ const createEvent = {
       const {
         query: { tenant, language, limit, skip },
       } = request;
-      const filter = generateFilter.telemetry(request, next);
-
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
@@ -1042,12 +1040,13 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).latest({
-        filter,
-        skip,
-        limit,
-        next,
-      });
+      const readingsResponse = await ReadingModel(tenant).latest(
+        {
+          skip,
+          limit,
+        },
+        next
+      );
 
       if (
         language !== undefined &&
@@ -1712,7 +1711,10 @@ const createEvent = {
           data,
         })
       );
-      await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      await redisExpireAsync(
+        cacheID,
+        parseInt(constants.EVENTS_CACHE_LIMIT) || 1800
+      );
 
       return {
         success: true,
