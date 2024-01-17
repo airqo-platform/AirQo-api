@@ -58,12 +58,27 @@ const createCandidate = {
         logger.error(
           `Candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
         );
+        const emailResponse = await mailer.existingUserAccessRequest(
+          {
+            email,
+            firstName,
+            lastName,
+          },
+          next
+        );
+
+        if (emailResponse && emailResponse.success === false) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+          );
+        }
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You already exist as an AirQo User, please use the FORGOT PASSWORD feature",
           })
         );
+        return;
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
