@@ -1346,7 +1346,7 @@ const mailer = {
         },
         to: `${email}`,
         subject:
-          "AirQo Analyitcs: Post-Activity Notification for Device Management Actions",
+          "AirQo Analytics: Post-Activity Notification for Device Management Actions",
         html: `${msgs.site_activity({
           firstName,
           lastName,

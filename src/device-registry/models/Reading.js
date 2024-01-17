@@ -8,6 +8,7 @@ const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
+const { logElement } = require("../utils/log");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
 
 const HealthTipsSchema = new Schema(
@@ -198,9 +199,15 @@ ReadingsSchema.statics.latest = async function(
   next
 ) {
   try {
-    logText("we are inside model's latest list....");
+    let threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
     const pipeline = this.aggregate()
-      .match(filter)
+      .match({
+        time: {
+          $gte: threeDaysAgo,
+        },
+      })
       .sort({ time: -1 })
       .group({
         _id: "$site_id",

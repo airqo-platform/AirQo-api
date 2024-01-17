@@ -715,7 +715,12 @@ const createEvent = {
         next
       );
 
-      if (language !== undefined && responseFromListEvents.success === true) {
+      if (
+        language !== undefined &&
+        !isEmpty(responseFromListEvents) &&
+        responseFromListEvents.success === true &&
+        !isEmpty(responseFromListEvents.data[0].data)
+      ) {
         const data = responseFromListEvents.data[0].data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
@@ -827,7 +832,12 @@ const createEvent = {
 
       const viewEventsResponse = await EventModel(tenant).view(filter, next);
 
-      if (language !== undefined && viewEventsResponse.success === true) {
+      if (
+        language !== undefined &&
+        !isEmpty(viewEventsResponse) &&
+        viewEventsResponse.success === true &&
+        !isEmpty(viewEventsResponse.data[0].data)
+      ) {
         const data = viewEventsResponse.data[0].data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
@@ -1009,10 +1019,8 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language },
+        query: { tenant, language, limit, skip },
       } = request;
-      const filter = generateFilter.telemetry(request, next);
-
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
@@ -1034,9 +1042,20 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).latest(filter, next);
+      const readingsResponse = await ReadingModel(tenant).latest(
+        {
+          skip,
+          limit,
+        },
+        next
+      );
 
-      if (language !== undefined && readingsResponse.success === true) {
+      if (
+        language !== undefined &&
+        !isEmpty(readingsResponse) &&
+        readingsResponse.success === true &&
+        !isEmpty(readingsResponse.data)
+      ) {
         const data = readingsResponse.data;
         for (const event of data) {
           const translatedHealthTips = await translateUtil.translateTips(
@@ -1695,7 +1714,10 @@ const createEvent = {
           data,
         })
       );
-      await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      await redisExpireAsync(
+        cacheID,
+        parseInt(constants.EVENTS_CACHE_LIMIT) || 1800
+      );
 
       return {
         success: true,
