@@ -34,7 +34,7 @@ const startKafka = async () => {
 
 const main = async () => {
   try {
-    // await startKafka();
+    await startKafka();
     createServer();
   } catch (error) {
     logger.error(`🐛🐛 error in the main() -- ${jsonify(error)}`);

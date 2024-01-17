@@ -1711,8 +1711,11 @@ const createEvent = {
           data,
         })
       );
-      // await redisExpireAsync(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
-      await redisExpireAsync(cacheID, 0);
+      await redisExpireAsync(
+        cacheID,
+        parseInt(constants.EVENTS_CACHE_LIMIT) || 1800
+      );
+
       return {
         success: true,
         message: "Response stored in cache",
