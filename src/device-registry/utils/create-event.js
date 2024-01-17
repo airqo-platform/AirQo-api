@@ -1019,10 +1019,6 @@ const createEvent = {
       const {
         query: { tenant, language, limit, skip },
       } = request;
-      const filter = generateFilter.telemetry(request, next);
-
-      logObject("the filter from the generator", filter);
-
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
@@ -1046,7 +1042,6 @@ const createEvent = {
 
       const readingsResponse = await ReadingModel(tenant).latest(
         {
-          filter,
           skip,
           limit,
         },
