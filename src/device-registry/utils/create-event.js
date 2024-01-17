@@ -717,6 +717,7 @@ const createEvent = {
 
       if (
         language !== undefined &&
+        !isEmpty(responseFromListEvents) &&
         responseFromListEvents.success === true &&
         !isEmpty(responseFromListEvents.data[0].data)
       ) {
@@ -833,6 +834,7 @@ const createEvent = {
 
       if (
         language !== undefined &&
+        !isEmpty(viewEventsResponse) &&
         viewEventsResponse.success === true &&
         !isEmpty(viewEventsResponse.data[0].data)
       ) {
@@ -1050,6 +1052,7 @@ const createEvent = {
 
       if (
         language !== undefined &&
+        !isEmpty(readingsResponse) &&
         readingsResponse.success === true &&
         !isEmpty(readingsResponse.data)
       ) {

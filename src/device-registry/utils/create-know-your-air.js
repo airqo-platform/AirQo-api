@@ -14,6 +14,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-kya-util`);
 const translateUtil = require("./translate");
 const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
+const isEmpty = require("is-empty");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -51,7 +52,11 @@ const createKnowYourAir = {
         },
         next
       );
-      if (language !== undefined) {
+      if (
+        language !== undefined &&
+        !isEmpty(responseFromListLessons) &&
+        !isEmpty(responseFromListLessons.data)
+      ) {
         const translatedLessons = await translateUtil.translateLessons(
           { lessons: responseFromListLessons.data, targetLanguage: language },
           next
@@ -935,7 +940,11 @@ const createKnowYourAir = {
         },
         next
       );
-      if (language !== undefined) {
+      if (
+        language !== undefined &&
+        !isEmpty(responseFromListQuizzes) &&
+        !isEmpty(responseFromListQuizzes.data)
+      ) {
         const translatedQuizzes = await translateUtil.translateQuizzes(
           { quizzes: responseFromListQuizzes.data, targetLanguage: language },
           next
