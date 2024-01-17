@@ -10,6 +10,7 @@ const logger = log4js.getLogger(
 const translateUtil = require("./translate");
 const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
+const isEmpty = require("is-empty");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -33,7 +34,11 @@ const createHealthTips = {
         },
         next
       );
-      if (language !== undefined) {
+      if (
+        language !== undefined &&
+        !isEmpty(responseFromListHealthTips) &&
+        !isEmpty(responseFromListHealthTips.data)
+      ) {
         translatedHealthTips = await translateUtil.translateTips(
           {
             healthTips: responseFromListHealthTips.data,
