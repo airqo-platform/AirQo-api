@@ -365,6 +365,8 @@ async function tipsTranslations(index, target) {
         }
       ];
       break;
+    default:
+      translatedTips = [];
   }
   return translatedTips[index];
 }
@@ -550,6 +552,8 @@ async function lessonTranslations(index, target) {
         }
       ];
       break;
+    default:
+      translatedLessons = [];
   }
   return translatedLessons[index];
 }
@@ -1347,6 +1351,8 @@ async function quizTranslations(index, target) {
         }
       ];
       break;
+    default:
+      translatedQuizzes = [];
   }
   return translatedQuizzes[index];
 }
