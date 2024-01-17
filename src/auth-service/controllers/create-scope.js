@@ -1,244 +1,211 @@
-const { validationResult } = require("express-validator");
 const controlAccessUtil = require("@utils/control-access");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-scope-controller`
+);
 
 const createScope = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.createScope(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-
-      const responseFromCreateScope = await controlAccessUtil.createScope(
-        request
-      );
-
-      if (responseFromCreateScope.success === true) {
-        const status = responseFromCreateScope.status
-          ? responseFromCreateScope.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateScope.message
-            ? responseFromCreateScope.message
-            : "",
-          created_scope: responseFromCreateScope.data
-            ? responseFromCreateScope.data
-            : [],
+          message: result.message ? result.message : "",
+          created_scope: result.data ? result.data : [],
         });
-      } else if (responseFromCreateScope.success === false) {
-        const status = responseFromCreateScope.status
-          ? responseFromCreateScope.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateScope.message
-            ? responseFromCreateScope.message
-            : "",
-          errors: responseFromCreateScope.errors
-            ? responseFromCreateScope.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromListScopes = await controlAccessUtil.listScope(request);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (responseFromListScopes.success === true) {
-        const status = responseFromListScopes.status
-          ? responseFromListScopes.status
-          : httpStatus.OK;
+      const result = await controlAccessUtil.listScope(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListScopes.message
-            ? responseFromListScopes.message
-            : "",
-          scopes: responseFromListScopes.data
-            ? responseFromListScopes.data
-            : [],
+          message: result.message ? result.message : "",
+          scopes: result.data ? result.data : [],
         });
-      } else if (responseFromListScopes.success === false) {
-        const status = responseFromListScopes.status
-          ? responseFromListScopes.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListScopes.message
-            ? responseFromListScopes.message
-            : "",
-          errors: responseFromListScopes.errors
-            ? responseFromListScopes.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.deleteScope(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
-      }
-      const responseFromDeleteScope = await controlAccessUtil.deleteScope(
-        request
-      );
-
-      if (responseFromDeleteScope.success === true) {
-        const status = responseFromDeleteScope.status
-          ? responseFromDeleteScope.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeleteScope.message
-            ? responseFromDeleteScope.message
-            : "",
-          deleted_scope: responseFromDeleteScope.data
-            ? responseFromDeleteScope.data
-            : [],
+          message: result.message ? result.message : "",
+          deleted_scope: result.data ? result.data : [],
         });
-      } else if (responseFromDeleteScope.success === false) {
-        const status = responseFromDeleteScope.status
-          ? responseFromDeleteScope.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeleteScope.message
-            ? responseFromDeleteScope.message
-            : "",
-          errors: responseFromDeleteScope.errors
-            ? responseFromDeleteScope.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = req;
-      if (isEmpty(tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT;
+      const result = await controlAccessUtil.updateScope(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
-      const responseFromUpdateScope = await controlAccessUtil.updateScope(
-        request
-      );
-
-      if (responseFromUpdateScope.success === true) {
-        const status = responseFromUpdateScope.status
-          ? responseFromUpdateScope.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateScope.message
-            ? responseFromUpdateScope.message
-            : "",
-          updated_scope: responseFromUpdateScope.data
-            ? responseFromUpdateScope.data
-            : [],
+          message: result.message ? result.message : "",
+          updated_scope: result.data ? result.data : [],
         });
-      } else if (responseFromUpdateScope.success === false) {
-        const status = responseFromUpdateScope.status
-          ? responseFromUpdateScope.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateScope.message
-            ? responseFromUpdateScope.message
-            : "",
-          errors: responseFromUpdateScope.errors
-            ? responseFromUpdateScope.errors
-            : { message: "" },
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logObject("error", error);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

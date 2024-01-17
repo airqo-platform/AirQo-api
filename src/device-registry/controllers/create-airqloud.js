@@ -1,7 +1,6 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createAirQloudUtil = require("@utils/create-airqloud");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -9,763 +8,709 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-controller`
 );
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createAirqloud = {
-  bulkCreate: async (req, res) => {
+  bulkCreate: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "NOT YET IMPLEMENTED",
         errors: { message: "NOT YET IMPLEMENTED" },
       });
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        success: false,
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  register: async (req, res) => {
+  register: async (req, res, next) => {
     logText("registering airqloud.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
 
-      const responseFromCreateAirQloud = await createAirQloudUtil.create(
-        request
-      );
-      logObject(
-        "responseFromCreateAirQloud in controller",
-        responseFromCreateAirQloud
-      );
-      if (responseFromCreateAirQloud.success === true) {
-        const status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
-          : HTTPStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createAirQloudUtil.create(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateAirQloud.message,
-          airqloud: responseFromCreateAirQloud.data,
+          message: result.message,
+          airqloud: result.data,
         });
-      } else if (responseFromCreateAirQloud.success === false) {
-        const status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateAirQloud.message,
-          errors: responseFromCreateAirQloud.errors
-            ? responseFromCreateAirQloud.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  calculateGeographicalCenter: async (req, res) => {
+  calculateGeographicalCenter: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+        return;
       }
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
-        request
+      const result = await createAirQloudUtil.calculateGeographicalCenter(
+        request,
+        next
       );
 
-      if (responseFromCalculateGeographicalCenter.success === true) {
-        const status = responseFromCalculateGeographicalCenter.status
-          ? responseFromCalculateGeographicalCenter.status
-          : HTTPStatus.OK;
-        logObject(
-          "responseFromCalculateGeographicalCenter",
-          responseFromCalculateGeographicalCenter
-        );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        logObject("result", result);
         return res.status(status).json({
           success: true,
-          message: responseFromCalculateGeographicalCenter.message,
-          center_point: responseFromCalculateGeographicalCenter.data,
+          message: result.message,
+          center_point: result.data,
         });
-      } else if (responseFromCalculateGeographicalCenter.success === false) {
-        const status = responseFromCalculateGeographicalCenter.status
-          ? responseFromCalculateGeographicalCenter.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromCalculateGeographicalCenter.errors
-          ? responseFromCalculateGeographicalCenter.errors
+        const errors = result.errors
+          ? result.errors
           : { message: "Internal Server Error" };
 
         return res.status(status).json({
           success: false,
-          message: responseFromCalculateGeographicalCenter.message,
+          message: result.message,
           errors,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete airqloud............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createAirQloudUtil.delete(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
 
-      const responseFromRemoveAirQloud = await createAirQloudUtil.delete(
-        request
-      );
-
-      if (responseFromRemoveAirQloud.success === true) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveAirQloud.message,
-          airqloud: responseFromRemoveAirQloud.data,
+          message: result.message,
+          airqloud: result.data,
         });
-      } else if (responseFromRemoveAirQloud.success === false) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveAirQloud.message,
-          errors: responseFromRemoveAirQloud.errors
-            ? responseFromRemoveAirQloud.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  refresh: async (req, res) => {
+  refresh: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createAirQloudUtil.refresh(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
-        request
-      );
-      if (responseFromRefreshAirQloud.success === true) {
-        const status = responseFromRefreshAirQloud.status
-          ? responseFromRefreshAirQloud.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromRefreshAirQloud.message,
-          refreshed_airqloud: responseFromRefreshAirQloud.data,
+          message: result.message,
+          refreshed_airqloud: result.data,
         });
-      } else if (responseFromRefreshAirQloud.success === false) {
-        const status = responseFromRefreshAirQloud.status
-          ? responseFromRefreshAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromRefreshAirQloud.errors
-          ? responseFromRefreshAirQloud.errors
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
           : { message: "Internal Server Error" };
         res.status(status).json({
-          message: responseFromRefreshAirQloud.message,
+          message: result.message,
           errors,
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  findSites: async (req, res) => {
+  findSites: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createAirQloudUtil.findSites(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      logObject("request", request);
-      const responseFromFindSites = await createAirQloudUtil.findSites(request);
-      logObject("responseFromFindSites", responseFromFindSites);
-      if (responseFromFindSites.success === true) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
-          : HTTPStatus.OK;
+
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          sites: responseFromFindSites.data,
-          message: responseFromFindSites.message,
+          sites: result.data,
+          message: result.message,
         });
-      } else if (responseFromFindSites.success === false) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromFindSites.message,
-          errors: responseFromFindSites.errors
-            ? responseFromFindSites.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText("updating airqloud................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
 
-      const responseFromUpdateAirQloud = await createAirQloudUtil.update(
-        request
-      );
-      logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
-      if (responseFromUpdateAirQloud.success === true) {
-        const status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
-          : HTTPStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createAirQloudUtil.update(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateAirQloud.message,
-          airqloud: responseFromUpdateAirQloud.data,
+          message: result.message,
+          airqloud: result.data,
         });
-      } else if (responseFromUpdateAirQloud.success === false) {
-        const status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateAirQloud.message,
-          errors: responseFromUpdateAirQloud.errors
-            ? responseFromUpdateAirQloud.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all airqlouds by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_NETWORK || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      const result = await createAirQloudUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
       logElement(
         "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        result.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listSummary: async (req, res) => {
+  listSummary: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all airqlouds by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       request.query.category = "summary";
-      request.query.tenant = tenant;
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+
+      const result = await createAirQloudUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logElement(
         "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        result.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listDashboard: async (req, res) => {
+  listDashboard: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all airqlouds by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       request.query.category = "dashboard";
-      request.query.tenant = tenant;
-      const responseFromListAirQlouds = await createAirQloudUtil.list(request);
+
+      const result = await createAirQloudUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
       logElement(
         "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        result.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listCohortsAndGrids: async (req, res) => {
+  listCohortsAndGrids: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all Cohorts and Grids by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let request = Object.assign({}, req);
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       request.query.dashboard = "yes";
-      request.query.tenant = tenant;
-      const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
-        request
+
+      const result = await createAirQloudUtil.listCohortsAndGrids(
+        request,
+        next
       );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logElement(
         "has the response for listing airqlouds been successful?",
-        responseFromListCohortsAndGrids.success
+        result.success
       );
-      if (responseFromListCohortsAndGrids.success === true) {
-        const status = responseFromListCohortsAndGrids.status
-          ? responseFromListCohortsAndGrids.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListCohortsAndGrids.message,
-          airqlouds: responseFromListCohortsAndGrids.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListCohortsAndGrids.success === false) {
-        const status = responseFromListCohortsAndGrids.status
-          ? responseFromListCohortsAndGrids.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListCohortsAndGrids.message,
-          errors: responseFromListCohortsAndGrids.errors
-            ? responseFromListCohortsAndGrids.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listCohortsAndGridsSummary: async (req, res) => {
+  listCohortsAndGridsSummary: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all Cohorts and Grids by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let request = Object.assign({}, req);
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
       request.query.dashboard = "yes";
-      request.query.tenant = tenant;
       request.query.category = "summary";
-      const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
-        request
+
+      const result = await createAirQloudUtil.listCohortsAndGrids(
+        request,
+        next
       );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
       logElement(
         "has the response for listing airqlouds been successful?",
-        responseFromListCohortsAndGrids.success
+        result.success
       );
-      if (responseFromListCohortsAndGrids.success === true) {
-        const status = responseFromListCohortsAndGrids.status
-          ? responseFromListCohortsAndGrids.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListCohortsAndGrids.message,
-          airqlouds: responseFromListCohortsAndGrids.data,
+          message: result.message,
+          airqlouds: result.data,
         });
-      } else if (responseFromListCohortsAndGrids.success === false) {
-        const status = responseFromListCohortsAndGrids.status
-          ? responseFromListCohortsAndGrids.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListCohortsAndGrids.message,
-          errors: responseFromListCohortsAndGrids.errors
-            ? responseFromListCohortsAndGrids.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
-      logger.error(`Internal Server Error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

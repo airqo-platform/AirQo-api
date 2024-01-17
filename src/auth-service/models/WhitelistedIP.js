@@ -8,6 +8,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- whitelist-ip-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const WhitelistedIPSchema = new mongoose.Schema(
   {
@@ -24,25 +25,6 @@ WhitelistedIPSchema.pre("save", function (next) {
   return next();
 });
 
-WhitelistedIPSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 WhitelistedIPSchema.pre("update", function (next) {
   return next();
 });
@@ -50,11 +32,10 @@ WhitelistedIPSchema.pre("update", function (next) {
 WhitelistedIPSchema.index({ ip: 1 }, { unique: true });
 
 WhitelistedIPSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
-      let modifiedArgs = args;
       const data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
@@ -73,23 +54,29 @@ WhitelistedIPSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        const duplicate_record = args.ip ? args.ip : "";
+        response[duplicate_record] = `${duplicate_record} must be unique`;
+        response["message"] = "the ip must be unique";
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
+      return;
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
       const inclusionProjection = constants.IPS_INCLUSION_PROJECTION;
@@ -126,16 +113,17 @@ WhitelistedIPSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -153,25 +141,24 @@ WhitelistedIPSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedIP)) {
-        return {
-          success: false,
-          message: "IP does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "IP does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "IP does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -181,9 +168,6 @@ WhitelistedIPSchema.statics = {
       };
 
       const removedIP = await this.findOneAndRemove(filter, options).exec();
-
-      logObject("removedIP", removedIP);
-
       if (!isEmpty(removedIP)) {
         return {
           success: true,
@@ -192,21 +176,21 @@ WhitelistedIPSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedIP)) {
-        return {
-          success: false,
-          message: "IP does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "IP does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "IP does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

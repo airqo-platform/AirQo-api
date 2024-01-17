@@ -1,26 +1,29 @@
 const UserModel = require("@models/User");
 const CandidateModel = require("@models/Candidate");
 const NetworkModel = require("@models/Network");
-const { getModelByTenant } = require("@config/database");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("@utils/log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-constants = require("../config/constants");
+const constants = require("@config/constants");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-candidate-util`
 );
+const { HttpError } = require("@utils/errors");
 
 const createCandidate = {
-  create: async (req) => {
+  create: async (request, next) => {
     try {
-      const { firstName, lastName, email, tenant, network_id } = req;
+      const { firstName, lastName, email, tenant, network_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(network_id)) {
         const networkExists = await NetworkModel(tenant).exists({
@@ -30,12 +33,12 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          return {
-            success: false,
-            message: "the provided network does not exist",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Network ${network_id} not found` },
-          };
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "The provided network does not exist",
+              [network_id]: `Network ID not found`,
+            })
+          );
         }
       }
 
@@ -53,29 +56,29 @@ const createCandidate = {
         };
       } else if (userExists) {
         logger.error(
-          `candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
+          `Candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
         );
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "Candidate already exists as a User, you can use the FORGOT PASSWORD feature",
-          },
-        };
+              "You already exist as an AirQo User, please use the FORGOT PASSWORD feature",
+          })
+        );
       } else {
         const responseFromCreateCandidate = await CandidateModel(
           tenant
-        ).register(req);
+        ).register(request.body, next);
 
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
           const responseFromSendEmail = await mailer.candidate(
-            firstName,
-            lastName,
-            email,
-            tenant
+            {
+              firstName,
+              lastName,
+              email,
+              tenant,
+            },
+            next
           );
           if (responseFromSendEmail.success === true) {
             const status = responseFromSendEmail.status
@@ -96,89 +99,81 @@ const createCandidate = {
           return responseFromCreateCandidate;
         }
       }
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  list: async (request) => {
+  list: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-
-      const responseFromFilter = generateFilter.candidates(request);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
-
+      const { tenant, limit, skip } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.candidates(request, next);
       const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
-
-      const responseFromFilter = generateFilter.candidates(request);
-      logObject("responseFromFilter", responseFromFilter);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-
-      const filter = responseFromFilter.data;
+      const filter = generateFilter.candidates(request, next);
       const update = body;
       const tenant = query.tenant;
-
       const responseFromModifyCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
-      logObject("responseFromModifyCandidate", responseFromModifyCandidate);
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       return responseFromModifyCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  confirm: async (req) => {
+  confirm: async (request, next) => {
     try {
-      logObject("req", req);
-      const { tenant, firstName, lastName, email, network_id } = req;
+      const { tenant, firstName, lastName, email, network_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
 
       if (!isEmpty(network_id)) {
         const networkExists = await NetworkModel(tenant).exists({
@@ -188,42 +183,38 @@ const createCandidate = {
           logger.error(
             `Network ${network_id} not found in System, crosscheck or make another request`
           );
-          return {
-            success: false,
-            message: "the provided network does not exist",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Network ${network_id} not found` },
-          };
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `Network ${network_id} not found`,
+              [network_id]: "the provided network does not exist",
+            })
+          );
         }
       }
       const candidateExists = await CandidateModel(tenant).exists({
         email,
       });
       const userExists = await UserModel(tenant).exists({ email });
-      logObject("candidateExists", candidateExists);
-      logObject("userExists", userExists);
       if (!candidateExists) {
         logger.error(
           `Candidate ${email} not found in System, crosscheck or make another request`
         );
-        return {
-          success: false,
-          message: "the candidate does not exist",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Candidate ${email} not found` },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Candidate ${email} not found`,
+            [email]: `Candidate ${email} not found`,
+          })
+        );
       } else if (userExists) {
         logger.error(
           `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
         );
-        return {
-          success: false,
-          message: "the User already exists",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
-          },
-        };
+            [email]: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+          })
+        );
       } else {
         const candidateDetails = await CandidateModel(tenant)
           .find({ email })
@@ -233,32 +224,27 @@ const createCandidate = {
           constants.RANDOM_PASSWORD_CONFIGURATION(10)
         );
 
-        let requestBodyForUserCreation = Object.assign({}, req);
+        let requestBodyForUserCreation = Object.assign({}, request.body);
         requestBodyForUserCreation.privilege = "user";
         requestBodyForUserCreation.userName = email;
         requestBodyForUserCreation.password = password;
 
-        logObject(
-          "requestBody during confirmation",
-          requestBodyForUserCreation
-        );
-
         const responseFromCreateUser = await UserModel(tenant).register(
-          requestBodyForUserCreation
-        );
-        logObject(
-          "responseFromCreateUser during confirmation",
-          responseFromCreateUser
+          requestBodyForUserCreation,
+          next
         );
 
         if (responseFromCreateUser.success === true) {
           const responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "confirm"
+            {
+              firstName,
+              lastName,
+              email,
+              password,
+              tenant,
+              type: "confirm",
+            },
+            next
           );
           logObject(
             "responseFromSendEmail during confirmation",
@@ -271,19 +257,20 @@ const createCandidate = {
               candidateDetails.length === 0 ||
               isEmpty(candidateDetails)
             ) {
-              return {
-                success: false,
-                message: "Internal Server Error",
-                errors: { message: "unable to find the candidate details" },
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-              };
+              next(
+                new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  { message: "unable to find the candidate details" }
+                )
+              );
             }
             const filter = {
               _id: ObjectId(candidateDetails[0]._id),
             };
             const responseFromDeleteCandidate = await CandidateModel(
               tenant.toLowerCase()
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             if (responseFromDeleteCandidate.success === true) {
               return {
@@ -307,53 +294,46 @@ const createCandidate = {
           return responseFromCreateUser;
         }
       }
-    } catch (e) {
-      logger.error(`${JSON.stringify(e)}`);
-      if (e.code === 11000) {
-        return {
-          success: false,
-          message: "Duplicate Entry",
-          error: e.keyValue,
-          errors: { message: `duplicate entry ${e.keyValue}` },
-          status: httpStatus.BAD_REQUEST,
-        };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (error.code === 11000) {
+        logger.error(`Duplicate Entry ${error.message}`);
+        next(
+          new HttpError("Duplicate Entry", httpStatus.BAD_REQUEST, {
+            message: `duplicate entry ${error.keyValue}`,
+          })
+        );
       }
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-
-      const responseFromFilter = generateFilter.candidates(request);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-      const filter = responseFromFilter.data;
+      const { tenant } = { ...request.query };
+      const filter = generateFilter.candidates(request, next);
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveCandidate;
-    } catch (e) {
-      logger.error(`${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

@@ -1,462 +1,425 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
-const { getModelByTenant } = require("@config/database");
+const { logObject, logText } = require("@utils/log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
 const createActivityUtil = require("@utils/create-activity");
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
 
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 const activity = {
-  deploy: async (req, res) => {
+  deploy: async (req, res, next) => {
     try {
       logText("we are deploying....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
 
-      const responseFromDeployDevice = await createActivityUtil.deploy(request);
-      if (responseFromDeployDevice.success === true) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
-          : HTTPStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.deploy(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeployDevice.message,
-          createdActivity: responseFromDeployDevice.data.createdActivity,
-          updatedDevice: responseFromDeployDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromDeployDevice.success === false) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeployDevice.message,
-          errors: responseFromDeployDevice.errors
-            ? responseFromDeployDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  recall: async (req, res) => {
+  recall: async (req, res, next) => {
     try {
       logText("we are recalling....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      let { tenant } = req.query;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const result = await createActivityUtil.recall(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
-      let request = Object.assign({}, req);
 
-      request.query.tenant = tenant;
-
-      const responseFromRecallDevice = await createActivityUtil.recall(request);
-      if (responseFromRecallDevice.success === true) {
-        const status = responseFromRecallDevice.status
-          ? responseFromRecallDevice.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRecallDevice.message,
-          createdActivity: responseFromRecallDevice.data.createdActivity,
-          updatedDevice: responseFromRecallDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromRecallDevice.success === false) {
-        const status = responseFromRecallDevice.status
-          ? responseFromRecallDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRecallDevice.message,
-          errors: responseFromRecallDevice.errors
-            ? responseFromRecallDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  maintain: async (req, res) => {
-    try {
-      const { query } = req;
-      let { tenant } = query;
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-
-      const responseFromMaintainDevice = await createActivityUtil.maintain(
-        request
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      if (responseFromMaintainDevice.success === true) {
-        const status = responseFromMaintainDevice.status
-          ? responseFromMaintainDevice.status
-          : HTTPStatus.OK;
+      return;
+    }
+  },
+  maintain: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.maintain(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromMaintainDevice.message,
-          createdActivity: responseFromMaintainDevice.data.createdActivity,
-          updatedDevice: responseFromMaintainDevice.data.updatedDevice,
+          message: result.message,
+          createdActivity: result.data.createdActivity,
+          updatedDevice: result.data.updatedDevice,
         });
-      } else if (responseFromMaintainDevice.success === false) {
-        const status = responseFromMaintainDevice.status
-          ? responseFromMaintainDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromMaintainDevice.message,
-          errors: responseFromMaintainDevice.errors
-            ? responseFromMaintainDevice.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  bulkAdd: async (req, res) => {
+  bulkAdd: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "NOT YET IMPLEMENTED",
         errors: { message: "NOT YET IMPLEMENTED" },
       });
-      let request = {};
-      let { body } = req;
-      let { query } = req;
-      const { network } = query;
       logText("adding activities................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  bulkUpdate: async (req, res) => {
+  bulkUpdate: async (req, res, next) => {
     try {
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: false,
         message: "NOT YET IMPLEMENTED",
         errors: { message: "NOT YET IMPLEMENTED" },
       });
-      let request = {};
-      let { body } = req;
-      let { query } = req;
-      const { network } = query;
       logText("updating activity................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText("updating activity................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.update(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let { tenant } = req.query;
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      const responseFromUpdateActivity = await createActivityUtil.update(
-        request
-      );
-      logObject("responseFromUpdateActivity", responseFromUpdateActivity);
-      if (responseFromUpdateActivity.success === true) {
-        const status = responseFromUpdateActivity.status
-          ? responseFromUpdateActivity.status
-          : HTTPStatus.OK;
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateActivity.message,
-          updated_activity: responseFromUpdateActivity.data,
+          message: result.message,
+          updated_activity: result.data,
         });
-      } else if (responseFromUpdateActivity.success === false) {
-        const status = responseFromUpdateActivity.status
-          ? responseFromUpdateActivity.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateActivity.message,
-          errors: responseFromUpdateActivity.errors
-            ? responseFromUpdateActivity.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete activity............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const result = await createActivityUtil.delete(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      const responseFromRemoveActivity = await createActivityUtil.delete(
-        request
-      );
-
-      if (responseFromRemoveActivity.success === true) {
-        const status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveActivity.message,
-          deleted_activity: responseFromRemoveActivity.data,
+          message: result.message,
+          deleted_activity: result.data,
         });
-      } else if (responseFromRemoveActivity.success === false) {
-        const status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveActivity.message,
-          errors: responseFromRemoveActivity.errors
-            ? responseFromRemoveActivity.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all activities by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("req.query", req.query);
-      logElement("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
-      let { tenant } = req.query;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const result = await createActivityUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
       }
 
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      let responseFromListActivities = await createActivityUtil.list(request);
-      logElement(
-        "has the response for listing activities been successful?",
-        responseFromListActivities.success
-      );
-      if (responseFromListActivities.success === true) {
-        const status = responseFromListActivities.status
-          ? responseFromListActivities.status
-          : HTTPStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListActivities.message,
-          site_activities: responseFromListActivities.data,
+          message: result.message,
+          site_activities: result.data,
         });
-      } else if (responseFromListActivities.success === false) {
-        const status = responseFromListActivities.status
-          ? responseFromListActivities.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListActivities.message,
-          errors: responseFromListActivities.errors
-            ? responseFromListActivities.errors
-            : { message: "" },
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

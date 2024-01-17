@@ -1,7 +1,6 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const PhotoModel = require("@models/Photo");
 const isEmpty = require("is-empty");
-const axios = require("axios");
 const constants = require("@config/constants");
 const cloudinary = require("@config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
@@ -10,7 +9,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-photo-util`
 );
-
+const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -19,17 +18,19 @@ const kafka = new Kafka({
 
 const createPhoto = {
   /*************** general ****************************** */
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const responseFromCreatePhotoOnCloudinary = await createPhoto.createPhotoOnCloudinary(
-        request
+        request,
+        next
       );
       if (responseFromCreatePhotoOnCloudinary.success === true) {
         const dataFromCloudinary = responseFromCreatePhotoOnCloudinary.data;
         let enrichedRequest = { ...request, ...dataFromCloudinary };
 
         const responseFromCreatePhotoOnPlatform = await createPhoto.createPhotoOnPlatform(
-          enrichedRequest
+          enrichedRequest,
+          next
         );
         return responseFromCreatePhotoOnPlatform;
       }
@@ -38,26 +39,27 @@ const createPhoto = {
         return responseFromCreatePhotoOnCloudinary;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const responseFromUpdatePhotoOnCloudinary = await createPhoto.updatePhotoOnCloudinary(
-        request
+        request,
+        next
       );
 
       if (responseFromUpdatePhotoOnCloudinary.success === true) {
         const responseFromUpdatePhotoOnPlatform = await createPhoto.updatePhotoOnPlatform(
-          request
+          request,
+          next
         );
         return responseFromUpdatePhotoOnPlatform;
       }
@@ -65,20 +67,19 @@ const createPhoto = {
         return responseFromUpdatePhotoOnCloudinary;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  extractPhotoDetails: async (request) => {
+  extractPhotoDetails: async (request, next) => {
     try {
-      const responseFromListPhotos = await createPhoto.list(request);
+      const responseFromListPhotos = await createPhoto.list(request, next);
       logObject("responseFromListPhotos", responseFromListPhotos);
       if (responseFromListPhotos.success === true) {
         const photoDetails = responseFromListPhotos.data[0];
@@ -101,21 +102,24 @@ const createPhoto = {
         return responseFromListPhotos;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { id } = request.query;
       let arrayOfOneImage = [];
       let device_name = "";
       const responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
-        request
+        request,
+        next
       );
 
       logObject(
@@ -139,7 +143,8 @@ const createPhoto = {
       cloudinaryRequest["body"]["image_urls"] = arrayOfOneImage;
       cloudinaryRequest["query"]["device_name"] = device_name;
       const responseFromDeletePhotoOnCloudinary = await createPhoto.deletePhotoOnCloudinary(
-        cloudinaryRequest
+        cloudinaryRequest,
+        next
       );
 
       logObject(
@@ -149,51 +154,53 @@ const createPhoto = {
 
       if (responseFromDeletePhotoOnCloudinary.success === true) {
         const responseFromDeletePhotoOnPlatform = await createPhoto.deletePhotoOnPlatform(
-          request
+          request,
+          next
         );
         return responseFromDeletePhotoOnPlatform;
       } else if (responseFromDeletePhotoOnCloudinary.success === false) {
         return responseFromDeletePhotoOnCloudinary;
       }
-    } catch (e) {
-      logger.error(`internal server error -- ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: e.message,
-        },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
       const filter = generateFilter.photos(request);
 
-      const responseFromListPhotos = await PhotoModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListPhotos = await PhotoModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       logObject("responseFromListPhotos", responseFromListPhotos);
       return responseFromListPhotos;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   /*************** cloudinary ****************************** */
-  createPhotoOnCloudinary: async (request) => {
+  createPhotoOnCloudinary: async (request, next) => {
     try {
       const { path, resource_type, device_name } = request.body;
       logElement("path", path);
@@ -226,7 +233,7 @@ const createPhoto = {
               errors: {
                 message: error,
               },
-              status: HTTPStatus.BAD_GATEWAY,
+              status: httpStatus.BAD_GATEWAY,
             };
           }
           if (result) {
@@ -251,24 +258,23 @@ const createPhoto = {
               success: true,
               message: "successfully uploaded the media",
               data: response,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         }
       );
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updatePhotoOnCloudinary: async (request) => {
+  updatePhotoOnCloudinary: async (request, next) => {
     try {
       let responseFromUpdateOnCloudinary = { success: true };
 
@@ -283,21 +289,23 @@ const createPhoto = {
         return responseFromUpdateOnCloudinary;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deletePhotoOnCloudinary: async (request) => {
+  deletePhotoOnCloudinary: async (request, next) => {
     try {
       logText("...extracting IDs from the image URLs...");
-      const responseFromExtractImageIds = createPhoto.extractImageIds(request);
+      const responseFromExtractImageIds = createPhoto.extractImageIds(
+        request,
+        next
+      );
       logObject("responseFromExtractImageIds", responseFromExtractImageIds);
 
       if (isEmpty(responseFromExtractImageIds)) {
@@ -307,7 +315,7 @@ const createPhoto = {
           errors: {
             message: "no response from the utility that extracts the image Ids",
           },
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
@@ -339,7 +347,7 @@ const createPhoto = {
             success: false,
             message:
               "no successful deletions or failures recorded from cloudinary",
-            status: HTTPStatus.BAD_GATEWAY,
+            status: httpStatus.BAD_GATEWAY,
           };
         }
 
@@ -349,7 +357,7 @@ const createPhoto = {
             message:
               "unable to delete any of the provided or associated image URLs",
             errors: deletionStatusFromCloudinaryResponse,
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
           };
         }
 
@@ -358,7 +366,7 @@ const createPhoto = {
             success: true,
             message: "image(s) deleted successfully",
             data: successfulDeletions,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         }
 
@@ -370,25 +378,24 @@ const createPhoto = {
               successfulDeletions,
               failedDeletions,
             },
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         }
       } else if (responseFromExtractImageIds.success === false) {
         return responseFromExtractImageIds;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  extractImageIds: (request) => {
+  extractImageIds: (request, next) => {
     try {
       const { image_urls } = request.body;
       const { device_name, device_id, site_id, airqloud_id } = request.query;
@@ -397,7 +404,10 @@ const createPhoto = {
         logElement("the imageURL", imageURL);
         let request = {};
         request["imageURL"] = imageURL;
-        const responseFromGetLastPath = createPhoto.getCloudinaryPaths(request);
+        const responseFromGetLastPath = createPhoto.getCloudinaryPaths(
+          request,
+          next
+        );
         logObject("responseFromGetLastPath", responseFromGetLastPath);
         if (responseFromGetLastPath.success === true) {
           const cloudinaryPublicId = responseFromGetLastPath.data.lastSegment;
@@ -423,21 +433,20 @@ const createPhoto = {
         success: true,
         data: photoNamesWithoutExtension,
         message: "successfully extracted the Image Ids",
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  getCloudinaryPaths: (request) => {
+  getCloudinaryPaths: (request, next) => {
     try {
       const { imageURL } = request;
       const segements = imageURL.split("/").filter((segment) => segment);
@@ -453,24 +462,23 @@ const createPhoto = {
           lastSegment: removedFileExtensionFromLastSegment,
           thirdLastSegment,
         },
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
         message: "successfully removed the file extension",
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /*************** platform only ****************************** */
-  deletePhotoOnPlatform: async (request) => {
+  deletePhotoOnPlatform: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
@@ -478,24 +486,26 @@ const createPhoto = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromRemovePhoto = await PhotoModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemovePhoto = await PhotoModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromRemovePhoto", responseFromRemovePhoto);
       return responseFromRemovePhoto;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updatePhotoOnPlatform: async (request) => {
+  updatePhotoOnPlatform: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
@@ -503,27 +513,28 @@ const createPhoto = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromModifyPhoto = await PhotoModel(tenant).modify({
-        filter,
-        update,
-        opts,
-      });
+      const responseFromModifyPhoto = await PhotoModel(tenant).modify(
+        {
+          filter,
+          update,
+          opts,
+        },
+        next
+      );
 
       return responseFromModifyPhoto;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  createPhotoOnPlatform: async (request) => {
+  createPhotoOnPlatform: async (request, next) => {
     try {
       let { body, query } = request;
       let { tenant } = query;
@@ -538,7 +549,8 @@ const createPhoto = {
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(
-        requestForImageIdExtraction
+        requestForImageIdExtraction,
+        next
       );
       let photoId = [];
       let modifiedRequestBody = body;
@@ -555,7 +567,8 @@ const createPhoto = {
       }
 
       const responseFromRegisterPhoto = await PhotoModel(tenant).register(
-        modifiedRequestBody
+        modifiedRequestBody,
+        next
       );
 
       logObject("responseFromRegisterPhoto", responseFromRegisterPhoto);
@@ -592,15 +605,14 @@ const createPhoto = {
         return responseFromRegisterPhoto;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

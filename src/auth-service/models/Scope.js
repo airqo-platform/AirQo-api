@@ -4,6 +4,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const { HttpError } = require("@utils/errors");
 
 const ScopeSchema = new mongoose.Schema(
   {
@@ -26,25 +27,6 @@ ScopeSchema.pre("save", function (next) {
   return next();
 });
 
-ScopeSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 ScopeSchema.pre("update", function (next) {
   return next();
 });
@@ -52,7 +34,7 @@ ScopeSchema.pre("update", function (next) {
 ScopeSchema.index({ scope: 1 }, { unique: true });
 
 ScopeSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       data = await this.create({
         ...args,
@@ -69,7 +51,7 @@ ScopeSchema.statics = {
           success: true,
           data: [],
           message: "operation successful but Scope NOT successfully created",
-          status: httpStatus.ACCEPTED,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -80,17 +62,17 @@ ScopeSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(
+        new HttpError(
+          "validation errors for some of the provided inputs",
+          httpStatus.CONFLICT,
+          response
+        )
+      );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       let scopes = await this.aggregate()
         .match(filter)
@@ -122,7 +104,7 @@ ScopeSchema.statics = {
           message: "successfully listed the Scopes",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(scopes)) {
+      } else {
         return {
           success: true,
           message: "no Scopes exist",
@@ -130,29 +112,22 @@ ScopeSchema.statics = {
           status: httpStatus.NOT_FOUND,
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve Scopes",
-        data: [],
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "unable to retrieve Scopes" },
-      };
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-
-      let updatedScope = await this.findOneAndUpdate(
+      const updatedScope = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -167,24 +142,24 @@ ScopeSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedScope)) {
-        return {
-          success: true,
-          message: "Scope does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Scope does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: "internal server errors" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 0, scope: 1, description: 1 },
@@ -200,21 +175,21 @@ ScopeSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedScope)) {
-        return {
-          success: true,
-          message: "Scope does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Scope does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server error",
-        error: error.message,
-        errors: { message: "internal server error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

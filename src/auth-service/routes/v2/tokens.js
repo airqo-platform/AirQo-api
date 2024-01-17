@@ -298,6 +298,49 @@ router.post(
   authJWT,
   createTokenController.blackListIp
 );
+router.post(
+  "/blacklist-ips",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("ips")
+        .exists()
+        .withMessage("the ips are missing in your request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the ips should not be empty in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the ips should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the ips should be an array"),
+      body("ips.*")
+        .notEmpty()
+        .withMessage("Provided ips should NOT be empty")
+        .bail()
+        .isIP()
+        .withMessage("IP address provided must be a valid IP address"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.blackListIps
+);
 router.delete(
   "/blacklist-ip/:ip",
   oneOf([
@@ -356,6 +399,43 @@ router.post(
   setJWTAuth,
   authJWT,
   createTokenController.blackListIpRange
+);
+router.post(
+  "/blacklist-ip-range/bulk",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("ranges")
+        .exists()
+        .withMessage("the ranges are missing in your request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the ranges should not be empty in the request body")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the ranges should be an array"),
+      body("ranges.*")
+        .notEmpty()
+        .withMessage("Provided range should NOT be empty"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.bulkInsertBlacklistIpRanges
 );
 router.delete(
   "/blacklist-ip-range/:id",

@@ -1,5 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const createUserUtil = require("@utils/create-user");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
@@ -12,15 +13,23 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const mailer = require("@utils/mailer");
+const stringify = require("@utils/stringify");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- passport-middleware`
+);
 
-const setLocalOptions = (req) => {
+const setLocalOptions = (req, res, next) => {
   try {
+    if (Validator.isEmpty(req.body.userName)) {
+      next(
+        new HttpError("the userName field is missing", httpStatus.BAD_REQUEST)
+      );
+      return;
+    }
+
     let authenticationFields = {};
     if (
       !Validator.isEmpty(req.body.userName) &&
@@ -38,23 +47,14 @@ const setLocalOptions = (req) => {
       authenticationFields.passwordField = "password";
     }
 
-    if (Validator.isEmpty(req.body.userName)) {
-      return {
-        success: false,
-        message: "the userName field is missing",
-      };
-    }
-
     return {
       success: true,
       message: "the auth fields have been set",
       authenticationFields,
     };
   } catch (e) {
-    return {
-      success: false,
-      message: e.message,
-    };
+    next(new HttpError(e.message, httpStatus.BAD_REQUEST));
+    return;
   }
 };
 
@@ -82,7 +82,7 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req);
+  let localOptions = setLocalOptions(req, res, next);
   logObject("the localOptions", localOptions);
   if (localOptions.success === true) {
     logText("success state is true");
@@ -114,14 +114,58 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
+        } else if (user.analyticsVersion === 3 && user.verified === false) {
+          const verificationRequest = {
+            tenant: "airqo",
+            email: user.email,
+          };
+          try {
+            const verificationEmailResponse =
+              await createUserUtil.verificationReminder(verificationRequest);
+            if (verificationEmailResponse.success === false) {
+              logger.error(
+                `Internal Server Error --- ${stringify(
+                  verificationEmailResponse
+                )}`
+              );
+            }
+          } catch (error) {
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
+          }
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        req.auth.status = httpStatus.OK;
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -137,7 +181,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
-        next();
+        req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -155,11 +201,51 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+
+          next(
+            new HttpError(
+              `username or password does not exist in this organisation (${tenant})`,
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
-          next();
+          req.auth.status = httpStatus.BAD_REQUEST;
+          next(
+            new HttpError(
+              "incorrect username or password",
+              httpStatus.BAD_REQUEST
+            )
+          );
+          return;
+        } else if (user.analyticsVersion === 3 && user.verified === false) {
+          try {
+            const verificationEmailResponse =
+              await createUserUtil.verificationReminder(verificationRequest);
+            if (verificationEmailResponse.success === false) {
+              logger.error(
+                `Internal Server Error --- ${stringify(
+                  verificationEmailResponse
+                )}`
+              );
+            }
+          } catch (error) {
+            logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
+          }
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
@@ -176,9 +262,11 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       } catch (e) {
         req.auth = {};
         req.auth.success = false;
-        req.auth.message = "Server Error";
+        req.auth.message = "Internal Server Error";
         req.auth.error = e.message;
-        next();
+        req.auth.status = httpStatus.INTERNAL_SERVER_ERROR;
+        next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -231,8 +319,19 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
             req.auth.message = "unable to create user";
+            req.auth.status =
+              responseFromRegisterUser.status ||
+              httpStatus.INTERNAL_SERVER_ERROR;
             cb(responseFromRegisterUser.errors, false);
-            next();
+
+            next(
+              new HttpError(
+                "unable to create user",
+                responseFromRegisterUser.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR
+              )
+            );
+            return;
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
@@ -242,13 +341,15 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           }
         }
       } catch (error) {
-        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         logObject("error", error);
         req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = error.message;
-        next();
+
+        next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
+        return;
       }
     }
   );
@@ -273,8 +374,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const endpoint = req.headers["x-original-uri"];
       const clientOriginalIp = req.headers["x-client-original-ip"];
 
-      let service = req.headers["service"];
-      let userAction = "Unknown Action";
+      let service = req.headers["service"] || "unknown";
+      let userAction = "unknown";
 
       const specificRoutes = [
         {
@@ -284,8 +385,13 @@ const useJWTStrategy = (tenant, req, res, next) =>
         },
         {
           uri: ["/api/v2/devices/measurements"],
-          service: "measurements-registry",
+          service: "events-registry",
           action: "Measurements API Access via JWT",
+        },
+        {
+          uri: ["/api/v2/devices/readings"],
+          service: "events-registry",
+          action: "Readings API Access via JWT",
         },
         {
           uri: ["/api/v1/devices"],
@@ -322,11 +428,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "data-export-scheduling",
           action: "Schedule Data Download",
         },
+        /**** Sites */
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/sites"],
           service: "site-registry",
           action: "Site Creation",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/sites"],
+          service: "site-registry",
+          action: "View Sites",
         },
         {
           method: "PUT",
@@ -340,6 +453,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "site-registry",
           action: "Site Deletion",
         },
+
+        /**** Devices */
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices?"],
@@ -365,6 +480,12 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Device SOFT Update",
         },
         {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices?"],
+          service: "device-registry",
+          action: "View Devices",
+        },
+        {
           method: "POST",
           uriIncludes: ["/api/v2/devices?"],
           service: "device-registry",
@@ -376,24 +497,93 @@ const useJWTStrategy = (tenant, req, res, next) =>
           service: "device-registry",
           action: "Device SOFT Creation",
         },
+        /**** Cohorts */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "View Cohorts",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Create Cohorts",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Update Cohort",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/cohorts"],
+          service: "cohort-registry",
+          action: "Delete Cohort",
+        },
+
+        /**** Grids */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "View Grids",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Update Grid",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Delete Grid",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/grids"],
+          service: "grid-registry",
+          action: "Create Grid",
+        },
+
+        /**** AirQlouds */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/airqlouds"],
+          service: "airqloud-registry",
+          action: "View AirQlouds",
+        },
         {
           method: "POST",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Creation",
         },
         {
           method: "PUT",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Update",
         },
         {
           method: "DELETE",
           uriIncludes: ["/api/v2/devices/airqlouds"],
-          service: "airqlouds-registry",
+          service: "airqloud-registry",
           action: "AirQloud Deletion",
         },
+
+        /**** Site Activities */
 
         {
           method: "POST",
@@ -414,11 +604,18 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Deploy Device",
         },
 
+        /**** Users */
         {
           method: "POST",
           uriIncludes: ["api/v2/users", "api/v1/users"],
           service: "auth",
           action: "Create User",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["api/v2/users", "api/v1/users"],
+          service: "auth",
+          action: "View Users",
         },
         {
           method: "PUT",
@@ -433,6 +630,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Delete User",
         },
 
+        /****Incentives*/
         {
           method: "POST",
           uriIncludes: [
@@ -452,6 +650,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Send Money to Host",
         },
 
+        /**** Calibrate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
@@ -459,6 +658,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "calibrate device",
         },
 
+        /**** Locate */
         {
           method: "POST",
           uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
@@ -466,15 +666,176 @@ const useJWTStrategy = (tenant, req, res, next) =>
           action: "Identify Suitable Device Locations",
         },
 
+        /**** Fault Detection */
         {
           method: "POST",
           uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
           service: "fault-detection",
           action: "Detect Faults",
         },
-      ];
 
-      routesWithService.forEach((route) => {
+        /**** Readings... */
+        {
+          method: "GET",
+          uriIncludes: [
+            "/api/v2/devices/measurements",
+            "/api/v2/devices/events",
+            "/api/v2/devices/readings",
+          ],
+          service: "events-registry",
+          action: " Retrieve Measurements",
+        },
+
+        /**** Data Proxy */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data"],
+          service: "data-mgt",
+          action: "Retrieve Data",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/data-proxy"],
+          service: "data-proxy",
+          action: "Retrieve Data",
+        },
+
+        /*****Analytics */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics/dashboard/sites"],
+          service: "analytics",
+          action: "Retrieve Sites on Analytics Page",
+        },
+        {
+          method: "GET",
+          uriIncludes: [
+            "/api/v2/analytics/dashboard/historical/daily-averages",
+          ],
+          service: "analytics",
+          action: "Retrieve Daily Averages on Analytics Page",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
+          service: "analytics",
+          action: "Retrieve Exceedances on Analytics Page",
+        },
+
+        /*****KYA lessons */
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Retrieve KYA lessons",
+        },
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Create KYA lesson",
+        },
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Update KYA lesson",
+        },
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+          service: "kya",
+          action: "Delete KYA lesson",
+        },
+        /*****KYA Quizzes */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
+          service: "kya",
+          action: "Retrieve KYA quizzes",
+        },
+
+        {
+          method: "POST",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Create KYA quizzes",
+        },
+
+        {
+          method: "PUT",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Update KYA quiz",
+        },
+
+        {
+          method: "DELETE",
+          uriIncludes: ["/api/v2/devices/kya/quizzes"],
+          service: "kya",
+          action: "Delete KYA quiz",
+        },
+
+        /*****view */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/view/mobile-app/version-info"],
+          service: "mobile-version",
+          action: "View Mobile App Information",
+        },
+
+        /*****Predict */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/daily-forecast"],
+          service: "predict",
+          action: "Retrieve Daily Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/hourly-forecast"],
+          service: "predict",
+          action: "Retrieve Hourly Forecasts",
+        },
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/predict/heatmap"],
+          service: "predict",
+          action: "Retrieve Heatmap",
+        },
+
+        /*****Device Monitoring */
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/monitor"],
+          service: "monitor",
+          action: "Retrieve Network Statistics Data",
+        },
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/meta-data"],
+          service: "meta-data",
+          action: "Retrieve Metadata",
+        },
+
+        {
+          method: "GET",
+          uriIncludes: ["/api/v2/network-uptime"],
+          service: "network-uptime",
+          action: "Retrieve Network Uptime Data",
+        },
+      ];
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ _id: payload._id })
+        .exec();
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      routesWithService.forEach(async (route) => {
         const uri = req.headers["x-original-uri"];
         const method = req.headers["x-original-method"];
 
@@ -489,24 +850,55 @@ const useJWTStrategy = (tenant, req, res, next) =>
         ) {
           service = route.service;
           userAction = route.action;
+          logObject("Service", service);
+
+          if (
+            [
+              "device-deployment",
+              "device-maintenance",
+              "device-recall",
+            ].includes(service)
+          ) {
+            try {
+              const emailResponse = await mailer.siteActivity(
+                {
+                  email: user.email,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  siteActivityDetails: {
+                    service: service,
+                    userAction: userAction,
+                    actor: user.email,
+                  },
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            } catch (error) {
+              logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+            }
+          }
         }
       });
 
-      // ... other route checks
-      logObject("Service", service);
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({ _id: payload._id })
-        .exec();
-
-      if (!user) {
-        return done(null, false);
-      }
-
       const currentDate = new Date();
-      await UserModel(tenant.toLowerCase()).findByIdAndUpdate(user._id, {
-        lastLogin: currentDate,
-        isActive: true,
-      });
+
+      await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+        user._id,
+        {
+          lastLogin: currentDate,
+          isActive: true,
+          ...(user.analyticsVersion !== 3 && user.verified === false
+            ? { $set: { verified: true } }
+            : {}),
+        },
+        { new: true }
+      );
 
       winstonLogger.info(userAction, {
         username: user.userName,
@@ -520,11 +912,10 @@ const useJWTStrategy = (tenant, req, res, next) =>
 
       return done(null, user);
     } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(e)}`);
       return done(e, false);
     }
   });
-
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     const service = req.headers["service"];
@@ -610,43 +1001,25 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
-    setLocalStrategy(tenant, req, res, next);
+    setLocalStrategy("airqo", req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
-
 function setGoogleAuth(req, res, next) {
   try {
-    /**
-     * do input validations and then just call the set
-     * set local strategy afterwards -- the function is called from here
-     */
-
     logText("we are setting the Google Auth");
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
     }
     let tenant = "airqo";
     if (req.query.tenant) {
@@ -656,33 +1029,30 @@ function setGoogleAuth(req, res, next) {
     next();
   } catch (e) {
     logObject("e", e);
-    console.log("the error in setLocalAuth is: ", e.message);
-    res.json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
   }
 }
 function setJWTAuth(req, res, next) {
   try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(
+        new HttpError(
+          "bad request errors",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          errors
+        )
       );
+      return;
     }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
-    logElement("the tenant for the job", tenant);
-    setJWTStrategy(tenant, req, res, next);
+    setJWTStrategy("airqo", req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
-    res
-      .status(httpStatus.BAD_GATEWAY)
-      .json({ success: false, message: e.message });
+    logger.error(`the error in setLocalAuth is: ${e.message}`);
+    logObject("the error in setLocalAuth is", e);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+    return;
   }
 }
 const setGuestToken = (req, res) => {
@@ -735,5 +1105,4 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
-  useJWTStrategy,
 };

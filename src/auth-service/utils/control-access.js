@@ -6,6 +6,7 @@ const WhitelistedIPModel = require("@models/WhitelistedIP");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
+const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const DepartmentModel = require("@models/Department");
@@ -19,6 +20,7 @@ const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
+const stringify = require("@utils/stringify");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
 const rangeCheck = require("ip-range-check");
@@ -28,17 +30,35 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
+const { HttpError } = require("@utils/errors");
+const async = require("async");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
-const convertToUpperCaseWithUnderscore = (inputString) => {
+const getDay = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
     const uppercaseString = inputString.toUpperCase();
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
-
 const isGroupRoleOrNetworkRole = (role) => {
   logObject("role", role);
   if (role && (role.group_id || role.network_id)) {
@@ -52,7 +72,6 @@ const isGroupRoleOrNetworkRole = (role) => {
   }
   return "none";
 };
-
 const findAssociatedIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -75,11 +94,9 @@ const findAssociatedIdForRole = async ({
   }
   return null;
 };
-
 const isNetwork = (net_id, grp_id) => {
   return !isEmpty(net_id) && isEmpty(grp_id);
 };
-
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
@@ -105,7 +122,6 @@ const isAssignedUserSuperAdmin = async ({
 
   return false;
 };
-
 const isRoleAlreadyAssigned = (roles, role_id) => {
   if (isEmpty(roles) || !Array.isArray(roles)) {
     return false;
@@ -120,7 +136,6 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
     });
   }
 };
-
 const generateClientSecret = (length) => {
   if (length % 2 !== 0) {
     throw new Error("Length must be an even number");
@@ -128,99 +143,6 @@ const generateClientSecret = (length) => {
   const numBytes = length / 2;
   const clientSecret = crypto.randomBytes(numBytes).toString("hex");
   return clientSecret;
-};
-
-const routeDefinitions = [
-  {
-    uriIncludes: ["/api/v1/devices"],
-    service: "deprecated-version-number",
-  },
-  { uriIncludes: ["/api/v2/devices/events"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/measurements"], service: "events-registry" },
-  { uriIncludes: ["/api/v2/devices/sites"], service: "site-registry" },
-  {
-    uriIncludes: ["/api/v2/devices?", "/api/v2/devices/soft?"],
-    service: "device-registry",
-  },
-  { uriIncludes: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
-  {
-    uriIncludes: ["/api/v2/devices/activities/maintain"],
-    service: "device-maintenance",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/deploy"],
-    service: "device-deployment",
-  },
-  {
-    uriIncludes: ["/api/v2/devices/activities/recall"],
-    service: "device-recall",
-  },
-  { uriIncludes: ["/api/v2/users"], service: "auth" },
-  { uriIncludes: ["/api/v2/incentives"], service: "incentives" },
-  {
-    uriIncludes: ["/api/v2/calibrate", "/api/v1/calibrate"],
-    service: "calibrate",
-  },
-  { uriIncludes: ["/api/v2/locate", "/api/v1/locate"], service: "locate" },
-  {
-    uriIncludes: ["/api/v2/predict-faults", "/api/v1/predict-faults"],
-    service: "fault-detection",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-download",
-      "/api/v1/analytics/data-download",
-    ],
-    service: "data-export-download",
-  },
-  {
-    uriIncludes: [
-      "/api/v2/analytics/data-export",
-      "/api/v1/analytics/data-export",
-    ],
-    service: "data-export-scheduling",
-  },
-];
-
-const getService = (headers) => {
-  const uri = headers["x-original-uri"];
-  const serviceHeader = headers["service"];
-
-  if (uri) {
-    for (const route of routeDefinitions) {
-      if (route.uri && uri.includes(route.uri)) {
-        return route.service;
-      } else if (
-        route.uriEndsWith &&
-        route.uriEndsWith.some((suffix) => uri.endsWith(suffix))
-      ) {
-        return route.service;
-      } else if (
-        route.uriIncludes &&
-        route.uriIncludes.some((includes) => uri.includes(includes))
-      ) {
-        return route.service;
-      }
-    }
-  } else if (serviceHeader) {
-    return serviceHeader;
-  }
-
-  return "unknown";
-};
-
-const getUserAction = (headers) => {
-  if (headers["x-original-method"]) {
-    const method = headers["x-original-method"];
-    const actionMap = {
-      PUT: "update operation",
-      DELETE: "delete operation",
-      POST: "creation operation",
-      GET: "viewing data",
-    };
-    return actionMap[method] || "Unknown Action";
-  }
-  return "Unknown Action";
 };
 
 const createUnauthorizedResponse = () => {
@@ -231,7 +153,6 @@ const createUnauthorizedResponse = () => {
     errors: { message: "Unauthorized" },
   };
 };
-
 const createValidTokenResponse = () => {
   return {
     success: true,
@@ -240,98 +161,295 @@ const createValidTokenResponse = () => {
   };
 };
 
-const handleServerError = (error) => {
-  const errorMessage = error.message || "Internal server error";
-  return {
-    success: false,
-    message: errorMessage,
-    status: httpStatus.INTERNAL_SERVER_ERROR,
-    errors: { message: errorMessage },
-  };
+const trampoline = (fn) => {
+  while (typeof fn === "function") {
+    fn = fn();
+  }
+  return fn;
 };
 
-const isIPBlacklisted = async ({
-  ip = "",
-  email = "",
-  token = "",
-  token_name = "",
-  endpoint = "",
-} = {}) => {
-  const blacklistedIP = await BlacklistedIPModel("airqo").findOne({ ip });
-  if (blacklistedIP) {
-    return true; // IP is blacklisted
-  }
-
-  const whitelistedIP = await WhitelistedIPModel("airqo").findOne({ ip });
-  if (whitelistedIP) {
-    return false; // IP is whitelisted
-  }
-
-  // Check if the IP falls within any blacklisted range
-  const blacklistedRanges = await BlacklistedIPRangeModel("airqo").find();
-  const isInRange = blacklistedRanges.some((range) =>
-    rangeCheck(ip, range.range)
-  );
-
-  if (isInRange) {
-    return true; // IP is within a blacklisted range
-  }
-
+let blacklistQueue = async.queue(async (task, callback) => {
+  let { ip } = task;
+  logText("we are in the IP range checker.....");
+  // If the IP falls within the range, publish it to the "ip-address" topic
   try {
-    const UnknownIPDetails = await UnknownIPModel("airqo")
-      .findOne({ ip })
-      .select("_id")
-      .lean();
+    const kafkaProducer = kafka.producer({
+      groupId: constants.UNIQUE_PRODUCER_GROUP,
+    });
+    await kafkaProducer.connect();
+    await kafkaProducer
+      .send({
+        topic: "ip-address",
+        messages: [{ value: stringify({ ip }) }],
+      })
+      .then(() => {
+        logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+        // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
+        callback();
+      });
+    await kafkaProducer.disconnect();
+  } catch (error) {
+    logObject("error", error);
+    // logger.error(
+    //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
+    // );
+  }
+}, 1); // Limit the number of concurrent tasks to 1
 
-    const options = { upsert: true, new: true };
-    const filter = UnknownIPDetails;
+let unknownIPQueue = async.queue(async (task, callback) => {
+  let { ip, token, name, client_id, endpoint, day } = task;
+  await UnknownIPModel("airqo")
+    .findOne({
+      ip,
+      "ipCounts.day": day,
+    })
+    .then(async (checkDoc) => {
+      if (checkDoc) {
+        const update = {
+          $addToSet: {
+            client_ids: client_id,
+            tokens: token,
+            token_names: name,
+            endpoints: endpoint,
+          },
+          $inc: {
+            "ipCounts.$[elem].count": 1,
+          },
+        };
+        const options = {
+          arrayFilters: [{ "elem.day": day }],
+          upsert: true,
+          new: true,
+          runValidators: true,
+        };
 
-    const update = {
-      $addToSet: {
-        endpoints: endpoint,
-        emails: email,
-        tokens: token,
-        token_names: token_name,
-        ip,
-      },
+        await UnknownIPModel("airqo")
+          .findOneAndUpdate({ ip }, update, options)
+          .then(() => {
+            logText(`stored the unknown IP ${ip} which had a day field`);
+            callback();
+          });
+      } else {
+        await UnknownIPModel("airqo")
+          .create({
+            ip,
+            tokens: [token],
+            token_names: [name],
+            endpoints: [endpoint],
+            client_ids: [client_id],
+            ipCounts: [{ day, count: 1 }],
+          })
+          .then(() => {
+            logText(`stored the unknown IP ${ip} which had NO day field`);
+            callback();
+          });
+      }
+    });
+}, 1); // Limit the number of concurrent tasks to 1
+
+const postProcessing = async ({
+  ip,
+  token,
+  name,
+  client_id,
+  endpoint = "unknown",
+  day,
+}) => {
+  logText("we are now postProcessing()....");
+  blacklistQueue.push({ ip });
+  unknownIPQueue.push({
+    ip,
+    token,
+    name,
+    client_id,
+    endpoint,
+    day,
+  });
+};
+
+const isIPBlacklistedHelper = async (
+  { request, next } = {},
+  retries = 1,
+  delay = 1000
+) => {
+  try {
+    const day = getDay();
+    const ip =
+      request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
+    const endpoint = request.headers["x-original-uri"];
+    let acessTokenFilter = generateFilter.tokens(request, next);
+    const timeZone = moment.tz.guess();
+    acessTokenFilter.expires = {
+      $gt: moment().tz(timeZone).toDate(),
     };
 
-    await UnknownIPModel("airqo").findOneAndUpdate(filter, update, options);
+    const [blacklistedIP, whitelistedIP, accessToken] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+    ]);
+
+    const {
+      token = "",
+      name = "",
+      client_id = "",
+    } = (accessToken && accessToken._doc) || {};
+
+    if (!accessToken) {
+      return true;
+    } else if (whitelistedIP) {
+      return false;
+    } else if (blacklistedIP) {
+      const BLOCKED_IP_PREFIXES = "65,66";
+      const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+      if (!blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+        logger.info(
+          `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+        );
+        try {
+          const filter = { token };
+          const listTokenReponse = await AccessTokenModel("airqo").list(
+            { filter },
+            next
+          );
+
+          if (listTokenReponse.success === false) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+            );
+          } else {
+            const tokenDetails = listTokenReponse.data[0];
+            const tokenResponseLength = listTokenReponse.data.length;
+            if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
+              logger.error(
+                `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+              );
+            } else {
+              const {
+                user: { email, firstName, lastName },
+              } = tokenDetails;
+
+              const emailResponse = await mailer.compromisedToken(
+                {
+                  email,
+                  firstName,
+                  lastName,
+                  ip,
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              }
+            }
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+        }
+      }
+      return true;
+    } else {
+      Promise.resolve().then(() =>
+        postProcessing({ ip, token, name, client_id, endpoint, day })
+      );
+      logText("I am now exiting the isIPBlacklistedHelper() function");
+      return false;
+    }
   } catch (error) {
-    // logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logObject("the error", error);
+    if (
+      retries > 0 &&
+      [
+        "NetworkError",
+        "TimeoutError",
+        "MongooseServerSelectionError",
+        "MongoTimeoutError",
+        "serverSelectionTimeoutMS",
+        "SocketTimeoutError",
+      ].includes(error.name)
+    ) {
+      logger.error(
+        `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return isIPBlacklisted({ request, next }, retries - 1, delay);
+    } else if (error.name === "MongoError") {
+      const jsonErrorString = stringify(error);
+      switch (error.code) {
+        case 11000:
+          logger.error(
+            `🐛🐛 Duplicate key error: IP address ${ip} already exists in the database.`
+          );
+          break;
+        default:
+          logger.error(`🐛🐛 Unknown MongoDB error: ${jsonErrorString}`);
+      }
+    } else {
+      const jsonErrorString = stringify(error);
+      logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
+      return true;
+    }
   }
-  return false;
 };
 
+const isIPBlacklisted = (...args) =>
+  trampoline(() => isIPBlacklistedHelper(...args));
+
 const controlAccess = {
-  sample: async (request) => {
+  sample: async (request, next) => {
     try {
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   /******* hashing ******************************************/
-  hash: (string) => {
+  hash: (string, next) => {
     try {
       crypto.createHash("sha256").update(string).digest("base64");
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
-  hash_compare: (first_item, second_item) => {
+  hash_compare: ({ first_item, second_item } = {}, next) => {
     try {
       Object.is(first_item, second_item);
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
   },
   /******** access tokens ******************************************/
-  verifyEmail: async (request) => {
+  verifyEmail: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
-      const { user_id, token } = request.params;
+      const { tenant, limit, skip, user_id, token } = {
+        ...request.query,
+        ...request.params,
+      };
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -346,44 +464,43 @@ const controlAccess = {
         })
         .lean();
 
-      logObject("userDetails", userDetails);
-
       if (isEmpty(userDetails)) {
-        return {
-          success: false,
-          message: "Bad Reqest Error",
-          errors: { message: "User does not exist" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Reqest Error", httpStatus.BAD_REQUEST, {
+            message: "User does not exist",
+          })
+        );
       }
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
-
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
+      const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          return {
-            success: false,
-            status: httpStatus.BAD_REQUEST,
-            message: "Invalid link",
-            errors: { message: "incorrect user or token details provided" },
-          };
+          next(
+            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
+              message: "incorrect user or token details provided",
+            })
+          );
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           let update = {
             verified: true,
           };
           filter = { _id: user_id };
 
-          const responseFromUpdateUser = await UserModel(tenant).modify({
-            filter,
-            update,
-          });
-          logObject("responseFromUpdateUser", responseFromUpdateUser);
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
 
           if (responseFromUpdateUser.success === true) {
             /**
@@ -397,9 +514,9 @@ const controlAccess = {
 
             filter = { token };
             logObject("the deletion of the token filter", filter);
-            const responseFromDeleteToken = await AccessTokenModel(
+            const responseFromDeleteToken = await VerifyTokenModel(
               tenant
-            ).remove({ filter });
+            ).remove({ filter }, next);
 
             logObject("responseFromDeleteToken", responseFromDeleteToken);
 
@@ -409,7 +526,8 @@ const controlAccess = {
                   firstName: userDetails[0].firstName,
                   username: userDetails[0].userName,
                   email: userDetails[0].email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {
@@ -422,60 +540,60 @@ const controlAccess = {
                 return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              return {
-                success: false,
-                message: "unable to verify user",
-                status: responseFromDeleteToken.status
-                  ? responseFromDeleteToken.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                errors: responseFromDeleteToken.errors
-                  ? responseFromDeleteToken.errors
-                  : { message: "internal server errors" },
-              };
+              next(
+                new HttpError(
+                  "unable to verify user",
+                  responseFromDeleteToken.status
+                    ? responseFromDeleteToken.status
+                    : httpStatus.INTERNAL_SERVER_ERROR,
+                  responseFromDeleteToken.errors
+                    ? responseFromDeleteToken.errors
+                    : { message: "internal server errors" }
+                )
+              );
             }
           } else if (responseFromUpdateUser.success === false) {
-            return {
-              success: false,
-              message: "unable to verify user",
-              status: responseFromUpdateUser.status
-                ? responseFromUpdateUser.status
-                : httpStatus.INTERNAL_SERVER_ERROR,
-              errors: responseFromUpdateUser.errors
-                ? responseFromUpdateUser.errors
-                : { message: "internal server errors" },
-            };
+            next(
+              new HttpError(
+                "unable to verify user",
+                responseFromUpdateUser.status
+                  ? responseFromUpdateUser.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                responseFromUpdateUser.errors
+                  ? responseFromUpdateUser.errors
+                  : { message: "internal server errors" }
+              )
+            );
           }
         }
       } else if (responseFromListAccessToken.success === false) {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("erroring in util", error);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateAccessToken: async (request) => {
+  updateAccessToken: async (request, next) => {
     try {
-      const { query, body } = request;
-      const { tenant } = query;
-      const token = request.params.token;
+      const { query, body, params } = request;
+      const { tenant, token } = { ...query, ...params };
       const tokenDetails = await AccessTokenModel(tenant)
         .find({ token })
         .lean();
 
       if (isEmpty(tokenDetails)) {
-        return {
-          success: false,
-          message: "Bad Request",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Bad request -- Token ${token} does not exist` },
-        };
+        next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: `Bad request -- Token ${token} does not exist`,
+          })
+        );
       } else {
         const tokenId = tokenDetails[0]._id;
         let update = Object.assign({}, body);
@@ -500,26 +618,25 @@ const controlAccess = {
             status: httpStatus.OK,
           };
         } else {
-          return {
-            success: false,
-            message: "Unable to update the token's metadata",
-            errors: { message: "Unable to update the token's metadata" },
-            status: httpStatus.CONFLICT,
-          };
+          next(
+            new HttpError("Internal Server Error", httpStatus.CONFLICT, {
+              message: "Unable to update the token's metadata",
+            })
+          );
         }
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  regenerateAccessToken: async (request) => {
+  regenerateAccessToken: async (request, next) => {
     try {
       return {
         success: false,
@@ -531,14 +648,8 @@ const controlAccess = {
       };
       const { query, body } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.tokens(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
 
+      const filter = generateFilter.tokens(request, next);
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -550,207 +661,110 @@ const controlAccess = {
 
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteAccessToken: async (request) => {
+  deleteAccessToken: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.tokens(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
+      const filter = generateFilter.tokens(request, next);
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).remove({ filter });
-
-      if (responseFromDeleteToken.success === true) {
-        return responseFromDeleteToken;
-      } else if (responseFromDeleteToken.success == false) {
-        return responseFromDeleteToken;
-      }
+      ).remove({ filter }, next);
+      logObject("responseFromDeleteToken", responseFromDeleteToken);
+      return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  verifyToken: async (request) => {
+  verifyToken: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-      const filterResponse = generateFilter.tokens(request);
-      const timeZone = moment.tz.guess();
+      logText("I have just entered the verifyToken() function");
+      const ip =
+        request.headers["x-client-ip"] ||
+        request.headers["x-client-original-ip"];
 
-      if (filterResponse.success === false) {
-        return filterResponse;
-      } else {
-        filter = Object.assign({}, filterResponse);
-        filter.expires = {
-          $gt: moment().tz(timeZone).toDate(),
-        };
-      }
-
-      const service = getService(request.headers);
-      if (service === "deprecated-version-number") {
+      if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
         return createUnauthorizedResponse();
       }
-      const userAction = getUserAction(request.headers);
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
-        skip,
-        limit,
-        filter,
+      const isBlacklisted = await isIPBlacklisted({
+        request,
+        next,
       });
-
-      logObject(
-        "responseFromListAccessToken.data",
-        responseFromListAccessToken.data
-      );
-
-      logObject(
-        "responseFromListAccessToken.data[0]",
-        responseFromListAccessToken.data[0]
-      );
-      logObject(
-        "request.headers[x-original-uri]",
-        request.headers["x-original-uri"]
-      );
-      logObject(
-        "request.headers[x-original-method]",
-        request.headers["x-original-method"]
-      );
-
-      logObject(
-        "request.headers['x-host-name']",
-        request.headers["x-host-name"]
-      );
-      logObject(
-        "request.headers['x-client-ip']",
-        request.headers["x-client-ip"]
-      );
-
-      logObject(
-        "request.headers['x-client-original-ip']",
-        request.headers["x-client-original-ip"]
-      );
-
-      if (responseFromListAccessToken.success === true) {
-        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          return createUnauthorizedResponse();
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          const clientIp = request.headers["x-client-ip"];
-          const hostName = request.headers["x-host-name"];
-          const endpoint = request.headers["x-original-uri"];
-          const clientOriginalIp = request.headers["x-client-original-ip"];
-
-          logObject("service", service);
-          logObject("userAction", userAction);
-
-          if (service && userAction) {
-            const {
-              name = "",
-              token = "",
-              user: { email = "", userName = "", _id = "" } = {},
-            } = responseFromListAccessToken.data[0];
-
-            logObject("email", email);
-            logObject("userName", userName);
-
-            if (!isEmpty(clientIp)) {
-              const ip = clientIp;
-              const token_name = name;
-              const isBlacklisted = await isIPBlacklisted({
-                ip,
-                email,
-                token,
-                token_name,
-                endpoint,
-              });
-              if (isBlacklisted) {
-                logger.info(
-                  `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- TOKEN_EMAIL: ${email} -- CLIENT_IP: ${clientIp} `
-                );
-                return createUnauthorizedResponse();
-              }
-            }
-
-            if (!isEmpty(_id)) {
-              const currentDate = new Date();
-              await UserModel("airqo").findByIdAndUpdate(_id, {
-                lastLogin: currentDate,
-                isActive: true,
-              });
-            }
-
-            winstonLogger.info(userAction, {
-              email,
-              username: userName,
-              service: service,
-              clientIp: clientIp ? clientIp : "unknown",
-              hostName: hostName ? hostName : "unknown",
-              endpoint: endpoint ? endpoint : "unknown",
-              clientOriginalIp: clientOriginalIp ? clientOriginalIp : "unknown",
-            });
-
-            return createValidTokenResponse();
-          }
-        }
-      } else if (responseFromListAccessToken.success === false) {
-        return responseFromListAccessToken;
+      logText("I have now returned back to the verifyToken() function");
+      if (isBlacklisted) {
+        return createUnauthorizedResponse();
+      } else {
+        return createValidTokenResponse();
       }
     } catch (error) {
-      return handleServerError(error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  listAccessToken: async (request) => {
+  listAccessToken: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-      const responseFromGenerateFilter = generateFilter.tokens(request);
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter;
+      const { tenant, limit, skip, token } = { ...query, ...params };
+
+      const filter = generateFilter.tokens(request, next);
+
+      if (isEmpty(token)) {
+        next(
+          new HttpError(
+            "service is temporarily disabled",
+            httpStatus.NOT_IMPLEMENTED,
+            { message: "service is temporarily disabled" }
+          )
+        );
       }
+
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).list({ skip, limit, filter });
+      ).list({ skip, limit, filter }, next);
       return responseFromListToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createAccessToken: async (request) => {
+  createAccessToken: async (request, next) => {
     try {
       // return {
       //   success: false,
@@ -760,20 +774,16 @@ const controlAccess = {
       //   },
       //   status: httpStatus.SERVICE_UNAVAILABLE,
       // };
-      const { tenant } = request.query;
-      const { client_id } = request.body;
+      const { tenant, client_id } = { ...request.body, ...request.query };
 
       const client = await ClientModel(tenant).findById(ObjectId(client_id));
 
       if (!client) {
-        return {
-          success: false,
-          message: "Client not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Client not found", httpStatus.BAD_REQUEST, {
             message: `Invalid request, Client ${client_id} not found`,
-          },
-        };
+          })
+        );
       }
 
       const token = accessCodeGenerator
@@ -789,22 +799,21 @@ const controlAccess = {
       tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).register(tokenCreationBody);
-
-      logObject("responseFromCreateToken", responseFromCreateToken);
+      ).register(tokenCreationBody, next);
 
       return responseFromCreateToken;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  generateVerificationToken: async (request) => {
+  generateVerificationToken: async (request, next) => {
     try {
       return {
         success: false,
@@ -827,7 +836,8 @@ const controlAccess = {
       const newRequest = Object.assign({ userName: email, password }, request);
 
       const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest
+        newRequest,
+        next
       );
       if (responseFromCreateUser.success === true) {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
@@ -856,30 +866,36 @@ const controlAccess = {
          * We need to find a client ID associated with this user?
          */
 
-        const responseFromSaveToken = await AccessTokenModel(tenant).register({
-          token,
-          client: {},
-          user_id: responseFromCreateUser.data._id,
-          expires:
-            Date.now() +
-            toMilliseconds(
-              emailVerificationHours,
-              emailVerificationMins,
-              emailVerificationSeconds
-            ),
-        });
+        const responseFromSaveToken = await AccessTokenModel(tenant).register(
+          {
+            token,
+            client: {},
+            user_id: responseFromCreateUser.data._id,
+            expires:
+              Date.now() +
+              toMilliseconds(
+                emailVerificationHours,
+                emailVerificationMins,
+                emailVerificationSeconds
+              ),
+          },
+          next
+        );
 
         if (responseFromSaveToken.success === true) {
           let createdUser = await responseFromCreateUser.data;
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          const responseFromSendEmail = await mailer.verifyEmail({
-            user_id,
-            token,
-            email,
-            firstName,
-          });
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email,
+              firstName,
+            },
+            next
+          );
 
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success === true) {
@@ -901,21 +917,20 @@ const controlAccess = {
         return responseFromCreateUser;
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  verifyVerificationToken: async (request) => {
+  verifyVerificationToken: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant } = query;
-      const { user_id, token } = params;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      const { tenant, limit, skip, user_id, token } = { ...query, ...params };
       const timeZone = moment.tz.guess();
 
       let filter = {
@@ -925,22 +940,22 @@ const controlAccess = {
         },
       };
 
-      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
-
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
+      const responseFromListAccessToken = await AccessTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          return {
-            success: false,
-            status: httpStatus.BAD_REQUEST,
-            message: "Invalid link",
-            errors: { message: "incorrect user or token details provided" },
-          };
+          next(
+            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
+              message: "incorrect user or token details provided",
+            })
+          );
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           const password = accessCodeGenerator.generate(
             constants.RANDOM_PASSWORD_CONFIGURATION(10)
@@ -952,11 +967,13 @@ const controlAccess = {
           };
           filter = { _id: user_id };
 
-          const responseFromUpdateUser = await UserModel(tenant).modify({
-            filter,
-            update,
-          });
-          logObject("responseFromUpdateUser", responseFromUpdateUser);
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
 
           if (responseFromUpdateUser.success === true) {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
@@ -967,9 +984,7 @@ const controlAccess = {
             logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await AccessTokenModel(
               tenant
-            ).remove({ filter });
-
-            logObject("responseFromDeleteToken", responseFromDeleteToken);
+            ).remove({ filter }, next);
 
             if (responseFromDeleteToken.success === true) {
               const responseFromSendEmail = await mailer.afterEmailVerification(
@@ -978,7 +993,8 @@ const controlAccess = {
                   username: user.userName,
                   password,
                   email: user.email,
-                }
+                },
+                next
               );
 
               if (responseFromSendEmail.success === true) {
@@ -991,183 +1007,181 @@ const controlAccess = {
                 return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              return {
-                success: false,
-                message: "unable to verify user",
-                status: responseFromDeleteToken.status
-                  ? responseFromDeleteToken.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                errors: responseFromDeleteToken.errors
-                  ? responseFromDeleteToken.errors
-                  : { message: "internal server errors" },
-              };
+              next(
+                new HttpError(
+                  "unable to verify user",
+                  responseFromDeleteToken.status
+                    ? responseFromDeleteToken.status
+                    : httpStatus.INTERNAL_SERVER_ERROR,
+                  responseFromDeleteToken.errors
+                    ? responseFromDeleteToken.errors
+                    : { message: "internal server errors" }
+                )
+              );
             }
           } else if (responseFromUpdateUser.success === false) {
-            return {
-              success: false,
-              message: "unable to verify user",
-              status: responseFromUpdateUser.status
-                ? responseFromUpdateUser.status
-                : httpStatus.INTERNAL_SERVER_ERROR,
-              errors: responseFromUpdateUser.errors
-                ? responseFromUpdateUser.errors
-                : { message: "internal server errors" },
-            };
+            next(
+              new HttpError(
+                "unable to verify user",
+                responseFromUpdateUser.status
+                  ? responseFromUpdateUser.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                responseFromUpdateUser.errors
+                  ? responseFromUpdateUser.errors
+                  : { message: "internal server errors" }
+              )
+            );
           }
         }
       } else if (responseFromListAccessToken.success === false) {
         return responseFromListAccessToken;
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Bad Request Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******** create clients ******************************************/
-  updateClient: async (request) => {
+  updateClient: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.clients(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
-
+      const filter = generateFilter.clients(request, next);
       let update = Object.assign({}, body);
       if (update.client_secret) {
         delete update.client_secret;
       }
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteClient: async (request) => {
+  deleteClient: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.clients(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
+      const filter = generateFilter.clients(request, next);
       const responseFromDeleteClient = await ClientModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromDeleteClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listClient: async (request) => {
+  listClient: async (request, next) => {
     try {
-      const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-      const responseFromGenerateFilter = generateFilter.clients(request);
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter;
-      }
+      const { tenant, limit, skip } = { ...request.query };
+      const filter = generateFilter.clients(request, next);
       const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
-      ).list({ skip, limit, filter });
-
-      logObject("responseFromListClient", responseFromListClient);
+      ).list({ skip, limit, filter }, next);
       return responseFromListClient;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createClient: async (request) => {
+  createClient: async (request, next) => {
     try {
-      // return {
-      //   success: false,
-      //   message: "Service Temporarily Disabled",
-      //   errors: {
-      //     message: "Service Temporarily Disabled",
-      //   },
-      //   status: httpStatus.SERVICE_UNAVAILABLE,
-      // };
+      // next(
+      //   new HttpError(
+      //     "Service Temporarily Disabled",
+      //     httpStatus.SERVICE_UNAVAILABLE,
+      //     {
+      //       message: "Service Temporarily Disabled",
+      //     }
+      //   )
+      // );
       const { body, query } = request;
-      const { tenant } = query;
-      const { user_id } = body;
+      const { tenant, user_id } = { ...body, ...query };
       const client_secret = generateClientSecret(100);
       const userExists = await UserModel(tenant).exists({ _id: user_id });
 
       if (!userExists) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: `User ${user_id} does not exist` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id} does not exist`,
+          })
+        );
       }
       let modifiedBody = Object.assign({}, body);
       modifiedBody.client_secret = client_secret;
 
       const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
-      return responseFromCreateClient;
+      ).register(modifiedBody, next);
+
+      if (responseFromCreateClient.success === true) {
+        const ip = modifiedBody.ip_address || "";
+        if (!isEmpty(ip)) {
+          const newWhitelistResponse = await WhitelistedIPModel(
+            tenant
+          ).register({ ip }, next);
+          if (newWhitelistResponse.success === false) {
+            return newWhitelistResponse;
+          } else {
+            return responseFromCreateClient;
+          }
+        } else {
+          return responseFromCreateClient;
+        }
+      } else if (responseFromCreateClient.success === false) {
+        return responseFromCreateClient;
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  updateClientSecret: async (request) => {
+  updateClientSecret: async (request, next) => {
     try {
-      const { tenant } = request.query;
-      const { client_id } = request.params;
-
+      const { tenant, client_id } = { ...request.query, ...request.params };
       const clientExists = await ClientModel(tenant).exists({ _id: client_id });
       if (!clientExists) {
         logger.error(`Client with ID ${client_id} not found`);
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: `Client with ID ${client_id} not found` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Client with ID ${client_id} not found`,
+          })
+        );
       }
 
       const client_secret = generateClientSecret(100);
@@ -1175,14 +1189,14 @@ const controlAccess = {
         .findByIdAndUpdate(client_id, { client_secret }, { new: true })
         .exec();
 
-      // logObject("updatedClient", updatedClient);
       if (isEmpty(updatedClient)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "unable to complete operation" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "unable to complete operation" }
+          )
+        );
       } else {
         return {
           success: true,
@@ -1193,173 +1207,136 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`Error updating client secret: ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: `Error updating client secret: ${error.message}` },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******** create scopes ******************************************/
-  updateScope: async (request) => {
+  updateScope: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.scopes(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
-
-      let update = Object.assign({}, body);
-
+      const filter = generateFilter.scopes(request, next);
+      const update = Object.assign({}, body);
       const responseFromUpdateToken = await ScopeModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
-
-      if (responseFromUpdateToken.success === true) {
-        return responseFromUpdateToken;
-      } else if (responseFromUpdateToken.success === false) {
-        return responseFromUpdateToken;
-      }
+      ).modify({ filter, update }, next);
+      return responseFromUpdateToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteScope: async (request) => {
+  deleteScope: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      let filter = {};
-      const responseFromFilter = generateFilter.scopes(request);
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      } else {
-        filter = responseFromFilter;
-      }
+      const filter = generateFilter.scopes(request, next);
       const responseFromDeleteToken = await ScopeModel(
         tenant.toLowerCase()
-      ).remove({ filter });
-
-      if (responseFromDeleteToken.success === true) {
-        return responseFromDeleteToken;
-      } else if (responseFromDeleteToken.success === false) {
-        return responseFromDeleteToken;
-      }
+      ).remove({ filter }, next);
+      return responseFromDeleteToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listScope: async (request) => {
+  listScope: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-      const responseFromGenerateFilter = generateFilter.scopes(request);
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter;
-      }
+      const { tenant, limit, skip } = query;
+      const filter = generateFilter.scopes(request, next);
       const responseFromListToken = await ScopeModel(tenant.toLowerCase()).list(
-        { skip, limit, filter }
+        { skip, limit, filter },
+        next
       );
-      if (responseFromListToken.success === true) {
-        return responseFromListToken;
-      } else if (responseFromListToken.success === false) {
-        return responseFromListToken;
-      }
+      return responseFromListToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createScope: async (request) => {
+  createScope: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const responseFromCreateToken = await ScopeModel(
         tenant.toLowerCase()
-      ).register(body);
-
-      if (responseFromCreateToken.success === true) {
-        return responseFromCreateToken;
-      } else if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      }
+      ).register(body, next);
+      return responseFromCreateToken;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******* roles *******************************************/
-  listRole: async (request) => {
+  listRole: async (request, next) => {
     try {
       const { query, params } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
-      if (filter.success === false) {
-        return filter;
-      }
-      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
-        filter,
-      });
+      const filter = generateFilter.roles(request, next);
+      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listRolesForNetwork: async (request) => {
+  listRolesForNetwork: async (request, next) => {
     try {
       const { query, params } = request;
-      const { net_id } = params;
-      const { tenant } = query;
+      const { net_id, tenant } = { ...query, ...params };
 
       const network = await NetworkModel(tenant).findById(net_id);
       if (!network) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network ${net_id.toString()} Not Found`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const roleResponse = await RoleModel(tenant).aggregate([
@@ -1410,31 +1387,28 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listRolesForGroup: async (request) => {
+  listRolesForGroup: async (request, next) => {
     try {
       const { query, params } = request;
-      const { grp_id } = params;
-      const { tenant } = query;
+      const { grp_id, tenant } = { ...query, ...params };
 
       const group = await GroupModel(tenant).findById(grp_id);
       if (!group) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Group ${grp_id.toString()} Not Found`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const roleResponse = await RoleModel(tenant).aggregate([
@@ -1485,34 +1459,29 @@ const controlAccess = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteRole: async (request) => {
+  deleteRole: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.roles(request, next);
 
       if (isEmpty(filter._id)) {
-        return {
-          success: false,
-          message: "Bad Request",
-          errors: {
+        next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message:
               "the role ID is missing -- required when updating corresponding users",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const result = await UserModel(tenant).updateMany(
@@ -1538,43 +1507,43 @@ const controlAccess = {
       }
       const responseFromDeleteRole = await RoleModel(
         tenant.toLowerCase()
-      ).remove({ filter });
+      ).remove({ filter }, next);
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateRole: async (request) => {
+  updateRole: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.roles(request);
-      if (filter.success === false) {
-        return filter;
-      }
-
+      const filter = generateFilter.roles(request, next);
       const update = Object.assign({}, body);
 
       const responseFromUpdateRole = await RoleModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).modify({ filter, update }, next);
       return responseFromUpdateRole;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createRole: async (request) => {
+  createRole: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
@@ -1585,38 +1554,29 @@ const controlAccess = {
       if (body.network_id) {
         const network = await NetworkModel(tenant).findById(body.network_id);
         if (isEmpty(network)) {
-          return {
-            success: false,
-            status: httpStatus.BAD_REQUEST,
-            message: "Bad Request Error",
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided organization ${body.network_id} is invalid, please crosscheck`,
-            },
-          };
+            })
+          );
         }
         organizationName = network.net_name.toUpperCase();
       } else if (body.group_id) {
         const group = await GroupModel(tenant).findById(body.group_id);
         if (isEmpty(group)) {
-          return {
-            success: false,
-            status: httpStatus.BAD_REQUEST,
-            message: "Bad Request Error",
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided group ${body.group_id} is invalid, please crosscheck`,
-            },
-          };
+            })
+          );
         }
         organizationName = group.grp_title.toUpperCase();
       } else {
-        return {
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Either network_id or group_id must be provided",
-          },
-        };
+          })
+        );
       }
 
       const transformedRoleName = convertToUpperCaseWithUnderscore(
@@ -1633,22 +1593,21 @@ const controlAccess = {
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
-      ).register(newBody);
+      ).register(newBody, next);
 
       return responseFromCreateRole;
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listAvailableUsersForRole: async (request) => {
+  listAvailableUsersForRole: async (request, next) => {
     try {
       const { tenant } = request.query;
       const { role_id } = request.params;
@@ -1656,14 +1615,11 @@ const controlAccess = {
       const role = await RoleModel(tenant).findById(role_id);
 
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid role ID ${role_id}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const roleType = role.network_id ? "Network" : "Group";
@@ -1700,45 +1656,36 @@ const controlAccess = {
         ])
         .exec();
 
-      logObject(
-        "responseFromListAvailableUsers",
-        responseFromListAvailableUsers
-      );
-
       return {
         success: true,
         message: `Retrieved all available users for the ${roleType} role ${role_id}`,
         data: responseFromListAvailableUsers,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignUserToRole: async (request) => {
+  assignUserToRole: async (request, next) => {
     try {
       const { role_id, user_id } = request.params;
-      const { tenant } = request.query;
-      const { user } = request.body;
+      const { tenant, user } = { ...request.body, ...request.query };
       const userIdFromBody = user;
       const userIdFromQuery = user_id;
 
       if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide the user ID using query params and query body; choose one approach",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const userId = userIdFromQuery || userIdFromBody;
@@ -1750,25 +1697,21 @@ const controlAccess = {
       const roleExists = await RoleModel(tenant).exists({ _id: role_id });
 
       if (!userExists || !roleExists) {
-        return {
-          success: false,
-          message: "User or Role not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `User ${userId} or Role ${role_id} not found` },
-        };
+        next(
+          new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} or Role ${role_id} not found`,
+          })
+        );
       }
 
       const roleType = isGroupRoleOrNetworkRole(role);
 
       if (roleType === "none") {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const isNetworkRole = roleType === "network";
@@ -1788,14 +1731,11 @@ const controlAccess = {
       logObject("isRoleAssigned", isRoleAssigned);
 
       if (isRoleAssigned) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${userObject._id.toString()} is already assigned to the role ${role_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const associatedId = await findAssociatedIdForRole({
@@ -1805,16 +1745,13 @@ const controlAccess = {
       });
 
       if (isEmpty(associatedId)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The ROLE ${role_id} is not associated with any of the ${
               isNetworkRole ? "networks" : "groups"
             } already assigned to USER ${userObject._id}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const isSuperAdmin = await isAssignedUserSuperAdmin({
@@ -1824,14 +1761,11 @@ const controlAccess = {
       });
 
       if (isSuperAdmin) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `SUPER ADMIN user ${userObject._id} cannot be reassigned to a different role`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const updateQuery = {
@@ -1857,55 +1791,47 @@ const controlAccess = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "Failed to assign user" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Failed to assign user" }
+          )
+        );
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignManyUsersToRole: async (request) => {
+  assignManyUsersToRole: async (request, next) => {
     try {
       const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { user_ids } = body;
-
+      const { role_id, tenant, user_ids } = { ...body, ...query, ...params };
       const roleObject = await RoleModel(tenant).findById(role_id).lean();
 
       if (isEmpty(roleObject)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} does not exist`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const roleType = isGroupRoleOrNetworkRole(roleObject);
 
       if (roleType === "none") {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const assignUserPromises = [];
@@ -2006,13 +1932,11 @@ const controlAccess = {
         (result) => result !== null
       );
 
-      let response;
-
       if (
         successfulAssignments.length > 0 &&
         unsuccessfulAssignments.length > 0
       ) {
-        response = {
+        return {
           success: true,
           message: "Some users were successfully assigned to the role.",
           data: { unsuccessfulAssignments },
@@ -2022,54 +1946,45 @@ const controlAccess = {
         unsuccessfulAssignments.length > 0 &&
         successfulAssignments.length === 0
       ) {
-        response = {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "None of the provided users could be assigned to the role.",
             unsuccessfulAssignments,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       } else {
-        response = {
+        return {
           success: true,
           message: "All provided users were successfully assigned to the role.",
           status: httpStatus.OK,
         };
       }
-
-      return response;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listUsersWithRole: async (request) => {
+  listUsersWithRole: async (request, next) => {
     try {
       logText("listUsersWithRole...");
       const { query, params } = request;
-      const { role_id } = params;
-      const { tenant } = query;
+      const { role_id, tenant } = { ...query, ...params };
 
       const role = await RoleModel(tenant).findById(role_id);
 
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Invalid role ID ${role_id.toString()}, please crosscheck`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const networkRoleFilter = { "network_roles.role": ObjectId(role_id) };
@@ -2108,21 +2023,20 @@ const controlAccess = {
         data: responseFromListAssignedUsers,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignUserFromRole: async (request) => {
+  unAssignUserFromRole: async (request, next) => {
     try {
       const { query, params } = request;
-      const { role_id, user_id } = params;
-      const { tenant } = query;
+      const { role_id, user_id, tenant } = { ...query, ...params };
 
       const [userObject, role, userExists, roleExists] = await Promise.all([
         UserModel(tenant)
@@ -2134,42 +2048,26 @@ const controlAccess = {
         RoleModel(tenant).exists({ _id: role_id }),
       ]);
 
-      logObject("userObject", userObject);
-
       if (!userExists || !roleExists) {
-        return {
-          success: false,
-          message: "User or Role not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} or Role ${role_id} not found`,
-          },
-        };
+          })
+        );
       }
 
       const roleType = isGroupRoleOrNetworkRole(role);
 
-      logObject("roleType", roleType);
-
       if (roleType === "none") {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} is not associated with any network or group`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const { network_roles, group_roles } = userObject;
-
-      logObject("network_roles", network_roles);
-      logObject("group_roles", group_roles);
-
       const roles = roleType === "network" ? network_roles : group_roles;
-
-      logObject("roles", roles);
 
       const associatedId = await findAssociatedIdForRole({
         role_id,
@@ -2177,17 +2075,12 @@ const controlAccess = {
         tenant,
       });
 
-      logObject("associatedId", associatedId);
-
       if (isEmpty(associatedId)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The ROLE ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to USER ${user_id}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const isSuperAdmin = await isAssignedUserSuperAdmin({
@@ -2197,28 +2090,21 @@ const controlAccess = {
       });
 
       if (isSuperAdmin) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const isRoleAssigned = isRoleAlreadyAssigned(roles, role_id);
-      logObject("isRoleAssigned", isRoleAssigned);
 
       if (!isRoleAssigned) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id.toString()} is not assigned to the role ${role_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const filter = {
@@ -2229,9 +2115,6 @@ const controlAccess = {
         $set: { [`${roleType}_roles.$[elem].role`]: null },
       };
 
-      logObject("filter", filter);
-      logObject("update", update);
-
       const arrayFilters = [{ "elem.role": role_id }];
 
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
@@ -2240,18 +2123,13 @@ const controlAccess = {
         { new: true, arrayFilters }
       );
 
-      logObject("updatedUser", updatedUser);
-
       if (isEmpty(updatedUser)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "User not found or not assigned to the specified Role in the Network or Group provided",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       return {
@@ -2261,32 +2139,27 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignManyUsersFromRole: async (request) => {
+  unAssignManyUsersFromRole: async (request, next) => {
     try {
       const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { user_ids } = body;
-
+      const { role_id, tenant, user_ids } = { ...body, ...query, ...params };
       const roleObject = await RoleModel(tenant).findById(role_id).lean();
-
       if (isEmpty(roleObject)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `Role ${role_id} not found` },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id} not found`,
+          })
+        );
       }
 
       // Check if all provided users actually exist
@@ -2300,16 +2173,13 @@ const controlAccess = {
       );
 
       if (nonExistentUsers.length > 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `The following users do not exist: ${nonExistentUsers.join(
               ", "
             )}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const unAssignUserPromises = [];
@@ -2459,19 +2329,19 @@ const controlAccess = {
       }
       return response;
     } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******************** User Types *******************/
-  assignUserType: async (request) => {
+  assignUserType: async (request, next) => {
     try {
       const { user_id, net_id, grp_id, user, user_type, tenant } = {
         ...request.body,
@@ -2480,27 +2350,21 @@ const controlAccess = {
       };
 
       if (!isEmpty(grp_id) && !isEmpty(net_id)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide both a network ID and a group ID, choose one organization type",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       if (!isEmpty(user) && !isEmpty(user_id)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide the user ID using query params and query body; choose one approach",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const userId = user || user_id;
@@ -2509,12 +2373,11 @@ const controlAccess = {
       const userExists = await UserModel(tenant).exists({ _id: userId });
 
       if (!userExists) {
-        return {
-          success: false,
-          message: "User not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `User ${userId} not found` },
-        };
+        next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} not found`,
+          })
+        );
       }
 
       const isNetworkType = isNetwork(net_id, grp_id);
@@ -2526,16 +2389,13 @@ const controlAccess = {
       });
 
       if (!isAlreadyAssigned) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${userId} is NOT assigned to the provided ${
               isNetworkType ? "Network" : "Group"
             } ${organisationId}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const updateQuery = {
@@ -2561,48 +2421,45 @@ const controlAccess = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "Failed to assign user" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Failed to assign user" }
+          )
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignManyUsersToUserType: async (request) => {
+  assignManyUsersToUserType: async (request, next) => {
     try {
-      const { tenant } = request.query;
-      const { user_ids, user_type, net_id, grp_id } = {
+      const { user_ids, user_type, net_id, grp_id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
       const userPromises = [];
-
       const isNetwork = !isEmpty(net_id);
       const isGroup = !isEmpty(grp_id);
       let updateQuery = {};
 
       if (isNetwork && isGroup) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide both a network ID and a group ID. Choose one organization type.",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       for (const user_id of user_ids) {
@@ -2665,49 +2522,42 @@ const controlAccess = {
         (result) => result !== null && result.success === false
       );
 
-      let response;
-
       if (unsuccessful.length > 0 && unsuccessful.length === user_ids.length) {
-        response = {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `All users could not be assigned the ${user_type} user type.`,
             unsuccessful,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       } else if (
         unsuccessful.length > 0 &&
         unsuccessful.length !== user_ids.length
       ) {
-        response = {
+        return {
           success: true,
           message: "Operation Partially successfull",
           data: { unsuccessful, successful },
           status: httpStatus.OK,
         };
       } else {
-        response = {
+        return {
           success: true,
           message: `ALL provided users were successfully assigned the ${user_type} user type.`,
           status: httpStatus.OK,
         };
       }
-
-      return response;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listUsersWithUserType: async (request) => {
+  listUsersWithUserType: async (request, next) => {
     try {
       logText("listUsersWithUserType...");
       const { user_type, net_id, grp_id, tenant } = {
@@ -2717,15 +2567,12 @@ const controlAccess = {
       };
 
       if (net_id && grp_id) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide both a network ID and a group ID; choose one organization type",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       let userTypeFilter = {};
@@ -2737,14 +2584,11 @@ const controlAccess = {
           .lean();
 
         if (isEmpty(network)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided Network ${net_id.toString()} does not exist`,
-            },
-          };
+            })
+          );
         }
 
         userTypeFilter = {
@@ -2758,14 +2602,11 @@ const controlAccess = {
           .lean();
         logObject("group", group);
         if (isEmpty(group)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided Group ${grp_id.toString()} does not exist`,
-            },
-          };
+            })
+          );
         }
         userTypeFilter = {
           "group_roles.userType": user_type,
@@ -2809,17 +2650,17 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listAvailableUsersForUserType: async (request) => {
+  listAvailableUsersForUserType: async (request, next) => {
     try {
       logText("listAvailableUsersForUserType...");
       const { user_type, net_id, grp_id, tenant } = {
@@ -2829,15 +2670,12 @@ const controlAccess = {
       };
 
       if (net_id && grp_id) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
               "You cannot provide both a network ID and a group ID; choose one organization type",
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       let userTypeFilter = {};
@@ -2849,14 +2687,11 @@ const controlAccess = {
           .lean();
 
         if (isEmpty(network)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided Network ${net_id.toString()} does not exist`,
-            },
-          };
+            })
+          );
         }
         userTypeFilter = {
           "network_roles.userType": user_type,
@@ -2869,14 +2704,11 @@ const controlAccess = {
           .lean();
         logObject("group", group);
         if (isEmpty(group)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided Group ${grp_id.toString()} does not exist`,
-            },
-          };
+            })
+          );
         }
         userTypeFilter = {
           "group_roles.userType": user_type,
@@ -2927,141 +2759,132 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /*********************roles and permissions....*/
-  listPermissionsForRole: async (request) => {
+  listPermissionsForRole: async (request, next) => {
     try {
       logText("listPermissionsForRole...");
-      let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
       const { query, params } = request;
-      const { role_id } = params;
-      const { tenant } = query;
+      const { role_id, tenant, limit, skip } = { ...query, ...params };
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
-
-      const responseFromlistPermissionsForRole = await PermissionModel(
-        tenant
-      ).list({
-        skip,
-        limit,
-        filter,
-      });
-
-      if (responseFromlistPermissionsForRole.success === true) {
-        if (responseFromlistPermissionsForRole.status === httpStatus.OK) {
-          const permissionsArray = responseFromlistPermissionsForRole.data.map(
-            (obj) => obj.permission
-          );
-          responseFromlistPermissionsForRole.data = permissionsArray;
-          return responseFromlistPermissionsForRole;
-        }
-        return responseFromlistPermissionsForRole;
-      } else if (responseFromlistPermissionsForRole.success === false) {
-        return responseFromlistPermissionsForRole;
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
-  listAvailablePermissionsForRole: async (request) => {
-    try {
-      logText("listAvailablePermissionsForRole...");
-      let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      const { query, params } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
-
-      const filterResponse = generateFilter.roles(newRequest);
-      if (filterResponse.success === false) {
-        return filter;
-      } else {
-        filter = filterResponse;
-      }
-
-      const responseFromListAvailablePermissionsForRole = await RoleModel(
-        tenant
-      ).list({
-        skip,
-        limit,
-        filter,
-      });
-
-      logObject(
-        "responseFromListAvailablePermissionsForRole",
-        responseFromListAvailablePermissionsForRole
-      );
-
-      if (responseFromListAvailablePermissionsForRole.success === true) {
-        if (
-          responseFromListAvailablePermissionsForRole.message ===
-            "roles not found for this operation" ||
-          isEmpty(responseFromListAvailablePermissionsForRole.data)
-        ) {
-          return responseFromListAvailablePermissionsForRole;
-        }
-
-        const permissions =
-          responseFromListAvailablePermissionsForRole.data[0].role_permissions;
-        const permissionsArray = permissions.map((obj) => obj.permission);
-        filter = { permission: { $nin: permissionsArray } };
-        let responseFromListPermissions = await PermissionModel(tenant).list({
+      const filter = generateFilter.roles(newRequest, next);
+      const listRoleResponse = await RoleModel(tenant).list(
+        {
           skip,
           limit,
           filter,
-        });
+        },
+        next
+      );
+
+      if (listRoleResponse.success === true) {
+        if (
+          listRoleResponse.message === "roles not found for this operation" ||
+          isEmpty(listRoleResponse.data)
+        ) {
+          return listRoleResponse;
+        }
+
+        const permissions = listRoleResponse.data[0].role_permissions;
+        const permissionsArray = permissions.map((obj) => obj.permission);
+        filter = { permission: { $in: permissionsArray } };
+        let responseFromListPermissions = await PermissionModel(tenant).list(
+          {
+            skip,
+            limit,
+            filter,
+          },
+          next
+        );
         return responseFromListPermissions;
-      } else if (
-        responseFromListAvailablePermissionsForRole.success === false
-      ) {
-        return responseFromListAvailablePermissionsForRole;
+      } else if (listRoleResponse.success === false) {
+        return listRoleResponse;
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  assignPermissionsToRole: async (request) => {
+  listAvailablePermissionsForRole: async (request, next) => {
+    try {
+      logText("listAvailablePermissionsForRole...");
+      const { query, params } = request;
+      const { role_id, tenant, limit, skip } = { ...query, ...params };
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+      const filter = generateFilter.roles(newRequest, next);
+      const listRoleResponse = await RoleModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
+
+      if (listRoleResponse.success === true) {
+        if (
+          listRoleResponse.message === "roles not found for this operation" ||
+          isEmpty(listRoleResponse.data)
+        ) {
+          return listRoleResponse;
+        }
+
+        const permissions = listRoleResponse.data[0].role_permissions;
+        const permissionsArray = permissions.map((obj) => obj.permission);
+        filter = { permission: { $nin: permissionsArray } };
+        let responseFromListPermissions = await PermissionModel(tenant).list(
+          {
+            skip,
+            limit,
+            filter,
+          },
+          next
+        );
+        return responseFromListPermissions;
+      } else if (listRoleResponse.success === false) {
+        return listRoleResponse;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  assignPermissionsToRole: async (request, next) => {
     try {
       const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { permissions } = body;
+      const { role_id, tenant, permissions } = { ...body, ...query, ...params };
 
       const role = await RoleModel(tenant).findById(role_id);
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: `Role ${role_id.toString()} Not Found` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id.toString()} Not Found`,
+          })
+        );
       }
 
       const permissionsResponse = await PermissionModel(tenant).find({
@@ -3069,14 +2892,11 @@ const controlAccess = {
       });
 
       if (permissionsResponse.length !== permissions.length) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "not all provided permissions exist, please crosscheck",
-          },
-        };
+          })
+        );
       }
 
       const assignedPermissions = role.role_permissions.map((permission) =>
@@ -3092,15 +2912,13 @@ const controlAccess = {
       logObject("alreadyAssigned", alreadyAssigned);
 
       if (alreadyAssigned.length > 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Some permissions already assigned to the Role ${role_id.toString()}, they include: ${alreadyAssigned.join(
               ","
             )}`,
-          },
-        };
+          })
+        );
       }
       const updatedRole = await RoleModel(tenant).findOneAndUpdate(
         { _id: role_id },
@@ -3116,37 +2934,35 @@ const controlAccess = {
           data: updatedRole,
         };
       } else if (isEmpty(updatedRole)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "unable to update Role" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "unable to update Role",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignPermissionFromRole: async (request) => {
+  unAssignPermissionFromRole: async (request, next) => {
     try {
       const { query, params } = request;
-      const { role_id, permission_id } = params;
-      const { tenant } = query;
+      const { role_id, permission_id, tenant } = { ...query, ...params };
 
       const role = await RoleModel(tenant).findById(role_id);
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: `Role ${role_id.toString()} Not Found` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id.toString()} Not Found`,
+          })
+        );
       }
 
       const filter = { _id: role_id };
@@ -3154,14 +2970,11 @@ const controlAccess = {
 
       const permission = await PermissionModel(tenant).findById(permission_id);
       if (!permission) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permission ${permission_id.toString()} Not Found`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const roleResponse = await RoleModel(tenant).findOne({
@@ -3170,22 +2983,22 @@ const controlAccess = {
       });
 
       if (!roleResponse) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permission ${permission_id.toString()} is not assigned to the Role ${role_id.toString()}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const responseFromUnAssignPermissionFromRole = await RoleModel(
         tenant
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       if (responseFromUnAssignPermissionFromRole.success === true) {
         let modifiedResponse = Object.assign(
@@ -3203,31 +3016,33 @@ const controlAccess = {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  unAssignManyPermissionsFromRole: async (request) => {
+  unAssignManyPermissionsFromRole: async (request, next) => {
     try {
       const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { permission_ids } = body;
+      const { role_id, tenant, permission_ids } = {
+        ...body,
+        ...query,
+        ...params,
+      };
 
       // Check if role exists
       const role = await RoleModel(tenant).findById(role_id);
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: { message: `Role ${role_id} not found` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id} not found`,
+          })
+        );
       }
 
       // Check if any of the provided permission IDs don't exist
@@ -3240,14 +3055,11 @@ const controlAccess = {
         );
       });
       if (missingPermissions.length > 0) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permissions not found: ${missingPermissions.join(", ")}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const assignedPermissions = role.role_permissions.map((permission) =>
@@ -3259,15 +3071,13 @@ const controlAccess = {
       );
 
       if (notAssigned.length > 0) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Some of the provided permissions are not assigned to the Role ${role_id.toString()}, they include: ${notAssigned.join(
               ", "
             )}`,
-          },
-        };
+          })
+        );
       }
 
       const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
@@ -3284,12 +3094,11 @@ const controlAccess = {
           data: updatedRole,
         };
       } else if (isEmpty(updatedRole)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "unable to remove the permissions" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "unable to remove the permissions",
+          })
+        );
       }
 
       return {
@@ -3298,32 +3107,33 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updateRolePermissions: async (request) => {
+  updateRolePermissions: async (request, next) => {
     try {
       const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { permission_ids } = body;
+      const { role_id, tenant, permission_ids } = {
+        ...body,
+        ...query,
+        ...params,
+      };
 
       // Check if role exists
       const role = await RoleModel(tenant).findById(role_id);
       if (!role) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: { message: `Role ${role_id} not found` },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id} not found`,
+          })
+        );
       }
 
       // Check if any of the provided permission IDs don't exist
@@ -3336,14 +3146,11 @@ const controlAccess = {
         );
       });
       if (missingPermissions.length > 0) {
-        return {
-          success: false,
-          message: "Bad Request Errors",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Permissions not found: ${missingPermissions.join(", ")}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const uniquePermissions = [...new Set(permission_ids)];
@@ -3362,12 +3169,11 @@ const controlAccess = {
           data: updatedRole,
         };
       } else if (isEmpty(updatedRole)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "unable to update the permissions" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "unable to update the permissions",
+          })
+        );
       }
 
       return {
@@ -3376,267 +3182,198 @@ const controlAccess = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /******* permissions *******************************************/
-  listPermission: async (request) => {
+  listPermission: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.permissions(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.permissions(request, next);
       const responseFromListPermissions = await PermissionModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-      });
-      if (responseFromListPermissions.success === true) {
-        return responseFromListPermissions;
-      } else if (responseFromListPermissions.success === false) {
-        return responseFromListPermissions;
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
+      ).list(
+        {
+          filter,
         },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        next
+      );
+      return responseFromListPermissions;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deletePermission: async (request) => {
+  deletePermission: async (request, next) => {
     try {
       const { query } = request;
       const { tenant } = query;
-      const filter = generateFilter.permissions(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.permissions(request, next);
       const responseFromDeletePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-      if (responseFromDeletePermission.success === true) {
-        return responseFromDeletePermission;
-      } else if (responseFromDeletePermission.success === false) {
-        return responseFromDeletePermission;
-      }
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
+      return responseFromDeletePermission;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  updatePermission: async (request) => {
+  updatePermission: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const update = body;
-      const filter = generateFilter.permissions(request);
-      if (filter.success === false) {
-        return filter;
-      }
+      const filter = generateFilter.permissions(request, next);
       const responseFromUpdatePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
-      if (responseFromUpdatePermission.success === true) {
-        return responseFromUpdatePermission;
-      } else if (responseFromUpdatePermission.success === false) {
-        return responseFromUpdatePermission;
-      }
+      ).modify({ filter, update }, next);
+      return responseFromUpdatePermission;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  createPermission: async (request) => {
+  createPermission: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
       const responseFromCreatePermission = await PermissionModel(
         tenant.toLowerCase()
-      ).register(body);
-      if (responseFromCreatePermission.success === true) {
-        return responseFromCreatePermission;
-      } else if (responseFromCreatePermission.success === false) {
-        return responseFromCreatePermission;
-      }
+      ).register(body, next);
+      return responseFromCreatePermission;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /********* departments  ******************************************/
-  createDepartment: async (request) => {
+  createDepartment: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
       let modifiedBody = Object.assign({}, body);
       const responseFromRegisterDepartment = await DepartmentModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
-
-      logObject(
-        "responseFromRegisterDepartment",
-        responseFromRegisterDepartment
+      ).register(modifiedBody, next);
+      return responseFromRegisterDepartment;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-
-      if (responseFromRegisterDepartment.success === true) {
-        return responseFromRegisterDepartment;
-      } else if (responseFromRegisterNetwork.success === false) {
-        return responseFromRegisterDepartment;
-      }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "network util server errors",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
     }
   },
-  updateDepartment: async (request) => {
+  updateDepartment: async (request, next) => {
     try {
       const { body, query, params } = request;
-      const { tenant } = query;
-
-      let update = Object.assign({}, body);
-      let filter = {};
-
-      const responseFromGeneratefilter = generateFilter.departments(request);
-
-      if (responseFromGeneratefilter.success === false) {
-        return responseFromGeneratefilter;
-      } else {
-        filter = responseFromGeneratefilter.data;
-      }
-
+      const { tenant } = {
+        ...query,
+        ...params,
+      };
+      const update = Object.assign({}, body);
+      const filter = generateFilter.departments(request, next);
       const responseFromModifyDepartment = await DepartmentModel(
         tenant.toLowerCase()
-      ).modify({ update, filter });
-
-      if (responseFromModifyDepartment.success === true) {
-        return responseFromModifyDepartment;
-      } else if (responseFromModifyDepartment.success === false) {
-        return responseFromModifyDepartment;
-      }
+      ).modify({ update, filter }, next);
+      return responseFromModifyDepartment;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  deleteDepartment: async (request) => {
+  deleteDepartment: async (request, next) => {
     try {
       logText("the delete operation.....");
       const { query } = request;
       const { tenant } = query;
-      let filter = {};
-
-      const responseFromGenerateFilter = generateFilter.departments(request);
-
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter.data;
-      }
-
+      const filter = generateFilter.departments(request, next);
       const responseFromRemoveNetwork = await DepartmentModel(
         tenant.toLowerCase()
-      ).remove({ filter });
-
-      logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
-
-      if (responseFromRemoveNetwork.success === true) {
-        return responseFromRemoveNetwork;
-      } else if (responseFromRemoveNetwork.success === false) {
-        return responseFromRemoveNetwork;
-      }
+      ).remove({ filter }, next);
+      return responseFromRemoveNetwork;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listDepartment: async (request) => {
+  listDepartment: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant } = query;
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      let filter = {};
-
-      const responseFromGenerateFilter = generateFilter.departments(request);
-      if (responseFromGenerateFilter.success === false) {
-        return responseFromGenerateFilter;
-      } else {
-        filter = responseFromGenerateFilter.data;
-      }
-
+      const { tenant, limit, skip } = query;
+      const filter = generateFilter.departments(request, next);
       const responseFromListDepartments = await DepartmentModel(
         tenant.toLowerCase()
-      ).list({ filter, limit, skip });
-
-      if (responseFromListDepartments.success === true) {
-        return responseFromListDepartments;
-      } else if (responseFromListDepartments.success === false) {
-        return responseFromListDepartments;
-      }
+      ).list({ filter, limit, skip }, next);
+      return responseFromListDepartments;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      logElement("internal server error", error.message);
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /****************** Blacklisting IPs ******************************/
-  blackListIp: async (request) => {
+  blackListIp: async (request, next) => {
     try {
       const { ip, tenant } = {
         ...request.body,
@@ -3646,47 +3383,116 @@ const controlAccess = {
       const responseFromBlacklistIp = await BlacklistedIPModel(tenant).register(
         {
           ip,
-        }
+        },
+        next
       );
       return responseFromBlacklistIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeBlacklistedIp: async (request) => {
+  blackListIps: async (request, next) => {
     try {
-      const { ip, tenant } = {
+      const { ips, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ips || !Array.isArray(ips) || ips.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid input. Please provide an array of IP addresses.",
+          })
+        );
+      }
+
+      const responses = await Promise.all(
+        ips.map(async (ip) => {
+          const result = await BlacklistedIPModel(tenant).register(
+            { ip },
+            next
+          );
+          return { ip, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.ip);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.ip);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IPs have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IPs provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  removeBlacklistedIp: async (request, next) => {
+    try {
+      const { tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      const filterResponse = generateFilter.ips(request);
-      if (filterResponse === false) {
-        return filterResponse;
-      }
-      const filter = filterResponse;
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveBlacklistedIp = await BlacklistedIPModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveBlacklistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  blackListIpRange: async (request) => {
+  blackListIpRange: async (request, next) => {
     try {
       const { range, tenant } = {
         ...request.body,
@@ -3695,78 +3501,151 @@ const controlAccess = {
       };
       const responseFromBlacklistIpRange = await BlacklistedIPRangeModel(
         tenant
-      ).register({
-        range,
-      });
+      ).register(
+        {
+          range,
+        },
+        next
+      );
       return responseFromBlacklistIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeBlacklistedIpRange: async (request) => {
+  bulkInsertBlacklistIpRanges: async (request, next) => {
+    try {
+      const { ranges, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ranges || !Array.isArray(ranges) || ranges.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid input. Please provide an array of IP address ranges.",
+          })
+        );
+        return;
+      }
+
+      const responses = await Promise.all(
+        ranges.map(async (range) => {
+          const result = await BlacklistedIPRangeModel(tenant).register(
+            { range },
+            next
+          );
+          return { range, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.range);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.range);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IP ranges have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IP ranges provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeBlacklistedIpRange: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      const filterResponse = generateFilter.ips(request);
-      if (filterResponse === false) {
-        return filterResponse;
-      }
-      const filter = filterResponse;
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveBlacklistedIpRange =
-        await BlacklistedIPRangeModel(tenant).remove({ filter });
+        await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
       return responseFromRemoveBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  listBlacklistedIpRange: async (request) => {
+  listBlacklistedIpRange: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      const filterResponse = generateFilter.ips(request);
-      if (filterResponse === false) {
-        return filterResponse;
-      }
-      const filter = filterResponse;
+      const filter = generateFilter.ips(request, next);
       const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
         tenant
-      ).list({
-        filter,
-      });
+      ).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListBlacklistedIpRange;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /****************** Whitelisting IPs ******************************/
-  whiteListIp: async (request) => {
+  whiteListIp: async (request, next) => {
     try {
       const { ip, tenant } = {
         ...request.body,
@@ -3776,73 +3655,70 @@ const controlAccess = {
       const responseFromWhitelistIp = await WhitelistedIPModel(tenant).register(
         {
           ip,
-        }
+        },
+        next
       );
       return responseFromWhitelistIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  removeWhitelistedIp: async (request) => {
+  removeWhitelistedIp: async (request, next) => {
     try {
       const { ip, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      const filterResponse = generateFilter.ips(request);
-      if (filterResponse === false) {
-        return filterResponse;
-      }
-      const filter = filterResponse;
+      const filter = generateFilter.ips(request, next);
       const responseFromRemoveWhitelistedIp = await WhitelistedIPModel(
         tenant
-      ).remove({ filter });
+      ).remove({ filter }, next);
       return responseFromRemoveWhitelistedIp;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 
   /****************** Unknown IPs ******************************/
-  listUnknownIPs: async (request) => {
+  listUnknownIPs: async (request, next) => {
     try {
       const { tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      const filterResponse = generateFilter.ips(request);
-      if (filterResponse === false) {
-        return filterResponse;
-      }
-      const filter = filterResponse;
-      const responseFromListUnkownIP = await UnknownIPModel(tenant).list({
-        filter,
-      });
+      const filter = generateFilter.ips(request, next);
+      const responseFromListUnkownIP = await UnknownIPModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromListUnkownIP;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

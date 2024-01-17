@@ -6,9 +6,8 @@ mongoose.set("debug", false);
 const constants = require("./constants");
 const URI = constants.MONGO_URI;
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- dbConnection-config`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- confi-database`);
+const { HttpError } = require("@utils/errors");
 
 const options = {
   useCreateIndex: true,
@@ -51,7 +50,9 @@ const connectToMongoDB = () => {
     });
 
     return db;
-  } catch (error) {}
+  } catch (error) {
+    // logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+  }
 };
 
 const mongodb = connectToMongoDB();

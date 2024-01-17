@@ -294,18 +294,18 @@ router.post(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 2) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 2 or more characters"
             );
           }
           return Promise.resolve("latitude validation test has passed");
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 2 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -316,19 +316,19 @@ router.post(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 2) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 2 or more characters"
             );
           }
           return Promise.resolve("longitude validation test has passed");
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00");
         })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .isDecimal({ decimal_digits: 2 })
+        .withMessage("the longitude must have atleast 2 decimal places in it"),
     ],
   ]),
   siteController.generateMetadata

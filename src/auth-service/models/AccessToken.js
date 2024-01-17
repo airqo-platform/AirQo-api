@@ -6,6 +6,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
+const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 
 const toMilliseconds = (hrs, min, sec) => {
@@ -47,25 +48,6 @@ AccessTokenSchema.pre("save", function (next) {
   return next();
 });
 
-AccessTokenSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
 AccessTokenSchema.pre("update", function (next) {
   return next();
 });
@@ -74,7 +56,7 @@ AccessTokenSchema.index({ token: 1 }, { unique: true });
 AccessTokenSchema.index({ client_id: 1 }, { unique: true });
 
 AccessTokenSchema.statics = {
-  async findToken(authorizationToken) {
+  async findToken(authorizationToken, next) {
     try {
       if (authorizationToken) {
         let accessToken;
@@ -104,11 +86,17 @@ AccessTokenSchema.statics = {
       }
       return { user: null, currentAccessToken: null };
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("an error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       if (isEmpty(modifiedArgs.expires)) {
@@ -146,29 +134,24 @@ AccessTokenSchema.statics = {
           success: true,
           data: [],
           message: "operation successful but Token NOT successfully created",
-          status: httpStatus.ACCEPTED,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
       logObject("the error", err);
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-      return {
-        error: response,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-        success: false,
-        status: httpStatus.CONFLICT,
-      };
+      next(
+        new HttpError("Internal Server Error", httpStatus.CONFLICT, response)
+      );
     }
   },
-
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
@@ -229,17 +212,17 @@ AccessTokenSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -263,25 +246,28 @@ AccessTokenSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedToken)) {
-        return {
-          success: false,
-          message: "Token does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Token does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError(
+            "Token does not exist, please crosscheck",
+            httpStatus.BAD_REQUEST,
+            {
+              message: "Token does not exist, please crosscheck",
+            }
+          )
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -292,11 +278,7 @@ AccessTokenSchema.statics = {
           expires_in: 1,
         },
       };
-
-      let removedToken = await this.findOneAndRemove(filter, options).exec();
-
-      logObject("removedToken", removedToken);
-
+      const removedToken = await this.findOneAndRemove(filter, options).exec();
       if (!isEmpty(removedToken)) {
         return {
           success: true,
@@ -305,21 +287,24 @@ AccessTokenSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedToken)) {
-        return {
-          success: false,
-          message: "Token does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Token does not exist, please crosscheck" },
-        };
+        logger.error("Token does not exist, please crosscheck");
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Token does not exist, please crosscheck",
+          })
+        );
+        return;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

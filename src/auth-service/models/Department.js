@@ -5,7 +5,11 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- department-model`);
+const { HttpError } = require("@utils/errors");
 
 const DepartmentSchema = new Schema(
   {
@@ -85,7 +89,7 @@ const sanitizeName = (name) => {
 };
 
 DepartmentSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = args;
       let tenant = modifiedArgs.tenant;
@@ -108,7 +112,7 @@ DepartmentSchema.statics = {
           data: [],
           message:
             "department NOT successfully created but operation successful",
-          status: httpStatus.NO_CONTENT,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -131,15 +135,11 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const response = await this.aggregate()
         .match(filter)
@@ -244,16 +244,11 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
@@ -277,7 +272,7 @@ DepartmentSchema.statics = {
         delete modifiedUpdate["dep_children"];
       }
 
-      let updatedDepartment = await this.findOneAndUpdate(
+      const updatedDepartment = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -291,12 +286,12 @@ DepartmentSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedDepartment)) {
-        return {
-          success: true,
-          message: "department does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The provided department does not exist, please crosscheck",
+          })
+        );
       }
     } catch (err) {
       let response = {};
@@ -318,15 +313,11 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -348,12 +339,11 @@ DepartmentSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedDepartment)) {
-        return {
-          success: true,
-          message: "department does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "The department does not exist, please crosscheck",
+          })
+        );
       }
     } catch (err) {
       let response = {};
@@ -375,12 +365,9 @@ DepartmentSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
 };

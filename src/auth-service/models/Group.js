@@ -1,12 +1,15 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
-const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
+const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
 const httpStatus = require("http-status");
+const { HttpError } = require("@utils/errors");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- group-model`);
 
 const GroupSchema = new Schema(
   {
@@ -70,12 +73,12 @@ const convertToLowerCaseWithUnderscore = (inputString) => {
     const transformedString = uppercaseString.replace(/ /g, "_");
     return transformedString;
   } catch (error) {
-    logger.error(`Internal Server Error --  ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --  ${JSON.stringify(error)}`);
   }
 };
 
 GroupSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = Object.assign({}, args);
 
@@ -122,15 +125,11 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        success: false,
-        errors: response,
-        message,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filter", filter);
       const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
@@ -199,16 +198,12 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -236,14 +231,11 @@ GroupSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedGroup)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "group does not exist, please crosscheck -- Not Found",
-          },
-        };
+          })
+        );
       }
     } catch (err) {
       let response = {};
@@ -265,15 +257,11 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -294,14 +282,11 @@ GroupSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedGroup)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Bad Request, Group Not Found -- please crosscheck",
-          },
-        };
+          })
+        );
       }
     } catch (err) {
       let response = {};
@@ -323,12 +308,8 @@ GroupSchema.statics = {
           return (response[key] = value.message);
         });
       }
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
 };

@@ -2,10 +2,8 @@ const express = require("express");
 const router = express.Router();
 const createCandidateController = require("@controllers/create-candidate");
 const { check, oneOf, query, body, param } = require("express-validator");
-
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const constants = require("@config/constants");
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const validatePagination = (req, res, next) => {

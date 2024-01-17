@@ -1,7 +1,6 @@
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createSimUtil = require("@utils/create-sim");
 const log4js = require("log4js");
 const constants = require("@config/constants");
@@ -10,590 +9,624 @@ const logger = log4js.getLogger(
 );
 const isEmpty = require("is-empty");
 
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
+
 const createSim = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     logText("registering sim.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromCreateSim = await createSimUtil.createLocal(request);
-      logObject("responseFromCreateSim in controller", responseFromCreateSim);
-      if (responseFromCreateSim.success === true) {
-        let status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateSim.message,
-          created_sim: responseFromCreateSim.data,
-        });
-      } else if (responseFromCreateSim.success === false) {
-        const status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromCreateSim.message,
-          errors: responseFromCreateSim.errors
-            ? responseFromCreateSim.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  createBulk: async (req, res) => {
-    logText("registering sim.............");
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = Object.assign({}, req);
-      if (isEmpty(req.query.tenant)) {
-        request.query.tenant = "airqo";
+        return;
       }
 
-      const responseFromCreateSim = await createSimUtil.createBulkLocal(
-        request
-      );
-      logObject("responseFromCreateSim in controller", responseFromCreateSim);
-      if (responseFromCreateSim.success === true) {
-        let status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
-          : httpStatus.OK;
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.createLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        let status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateSim.message,
-          created_sims: responseFromCreateSim.data,
-          failures: responseFromCreateSim.failedCreations,
+          message: result.message,
+          created_sim: result.data,
         });
-      } else if (responseFromCreateSim.success === false) {
-        const status = responseFromCreateSim.status
-          ? responseFromCreateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateSim.message,
-          errors: responseFromCreateSim.errors
-            ? responseFromCreateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  createBulk: async (req, res, next) => {
+    logText("registering sim.............");
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.createBulkLocal(request, next);
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        let status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          created_sims: result.data,
+          failures: result.failedCreations,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(
+        `🐛🐛 Internal Server Error -- createBulk -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete sim............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
 
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.deleteLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromRemoveSim = await createSimUtil.deleteLocal(request);
 
-      logObject("responseFromRemoveSim", responseFromRemoveSim);
+      logObject("result", result);
 
-      if (responseFromRemoveSim.success === true) {
-        const status = responseFromRemoveSim.status
-          ? responseFromRemoveSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveSim.message,
-          removed_sim: responseFromRemoveSim.data,
+          message: result.message,
+          removed_sim: result.data,
         });
-      } else if (responseFromRemoveSim.success === false) {
-        const status = responseFromRemoveSim.status
-          ? responseFromRemoveSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveSim.message,
-          errors: responseFromRemoveSim.errors
-            ? responseFromRemoveSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText("updating sim................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromUpdateSim = await createSimUtil.updateLocal(request);
-      logObject("responseFromUpdateSim", responseFromUpdateSim);
-      if (responseFromUpdateSim.success === true) {
-        const status = responseFromUpdateSim.status
-          ? responseFromUpdateSim.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromUpdateSim.message,
-          updated_sim: responseFromUpdateSim.data,
-        });
-      } else if (responseFromUpdateSim.success === false) {
-        const status = responseFromUpdateSim.status
-          ? responseFromUpdateSim.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromUpdateSim.message,
-          errors: responseFromUpdateSim.errors
-            ? responseFromUpdateSim.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  list: async (req, res) => {
-    try {
-      logText(".....................................");
-      logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromListSims = await createSimUtil.listLocal(request);
-      logElement(
-        "has the response for listing sims been successful?",
-        responseFromListSims.success
-      );
-      if (responseFromListSims.success === true) {
-        const status = responseFromListSims.status
-          ? responseFromListSims.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromListSims.message,
-          sims: responseFromListSims.data,
-        });
-      } else if (responseFromListSims.success === false) {
-        const status = responseFromListSims.status
-          ? responseFromListSims.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromListSims.message,
-          errors: responseFromListSims.errors
-            ? responseFromListSims.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  checkStatus: async (req, res) => {
-    try {
-      logText(".....................................");
-      logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
-      const responseFromCheckStatus = await createSimUtil.checkStatus(request);
 
-      logObject(
-        "responseFromCheckStatus in controller",
-        responseFromCheckStatus
-      );
-      if (responseFromCheckStatus.success === true) {
-        const status = responseFromCheckStatus.status
-          ? responseFromCheckStatus.status
-          : httpStatus.OK;
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.updateLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCheckStatus.message,
-          status: responseFromCheckStatus.data,
+          message: result.message,
+          updated_sim: result.data,
         });
-      } else if (responseFromCheckStatus.success === false) {
-        const status = responseFromCheckStatus.status
-          ? responseFromCheckStatus.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCheckStatus.message,
-          errors: responseFromCheckStatus.errors
-            ? responseFromCheckStatus.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- update -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  activateSim: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.listLocal(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromActivateSim = await createSimUtil.activateSim(request);
       logElement(
         "has the response for listing sims been successful?",
-        responseFromActivateSim.success
+        result.success
       );
-      if (responseFromActivateSim.success === true) {
-        const status = responseFromActivateSim.status
-          ? responseFromActivateSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromActivateSim.message,
-          status: responseFromActivateSim.data,
+          message: result.message,
+          sims: result.data,
         });
-      } else if (responseFromActivateSim.success === false) {
-        const status = responseFromActivateSim.status
-          ? responseFromActivateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromActivateSim.message,
-          errors: responseFromActivateSim.errors
-            ? responseFromActivateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- list -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  deactivateSim: async (req, res) => {
+  checkStatus: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.checkStatus(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromDeactivateSim = await createSimUtil.deactivateSim(
-        request
-      );
-      logElement(
-        "has the response for listing sims been successful?",
-        responseFromDeactivateSim.success
-      );
-      if (responseFromDeactivateSim.success === true) {
-        const status = responseFromDeactivateSim.status
-          ? responseFromDeactivateSim.status
-          : httpStatus.OK;
+
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromDeactivateSim.message,
-          status: responseFromDeactivateSim.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromDeactivateSim.success === false) {
-        const status = responseFromDeactivateSim.status
-          ? responseFromDeactivateSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromDeactivateSim.message,
-          errors: responseFromDeactivateSim.errors
-            ? responseFromDeactivateSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(
+        `🐛🐛 Internal Server Error -- checkStatus -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  updateSimName: async (req, res) => {
+  activateSim: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.activateSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromUpdateSimName = await createSimUtil.updateSimName(
-        request
-      );
       logElement(
         "has the response for listing sims been successful?",
-        responseFromUpdateSimName.success
+        result.success
       );
-      if (responseFromUpdateSimName.success === true) {
-        const status = responseFromUpdateSimName.status
-          ? responseFromUpdateSimName.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateSimName.message,
-          status: responseFromUpdateSimName.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromUpdateSimName.success === false) {
-        const status = responseFromUpdateSimName.status
-          ? responseFromUpdateSimName.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateSimName.message,
-          errors: responseFromUpdateSimName.errors
-            ? responseFromUpdateSimName.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(
+        `🐛🐛 Internal Server Error -- activateSim -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  rechargeSim: async (req, res) => {
+  deactivateSim: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all sims by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.deactivateSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromRechargeSim = await createSimUtil.rechargeSim(request);
       logElement(
         "has the response for listing sims been successful?",
-        responseFromRechargeSim.success
+        result.success
       );
-      if (responseFromRechargeSim.success === true) {
-        const status = responseFromRechargeSim.status
-          ? responseFromRechargeSim.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRechargeSim.message,
-          status: responseFromRechargeSim.data,
+          message: result.message,
+          status: result.data,
         });
-      } else if (responseFromRechargeSim.success === false) {
-        const status = responseFromRechargeSim.status
-          ? responseFromRechargeSim.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRechargeSim.message,
-          errors: responseFromRechargeSim.errors
-            ? responseFromRechargeSim.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(
+        `🐛🐛 Internal Server Error -- deactivateSim -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  updateSimName: async (req, res, next) => {
+    try {
+      logText(".....................................");
+      logText("list all sims by query params provided");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.updateSimName(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logElement(
+        "has the response for listing sims been successful?",
+        result.success
+      );
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          status: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(
+        `🐛🐛 Internal Server Error -- updateSimName -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  rechargeSim: async (req, res, next) => {
+    try {
+      logText(".....................................");
+      logText("list all sims by query params provided");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createSimUtil.rechargeSim(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logElement(
+        "has the response for listing sims been successful?",
+        result.success
+      );
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          status: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(
+        `🐛🐛 Internal Server Error -- rechargeSim -- ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

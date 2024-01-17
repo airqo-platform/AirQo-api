@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
@@ -10,20 +10,11 @@ const constants = require("@config/constants");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-model`
 );
+const { HttpError } = require("@utils/errors");
 
 const successResponse = {
   success: true,
   status: httpStatus.OK,
-};
-
-const errorResponse = {
-  success: false,
-  status: httpStatus.INTERNAL_SERVER_ERROR,
-};
-
-const notFoundResponse = {
-  success: false,
-  status: httpStatus.NOT_FOUND,
 };
 
 const transactionSchemaOptions = {
@@ -43,17 +34,6 @@ const TransactionSchema = new Schema(
   transactionSchemaOptions
 );
 
-const handleServerError = (error, message) => {
-  logObject("error", error);
-  const stingifiedMessage = JSON.stringify(error ? error : "");
-  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
-  return {
-    ...errorResponse,
-    message,
-    errors: { message: error.message },
-  };
-};
-
 TransactionSchema.pre("save", function (next) {
   return next();
 });
@@ -62,7 +42,7 @@ TransactionSchema.pre("update", function (next) {
   return next();
 });
 
-TransactionSchema.statics.register = async function (args) {
+TransactionSchema.statics.register = async function (args, next) {
   logObject("the args", args);
   try {
     const data = await this.create(args);
@@ -72,43 +52,32 @@ TransactionSchema.statics.register = async function (args) {
       message: "transaction created",
     };
   } catch (error) {
+    let errors = {};
+    let message = "validation errors for some of the provided fields";
     if (error.code === 11000) {
-      const response = Object.entries(error.keyPattern).reduce(
-        (acc, [key, value]) => {
-          acc[key] = "duplicate value";
-          return acc;
-        },
-        {}
-      );
-      return {
-        ...errorResponse,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-      };
+      errors = Object.entries(error.keyPattern).reduce((acc, [key, value]) => {
+        acc[key] = "duplicate value";
+        return acc;
+      }, {});
     }
     if (error.errors) {
-      const response = Object.entries(error.errors).reduce(
-        (acc, [key, value]) => {
-          acc[value.path] = value.message;
-          return acc;
-        },
-        {}
-      );
-      return {
-        ...errorResponse,
-        errors: response,
-        message: "validation errors for some of the provided fields",
-      };
+      errors = Object.entries(error.errors).reduce((acc, [key, value]) => {
+        acc[value.path] = value.message;
+        return acc;
+      }, {});
     }
-    return handleServerError(error, "Internal Server Error");
+
+    logObject("error", error);
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(new HttpError(message, httpStatus.INTERNAL_SERVER_ERROR, errors));
+    return;
   }
 };
 
-TransactionSchema.statics.list = async function ({
-  skip = 0,
-  limit = 5,
-  filter = {},
-} = {}) {
+TransactionSchema.statics.list = async function (
+  { skip = 0, limit = 5, filter = {} } = {},
+  next
+) {
   try {
     const transactions = await this.aggregate()
       .match(filter)
@@ -130,21 +99,27 @@ TransactionSchema.statics.list = async function ({
         data: transactions,
         message: "successfully listed the transactions",
       };
+    } else {
+      return {
+        ...successResponse,
+        data: [],
+        message: "no transactions exist for this search",
+      };
     }
-
-    return {
-      ...notFoundResponse,
-      message: "no transactions exist for this search",
-    };
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-TransactionSchema.statics.modify = async function ({
-  filter = {},
-  update = {},
-} = {}) {
+TransactionSchema.statics.modify = async function (
+  { filter = {}, update = {} } = {},
+  next
+) {
   try {
     const modifiedUpdate = update;
     const projection = { _id: 1 };
@@ -160,24 +135,31 @@ TransactionSchema.statics.modify = async function ({
     );
 
     if (isEmpty(updatedTransaction)) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "transaction does not exist, please crosscheck",
+        })
+      );
+      return;
+    } else {
       return {
-        ...notFoundResponse,
-        message: "transaction does not exist, please crosscheck",
-        errors: { message: "transaction does not exist" },
+        ...successResponse,
+        message: "successfully modified the transaction",
+        data: updatedTransaction,
       };
     }
-
-    return {
-      ...successResponse,
-      message: "successfully modified the transaction",
-      data: updatedTransaction,
-    };
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
-TransactionSchema.statics.remove = async function ({ filter = {} } = {}) {
+TransactionSchema.statics.remove = async function ({ filter = {} } = {}, next) {
   try {
     const projection = {
       _id: 1,
@@ -193,20 +175,27 @@ TransactionSchema.statics.remove = async function ({ filter = {} } = {}) {
     const removedTransaction = await this.findOneAndRemove(filter, options);
 
     if (isEmpty(removedTransaction)) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "transaction does not exist, please crosscheck",
+        })
+      );
+      return;
+    } else {
       return {
-        ...notFoundResponse,
-        message: "transaction does not exist, please crosscheck",
-        errors: { message: "transaction does not exist" },
+        ...successResponse,
+        message: "successfully removed the transaction",
+        data: removedTransaction._doc,
       };
     }
-
-    return {
-      ...successResponse,
-      message: "successfully removed the transaction",
-      data: removedTransaction._doc,
-    };
   } catch (error) {
-    return handleServerError(error, "Internal Server Error");
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
   }
 };
 
@@ -234,20 +223,12 @@ TransactionSchema.methods.toJSON = function () {
   };
 };
 
-const createTransactionModel = (tenant) => {
+const TransactionModel = (tenant) => {
   try {
-    const transactions = mongoose.model("transactions");
-    return transactions;
+    return mongoose.model("transactions");
   } catch (error) {
-    const transactions = getModelByTenant(
-      tenant,
-      "transaction",
-      TransactionSchema
-    );
-    return transactions;
+    return getModelByTenant(tenant, "transaction", TransactionSchema);
   }
 };
-
-const TransactionModel = createTransactionModel;
 
 module.exports = TransactionModel;

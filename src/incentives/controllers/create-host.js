@@ -1,7 +1,6 @@
 const httpStatus = require("http-status");
 const { logObject, logElement, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const createHostUtil = require("@utils/create-host");
 const log4js = require("log4js");
 const constants = require("@config/constants");
@@ -9,234 +8,262 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-host-controller`
 );
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createHost = {
-  create: async (req, res) => {
+  create: async (req, res, next) => {
     logText("registering host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHostUtil.create(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromCreateHost = await createHostUtil.create(request);
-      logObject("responseFromCreateHost in controller", responseFromCreateHost);
-      if (responseFromCreateHost.success === true) {
-        let status = responseFromCreateHost.status
-          ? responseFromCreateHost.status
-          : httpStatus.OK;
+
+      logObject("result in controller", result);
+      if (result.success === true) {
+        let status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateHost.message,
-          created_host: responseFromCreateHost.data,
+          message: result.message,
+          created_host: result.data,
         });
-      } else if (responseFromCreateHost.success === false) {
-        const status = responseFromCreateHost.status
-          ? responseFromCreateHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCreateHost.message,
-          errors: responseFromCreateHost.errors
-            ? responseFromCreateHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (req, res) => {
+  delete: async (req, res, next) => {
     try {
       logText(".................................................");
       logText("inside delete host............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
 
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHostUtil.delete(request, next);
+
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromRemoveHost = await createHostUtil.delete(request);
 
-      logObject("responseFromRemoveHost", responseFromRemoveHost);
+      logObject("result", result);
 
-      if (responseFromRemoveHost.success === true) {
-        const status = responseFromRemoveHost.status
-          ? responseFromRemoveHost.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveHost.message,
-          removed_host: responseFromRemoveHost.data,
+          message: result.message,
+          removed_host: result.data,
         });
-      } else if (responseFromRemoveHost.success === false) {
-        const status = responseFromRemoveHost.status
-          ? responseFromRemoveHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveHost.message,
-          errors: responseFromRemoveHost.errors
-            ? responseFromRemoveHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (req, res) => {
+  update: async (req, res, next) => {
     try {
       logText("updating host................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHostUtil.update(request, next);
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromUpdateHost = await createHostUtil.update(request);
-      logObject("responseFromUpdateHost", responseFromUpdateHost);
-      if (responseFromUpdateHost.success === true) {
-        const status = responseFromUpdateHost.status
-          ? responseFromUpdateHost.status
-          : httpStatus.OK;
+      logObject("result", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateHost.message,
-          updated_host: responseFromUpdateHost.data,
+          message: result.message,
+          updated_host: result.data,
         });
-      } else if (responseFromUpdateHost.success === false) {
-        const status = responseFromUpdateHost.status
-          ? responseFromUpdateHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateHost.message,
-          errors: responseFromUpdateHost.errors
-            ? responseFromUpdateHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- update -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  list: async (req, res) => {
+  list: async (req, res, next) => {
     try {
       logText(".....................................");
       logText("list all hosts by query params provided");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHostUtil.list(request, next);
+      if (isEmpty(result)) {
+        return;
       }
-      request.query.tenant = tenant;
-      const responseFromListHosts = await createHostUtil.list(request);
       logElement(
         "has the response for listing hosts been successful?",
-        responseFromListHosts.success
+        result.success
       );
-      if (responseFromListHosts.success === true) {
-        const status = responseFromListHosts.status
-          ? responseFromListHosts.status
-          : httpStatus.OK;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListHosts.message,
-          hosts: responseFromListHosts.data,
+          message: result.message,
+          hosts: result.data,
         });
-      } else if (responseFromListHosts.success === false) {
-        const status = responseFromListHosts.status
-          ? responseFromListHosts.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListHosts.message,
-          errors: responseFromListHosts.errors
-            ? responseFromListHosts.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error -- list -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

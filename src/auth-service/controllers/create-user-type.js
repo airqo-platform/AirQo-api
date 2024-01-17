@@ -1,8 +1,7 @@
 const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const controlAccessUtil = require("@utils/control-access");
-const { logText, logElement, logObject, logError } = require("@utils/log");
+const { logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -11,229 +10,223 @@ const logger = log4js.getLogger(
 );
 
 const createUserType = {
-  listUsersWithUserType: async (req, res) => {
+  listUsersWithUserType: async (req, res, next) => {
     try {
       logText("we are listing users with type....");
-      const { query } = req;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
-      let request = Object.assign({}, req);
-      if (isEmpty(query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      const responseFromListUsersWithUserType =
-        await controlAccessUtil.listUsersWithUserType(request);
-
-      logObject(
-        "responseFromListUsersWithUserType",
-        responseFromListUsersWithUserType
+      const result = await controlAccessUtil.listUsersWithUserType(
+        request,
+        next
       );
 
-      if (responseFromListUsersWithUserType.success === true) {
-        const status = responseFromListUsersWithUserType.status
-          ? responseFromListUsersWithUserType.status
-          : httpStatus.OK;
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
 
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListUsersWithUserType.message,
-          users_with_user_type: responseFromListUsersWithUserType.data,
+          message: result.message,
+          users_with_user_type: result.data,
         });
-      } else if (responseFromListUsersWithUserType.success === false) {
-        const status = responseFromListUsersWithUserType.status
-          ? responseFromListUsersWithUserType.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        res.status(status).json({
-          success: false,
-          message: responseFromListUsersWithUserType.message,
-          errors: responseFromListUsersWithUserType.errors
-            ? responseFromListUsersWithUserType.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  listAvailableUsersForUserType: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let request = Object.assign({}, req);
-
-      if (isEmpty(req.query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      const responseFromListAvailableUsersForUserType =
-        await controlAccessUtil.listAvailableUsersForUserType(request);
-
-      logObject(
-        "responseFromListAvailableUsersForUserType",
-        responseFromListAvailableUsersForUserType
-      );
-
-      if (responseFromListAvailableUsersForUserType.success === true) {
-        const status = responseFromListAvailableUsersForUserType.status
-          ? responseFromListAvailableUsersForUserType.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully listed the available users",
-          available_users: responseFromListAvailableUsersForUserType.data,
-        });
-      } else if (responseFromListAvailableUsersForUserType.success === false) {
-        const status = responseFromListAvailableUsersForUserType.status
-          ? responseFromListAvailableUsersForUserType.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableUsersForUserType.message,
-          errors: responseFromListAvailableUsersForUserType.errors
-            ? responseFromListAvailableUsersForUserType.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  assignUserType: async (req, res) => {
-    try {
-      logText("assignUserToRole...");
-      const { query, body } = req;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let request = Object.assign({}, req);
-      if (isEmpty(query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      const responseFromAssignUserToUserType =
-        await controlAccessUtil.assignUserType(request);
-
-      if (responseFromAssignUserToUserType.success === true) {
-        const status = responseFromAssignUserToUserType.status
-          ? responseFromAssignUserToUserType.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          updated_records: responseFromAssignUserToUserType.data,
-        });
-      } else if (responseFromAssignUserToUserType.success === false) {
-        const status = responseFromAssignUserToUserType.status
-          ? responseFromAssignUserToUserType.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromAssignUserToUserType.message,
-          errors: responseFromAssignUserToUserType.errors
-            ? responseFromAssignUserToUserType.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  assignManyUsersToUserType: async (req, res) => {
-    try {
-      logText("assignManyUsersToRole...");
-      const { query, body } = req;
-      const hasErrors = !validationResult(req).isEmpty();
-      logObject("hasErrors", hasErrors);
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let request = Object.assign({}, req);
-      if (isEmpty(query.tenant)) {
-        request["query"]["tenant"] = constants.DEFAULT_TENANT || "airqo";
-      }
-
-      const responseFromAssignManyUsersToUserType =
-        await controlAccessUtil.assignManyUsersToUserType(request);
-
-      if (responseFromAssignManyUsersToUserType.success === true) {
-        const status = responseFromAssignManyUsersToUserType.status
-          ? responseFromAssignManyUsersToUserType.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromAssignManyUsersToUserType.message,
-          user_type_assignments: responseFromAssignManyUsersToUserType.data,
-        });
-      } else if (responseFromAssignManyUsersToUserType.success === false) {
-        const status = responseFromAssignManyUsersToUserType.status
-          ? responseFromAssignManyUsersToUserType.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromAssignManyUsersToUserType.message,
-          errors: responseFromAssignManyUsersToUserType.errors
-            ? responseFromAssignManyUsersToUserType.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  listAvailableUsersForUserType: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.listAvailableUsersForUserType(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "successfully listed the available users",
+          available_users: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  assignUserType: async (req, res, next) => {
+    try {
+      logText("assignUserToRole...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.assignUserType(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          updated_records: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  assignManyUsersToUserType: async (req, res, next) => {
+    try {
+      logText("assignManyUsersToRole...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.assignManyUsersToUserType(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          user_type_assignments: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

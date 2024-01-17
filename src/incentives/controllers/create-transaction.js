@@ -1,463 +1,461 @@
 const httpStatus = require("http-status");
 const { logObject, logText } = require("@utils/log");
-const { validationResult } = require("express-validator");
 const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-transaction-controller`
 );
-const errors = require("@utils/errors");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
+function handleResponse({
+  result,
+  key = "data",
+  errorKey = "errors",
+  res,
+} = {}) {
+  if (!result) {
+    return;
+  }
+
+  const isSuccess = result.success;
+  const defaultStatus = isSuccess
+    ? httpStatus.OK
+    : httpStatus.INTERNAL_SERVER_ERROR;
+
+  const defaultMessage = isSuccess
+    ? "Operation Successful"
+    : "Internal Server Error";
+
+  const status = result.status !== undefined ? result.status : defaultStatus;
+  const message =
+    result.message !== undefined ? result.message : defaultMessage;
+  const data = result.data !== undefined ? result.data : [];
+  const errors = isSuccess
+    ? undefined
+    : result.errors !== undefined
+    ? result.errors
+    : { message: "Internal Server Error" };
+
+  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+}
 
 const createTransaction = {
   /******************************** HOST PAYMENTS *************************************************/
-  sendMoneyToHost: async (req, res) => {
+  sendMoneyToHost: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromSendMoneyToHost =
-        await createTransactionUtil.sendMoneyToHost(request);
-      logObject(
-        "responseFromSendMoneyToHost in controller",
-        responseFromSendMoneyToHost
-      );
-      if (responseFromSendMoneyToHost.success === true) {
-        const status = responseFromSendMoneyToHost.status
-          ? responseFromSendMoneyToHost.status
-          : httpStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.sendMoneyToHost(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromSendMoneyToHost.message,
-          transaction: responseFromSendMoneyToHost.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromSendMoneyToHost.success === false) {
-        const status = responseFromSendMoneyToHost.status
-          ? responseFromSendMoneyToHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSendMoneyToHost.message,
-          errors: responseFromSendMoneyToHost.errors
-            ? responseFromSendMoneyToHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- sendMoneyToHost --- ${JSON.stringify(error)}`
+        `🐛🐛 Internal Server Error -- sendMoneyToHost -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  addMoneyToOrganisationAccount: async (req, res) => {
+  addMoneyToOrganisationAccount: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromAddMoneyToOrganisation =
-        await createTransactionUtil.addMoneyToOrganisationAccount(request);
-      logObject(
-        "responseFromAddMoneyToOrganisation in controller",
-        responseFromAddMoneyToOrganisation
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.addMoneyToOrganisationAccount(
+        request,
+        next
       );
-      if (responseFromAddMoneyToOrganisation.success === true) {
-        const status = responseFromAddMoneyToOrganisation.status
-          ? responseFromAddMoneyToOrganisation.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAddMoneyToOrganisation.message,
-          transaction: responseFromAddMoneyToOrganisation.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromAddMoneyToOrganisation.success === false) {
-        const status = responseFromAddMoneyToOrganisation.status
-          ? responseFromAddMoneyToOrganisation.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAddMoneyToOrganisation.message,
-          errors: responseFromAddMoneyToOrganisation.errors
-            ? responseFromAddMoneyToOrganisation.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- addMoneyToOrganisationAccount --- ${JSON.stringify(
-          error
-        )}`
+        `🐛🐛 Internal Server Error -- addMoneyToOrganisationAccount -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  receiveMoneyFromHost: async (req, res) => {
+  receiveMoneyFromHost: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromReceiveMoneyFromHost =
-        await createTransactionUtil.receiveMoneyFromHost(request);
-      logObject(
-        "responseFromReceiveMoneyFromHost in controller",
-        responseFromReceiveMoneyFromHost
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.receiveMoneyFromHost(
+        request,
+        next
       );
-      if (responseFromReceiveMoneyFromHost.success === true) {
-        const status = responseFromReceiveMoneyFromHost.status
-          ? responseFromReceiveMoneyFromHost.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromReceiveMoneyFromHost.message,
-          transaction: responseFromReceiveMoneyFromHost.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromReceiveMoneyFromHost.success === false) {
-        const status = responseFromReceiveMoneyFromHost.status
-          ? responseFromReceiveMoneyFromHost.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromReceiveMoneyFromHost.message,
-          errors: responseFromReceiveMoneyFromHost.errors
-            ? responseFromReceiveMoneyFromHost.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- receiveMoneyFromHost --- ${JSON.stringify(
-          error
-        )}`
+        `🐛🐛 Internal Server Error -- receiveMoneyFromHost -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getTransactionDetails: async (req, res) => {
+  getTransactionDetails: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromGetTransactionDetails =
-        await createTransactionUtil.getTransactionDetails(request);
-      logObject(
-        "responseFromGetTransactionDetails in controller",
-        responseFromGetTransactionDetails
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.getTransactionDetails(
+        request,
+        next
       );
-      if (responseFromGetTransactionDetails.success === true) {
-        const status = responseFromGetTransactionDetails.status
-          ? responseFromGetTransactionDetails.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromGetTransactionDetails.message,
-          transaction: responseFromGetTransactionDetails.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromGetTransactionDetails.success === false) {
-        const status = responseFromGetTransactionDetails.status
-          ? responseFromGetTransactionDetails.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromGetTransactionDetails.message,
-          errors: responseFromGetTransactionDetails.errors
-            ? responseFromGetTransactionDetails.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- getTransactionDetails --- ${JSON.stringify(
-          error
-        )}`
+        `🐛🐛 Internal Server Error -- getTransactionDetails -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-
-  listTransactions: async (req, res) => {
+  listTransactions: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromListTransactions =
-        await createTransactionUtil.listTransactions(request);
-      logObject(
-        "responseFromListTransactions in controller",
-        responseFromListTransactions
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.listTransactions(
+        request,
+        next
       );
-      if (responseFromListTransactions.success === true) {
-        const status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
-          : httpStatus.OK;
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromListTransactions.message,
-          transaction: responseFromListTransactions.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromListTransactions.success === false) {
-        const status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListTransactions.message,
-          errors: responseFromListTransactions.errors
-            ? responseFromListTransactions.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- listTransactions --- ${JSON.stringify(
-          error
-        )}`
+        `🐛🐛 Internal Server Error --  listTransactions -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   /******************************** SIM CARD DATA LOADING *********************************/
-  loadDataBundle: async (req, res) => {
+  loadDataBundle: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromLoadDataBundle =
-        await createTransactionUtil.loadDataBundle(request);
-      logObject(
-        "responseFromLoadDataBundle in controller",
-        responseFromLoadDataBundle
-      );
-      if (responseFromLoadDataBundle.success === true) {
-        const status = responseFromLoadDataBundle.status
-          ? responseFromLoadDataBundle.status
-          : httpStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createTransactionUtil.loadDataBundle(request, next);
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromLoadDataBundle.message,
-          transaction: responseFromLoadDataBundle.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (responseFromLoadDataBundle.success === false) {
-        const status = responseFromLoadDataBundle.status
-          ? responseFromLoadDataBundle.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromLoadDataBundle.message,
-          errors: responseFromLoadDataBundle.errors
-            ? responseFromLoadDataBundle.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- loadDataBundle --- ${JSON.stringify(error)}`
+        `🐛🐛 Internal Server Error -- loadDataBundle -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  checkRemainingDataBundleBalance: async (req, res) => {
+  checkRemainingDataBundleBalance: async (req, res, next) => {
     logText("send money to host.............");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errors.convertErrorArrayToObject(nestedErrors)
-          )}`
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+        return;
       }
-      let { tenant } = req.query;
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-      request.query.tenant = tenant;
 
-      const responseFromCheckRemainingDataBundleBalance =
-        await createTransactionUtil.checkRemainingDataBundleBalance(request);
-      logObject(
-        "responseFromCheckRemainingDataBundleBalance in controller",
-        responseFromCheckRemainingDataBundleBalance
-      );
-      if (responseFromCheckRemainingDataBundleBalance.success === true) {
-        const status = responseFromCheckRemainingDataBundleBalance.status
-          ? responseFromCheckRemainingDataBundleBalance.status
-          : httpStatus.OK;
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result =
+        await createTransactionUtil.checkRemainingDataBundleBalance(
+          request,
+          next
+        );
+
+      if (isEmpty(result)) {
+        return;
+      }
+      logObject("result in controller", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCheckRemainingDataBundleBalance.message,
-          transaction: responseFromCheckRemainingDataBundleBalance.data,
+          message: result.message,
+          transaction: result.data,
         });
-      } else if (
-        responseFromCheckRemainingDataBundleBalance.success === false
-      ) {
-        const status = responseFromCheckRemainingDataBundleBalance.status
-          ? responseFromCheckRemainingDataBundleBalance.status
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromCheckRemainingDataBundleBalance.message,
-          errors: responseFromCheckRemainingDataBundleBalance.errors
-            ? responseFromCheckRemainingDataBundleBalance.errors
+          message: result.message,
+          errors: result.errors
+            ? result.errors
             : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(
-        `Internal Server Error --- checkRemainingDataBundleBalance --- ${JSON.stringify(
-          error
-        )}`
+        `🐛🐛 Internal Server Error -- checkRemainingDataBundleBalance -- ${error.message}`
       );
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

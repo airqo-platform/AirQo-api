@@ -1,6 +1,5 @@
 const LocationModel = require("@models/Location");
-const { logObject, logElement, logText } = require("./log");
-const isEmpty = require("is-empty");
+const { logObject } = require("./log");
 const axios = require("axios");
 const httpStatus = require("http-status");
 const axiosInstance = () => {
@@ -11,7 +10,7 @@ const generateFilter = require("./generate-filter");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-location-util`
 );
-
+const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -26,18 +25,21 @@ const createLocation = {
     try {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
-    } catch (e) {
-      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
+    } catch (error) {
+      logger.error(
+        `internal server error -- hasNoWhiteSpace -- ${error.message}`
+      );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       let { body } = request;
       let { tenant } = request.query;
       logObject("body", body);
 
       const responseFromRegisterLocation = await LocationModel(tenant).register(
-        body
+        body,
+        next
       );
 
       logObject("responseFromRegisterLocation", responseFromRegisterLocation);
@@ -70,82 +72,95 @@ const createLocation = {
       } else if (responseFromRegisterLocation.success === false) {
         return responseFromRegisterLocation;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to create location",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       let { query } = request;
       let { body } = request;
       let { tenant } = query;
 
       let update = body;
-      let filter = generateFilter.locations(request);
+      let filter = generateFilter.locations(request, next);
 
-      const responseFromModifyLocation = await LocationModel(tenant).modify({
-        filter,
-        update,
-      });
+      const responseFromModifyLocation = await LocationModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
 
       return responseFromModifyLocation;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to update location",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       let { query } = request;
       let { tenant } = query;
-      let filter = generateFilter.locations(request);
-      const responseFromRemoveLocation = await LocationModel(tenant).remove({
-        filter,
-      });
+      let filter = generateFilter.locations(request, next);
+      const responseFromRemoveLocation = await LocationModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
 
       return responseFromRemoveLocation;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to delete location",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       let { query } = request;
       let { tenant, limit, skip } = query;
-      let filter = generateFilter.locations(request);
+      let filter = generateFilter.locations(request, next);
 
-      const responseFromListLocation = await LocationModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const responseFromListLocation = await LocationModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
 
       return responseFromListLocation;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
-      return {
-        success: false,
-        message: "unable to list location",
-        errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

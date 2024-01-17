@@ -1,18 +1,35 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
-  name: airflow
+  name: workflows
   namespace: pipeline
 spec:
   host: staging-platform.airqo.net
   upstreams:
-    - name: airflow
-      service: airflow-svc
+    - name: workflows
+      service: workflows-svc
       port: 8080
   subroutes:
-    - path: /airflow
+    - path: /workflows
       action:
-        pass: airflow
+        pass: workflows
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: mlflow
+  namespace: staging
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: mlflow
+      service: airqo-mlflow
+      port: 5024
+  subroutes:
+    - path: /mlflow
+      action:
+        pass: mlflow
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -69,6 +86,9 @@ spec:
     - name: data-mgt
       service: airqo-stage-data-mgt-api-svc
       port: 3000
+    - name: data-proxy
+      service: airqo-stage-data-proxy-api-svc
+      port: 3000
     - name: locate
       service: airqo-stage-locate-api-svc
       port: 4001
@@ -106,8 +126,10 @@ spec:
     - path: /
       action:
         pass: platform-ui
-    - path: /airflow
-      route: pipeline/airflow
+    - path: /workflows
+      route: pipeline/workflows
+    - path: /mlflow
+      route: staging/mlflow
     - path: /grafana
       route: monitoring/grafana
     - path: /inventory
@@ -132,6 +154,14 @@ spec:
       action:
         proxy:
           upstream: data-mgt
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/proxy
+      action:
+        proxy:
+          upstream: data-proxy
           responseHeaders:
             add:
               - name: Content-Type

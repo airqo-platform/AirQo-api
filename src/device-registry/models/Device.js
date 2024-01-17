@@ -3,13 +3,14 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
+const { HttpError } = require("@utils/errors");
 const { monthsInfront } = require("@utils/date");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-model`);
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const maxLength = [
   40,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
@@ -297,7 +298,7 @@ deviceSchema.methods = {
 };
 
 deviceSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       let modifiedArgs = Object.assign({}, args);
 
@@ -320,25 +321,25 @@ deviceSchema.statics = {
           if (!isEmpty(alias)) {
             modifiedArgs.alias = alias.trim().replace(/ /g, "_");
           } else if (isEmpty(alias)) {
-            return {
-              success: false,
-              message: "Internal Server Error",
-              errors: {
-                message: "unable to generate the ALIAS for the device",
-              },
-              status: HTTPStatus.INTERNAL_SERVER_ERROR,
-            };
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "unable to generate the ALIAS for the device" }
+              )
+            );
           }
         } catch (error) {
           logger.error(
             `internal server error -- sanitise ALIAS -- ${error.message}`
           );
-          return {
-            success: false,
-            errors: { message: error.message },
-            message: "Internal Server Error",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: error.message }
+            )
+          );
         }
       }
 
@@ -354,12 +355,13 @@ deviceSchema.statics = {
           logger.error(
             `internal server error -- sanitise NAME -- ${error.message}`
           );
-          return {
-            success: false,
-            errors: { message: error.message },
-            message: "Internal Server Error",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: error.message }
+            )
+          );
         }
       }
 
@@ -375,12 +377,13 @@ deviceSchema.statics = {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
           );
-          return {
-            success: false,
-            errors: { message: error.message },
-            message: "Internal Server Error",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: error.message }
+            )
+          );
         }
       }
 
@@ -391,16 +394,15 @@ deviceSchema.statics = {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
           );
-          return {
-            success: false,
-            errors: { message: error.message },
-            message: "Internal Server Error",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          };
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: error.message }
+            )
+          );
         }
       }
-
-      logObject("modifiedArgs", modifiedArgs);
 
       let createdDevice = await this.create({
         ...modifiedArgs,
@@ -410,39 +412,36 @@ deviceSchema.statics = {
           success: true,
           message: "successfully created the device",
           data: createdDevice._doc,
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
+      } else {
+        logger.error("operation successful but device is not created");
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "operation successful but device not created" }
+          )
+        );
       }
       logger.warn("operation successful but device is not created");
-      return {
-        success: true,
-        message: "operation successful but device not created",
-        data: createdDevice._doc,
-        status: HTTPStatus.OK,
-      };
-    } catch (err) {
-      logObject("the error in the Device Model", err);
-      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
+    } catch (error) {
+      logObject("the error in the Device Model", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
-      if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
+      let status = httpStatus.CONFLICT;
+      if (error.errors) {
+        Object.entries(error.errors).forEach(([key, value]) => {
           response.message = value.message;
           response[key] = value.message;
           return response;
         });
       }
-
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      next(new HttpError(message, status, response));
     }
   },
-  async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
+  async list({ _skip = 0, _limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
@@ -492,35 +491,34 @@ deviceSchema.statics = {
         .allowDiskUse(true);
 
       const response = await pipeline;
-
-      // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the device details",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: true,
           message: "no device details exist for this search, please crosscheck",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: [],
         };
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "unable to retrieve devices",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(error)}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {}, opts = {} } = {}) {
+  async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
@@ -574,27 +572,28 @@ deviceSchema.statics = {
           success: true,
           message: "successfully modified the device",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedDevice)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "device does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "device does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logObject("the error", error);
-      return {
-        success: false,
-        message: "Device model server error - modify",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async encryptKeys({ filter = {}, update = {} } = {}) {
+  async encryptKeys({ filter = {}, update = {} } = {}, next) {
     try {
       logObject("the filter", filter);
       let options = { new: true };
@@ -625,7 +624,7 @@ deviceSchema.statics = {
           constants.KEY_ENCRYPTION_KEY
         ).toString();
       }
-      let updatedDevice = await this.findOneAndUpdate(
+      const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -636,27 +635,28 @@ deviceSchema.statics = {
           success: true,
           message: "successfully modified the device",
           data: updatedDevice._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedDevice)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "device does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "device does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
       logObject("the error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: {
@@ -674,23 +674,26 @@ deviceSchema.statics = {
           success: true,
           message: "successfully deleted device from the platform",
           data: removedDevice._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedDevice)) {
-        return {
-          success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "device does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "device does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Device model server error - remove",
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
 };

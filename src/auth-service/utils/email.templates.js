@@ -1,4 +1,4 @@
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -105,8 +105,9 @@ module.exports = {
     entity_title = "",
     targetId,
     inviterEmail,
+    userExists = false,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -159,7 +160,7 @@ module.exports = {
                                 <br />
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support

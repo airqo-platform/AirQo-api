@@ -1,14 +1,15 @@
 const InquiryModel = require("@models/Inquiry");
-const { logObject, logElement, logText } = require("./log");
-const mailer = require("./mailer");
+const { logObject } = require("@utils/log");
+const mailer = require("@utils/mailer");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
+const generatFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
-const isEmpty = require("is-empty");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-util`);
+const { HttpError } = require("@utils/errors");
 
-const inquire = {
-  create: async (inquire) => {
+const inquiry = {
+  create: async (request, next) => {
     try {
       const {
         fullName,
@@ -18,26 +19,29 @@ const inquire = {
         tenant,
         firstName,
         lastName,
-      } = inquire;
+      } = { ...request.body, ...request.query, ...request.params };
 
-      let name = fullName;
-
-      if (isEmpty(fullName)) {
-        name = firstName;
-      }
+      const name = fullName || firstName || lastName;
+      const inquiry = {
+        ...request.body,
+      };
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
-        inquire
+        inquiry,
+        next
       );
 
       if (responseFromCreateInquiry.success === true) {
         const createdInquiry = await responseFromCreateInquiry.data;
         const responseFromSendEmail = await mailer.inquiry(
-          name,
-          email,
-          category,
-          message,
-          tenant
+          {
+            name,
+            email,
+            category,
+            message,
+            tenant,
+          },
+          next
         );
 
         if (responseFromSendEmail.success === true) {
@@ -54,134 +58,106 @@ const inquire = {
       } else if (responseFromCreateInquiry.success === false) {
         return responseFromCreateInquiry;
       }
-    } catch (e) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  list: async ({ tenant, filter, limit, skip }) => {
+  list: async (request, next) => {
     try {
-      logElement("the tenant", tenant);
-      logObject("the filter", filter);
-      logElement("limit", limit);
-      logElement("the skip", skip);
-
-      let responseFromListInquiry = await InquiryModel(
-        tenant.toLowerCase()
-      ).list({
-        filter,
-        limit,
-        skip,
-      });
-
-      if (responseFromListInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromListInquiry.message,
-          data: responseFromListInquiry.data,
-        };
-      } else if (responseFromListInquiry.success == false) {
-        if (responseFromListInquiry.error) {
-          return {
-            success: false,
-            message: responseFromListInquiry.message,
-            error: responseFromListInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListInquiry.message,
-          };
-        }
-      }
-    } catch (e) {
-      return {
-        success: false,
-        message: "utils server error",
-        error: e.message,
+      const { tenant, filter, limit, skip } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
       };
+      const responseFromListInquiry = await InquiryModel(
+        tenant.toLowerCase()
+      ).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      return responseFromListInquiry;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  update: async (tenant, filter, update) => {
+  update: async (request, next) => {
     try {
-      let responseFromModifyInquiry = await InquiryModel(
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const update = request.body;
+      const filter = await generatFilter.inquiry(request, next);
+      const responseFromModifyInquiry = await InquiryModel(
         tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       logObject("responseFromModifyInquiry", responseFromModifyInquiry);
-      if (responseFromModifyInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromModifyInquiry.message,
-          data: responseFromModifyInquiry.data,
-        };
-      } else if (responseFromModifyInquiry.success == false) {
-        if (responseFromModifyInquiry.error) {
-          return {
-            success: false,
-            message: responseFromModifyInquiry.message,
-            error: responseFromModifyInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyInquiry.message,
-          };
-        }
-      }
-    } catch (e) {
-      return {
-        success: false,
-        message: "util server error",
-        error: e.message,
-      };
+      return responseFromModifyInquiry;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  delete: async (tenant, filter) => {
+  delete: async (request, next) => {
     try {
-      let responseFromRemoveInquiry = await InquiryModel(
-        tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-
-      if (responseFromRemoveInquiry.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveInquiry.message,
-          data: responseFromRemoveInquiry.data,
-        };
-      } else if (responseFromRemoveInquiry.success == false) {
-        if (responseFromRemoveInquiry.error) {
-          return {
-            success: false,
-            message: responseFromRemoveInquiry.message,
-            error: responseFromRemoveInquiry.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveInquiry.message,
-          };
-        }
-      }
-    } catch (e) {
-      return {
-        success: false,
-        message: "util server error",
-        error: e.message,
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
       };
+      const filter = await generatFilter.inquiry(request, next);
+
+      const responseFromRemoveInquiry = await InquiryModel(
+        tenant.toLowerCase()
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
+      return responseFromRemoveInquiry;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
 
-module.exports = inquire;
+module.exports = inquiry;

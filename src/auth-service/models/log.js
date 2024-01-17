@@ -1,9 +1,11 @@
 const mongoose = require("mongoose").set("debug", true);
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getTenantDB, getModelByTenant } = require("@config/database");
-
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- log-model`);
+const { HttpError } = require("@utils/errors");
 const logSchema = new mongoose.Schema(
   {
     timestamp: { type: Date, required: true },
@@ -38,7 +40,7 @@ logSchema.pre("update", function (next) {
 });
 
 logSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       const newLog = await this.create({
         ...args,
@@ -75,17 +77,11 @@ logSchema.statics = {
           "the Log_name and Log_code must be unique for every Log";
       }
 
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const logs = await this.aggregate()
         .match(filter)
@@ -110,15 +106,17 @@ logSchema.statics = {
         };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Errors",
-        error: error.message,
-        errors: { message: error.message },
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -137,24 +135,24 @@ logSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedLog)) {
-        return {
-          success: false,
-          message: "Log not found",
-          errors: { message: "bad request" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Log not found",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: "internal server errors" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       let options = {
         projection: { _id: 1 },
@@ -169,22 +167,21 @@ logSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedLog)) {
-        return {
-          success: false,
-          message: "Log does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Log does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Log does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      return {
-        success: false,
-        message: "internal server errors",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

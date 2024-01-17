@@ -1,3 +1,4 @@
+const { HttpError } = require("@utils/errors");
 const {
   monthsInfront,
   isTimeEmpty,
@@ -16,13 +17,12 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
-
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
 };
-
+//startTime=2022-12-20T10:34:15.880Z
 const generateFilter = {
-  events: (request) => {
+  events: (request, next) => {
     const { query, params } = request;
     const {
       device,
@@ -281,8 +281,673 @@ const generateFilter = {
 
     return filter;
   },
+  readings: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_number,
+      site,
+      frequency,
+      startTime,
+      endTime,
+      device_id,
+      site_id,
+      limit,
+      skip,
+      external,
+      metadata,
+      tenant,
+      recent,
+      page,
+      network,
+      index,
+      running,
+      brief,
+    } = { ...query, ...params };
 
-  devices: (req) => {
+    // Constants for date calculations
+    const today = monthsInfront(0);
+    const oneWeekBack = addDays(-7);
+
+    // Initial filter object
+    const filter = {
+      day: {
+        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $lte: generateDateFormatWithoutHrs(today),
+      },
+      "values.time": {
+        $gte: oneWeekBack,
+        $lte: today,
+      },
+      "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
+    };
+
+    // Handle metadata and external properties
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+
+    // Handle index filtering
+    if (!index) {
+      delete filter["values.pm2_5.value"];
+    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
+      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
+      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      filter["index"] = index;
+    } else {
+      delete filter["values.pm2_5.value"];
+    }
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["values.time"]["$gte"] = start;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["values.time"]["$lte"] = end;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+    }
+
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["values.time"];
+      }
+      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
+        startTime,
+        1
+      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+        addedTwoWeeksToProvidedDateTime
+      );
+    }
+
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["values.time"];
+      }
+      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+        endTime,
+        -1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedTwoWeeksFromProvidedDateTime
+      );
+    }
+
+    if (startTime && endTime) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 1) {
+        if (!isTimeEmpty(endTime)) {
+          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
+            endTime,
+            -1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+          endTime,
+          -1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedTwoWeeksFromProvidedDateTime
+        );
+      }
+    }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["values.device"]["$in"] = mergedArray;
+      filter["device"] = true;
+    } else {
+      delete filter["values.device"];
+      filter["device"] = false;
+    }
+
+    if (device && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (page) {
+      filter["page"] = page;
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle device_number filtering
+    if (device_number) {
+      const deviceArray = device_number.toString().split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (device_number && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
+    // Handle site filtering
+    if (site) {
+      filter["values.site"]["$in"] = site.toString().split(",");
+      filter["metadata"] = "site_id";
+    }
+
+    if (site && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.device_id"]["$in"] = deviceIdArray;
+    }
+
+    if (device_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
+    }
+
+    if (site_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    } else {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
+    }
+
+    if (recent) {
+      filter["recent"] = recent;
+    }
+
+    if (network) {
+      filter["network"] = network;
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
+    }
+
+    // Handle running and brief properties
+    if (running) {
+      filter["running"] = running;
+    }
+
+    if (brief) {
+      filter["brief"] = brief;
+    }
+
+    return filter;
+  },
+  telemetry: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_id,
+      is_reading_primary,
+      site_id,
+      startTime,
+      endTime,
+      skip,
+      limit,
+      frequency,
+    } = { ...query, ...params };
+
+    const today = monthsInfront(0);
+    const threeDaysBack = addDays(-3);
+
+    // Initial filter object
+    const filter = {
+      time: {
+        $gte: threeDaysBack,
+        $lte: today,
+      },
+    };
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["time"]["$gte"] = start;
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["time"]["$lte"] = end;
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["time"];
+      }
+    }
+
+    if (startTime && endTime) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 1) {
+        if (!isTimeEmpty(endTime)) {
+          filter["time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["time"];
+        }
+      }
+    }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["device"]["$in"] = mergedArray;
+    } else {
+      delete filter["device"];
+    }
+
+    if (is_reading_primary) {
+      filter["is_reading_primary"] = is_reading_primary;
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["device_id"]["$in"] = deviceIdArray;
+      filter["metadata"] = "device_id";
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["frequency"] = frequency;
+    } else {
+      filter["frequency"] = "hourly";
+    }
+
+    return filter;
+  },
+  fetch: (request, next) => {
+    const { query, params } = request;
+    const {
+      device,
+      device_number,
+      site,
+      frequency,
+      startTime,
+      endTime,
+      device_id,
+      site_id,
+      limit,
+      skip,
+      external,
+      metadata,
+      tenant,
+      recent,
+      page,
+      network,
+      index,
+      running,
+      brief,
+    } = { ...query, ...params };
+
+    // Constants for date calculations
+    const today = monthsInfront(0);
+    const oneWeekBack = addDays(-1);
+
+    // Initial filter object
+    const filter = {
+      day: {
+        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $lte: generateDateFormatWithoutHrs(today),
+      },
+      "values.time": {
+        $gte: oneWeekBack,
+        $lte: today,
+      },
+      "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
+    };
+
+    // Handle metadata and external properties
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+
+    // Handle index filtering
+    if (!index) {
+      delete filter["values.pm2_5.value"];
+    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
+      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
+      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      filter["index"] = index;
+    } else {
+      delete filter["values.pm2_5.value"];
+    }
+
+    // Handle startTime and endTime filtering
+    if (startTime) {
+      if (!isTimeEmpty(startTime)) {
+        const start = new Date(startTime);
+        filter["values.time"]["$gte"] = start;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+    }
+
+    if (endTime) {
+      if (!isTimeEmpty(endTime)) {
+        const end = new Date(endTime);
+        filter["values.time"]["$lte"] = end;
+      } else {
+        delete filter["values.time"];
+      }
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+    }
+
+    // Handle startTime and endTime corner cases
+    if (startTime && !endTime) {
+      if (!isTimeEmpty(startTime)) {
+        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["values.time"];
+      }
+      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
+        startTime,
+        1
+      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+        addedTwoWeeksToProvidedDateTime
+      );
+    }
+
+    if (!startTime && endTime) {
+      if (!isTimeEmpty(endTime)) {
+        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+      } else {
+        delete filter["values.time"];
+      }
+      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+        endTime,
+        -1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedTwoWeeksFromProvidedDateTime
+      );
+    }
+
+    if (startTime && endTime) {
+      const weeks = getDifferenceInWeeks(startTime, endTime);
+      logObject("the weeks between provided dates", weeks);
+      if (weeks > 1) {
+        if (!isTimeEmpty(endTime)) {
+          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
+            endTime,
+            -1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+          endTime,
+          -1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedTwoWeeksFromProvidedDateTime
+        );
+      }
+    }
+
+    // Handle unique names for sites and devices
+    if (device) {
+      const deviceArray = device
+        .toString()
+        .split(",")
+        .map((value) =>
+          isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
+        );
+      const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["values.device"]["$in"] = mergedArray;
+      filter["device"] = true;
+    } else {
+      delete filter["values.device"];
+      filter["device"] = false;
+    }
+
+    if (device && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (page) {
+      filter["page"] = page;
+    }
+
+    if (limit) {
+      filter["limit"] = limit;
+    }
+
+    if (skip) {
+      filter["skip"] = skip;
+    }
+
+    // Handle device_number filtering
+    if (device_number) {
+      const deviceArray = device_number.toString().split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (device_number && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
+    // Handle site filtering
+    if (site) {
+      filter["values.site"]["$in"] = site.toString().split(",");
+      filter["metadata"] = "site_id";
+    }
+
+    if (site && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    // Handle unique ids for devices and sites
+    if (device_id) {
+      logObject("device_id", device_id);
+      const deviceIdArray = device_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.device_id"]["$in"] = deviceIdArray;
+    }
+
+    if (device_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+
+    if (site_id) {
+      const siteIdArray = site_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.site_id"]["$in"] = siteIdArray;
+      filter["metadata"] = "site_id";
+    }
+
+    if (site_id && !recent && (!external || external === "yes")) {
+      filter["recent"] = "no";
+    }
+
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+
+    // Handle frequency, recent, network, and tenant
+    if (frequency) {
+      filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    } else {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
+    }
+
+    if (recent) {
+      filter["recent"] = recent;
+    }
+
+    if (network) {
+      filter["network"] = network;
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
+    }
+
+    // Handle running and brief properties
+    if (running) {
+      filter["running"] = running;
+    }
+
+    if (brief) {
+      filter["brief"] = brief;
+    }
+
+    return filter;
+  },
+  devices: (req, next) => {
     const {
       name,
       channel,
@@ -395,8 +1060,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  sites: (req) => {
+  sites: (req, next) => {
     const {
       lat_long,
       id,
@@ -498,8 +1162,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  airqlouds: (req) => {
+  airqlouds: (req, next) => {
     const {
       id,
       airqloud_id,
@@ -555,8 +1218,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  grids: (req) => {
+  grids: (req, next) => {
     const { id, admin_level, grid_codes, grid_id, category, network, group } = {
       ...req.query,
       ...req.params,
@@ -599,8 +1261,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  cohorts: (req) => {
+  cohorts: (req, next) => {
     const { id, cohort_codes, name, cohort_id, category, network, group } = {
       ...req.query,
       ...req.params,
@@ -642,8 +1303,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  networks: (req) => {
+  networks: (req, next) => {
     try {
       const { id, name, network_codes, net_id } = {
         ...req.query,
@@ -668,19 +1328,19 @@ const generateFilter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  admin_levels: (req) => {
+  admin_levels: (req, next) => {
     try {
       const { id, name, admin_level_codes, level_id } = {
         ...req.query,
@@ -709,16 +1369,17 @@ const generateFilter = {
 
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  locations: (req) => {
+  locations: (req, next) => {
     let { id, name, admin_level, summary, network } = {
       ...req.query,
       ...req.params,
@@ -747,8 +1408,7 @@ const generateFilter = {
     }
     return filter;
   },
-
-  activities: (req) => {
+  activities: (req, next) => {
     let {
       device,
       id,
@@ -816,8 +1476,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  photos: (req) => {
+  photos: (req, next) => {
     let {
       id,
       device_id,
@@ -874,8 +1533,7 @@ const generateFilter = {
 
     return filter;
   },
-
-  tips: (request) => {
+  tips: (request, next) => {
     let { id, pm25, pm10 } = {
       ...request.query,
       ...request.params,
@@ -893,8 +1551,7 @@ const generateFilter = {
     }
     return filter;
   },
-
-  kyalessons: (request) => {
+  kyalessons: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {
         ...request.query,
@@ -910,18 +1567,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyatasks: (request) => {
+  kyatasks: (request, next) => {
     try {
       const { id, task_id, lesson_id } = {
         ...request.query,
@@ -940,18 +1596,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaprogress: (request) => {
+  kyaprogress: (request, next) => {
     try {
       const { id, user_id, lesson_id, progress_id, quiz_id } = {
         ...request.query,
@@ -979,18 +1634,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaquizzes: (request) => {
+  kyaquizzes: (request, next) => {
     try {
       const { id, quiz_id } = {
         ...request.query,
@@ -1006,18 +1660,17 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-
-  kyaquestions: (request) => {
+  kyaquestions: (request, next) => {
     try {
       const { id, quiz_id, question_id, answer_id } = {
         ...request.query,
@@ -1039,14 +1692,14 @@ const generateFilter = {
       }
       return filter;
     } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

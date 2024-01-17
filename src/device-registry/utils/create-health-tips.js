@@ -1,16 +1,16 @@
 const httpStatus = require("http-status");
 const HealthTipModel = require("@models/HealthTips");
-const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-health-tip-util`
 );
 const translateUtil = require("./translate");
-
+const { HttpError } = require("@utils/errors");
 const { Kafka } = require("kafkajs");
+const isEmpty = require("is-empty");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -18,23 +18,33 @@ const kafka = new Kafka({
 
 const createHealthTips = {
   /*************** general ****************************** */
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { query } = request;
       const { tenant, limit, skip } = query;
-      const filter = generateFilter.tips(request);
+      const filter = generateFilter.tips(request, next);
       const language = request.query.language;
       let translatedHealthTips;
 
-      let responseFromListHealthTips = await HealthTipModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-      if (language !== undefined) {
+      let responseFromListHealthTips = await HealthTipModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      if (
+        language !== undefined &&
+        !isEmpty(responseFromListHealthTips) &&
+        !isEmpty(responseFromListHealthTips.data)
+      ) {
         translatedHealthTips = await translateUtil.translateTips(
-          responseFromListHealthTips.data,
-          language
+          {
+            healthTips: responseFromListHealthTips.data,
+            targetLanguage: language,
+          },
+          next
         );
         responseFromListHealthTips = translatedHealthTips;
       }
@@ -42,77 +52,80 @@ const createHealthTips = {
       logObject("responseFromListHealthTips", responseFromListHealthTips);
       return responseFromListHealthTips;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.tips(request);
+      const filter = generateFilter.tips(request, next);
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromRemoveHealthTip = await HealthTipModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveHealthTip = await HealthTipModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       logObject("responseFromRemoveHealthTip", responseFromRemoveHealthTip);
       return responseFromRemoveHealthTip;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.tips(request);
+      const filter = generateFilter.tips(request, next);
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      const responseFromModifyHealthTip = await HealthTipModel(tenant).modify({
-        filter,
-        update,
-        opts,
-      });
+      const responseFromModifyHealthTip = await HealthTipModel(tenant).modify(
+        {
+          filter,
+          update,
+          opts,
+        },
+        next
+      );
 
       return responseFromModifyHealthTip;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       let { body, query } = request;
       let { tenant } = query;
       let modifiedRequestBody = Object.assign({}, body);
       const responseFromRegisterHealthTip = await HealthTipModel(
         tenant
-      ).register(modifiedRequestBody);
+      ).register(modifiedRequestBody, next);
 
       logObject("responseFromRegisterHealthTip", responseFromRegisterHealthTip);
 
@@ -141,15 +154,14 @@ const createHealthTips = {
         return responseFromRegisterHealthTip;
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
-        },
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

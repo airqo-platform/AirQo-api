@@ -10,32 +10,37 @@ const logger = log4js.getLogger(
 );
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { HttpError } = require("@utils/errors");
 
 const createNetwork = {
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const { tenant, limit, skip } = request.query;
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
-      const responseFromListNetworks = await NetworkModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
+      const filter = generateFilter.networks(request, next);
+
+      const responseFromListNetworks = await NetworkModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListNetworks;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error -- list -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       /**
        * in the near future, this wont be needed since Kafka
@@ -44,10 +49,8 @@ const createNetwork = {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.networks(request, next);
+
       if (isEmpty(filter)) {
         return {
           success: false,
@@ -96,24 +99,23 @@ const createNetwork = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- update -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
       const { query, body } = request;
       const { tenant } = query;
 
-      const filter = generateFilter.networks(request);
-      if (filter.success && filter.success === "false") {
-        return filter;
-      }
+      const filter = generateFilter.networks(request, next);
 
       const network = await NetworkModel(tenant).find(filter).lean();
 
@@ -149,16 +151,19 @@ const createNetwork = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error -- delete -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       /**
        * in the near future, this wont be needed since Kafka
@@ -168,17 +173,21 @@ const createNetwork = {
       const { tenant } = query;
 
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
-        body
+        body,
+        next
       );
       return responseFromCreateNetwork;
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error -- create -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };

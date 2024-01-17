@@ -13,6 +13,7 @@ connectToMongoDB();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
+const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
@@ -21,6 +22,8 @@ const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
+const jsonify = require("@utils/jsonify");
+require("@bin/store-readings-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -63,83 +66,80 @@ app.use(express.static(path.join(__dirname, "public")));
 // app.use("/api/v1/devices", require("@routes/v1"));
 app.use("/api/v2/devices", require("@routes/v2"));
 
-// Error handling middleware
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
+// default error handling
+app.use((req, res, next) => {
   const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
 app.use(function(err, req, res, next) {
-  if (err.status === 404) {
-    // logger.error(
-    //   `this endpoint does not exist --- ${err.message} --- path: ${
-    //     req.originalUrl ? req.originalUrl : ""
-    //   }`
-    // );
-    res.status(err.status).json({
-      success: false,
-      message: "this endpoint does not exist",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 400) {
-    logger.error(`bad request error --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "bad request error",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 401) {
-    logger.error(`Unauthorized --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Unauthorized",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 403) {
-    logger.error(`Forbidden --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Forbidden",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 500) {
-    logger.error(`Internal Server Error --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Internal Server Error",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 502) {
-    logger.error(`Bad Gateway --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Bad Gateway",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 503) {
-    logger.error(`Service Unavailable --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: "Service Unavailable",
-      errors: { message: err.message },
-    });
-  } else if (err.status === 504) {
-    logger.error(`Gateway Timeout. --- ${err.message}`);
-    res.status(err.status).json({
-      success: false,
-      message: " Gateway Timeout.",
-      errors: { message: err.message },
-    });
+  if (!res.headersSent) {
+    if (err instanceof HttpError) {
+      res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        errors: err.errors,
+      });
+    } else if (err.status === 404) {
+      res.status(err.status).json({
+        success: false,
+        message: "This endpoint does not exist",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 400) {
+      logger.error(`Bad request error --- ${jsonify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Bad request error",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 401) {
+      logger.error(`Unauthorized --- ${jsonify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Unauthorized",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 403) {
+      logger.error(`Forbidden --- ${jsonify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: "Forbidden",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 500) {
+      // logger.error(`Internal Server Error --- ${jsonify(err)}`);
+      // logger.error(`Stack Trace: ${err.stack}`);
+      logObject("the error", err);
+      res.status(err.status).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: err.message },
+      });
+    } else if (err.status === 502 || err.status === 503 || err.status === 504) {
+      logger.error(`${err.message} --- ${jsonify(err)}`);
+      res.status(err.status).json({
+        success: false,
+        message: err.message,
+        errors: { message: err.message },
+      });
+    } else {
+      logger.error(`Internal Server Error --- ${jsonify(err)}`);
+      logObject("Internal Server Error", err);
+      logger.error(`Stack Trace: ${err.stack}`);
+      res.status(err.status || 500).json({
+        success: false,
+        message: "Internal Server Error - app entry",
+        errors: { message: err.message },
+      });
+    }
   } else {
-    logger.error(`Internal Server Error --- ${err.message}`);
-    logObject("Internal Server Error", err);
-    res.status(err.status || 500).json({
-      success: false,
-      message: "Internal Server Error - app entry",
-      errors: { message: err.message },
-    });
+    logger.error(
+      `Headers have already been sent, unable to send error response -- ${jsonify(
+        err
+      )}`
+    );
   }
 });
 

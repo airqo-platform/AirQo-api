@@ -7,123 +7,103 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklists-util`);
+const { HttpError } = require("@utils/errors");
 
 const checklists = {
-  list: async (request) => {
+  list: async (request, next) => {
     try {
       const {
         query: { tenant },
       } = request;
-      const filterResponse = generateFilter.checklists(request);
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      }
+      const filter = generateFilter.checklists(request, next);
       const { limit, skip } = request.query;
-      logObject("limit", limit);
-      logObject("skip", skip);
-
-      const responseFromListChecklist = await ChecklistModel(tenant).list({
-        filter: filterResponse,
-        limit,
-        skip,
-      });
-
+      const responseFromListChecklist = await ChecklistModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
       return responseFromListChecklist;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  create: async (request) => {
+  create: async (request, next) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
-      logObject("the body", body);
       const user_id = body.user_id;
       const user = await UserModel(tenant).findById(user_id).lean();
       if (isEmpty(user_id) || isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The provided User does not exist",
             value: user_id,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
+          })
+        );
       }
 
       const responseFromRegisterDefault = await ChecklistModel(tenant).register(
-        body
+        body,
+        next
       );
-      logObject("responseFromRegisterDefault", responseFromRegisterDefault);
-
       return responseFromRegisterDefault;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  update: async (request) => {
+  update: async (request, next) => {
     try {
       const {
         query: { tenant },
         body,
       } = request;
 
-      const filterResponse = generateFilter.checklists(request);
-      logObject("filterResponse", filterResponse);
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      }
-
-      const filter = filterResponse;
+      const filter = generateFilter.checklists(request, next);
       const update = body;
-
-      const modifyResponse = await ChecklistModel(tenant).modify({
-        filter,
-        update,
-      });
-      logObject("modifyResponse", modifyResponse);
-
+      const modifyResponse = await ChecklistModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
       return modifyResponse;
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  upsert: async (request) => {
+  upsert: async (request, next) => {
     try {
       const {
         query: { tenant },
         body,
       } = request;
 
-      const filterResponse = generateFilter.checklists(request);
-      logObject("filterResponse", filterResponse);
-
-      if (filterResponse.success === false) {
-        return filterResponse;
-      }
-
-      const filter = filterResponse;
+      const filter = generateFilter.checklists(request, next);
       const update = body;
       const options = { upsert: true, new: true };
 
@@ -132,7 +112,6 @@ const checklists = {
         update,
         options
       );
-      logObject("modifyResponse", modifyResponse);
 
       if (!isEmpty(modifyResponse)) {
         return {
@@ -142,45 +121,45 @@ const checklists = {
           status: httpStatus.OK,
         };
       } else {
-        return {
-          success: false,
-          message: "unable to create or update a preference",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "unable to create or update a preference" },
-        };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "unable to create or update a preference" }
+          )
+        );
       }
-    } catch (e) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  delete: async (request) => {
+  delete: async (request, next) => {
     try {
-      const responseFromFilter = generateFilter.checklists(request);
-
-      if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
-
-      const filter = responseFromFilter;
+      const filter = generateFilter.checklists(request, next);
       const { tenant } = request.query;
-      const responseFromRemoveDefault = await ChecklistModel(tenant).remove({
-        filter,
-      });
+      const responseFromRemoveDefault = await ChecklistModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       return responseFromRemoveDefault;
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

@@ -15,6 +15,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
 const validUserTypes = ["user", "guest"];
+const { HttpError } = require("@utils/errors");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -61,6 +62,7 @@ const UserSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    analyticsVersion: { type: Number, default: 2 },
     firstName: {
       type: String,
       required: [true, "FirstName is required!"],
@@ -104,6 +106,7 @@ const UserSchema = new Schema(
             default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
           },
           userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -132,6 +135,7 @@ const UserSchema = new Schema(
             default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
           },
           userType: { type: String, default: "guest", enum: validUserTypes },
+          createdAt: { type: String, default: new Date() },
           role: {
             type: ObjectId,
             ref: "role",
@@ -228,21 +232,21 @@ UserSchema.pre("save", function (next) {
       !constants.DEFAULT_NETWORK ||
       !constants.DEFAULT_NETWORK_ROLE
     ) {
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Internal Server Error",
-        errors: {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
           message:
             "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
-        },
-      };
+        }
+      );
     }
 
     this.network_roles = [
       {
         network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
         userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
       },
     ];
@@ -254,24 +258,32 @@ UserSchema.pre("save", function (next) {
       !constants.DEFAULT_GROUP ||
       !constants.DEFAULT_GROUP_ROLE
     ) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
           message:
             "Contact support@airqo.net -- unable to retrieve the default Group or Role to which the User will belong",
-        },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        }
+      );
     }
 
     this.group_roles = [
       {
         group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
         userType: "guest",
+        createdAt: new Date(),
         role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
       },
     ];
+  }
+
+  if (!this.verified) {
+    this.verified = false;
+  }
+
+  if (!this.analyticsVersion) {
+    this.analyticsVersion = 2;
   }
 
   return next();
@@ -288,7 +300,7 @@ UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
-  async register(args) {
+  async register(args, next) {
     try {
       const data = await this.create({
         ...args,
@@ -304,12 +316,11 @@ UserSchema.statics = {
         return {
           success: true,
           data,
-          message: "operation successful but user NOT successfully created",
-          status: httpStatus.BAD_REQUEST,
+          message: "Operation successful but user NOT successfully created",
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
-      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
@@ -328,57 +339,105 @@ UserSchema.statics = {
         response["message"] =
           "the email and userName must be unique for every user";
       }
-      return {
-        error: response,
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
+
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      next(new HttpError(message, status, response));
     }
   },
-  async listStatistics() {
+  async listStatistics(next) {
     try {
       const response = await this.aggregate()
-        .match({})
+        .match({ email: { $ne: null } })
         .sort({ createdAt: -1 })
+        .lookup({
+          from: "clients",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "clients",
+        })
+        .lookup({
+          from: "users",
+          localField: "clients.user_id",
+          foreignField: "_id",
+          as: "api_clients",
+        })
         .group({
           _id: null,
-          count: { $sum: 1 },
-          active: { $sum: { $cond: ["$isActive", 1, 0] } },
+          users: { $sum: 1 },
+          user_details: {
+            $push: {
+              userName: "$userName",
+              email: "$email",
+              _id: "$_id",
+            },
+          },
+          active_users: { $sum: { $cond: ["$isActive", 1, 0] } },
+          active_user_details: {
+            $addToSet: {
+              $cond: {
+                if: "$isActive",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  _id: "$_id",
+                },
+                else: "$nothing",
+              },
+            },
+          },
+          client_users: { $addToSet: "$clients.user_id" },
+          api_user_details: {
+            $addToSet: {
+              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
+              email: { $arrayElemAt: ["$api_clients.email", 0] },
+              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+            },
+          },
         })
         .project({
           _id: 0,
+          users: {
+            number: "$users",
+            details: "$user_details",
+          },
+          active_users: {
+            number: "$active_users",
+            details: "$active_user_details",
+          },
+          api_users: {
+            number: { $size: { $ifNull: ["$client_users", []] } },
+            details: "$api_user_details",
+          },
         })
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "successfully retrieved the user statistics",
-          data: response,
+          message: "Successfully retrieved the user statistics",
+          data: response[0],
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "no users statistics exist",
+          message: "No users statistics exist",
           data: [],
           status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
@@ -477,6 +536,7 @@ UserSchema.statics = {
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
+          analyticsVersion: { $first: "$analyticsVersion" },
           country: { $first: "$country" },
           privilege: { $first: "$privilege" },
           website: { $first: "$website" },
@@ -573,18 +633,19 @@ UserSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${JSON.stringify(error)}`);
-      logObject("error", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
+      logText("the user modification function........");
       let options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
@@ -638,26 +699,24 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedUser)) {
-        return {
-          success: false,
-          message: "user does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          data: [],
-          errors: { message: "user does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "user does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "INTERNAL SERVER ERROR",
-        error: error.message,
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
-  async remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: {
@@ -678,21 +737,22 @@ UserSchema.statics = {
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedUser)) {
-        return {
-          success: false,
-          message: "Provided User does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "Provide User does not exist, please crosscheck" },
-        };
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Provided User does not exist, please crosscheck",
+          })
+        );
       }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+      logObject("the models error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };
@@ -743,6 +803,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      analyticsVersion: this.analyticsVersion,
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
       isActive: this.isActive,
@@ -760,7 +821,6 @@ const UserModel = (tenant) => {
     return users;
   }
 };
-
 UserSchema.methods.createToken = async function () {
   try {
     const filter = { _id: this._id };
@@ -802,7 +862,7 @@ UserSchema.methods.createToken = async function () {
       );
     }
   } catch (error) {
-    logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
   }
 };
 
