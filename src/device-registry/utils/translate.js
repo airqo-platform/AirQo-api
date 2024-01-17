@@ -19,17 +19,11 @@ const translateUtil = {
         const translatedTip = { ...healthTip };
         const translations = await tipsTranslations(index, targetLanguage);
 
-        if (!translations.title || !translations.description) {
-          return {
-            success: false,
-            message: "Translation missing title or description",
-            data: [],
-            status: httpStatus.NOT_FOUND,
-          };
+        if (translations && translations.title && translations.description) {
+          translatedTip.title = translations.title;
+          translatedTip.description = translations.description;
+          translatedHealthTips.push(translatedTip);
         }
-        translatedTip.title = translations.title;
-        translatedTip.description = translations.description;
-        translatedHealthTips.push(translatedTip);
         index++;
       }
 
@@ -61,27 +55,21 @@ const translateUtil = {
       for (const lesson of lessons) {
         const translatedLesson = { ...lesson };
         const translation = await lessonTranslations(index, targetLanguage);
-        if (!translation.title || !translation.completion_message || !translation.tasks) {
-          return {
-            success: false,
-            message: "Translation missing either title, completion_message or tasks",
-            data: [],
-            status: httpStatus.NOT_FOUND,
-          };
+        if (translation && translation.title && translation.completion_message && translation.tasks) {
+          translatedLesson.title = translation.title;
+          translatedLesson.completion_message = translation.completion_message;
+          const translatedTasks = [];
+          let taskIndex = 0;
+          for (const task of lesson.tasks) {
+            const translatedTask = { ...task };
+            translatedTask.title = translation.tasks[taskIndex].title;
+            translatedTask.content = translation.tasks[taskIndex].content;
+            translatedTasks.push(translatedTask);
+            taskIndex++;
+          }
+          translatedLesson.tasks = translatedTasks;
+          translatedLessons.push(translatedLesson);
         }
-        translatedLesson.title = translation.title;
-        translatedLesson.completion_message = translation.completion_message;
-        const translatedTasks = [];
-        let taskIndex = 0;
-        for (const task of lesson.tasks) {
-          const translatedTask = { ...task };
-          translatedTask.title = translation.tasks[taskIndex].title;
-          translatedTask.content = translation.tasks[taskIndex].content;
-          translatedTasks.push(translatedTask);
-          taskIndex++;
-        }
-        translatedLesson.tasks = translatedTasks;
-        translatedLessons.push(translatedLesson);
         index++;
       }
 
@@ -113,43 +101,38 @@ const translateUtil = {
       for (const quiz of quizzes) {
         const translatedQuiz = { ...quiz };
         const translation = await quizTranslations(index, targetLanguage);
-        if (!translation.title || !translation.description || !translation.completion_message || !translation.questions) {
-          return {
-            success: false,
-            message: "Translation missing one of the quiz components(title, description, completion_message, questions)",
-            data: [],
-            status: httpStatus.NOT_FOUND,
-          };
-        }
-        translatedQuiz.title = translation.title;
-        translatedQuiz.description = translation.description;
-        translatedQuiz.completion_message = translation.completion_message;
+        if (translation && translation.title && translation.description && translation.completion_message && translation.questions) {
 
-        const translatedQuestions = [];
-        let questionIndex = 0;
-        for (const question of quiz.questions) {
-          const translatedQuestion = { ...question };
-          const targetQuestion = translation.questions[questionIndex];
-          translatedQuestion.title = targetQuestion.title;
-          translatedQuestion.context = targetQuestion.context;
+          translatedQuiz.title = translation.title;
+          translatedQuiz.description = translation.description;
+          translatedQuiz.completion_message = translation.completion_message;
 
-          const translatedAnswers = [];
-          let answerIndex = 0;
-          for (const answer of question.answers) {
-            const translatedAnswer = { ...answer };
-            const targetAnswer = targetQuestion.answers[answerIndex];
-            translatedAnswer.title = targetAnswer.title;
-            translatedAnswer.content = targetAnswer.content;
+          const translatedQuestions = [];
+          let questionIndex = 0;
+          for (const question of quiz.questions) {
+            const translatedQuestion = { ...question };
+            const targetQuestion = translation.questions[questionIndex];
+            translatedQuestion.title = targetQuestion.title;
+            translatedQuestion.context = targetQuestion.context;
 
-            translatedAnswers.push(translatedAnswer);
-            answerIndex++;
+            const translatedAnswers = [];
+            let answerIndex = 0;
+            for (const answer of question.answers) {
+              const translatedAnswer = { ...answer };
+              const targetAnswer = targetQuestion.answers[answerIndex];
+              translatedAnswer.title = targetAnswer.title;
+              translatedAnswer.content = targetAnswer.content;
+
+              translatedAnswers.push(translatedAnswer);
+              answerIndex++;
+            }
+            translatedQuestion.answers = translatedAnswers;
+            translatedQuestions.push(translatedQuestion);
+            questionIndex++;
           }
-          translatedQuestion.answers = translatedAnswers;
-          translatedQuestions.push(translatedQuestion);
-          questionIndex++;
+          translatedQuiz.questions = translatedQuestions;
+          translatedQuizzes.push(translatedQuiz);
         }
-        translatedQuiz.questions = translatedQuestions;
-        translatedQuizzes.push(translatedQuiz);
         index++;
       }
 
