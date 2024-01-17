@@ -18,6 +18,15 @@ const translateUtil = {
       for (const healthTip of healthTips) {
         const translatedTip = { ...healthTip };
         const translations = await tipsTranslations(index, targetLanguage);
+
+        if (!translations.title || !translations.description) {
+          return {
+            success: false,
+            message: "Translation missing title or description",
+            data: [],
+            status: httpStatus.NOT_FOUND,
+          };
+        }
         translatedTip.title = translations.title;
         translatedTip.description = translations.description;
         translatedHealthTips.push(translatedTip);
@@ -52,6 +61,14 @@ const translateUtil = {
       for (const lesson of lessons) {
         const translatedLesson = { ...lesson };
         const translation = await lessonTranslations(index, targetLanguage);
+        if (!translation.title || !translation.completion_message || !translation.tasks) {
+          return {
+            success: false,
+            message: "Translation missing either title, completion_message or tasks",
+            data: [],
+            status: httpStatus.NOT_FOUND,
+          };
+        }
         translatedLesson.title = translation.title;
         translatedLesson.completion_message = translation.completion_message;
         const translatedTasks = [];
@@ -96,6 +113,14 @@ const translateUtil = {
       for (const quiz of quizzes) {
         const translatedQuiz = { ...quiz };
         const translation = await quizTranslations(index, targetLanguage);
+        if (!translation.title || !translation.description || !translation.completion_message || !translation.questions) {
+          return {
+            success: false,
+            message: "Translation missing one of the quiz components(title, description, completion_message, questions)",
+            data: [],
+            status: httpStatus.NOT_FOUND,
+          };
+        }
         translatedQuiz.title = translation.title;
         translatedQuiz.description = translation.description;
         translatedQuiz.completion_message = translation.completion_message;
