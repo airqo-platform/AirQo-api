@@ -2289,8 +2289,8 @@ const createEvent = {
         }
       }
 
-      if (errors.length > 0) {
-        console.log("API: SOME measurements successfully added");
+      if (errors.length > 0 && isEmpty(eventsAdded)) {
+        console.log("API: failed to store measurements");
         return {
           success: false,
           message: "finished the operation with some errors",
@@ -2298,11 +2298,12 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
-        console.log("API: ALL measurements successfully added");
+        console.log("API: successfully added the events");
         return {
           success: true,
-          message: "successfully added all the events",
+          message: "successfully added the events",
           status: httpStatus.OK,
+          errors,
         };
       }
     } catch (error) {

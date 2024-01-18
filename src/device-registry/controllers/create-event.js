@@ -1611,7 +1611,11 @@ const createEvent = {
         const status = result.status ? result.status : httpStatus.OK;
         return res
           .status(status)
-          .json({ success: true, message: result.message });
+          .json({
+            success: true,
+            message: result.message,
+            errors: result.errors ? result.errors : { message: "" },
+          });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
@@ -1873,7 +1877,9 @@ const createEvent = {
       }
 
       if (result.success === false) {
-        const status = result.status ? result.status : httpStatus.FORBIDDEN;
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: "finished the operation with some errors",
@@ -1885,6 +1891,7 @@ const createEvent = {
           success: true,
           message: "successfully added all the events",
           stored_events: result.data,
+          errors: result.error ? result.error : { message: "" },
         });
       }
     } catch (error) {
