@@ -120,10 +120,13 @@ const translateUtil = {
             for (const answer of question.answers) {
               const translatedAnswer = { ...answer };
               const targetAnswer = targetQuestion.answers[answerIndex];
-              translatedAnswer.title = targetAnswer.title;
-              translatedAnswer.content = targetAnswer.content;
+              if (targetAnswer && targetAnswer.title && targetAnswer.content) {
 
-              translatedAnswers.push(translatedAnswer);
+                translatedAnswer.title = targetAnswer.title;
+                translatedAnswer.content = targetAnswer.content;
+
+                translatedAnswers.push(translatedAnswer);
+              }
               answerIndex++;
             }
             translatedQuestion.answers = translatedAnswers;
