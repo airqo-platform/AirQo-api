@@ -55,7 +55,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 const res = await ReadingModel("airqo").updateOne(doc, doc, {
                   upsert: true,
                 });
-                logObject("res", res);
+                // logObject("res", res);
                 // logObject("Number of documents updated", res.modifiedCount);
               } catch (error) {
                 if (error.name === "MongoError" && error.code !== 11000) {
