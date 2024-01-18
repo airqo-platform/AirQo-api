@@ -136,7 +136,7 @@ app.use(function(err, req, res, next) {
     }
   } else {
     logger.error(
-      `Headers have already been sent, unable to send error response -- ${jsonify(
+      `🍻🍻 Headers have already been sent, unable to send error response -- ${jsonify(
         err
       )}`
     );
