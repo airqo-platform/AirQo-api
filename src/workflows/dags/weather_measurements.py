@@ -2,6 +2,7 @@ from datetime import timedelta, datetime
 
 from airflow.decorators import dag, task
 
+from airqo_etl_utils.constants import Tenant
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
