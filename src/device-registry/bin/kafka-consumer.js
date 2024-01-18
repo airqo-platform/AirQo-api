@@ -67,8 +67,8 @@ const consumeHourlyMeasurements = async (messageData) => {
       );
     }
     const repairedJSONString = jsonrepair(messageData);
-    logObject("original string", messageData);
-    logObject("repaired string", repairedJSONString);
+    // logObject("original string", messageData);
+    // logObject("repaired string", repairedJSONString);
     const measurements = JSON.parse(repairedJSONString).data;
     // const measurements = JSON.parse(repairedJSONString);
     if (!Array.isArray(measurements) || isEmpty(measurements)) {
@@ -90,12 +90,12 @@ const consumeHourlyMeasurements = async (messageData) => {
       );
 
       if (error) {
-        logObject("error.details[0].message", error.details[0].message);
-        logObject("error.details[0]", error.details[0]);
-        logObject("error.details", error.details);
+        // logObject("error.details[0].message", error.details[0].message);
+        // logObject("error.details[0]", error.details[0]);
+        // logObject("error.details", error.details);
         const errorDetails = error.details.map((detail) => {
           const event = detail.context.value;
-          logObject("KAFKA: the event causing the error", event);
+          // logObject("KAFKA: the event causing the error", event);
           const {
             device_number,
             device_id,
@@ -130,25 +130,27 @@ const consumeHourlyMeasurements = async (messageData) => {
         //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${jsonify(value)}`
         // );
       }
-      logObject("value", value);
-      logObject("cleanedMeasurements", cleanedMeasurements);
+      // logObject("value", value);
+      // logObject("cleanedMeasurements", cleanedMeasurements);
       const request = {
         body: cleanedMeasurements,
       };
       const responseFromInsertMeasurements = await createEvent.create(request);
 
-      logObject(
-        "responseFromInsertMeasurements",
-        responseFromInsertMeasurements
-      );
+      // logObject(
+      //   "responseFromInsertMeasurements",
+      //   responseFromInsertMeasurements
+      // );
 
       if (responseFromInsertMeasurements.success === false) {
+        console.log("KAFKA: some failures while inserting data");
         // logger.error(
         //   `KAFKA: responseFromInsertMeasurements --- ${jsonify(
         //     responseFromInsertMeasurements
         //   )}`
         // );
       } else if (responseFromInsertMeasurements.success === true) {
+        console.log("KAFKA: successfully inserted data");
         // logger.info(
         //     `KAFKA: successfully inserted the measurements --- ${jsonify(responseFromInsertMeasurements.message ?
         //     responseFromInsertMeasurements.message :
@@ -157,7 +159,7 @@ const consumeHourlyMeasurements = async (messageData) => {
       }
     }
   } catch (error) {
-    logObject("KAFKA error for consumeHourlyMeasurements()", error);
+    // logObject("KAFKA error for consumeHourlyMeasurements()", error);
     logger.info(
       `ℹ️ℹ️ incoming KAFKA value which is causing errors --- ${message.value.toString()}`
     );
@@ -186,7 +188,6 @@ const kafkaConsumer = async () => {
     const topicOperations = {
       ["hourly-measurements-topic"]: consumeHourlyMeasurements,
       // ["new-hourly-measurements-topic"]: consumeHourlyMeasurements,
-      //topic2: operationFunction2,
       // Add more topics and their corresponding functions as needed
     };
     await consumer.connect();
