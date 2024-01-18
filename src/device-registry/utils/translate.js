@@ -18,9 +18,12 @@ const translateUtil = {
       for (const healthTip of healthTips) {
         const translatedTip = { ...healthTip };
         const translations = await tipsTranslations(index, targetLanguage);
-        translatedTip.title = translations.title;
-        translatedTip.description = translations.description;
-        translatedHealthTips.push(translatedTip);
+
+        if (translations && translations.title && translations.description) {
+          translatedTip.title = translations.title;
+          translatedTip.description = translations.description;
+          translatedHealthTips.push(translatedTip);
+        }
         index++;
       }
 
@@ -52,19 +55,21 @@ const translateUtil = {
       for (const lesson of lessons) {
         const translatedLesson = { ...lesson };
         const translation = await lessonTranslations(index, targetLanguage);
-        translatedLesson.title = translation.title;
-        translatedLesson.completion_message = translation.completion_message;
-        const translatedTasks = [];
-        let taskIndex = 0;
-        for (const task of lesson.tasks) {
-          const translatedTask = { ...task };
-          translatedTask.title = translation.tasks[taskIndex].title;
-          translatedTask.content = translation.tasks[taskIndex].content;
-          translatedTasks.push(translatedTask);
-          taskIndex++;
+        if (translation && translation.title && translation.completion_message && translation.tasks) {
+          translatedLesson.title = translation.title;
+          translatedLesson.completion_message = translation.completion_message;
+          const translatedTasks = [];
+          let taskIndex = 0;
+          for (const task of lesson.tasks) {
+            const translatedTask = { ...task };
+            translatedTask.title = translation.tasks[taskIndex].title;
+            translatedTask.content = translation.tasks[taskIndex].content;
+            translatedTasks.push(translatedTask);
+            taskIndex++;
+          }
+          translatedLesson.tasks = translatedTasks;
+          translatedLessons.push(translatedLesson);
         }
-        translatedLesson.tasks = translatedTasks;
-        translatedLessons.push(translatedLesson);
         index++;
       }
 
@@ -96,35 +101,41 @@ const translateUtil = {
       for (const quiz of quizzes) {
         const translatedQuiz = { ...quiz };
         const translation = await quizTranslations(index, targetLanguage);
-        translatedQuiz.title = translation.title;
-        translatedQuiz.description = translation.description;
-        translatedQuiz.completion_message = translation.completion_message;
+        if (translation && translation.title && translation.description && translation.completion_message && translation.questions) {
 
-        const translatedQuestions = [];
-        let questionIndex = 0;
-        for (const question of quiz.questions) {
-          const translatedQuestion = { ...question };
-          const targetQuestion = translation.questions[questionIndex];
-          translatedQuestion.title = targetQuestion.title;
-          translatedQuestion.context = targetQuestion.context;
+          translatedQuiz.title = translation.title;
+          translatedQuiz.description = translation.description;
+          translatedQuiz.completion_message = translation.completion_message;
 
-          const translatedAnswers = [];
-          let answerIndex = 0;
-          for (const answer of question.answers) {
-            const translatedAnswer = { ...answer };
-            const targetAnswer = targetQuestion.answers[answerIndex];
-            translatedAnswer.title = targetAnswer.title;
-            translatedAnswer.content = targetAnswer.content;
+          const translatedQuestions = [];
+          let questionIndex = 0;
+          for (const question of quiz.questions) {
+            const translatedQuestion = { ...question };
+            const targetQuestion = translation.questions[questionIndex];
+            translatedQuestion.title = targetQuestion.title;
+            translatedQuestion.context = targetQuestion.context;
 
-            translatedAnswers.push(translatedAnswer);
-            answerIndex++;
+            const translatedAnswers = [];
+            let answerIndex = 0;
+            for (const answer of question.answers) {
+              const translatedAnswer = { ...answer };
+              const targetAnswer = targetQuestion.answers[answerIndex];
+              if (targetAnswer && targetAnswer.title && targetAnswer.content) {
+
+                translatedAnswer.title = targetAnswer.title;
+                translatedAnswer.content = targetAnswer.content;
+
+                translatedAnswers.push(translatedAnswer);
+              }
+              answerIndex++;
+            }
+            translatedQuestion.answers = translatedAnswers;
+            translatedQuestions.push(translatedQuestion);
+            questionIndex++;
           }
-          translatedQuestion.answers = translatedAnswers;
-          translatedQuestions.push(translatedQuestion);
-          questionIndex++;
+          translatedQuiz.questions = translatedQuestions;
+          translatedQuizzes.push(translatedQuiz);
         }
-        translatedQuiz.questions = translatedQuestions;
-        translatedQuizzes.push(translatedQuiz);
         index++;
       }
 
@@ -316,6 +327,57 @@ async function tipsTranslations(index, target) {
         },
       ];
       break;
+
+    case "lg":
+      translatedTips = [
+        {
+          title: "Buli Omu",
+          description: "Bw’oba olina okumala ebiseera bingi ebweru, masiki ezikozesebwa omulundi gumu nga N95 ziyamba."
+        },
+        {
+          title: "Buli Omu",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru. Gezaako okubeera mu nnyumba okutuusa ng’omutindo gw’empewo gutereede."
+        },
+        {
+          title: "Buli Omu",
+          description: "Weewale emirimu egikuleetera okussa amangu. Leero lwe lunaku olutuufu okumala mu nnyumba ng’osoma."
+        },
+        {
+          title: "Ku Baana",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru."
+        },
+        {
+          title: "Ku bakadde",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru."
+        },
+        {
+          title: "Ku bakyala ab’embuto",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru okusobola okukuuma ggwe n’omwana wo nga muli balamu bulungi."
+        },
+        {
+          title: "Ku bantu abalina ensonga z’okussa",
+          description: "Kendeeza ku dduyiro ow’amaanyi. Kendeeza singa ofuna obubonero ng’okukolola."
+        },
+        {
+          title: "Ku bakadde",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru."
+        },
+        {
+          title: "Ku bakyala ab’embuto",
+          description: "Kendeeza ku maanyi g’emirimu gyo egy’ebweru okusobola okukuuma ggwe n’omwana wo nga muli balamu bulungi."
+        },
+        {
+          title: "Buli Omu",
+          description: "Leero lunaku lulungi nnyo olw’okukola emirimu egy’ebweru."
+        },
+        {
+          title: "Buli Omu",
+          description: "Lunaku lulungi nnyo okufuluma ebweru n'okola dduyiro. Jjukira okukendeeza ku ngendo z’emmotoka z’okola."
+        }
+      ];
+      break;
+    default:
+      translatedTips = [];
   }
   return translatedTips[index];
 }
@@ -462,6 +524,47 @@ async function lessonTranslations(index, target) {
         },
       ];
       break;
+
+    case "lg":
+      translatedLessons = [
+        {
+          title: "Ebikolwa by'osobola okukola okukendeeza ku bucaafu bw'empewo",
+          completion_message: "Waakamaliriza Omusomo gwo ogusooka ogwa Manya Empewo Yo",
+          tasks: [
+            {
+              title: "Kozesa entambula ey’olukale",
+              content: "Omukka ogufuluma mu mmotoka gwe gusinga okuleeta obucaafu bw’empewo. Emmotoka weziba entono ku luguudo zivaamu omukka omutono."
+            },
+            {
+              title: "Saaviisi emmotoka yo /boda boda buli kiseera",
+              content: "Ojikebera buli kiseera kisobola okukendeeza ku mafuta, ekikendeeza ku bucaafu obufuluma mu mmotoka."
+            },
+            {
+              title: "Weewale okusiba yingini y’emmotoka yo mu kalippagano k’ebidduka",
+              content: "Mmotoka zifulumya omukka naddala ogutali mulamu. Ggyako yingini yo ng’oli mu kalippagano k’ebidduka"
+            },
+            {
+              title: "Tambula oba kozesa obugaali",
+              content: "Tambula oba kozesa obugaali okukendeeza ku kaboni wo ssekinnoomu ate ng’olongoosa n’obulamu bwo!"
+            },
+            {
+              title: "Weewale okwokya kasasiro",
+              content: "Okwokya kasasiro w’awaka kyabulabe eri obulamu bwo n’obutonde bwaffe"
+            },
+            {
+              title: "Mukendeeze ku biveera ebikozesebwa omulundi gumu",
+              content: "Weewale okukozesa obuveera, butwala ekiseera kiwanvu okuvunda. Kozesa ensawo z’empapula oba ebisero by’ogula"
+            },
+            {
+              title: "Fuuka nnantameggwa w’empewo ennyonjo",
+              content: "Weegatte ku kampeyini yaffe ey'omutindo gw'empewo era olwanirire empewo ennongoofu mu kitundu kyo"
+            }
+          ]
+        }
+      ];
+      break;
+    default:
+      translatedLessons = [];
   }
   return translatedLessons[index];
 }
@@ -1063,6 +1166,204 @@ async function quizTranslations(index, target) {
         },
       ];
       break;
+
+    case "lg":
+      translatedQuizzes = [
+        {
+          title: "Zuula amagezi go agakwata ku mutindo gw'empewo wano!",
+          description: "Twala ekibuuzo kino ekikwata ku bikwetoolodde n'enkola ya buli lunaku okusumulula obukodyo obukukoleddwa ku bubwe bwokka!",
+          completion_message: "Tukuyozaayoza. Osumuludde ebiragiro ebikwata ku mutindo gw’empewo ebikukwatako okukuwa amaanyi mu lugendo lwo olw’empewo ennyonjo.",
+          questions: [
+            {
+              title: "Enkola ki ey’okufumba gy’okozesa awaka?",
+              context: "Embeera y’awaka",
+              answers: [
+                {
+                  content: [
+                    "Okufumba n’enku kiyinza okufulumya obucaafu bw’empewo bungi.",
+                    "Fumba mu ffumbiro eririmu empewo ennungi nga empewo efuluma bulungi oba teekawo effumba ery’ebweru bwe kiba kisoboka.",
+                    "Kozesa sitoovu ennungamu eyategekebwa okwokya enku mu ngeri enyonjo ate nga temuli mukka mutono.",
+                    "Lowooza ku ky’okukyusa okudda ku sitoovu ezirongooseddwa ezikendeeza ku bucaafu obufuluma mu bbanga n’okwongera okukozesa amafuta."
+                  ],
+                  title: "Enku z’omuliro",
+                },
+                {
+                  content: [
+                    "Okukozesa sitoovu y’amanda okufumba kiyinza okufulumya obucaafu obw’obulabe ng’obutundutundu ne kaboni monokisayidi.",
+                    "Kozesa sitoovu y’amanda mu ffumbiro eriyingiza empewo ennungi oba okumpi n’eddirisa eriggule.",
+                    "Bw’oba ofumba, enzigi n’amadirisa bibeere nga biggule okukendeeza ku mukka.",
+                    "Bwe kiba kisoboka, lowooza ku ky’okukyusa okudda ku ngeri y’okufumba ennyonjo okukendeeza ku bucaafu bw’empewo mu nnyumba."
+                  ],
+                  title: "Sitoovu y’amanda",
+                },
+                {
+                  content: [
+                    "Okukozesa ekyuma ekifumba ggaasi okutwalira awamu kiyonjo bw’ogeraageranya n’amafuta amakalu.",
+                    "Kakasa nti empewo eyingira bulungi okutangira omukka ogufuluma mu nnyumba okukuŋŋaanyizibwa.",
+                    "Kuuma ebifumba bya ggaasi n’ebiyungo okuziyiza okukulukuta okuyinza okukosa omutindo gw’empewo mu nnyumba."
+                  ],
+                  title: "Ekyuma ekifumba Gaasi",
+                },
+                {
+                  content: [
+                    "Biogas atwalibwa ng’engeri y’okufumba ennyonjo.",
+                    "Bulijjo kulabirira enkola ya biogas okulaba nga ggaasi akolebwa bulungi n’okwokya.",
+                    "Wadde nga ggaasi w’ebiramu muyonjo, kakasa nti empewo eyingira bulungi okutangira omukka gwonna ogugenda okufuluma.",
+                    "Goberera ebiragiro by’abakola ggaasi ku nkozesa ya biogas mu ngeri ey’obukuumi era ennungi."
+                  ],
+                  title: "Biogas",
+                },
+                {
+                  content: [
+                    "Ebifumba eby’amasannyalaze tebikola bucaafu bwa mpewo butereevu mu nnyumba.",
+                    "Ne bwe kiba nti tolina bucaafu bufuluma, kakasa nti empewo emala okuziyiza obucaafu obulala obuva mu mpewo munda.",
+                    "Okukozesa ebyuma ebifumba eby’amasannyalaze ebikekkereza amaanyi kiyinza okukendeeza ku butonde bw’ensi okutwalira awamu."
+                  ],
+                  title: "Ekyuma ekifumba eky’amasannyalaze",
+                }
+              ]
+            },
+            {
+              title: "Kasasiro osuula otya ewaka?",
+              context: "Embeera y’awaka",
+              answers: [
+                {
+                  content: [
+                    "Okwokya kasasiro kuyinza okufulumya obucaafu obw’enjawulo ng’obutundutundu n’ebintu eby’obutwa.",
+                    "Kakasa nti okozesa enkola entuufu ey’okusuula kasasiro nga okuddamu okukola, okukung’aanya mu kifo awasuulibwa kasasiro oba okukozesa kkampuni ezikola ku by’okukung’aanya kasasiro."
+                  ],
+                  title: "Kiyoke",
+                },
+                {
+                  content: [
+                    "Okwegezangamu okukung’aanya kasasiro mu ngeri entuufu kikendeeza ku bucaafu bw’empewo.",
+                    "Ebifo eby’okusuula kasasiro mu masekkati bisobola okukola ng’ebifo eby’okuddamu okukola n’okusunsulamu"
+                  ],
+                  title: "Kuŋŋaanya mu kifo awasuulibwa kasasiro",
+                },
+                {
+                  content: [
+                    "Okukola nnakavundira - Ebintu ebiramu nga ebisasiro by’emmere n’ebisasiro by’omu luggya byawulwamu ne biziikibwa wansi w’ettaka okuvunda ne bikola obusa bw’ebimera.",
+                    "Okutaasa - Ebintu ng’ebyuma, empapula, endabirwamu, ebiwujjo, n’ebika by’obuveera ebimu bisobola okutaasibwa, okuddamu okukozesebwa, n’okuddamu okukozesebwa."
+                  ],
+                  title: "Njagala okumanya engeri endala ez’okuddukanya kasasiro",
+                }
+              ]
+            },
+            {
+              title: "Embeera y’awaka yo eri ludda wa?",
+              context: "Embeera y’awaka",
+              answers: [
+                {
+                  content: [
+                    "Okubeera okumpi n’oluguudo olujjudde abantu kyongera okukwatibwa obucaafu bw’empewo.",
+                    "Ggulawo amadirisa gokka agatunudde mu luguudo ng’akalippagano katono.",
+                    "Sima emiti/ebikomera okwetoloola awaka ng’ekiziyiza omukka ogufuluma."
+                  ],
+                  title: "Okumpi n’oluguudo olujjudde abantu",
+                },
+                {
+                  content: [
+                    "Okwolesebwa kwo mu bucaafu bw’empewo kutono okuva bwe kiri nti omukka ogufuluma mu mmotoka gukendeera."
+                  ],
+                  title: "Oluguudo olulimu akalippagano katono oba nga temuli",
+                }
+              ]
+            },
+            {
+              title: "Emirundi emeka gye weetaba mu mirimu egy’ebweru?",
+              context: "Emirimu egy’ebweru",
+              answers: [
+                {
+                  content: [
+                    "Kuuma omutindo gw’empewo oguliwo kati n’okuteebereza mu kifo kyo ng’oyita mu pulogulaamu ya AirQo okwewala okukola emirimu egy’ebweru ku nnaku ezirimu omutindo gw’empewo omubi.",
+                    "Obudde essaawa ezitaliimu bucaafu obutono nga ku makya ennyo oba akawungeezi.",
+                    "Tegeka emirimu gyo okwetoloola enguudo ezitaliimu kalippagano n’ebifo ebirabika obulungi."
+                  ],
+                  title: "Buli kaseera",
+                },
+                {
+                  content: [
+                    "Kebera omutindo gw’empewo n’okuteebereza mu kifo kyo ng’oyita mu pulogulaamu ya AirQo okwewala okukola emirimu egy’ebweru ku nnaku ezirimu omutindo gw’empewo omubi.",
+                    "Kkomya ebbanga ly’okukola emirimu egy’ebweru ku nnaku ezirimu omutindo gw’empewo omubi."
+                  ],
+                  title: "Oluusi",
+                },
+                {
+                  content: [
+                    "Ku bantu ssekinnoomu abatakola mirimu gya bweru, lowooza ku ngeri y’okukola dduyiro mu nnyumba, gamba ng’okukozesa ekyuma ekidduka, ddigi eyimiridde, oba okugenda mu bibiina by’okukola dduyiro.",
+                    "Kozesa app ya AirQo okukebera omutindo gw’empewo n’okuteebereza mu kifo kyo okuteekateeka nga bukyali ku mirimu gyonna egy’ebweru.",
+                    "Jjukira okukendeeza ku bucaafu bw’empewo awaka nga weewala okwokya kasasiro mu lwatu n’okwongera empewo mu maka ng’okola emirimu egivaamu obucaafu."
+                  ],
+                  title: "Rarely/Never",
+                }
+              ]
+            },
+            {
+              title: "Oluguudo lwa ngeri ki lw’otera okukozesa?",
+              context: "Entambula",
+              answers: [
+                {
+                  content: [
+                    "Ggalawo amadirisa n’enzigi mu biseera eby’enfuufu naddala mu nnaku ezirimu empewo.",
+                    "Yambala masiki oba bikke ennyindo/akamwa n'olugoye nga hankie/scarf nga erimu enfuufu.",
+                    "Jjukira okukebera omutindo gw’empewo n’okuteebereza mu kifo kyo ng’oyita mu pulogulaamu ya AirQo okuteekateeka nga bukyali ennaku ezirina omutindo gw’empewo omubi."
+                  ],
+                  title: "Oluguudo olulimu enfuufu/olutali lwa kkoolaasi",
+                },
+                {
+                  content: [
+                    "Okubeera okumpi n’enguudo eziriko kolaasi kikuleetera enfuufu entono, naye omukka ogufuluma mu mmotoka gukyayinza okukosa omutindo gw’empewo.",
+                    "Sima emiti/ebisaka okwetoloola amaka go ng’ebiziyiza eby’obutonde okunyiga obucaafu."
+                  ],
+                  title: "Oluguudo/oluguudo oluliko kolaasi nga lulimu enfuufu ntono",
+                }
+              ]
+            },
+            {
+
+              title: "Engeri ki gy’osinga okukozesaamu entambula?",
+              context: "Entambula",
+
+              answers: [
+                {
+                  content: [
+                    "Bulijjo kola service ku mmotoka yo okukakasa nti yingini nnungi ekikendeeza ku bucaafu obufuluma mu mmotoka.",
+                    "Weewale okulinda ebbanga eddene nga yingini y’emmotoka ekola.",
+                    "Bwe kiba kisoboka mugende mu mmotoka n’abalala okukendeeza ku mmotoka eziri ku luguudo."
+                  ],
+                  title: "Emmotoka",
+                },
+                {
+                  content: [
+                    "Okukozesa entambula ey’olukale kitera okukendeeza ku muwendo gw’emmotoka okutwalira awamu ku luguudo. Kino kikendeeza ku bucaafu obuva mu mmotoka n’okukwatibwa obucaafu bw’empewo."
+                  ],
+                  title: "Takisi oba bbaasi",
+                },
+                {
+                  content: [
+                    "Bw’oba okozesa boda boda, yambala masiki okwekuuma obutassa nfuufu n’obucaafu.",
+                    "Abavuzi ba boda boda bakubirizibwa okukola okuddaabiriza yingini mu ngeri entuufu."
+                  ],
+                  title: "Embaga y'embaga / pikipiki",
+                },
+                {
+                  content: [
+                    "Tambula ku mabbali g’enguudo eziri ewala n’enguudo kuba kino kijja kuyamba okukendeeza ku bucaafu obuva mu mmotoka.",
+                    "Nga tonnagenda, kebera omutindo gw’empewo mu kifo kyo ng’oyita ku pulogulaamu ya AirQo. Lowooza ku ky’okukwata entambula endala oba okukozesa amakubo amalala singa omutindo gw’empewo guba mubi.",
+                    "Yambala masiki bw’oba otambula mu ssaawa ezirimu obucaafu bungi ng’oku makya ennyo (essaawa musanvu okutuuka ku ssaawa 10 ez’oku makya) n’akawungeezi ng’akalippagano kali mungi.",
+                    "Bwe kiba kisoboka, londa amakubo ageewala ebitundu ebirimu ensibuko z’obucaafu ezimanyiddwa, gamba ng’ebifo ebizimbibwa oba ebitundu by’amakolero."
+                  ],
+                  title: "Okutambula",
+                }
+              ]
+            }
+          ]
+        }
+      ];
+      break;
+    default:
+      translatedQuizzes = [];
   }
   return translatedQuizzes[index];
 }
