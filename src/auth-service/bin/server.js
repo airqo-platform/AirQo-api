@@ -144,9 +144,7 @@ app.use(function (err, req, res, next) {
     }
   } else {
     logger.error(
-      `🐛🐛 Headers have already been sent, unable to send error response -- ${stringify(
-        err
-      )}`
+      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
     );
   }
 });
