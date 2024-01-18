@@ -1756,55 +1756,6 @@ eventSchema.statics = {
           })
           .allowDiskUse(true);
 
-        data[0].data.forEach((record) => {
-          if (
-            constants.ENVIRONMENT &&
-            constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
-          ) {
-            if (record.timeDifferenceHours > 14) {
-              logObject(
-                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
-                  record.device ? record.device : ""
-                }, frequency ${
-                  record.frequency ? record.frequency : ""
-                }, time ${record.time ? record.time : ""} and site ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-              logger.info(
-                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
-                  record.device ? record.device : ""
-                }, Frequency: ${
-                  record.frequency ? record.frequency : ""
-                }, Time: ${record.time ? record.time : ""}, Site Name: ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-            }
-
-            if (record.pm2_5 === null) {
-              logObject(
-                `😲😲 Null pm2_5 value for device: ${
-                  record.device ? record.device : ""
-                }, frequency ${
-                  record.frequency ? record.frequency : ""
-                }, time ${record.time ? record.time : ""} and site ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-              logger.info(
-                `😲😲 Null pm2_5 value for device: ${
-                  record.device ? record.device : ""
-                }, Frequency: ${
-                  record.frequency ? record.frequency : ""
-                }, Time: ${record.time ? record.time : ""}, Site Name: ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-            }
-          }
-        });
-
         data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
 
         return {
@@ -1934,55 +1885,6 @@ eventSchema.statics = {
           })
           .allowDiskUse(true);
 
-        data[0].data.forEach((record) => {
-          if (
-            constants.ENVIRONMENT &&
-            constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT"
-          ) {
-            if (record.timeDifferenceHours > 14) {
-              logObject(
-                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
-                  record.device ? record.device : ""
-                }, frequency ${
-                  record.frequency ? record.frequency : ""
-                }, time ${record.time ? record.time : ""} and site ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-              logger.info(
-                `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
-                  record.device ? record.device : ""
-                }, Frequency: ${
-                  record.frequency ? record.frequency : ""
-                }, Time: ${record.time ? record.time : ""}, Site Name: ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-            }
-
-            if (record.pm2_5 === null) {
-              logObject(
-                `😲😲 Null pm2_5 value for device: ${
-                  record.device ? record.device : ""
-                }, frequency ${
-                  record.frequency ? record.frequency : ""
-                }, time ${record.time ? record.time : ""} and site ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-              logger.info(
-                `😲😲 Null pm2_5 value for device: ${
-                  record.device ? record.device : ""
-                }, Frequency: ${
-                  record.frequency ? record.frequency : ""
-                }, Time: ${record.time ? record.time : ""}, Site Name: ${
-                  record.siteDetails ? record.siteDetails.name : ""
-                }`
-              );
-            }
-          }
-        });
-
         data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
         return {
           success: true,
@@ -2013,7 +1915,7 @@ eventSchema.statics.view = async function(filter, next) {
     request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
     request.page = filter.page ? filter.page : DEFAULT_PAGE;
     const result = await fetchData(this, request);
-    const transformedData = filterNullAndReportOffDevices(result[0].data);
+    const transformedData = filterNull(result[0].data);
     result[0].data = transformedData;
     const calculatedValues = computeAveragePm2_5(transformedData);
     result[0].meta.pm2_5Avg = calculatedValues;
@@ -2043,7 +1945,7 @@ eventSchema.statics.fetch = async function(filter) {
     request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
     request.page = filter.page ? filter.page : DEFAULT_PAGE;
     const result = await fetchData(this, request);
-    const transformedData = filterNull(result[0].data);
+    const transformedData = filterNullAndReportOffDevices(result[0].data);
     result[0].data = transformedData;
     const calculatedValues = computeAveragePm2_5(transformedData);
     result[0].meta.pm2_5Avg = calculatedValues;
