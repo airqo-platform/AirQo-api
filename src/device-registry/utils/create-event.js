@@ -246,7 +246,7 @@ async function processEvent(event, next) {
       update,
       options
     );
-    logObject("addedEvents", addedEvents);
+    // logObject("addedEvents", addedEvents);
 
     if (addedEvents) {
       return {
@@ -1141,7 +1141,7 @@ const createEvent = {
         request,
         next
       );
-      logObject("transformEventsResponse man", transformEventsResponse);
+      // logObject("transformEventsResponse man", transformEventsResponse);
       if (transformEventsResponse.success === true) {
         let transformedEvents = transformEventsResponse.data;
         let nAdded = 0;
@@ -1151,7 +1151,7 @@ const createEvent = {
 
         for (const event of transformedEvents) {
           try {
-            logObject("event", event);
+            // logObject("event", event);
             let value = event;
             let dot = new Dot(".");
             let options = event.options;
@@ -1160,17 +1160,17 @@ const createEvent = {
             dot.delete(["filter", "update", "options"], value);
             update["$push"] = { values: value };
 
-            logObject("event.tenant", event.tenant);
-            logObject("update", update);
-            logObject("filter", filter);
-            logObject("options", options);
+            // logObject("event.tenant", event.tenant);
+            // logObject("update", update);
+            // logObject("filter", filter);
+            // logObject("options", options);
 
             const addedEvents = await EventModel(event.tenant).updateOne(
               filter,
               update,
               options
             );
-            logObject("addedEvents", addedEvents);
+            // logObject("addedEvents", addedEvents);
             if (addedEvents) {
               nAdded += 1;
               eventsAdded.push(event);
@@ -1241,7 +1241,7 @@ const createEvent = {
           };
         }
       } else if (transformEventsResponse.success === false) {
-        logText("maan, things have jam!");
+        // logText("maan, things have jam!");
         return transformEventsResponse;
       }
     } catch (error) {
@@ -1985,7 +1985,7 @@ const createEvent = {
   },
   addEvents: async (request, next) => {
     try {
-      logText("adding the events insertTransformedEvents to the util.....");
+      // logText("adding the events insertTransformedEvents to the util.....");
       // logger.info(`adding events in the util.....`);
       /**
        * Step One: trasform or prepare for insertion into Events collection -- prepare the nesting expexctation
@@ -1998,7 +1998,7 @@ const createEvent = {
       );
 
       if (transformEventsResponses.success === false) {
-        logElement("transformEventsResponses was false?", true);
+        // logElement("transformEventsResponses was false?", true);
         return transformEventsResponses;
       } else if (transformEventsResponses.success === true) {
         const transformedMeasurements = transformEventsResponses.data;
@@ -2083,7 +2083,7 @@ const createEvent = {
         }
       }
 
-      if (errors.length > 0) {
+      if (errors.length > 0 && isEmpty(data)) {
         logger.error(
           `finished the operation with some errors -- ${jsonify(errors)}`
         );
@@ -2095,8 +2095,9 @@ const createEvent = {
       } else {
         return {
           success: true,
-          message: "successfully added all the events",
+          message: "successfully added the events",
           data,
+          errors,
         };
       }
     } catch (error) {
@@ -2184,7 +2185,7 @@ const createEvent = {
 
       for (const measurement of responseFromTransformMeasurements.data) {
         try {
-          logObject("the measurement in the insertion process", measurement);
+          // logObject("the measurement in the insertion process", measurement);
           const eventsFilter = {
             day: measurement.day,
             site_id: measurement.site_id,
@@ -2202,9 +2203,9 @@ const createEvent = {
           let someDeviceDetails = {};
           someDeviceDetails["device_id"] = measurement.device_id;
           someDeviceDetails["site_id"] = measurement.site_id;
-          logObject("someDeviceDetails", someDeviceDetails);
+          // logObject("someDeviceDetails", someDeviceDetails);
 
-          logObject("the measurement", measurement);
+          // logObject("the measurement", measurement);
 
           const eventsUpdate = {
             $push: { values: measurement },
@@ -2212,8 +2213,8 @@ const createEvent = {
             $max: { last: measurement.time },
             $inc: { nValues: 1 },
           };
-          logObject("eventsUpdate", eventsUpdate);
-          logObject("eventsFilter", eventsFilter);
+          // logObject("eventsUpdate", eventsUpdate);
+          // logObject("eventsFilter", eventsFilter);
 
           const addedEvents = await EventModel(tenant).updateOne(
             eventsFilter,
@@ -2222,7 +2223,7 @@ const createEvent = {
               upsert: true,
             }
           );
-          logObject("addedEvents", addedEvents);
+          // logObject("addedEvents", addedEvents);
           if (addedEvents) {
             nAdded += 1;
             eventsAdded.push(measurement);
@@ -2289,6 +2290,7 @@ const createEvent = {
       }
 
       if (errors.length > 0) {
+        console.log("API: SOME measurements successfully added");
         return {
           success: false,
           message: "finished the operation with some errors",
@@ -2296,6 +2298,7 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
+        console.log("API: ALL measurements successfully added");
         return {
           success: true,
           message: "successfully added all the events",

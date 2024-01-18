@@ -143,14 +143,14 @@ const consumeHourlyMeasurements = async (messageData) => {
       // );
 
       if (responseFromInsertMeasurements.success === false) {
-        console.log("KAFKA: some failures while inserting data");
+        console.log("KAFKA: failed to store the measurements");
         // logger.error(
         //   `KAFKA: responseFromInsertMeasurements --- ${jsonify(
         //     responseFromInsertMeasurements
         //   )}`
         // );
       } else if (responseFromInsertMeasurements.success === true) {
-        console.log("KAFKA: successfully inserted data");
+        console.log("KAFKA: successfully stored the measurements");
         // logger.info(
         //     `KAFKA: successfully inserted the measurements --- ${jsonify(responseFromInsertMeasurements.message ?
         //     responseFromInsertMeasurements.message :
