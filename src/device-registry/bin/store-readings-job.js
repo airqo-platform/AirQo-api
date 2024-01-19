@@ -52,9 +52,16 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
             async (bail) => {
               try {
                 // logObject("document", doc);
-                const res = await ReadingModel("airqo").updateOne(doc, doc, {
-                  upsert: true,
-                });
+                const filter = { site_id: doc.site_id, time: doc.time };
+                const updateDoc = { ...doc };
+                delete updateDoc._id; // Remove the _id field
+                const res = await ReadingModel("airqo").updateOne(
+                  filter,
+                  updateDoc,
+                  {
+                    upsert: true,
+                  }
+                );
                 // logObject("res", res);
                 // logObject("Number of documents updated", res.modifiedCount);
               } catch (error) {
