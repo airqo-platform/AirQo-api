@@ -1968,7 +1968,6 @@ const eventsModel = (tenant) => {
     const events = mongoose.model("events");
     return events;
   } catch (error) {
-    logObject("tenant.toLowerCase()", tenant.toLowerCase());
     return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
   }
 };
