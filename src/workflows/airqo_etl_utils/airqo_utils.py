@@ -433,7 +433,7 @@ class AirQoDataUtils:
         )
 
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
-        data = data.copy().loc[data["status"] == 0]
+        # data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
