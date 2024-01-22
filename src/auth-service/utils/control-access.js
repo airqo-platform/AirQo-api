@@ -703,6 +703,10 @@ const controlAccess = {
       const ip =
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
+      const endpoint = request.headers["x-original-uri"];
+      const { token } = {
+        ...request.params,
+      };
 
       if (isEmpty(ip)) {
         logText(`🚨🚨 Token is being accessed without an IP address`);
@@ -718,6 +722,13 @@ const controlAccess = {
       if (isBlacklisted) {
         return createUnauthorizedResponse();
       } else {
+        winstonLogger.info("verify token", {
+          token: token,
+          service: "verify-token",
+          clientIp: ip,
+          clientOriginalIp: ip,
+          endpoint: endpoint ? endpoint : "unknown",
+        });
         return createValidTokenResponse();
       }
     } catch (error) {

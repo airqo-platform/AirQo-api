@@ -18,6 +18,7 @@ const logSchema = new mongoose.Schema(
         requestId: String,
         userId: String,
         username: String,
+        token: String,
         email: String,
         timestamp: String,
         clientIp: String,
