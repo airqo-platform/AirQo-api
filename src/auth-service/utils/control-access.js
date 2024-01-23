@@ -297,7 +297,7 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40";
+    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
 
     if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
