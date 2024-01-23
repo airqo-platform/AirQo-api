@@ -297,61 +297,63 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    if (!accessToken) {
+    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40";
+    const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+
+    if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+      return true;
+    } else if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
       return false;
     } else if (blacklistedIP) {
-      const BLOCKED_IP_PREFIXES = "65,66";
-      const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
-      if (!blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
-        logger.info(
-          `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+      logger.info(
+        `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+      );
+      try {
+        const filter = { token };
+        const listTokenReponse = await AccessTokenModel("airqo").list(
+          { filter },
+          next
         );
-        try {
-          const filter = { token };
-          const listTokenReponse = await AccessTokenModel("airqo").list(
-            { filter },
-            next
-          );
 
-          if (listTokenReponse.success === false) {
+        if (listTokenReponse.success === false) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+          );
+        } else {
+          const tokenDetails = listTokenReponse.data[0];
+          const tokenResponseLength = listTokenReponse.data.length;
+          if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
             logger.error(
               `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
             );
           } else {
-            const tokenDetails = listTokenReponse.data[0];
-            const tokenResponseLength = listTokenReponse.data.length;
-            if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
+            const {
+              user: { email, firstName, lastName },
+            } = tokenDetails;
+
+            const emailResponse = await mailer.compromisedToken(
+              {
+                email,
+                firstName,
+                lastName,
+                ip,
+              },
+              next
+            );
+
+            if (emailResponse && emailResponse.success === false) {
               logger.error(
-                `🐛🐛 Internal Server Error -- unable to find the compromised token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
               );
-            } else {
-              const {
-                user: { email, firstName, lastName },
-              } = tokenDetails;
-
-              const emailResponse = await mailer.compromisedToken(
-                {
-                  email,
-                  firstName,
-                  lastName,
-                  ip,
-                },
-                next
-              );
-
-              if (emailResponse && emailResponse.success === false) {
-                logger.error(
-                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
-                );
-              }
             }
           }
-        } catch (error) {
-          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
         }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       }
+
       return true;
     } else {
       Promise.resolve().then(() =>
