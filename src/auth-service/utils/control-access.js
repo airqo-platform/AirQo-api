@@ -300,12 +300,12 @@ const isIPBlacklistedHelper = async (
     const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
 
-    if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
-      return true;
-    } else if (!accessToken) {
+    if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
       return false;
+    } else if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+      return true;
     } else if (blacklistedIP) {
       logger.info(
         `🚨🚨 An AirQo Analytics Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
