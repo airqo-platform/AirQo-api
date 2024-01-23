@@ -1,6 +1,8 @@
 const PermissionModel = require("@models/Permission");
 const ScopeModel = require("@models/Scope");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
+const BlacklistedIPPrefixModel = require("@models/BlacklistedIPPrefix");
+const IPPrefixModel = require("@models/IPPrefix");
 const UnknownIPModel = require("@models/UnknownIP");
 const WhitelistedIPModel = require("@models/WhitelistedIP");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
@@ -16,14 +18,13 @@ const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
 const winstonLogger = require("@utils/log-winston");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const stringify = require("@utils/stringify");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
-const rangeCheck = require("ip-range-check");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const log4js = require("log4js");
@@ -247,6 +248,48 @@ let unknownIPQueue = async.queue(async (task, callback) => {
     });
 }, 1); // Limit the number of concurrent tasks to 1
 
+let ipPrefixQueue = async.queue(async (task, callback) => {
+  let { prefix, day } = task;
+  await IPPrefixModel("airqo")
+    .findOne({ prefix })
+    .then(async (checkDoc) => {
+      if (checkDoc) {
+        const update = {
+          $inc: {
+            "prefixCounts.$[elem].count": 1,
+          },
+        };
+        const options = {
+          arrayFilters: [{ "elem.day": day }],
+          upsert: true,
+          new: true,
+          runValidators: true,
+        };
+
+        await IPPrefixModel("airqo")
+          .findOneAndUpdate({ prefix }, update, options)
+          .then(() => {
+            logText(`incremented the count of IP prefix ${prefix}`);
+            callback();
+          });
+      } else {
+        await IPPrefixModel("airqo")
+          .create({
+            prefix,
+            prefixCounts: [{ day, count: 1 }],
+          })
+          .then(() => {
+            logText(`stored the new IP prefix ${prefix}`);
+            callback();
+          });
+      }
+    });
+}, 1); // Limit the number of concurrent tasks to 1
+
+function generatePrefix(ipAddress) {
+  return ipAddress.split(".")[0];
+}
+
 const postProcessing = async ({
   ip,
   token,
@@ -256,6 +299,7 @@ const postProcessing = async ({
   day,
 }) => {
   logText("we are now postProcessing()....");
+  const prefix = generatePrefix(ip);
   blacklistQueue.push({ ip });
   unknownIPQueue.push({
     ip,
@@ -265,6 +309,7 @@ const postProcessing = async ({
     endpoint,
     day,
   });
+  ipPrefixQueue.push({ prefix });
 };
 
 const isIPBlacklistedHelper = async (
@@ -283,13 +328,15 @@ const isIPBlacklistedHelper = async (
       $gt: moment().tz(timeZone).toDate(),
     };
 
-    const [blacklistedIP, whitelistedIP, accessToken] = await Promise.all([
-      BlacklistedIPModel("airqo").findOne({ ip }),
-      WhitelistedIPModel("airqo").findOne({ ip }),
-      AccessTokenModel("airqo")
-        .findOne(acessTokenFilter)
-        .select("name token client_id"),
-    ]);
+    const [blacklistedIP, whitelistedIP, accessToken, blacklistedIpPrefixes] =
+      await Promise.all([
+        BlacklistedIPModel("airqo").findOne({ ip }),
+        WhitelistedIPModel("airqo").findOne({ ip }),
+        AccessTokenModel("airqo")
+          .findOne(acessTokenFilter)
+          .select("name token client_id"),
+        BlacklistedIPPrefixModel("airqo").find().exec(),
+      ]);
 
     const {
       token = "",
@@ -297,14 +344,20 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
+    logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
+
     const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+
+    logObject("blockedIpPrefixes", blockedIpPrefixes);
 
     if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
       return false;
     } else if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+      return true;
+    } else if (blacklistedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
       return true;
     } else if (blacklistedIP) {
       logger.info(
