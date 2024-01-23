@@ -8,6 +8,7 @@ router.use("/devices", require("@routes/v2/devices"));
 router.use("/events", require("@routes/v2/events"));
 router.use("/readings", require("@routes/v2/readings"));
 router.use("/measurements", require("@routes/v2/measurements"));
+router.use("/signals", require("@routes/v2/signals"));
 router.use("/locations", require("@routes/v2/locations"));
 router.use("/photos", require("@routes/v2/photos"));
 router.use("/tips", require("@routes/v2/tips"));
