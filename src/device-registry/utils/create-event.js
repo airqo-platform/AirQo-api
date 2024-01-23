@@ -1,5 +1,6 @@
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
+const SignalModel = require("@models/Signal");
 const DeviceModel = require("@models/Device");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
@@ -1043,6 +1044,126 @@ const createEvent = {
       }
 
       const readingsResponse = await ReadingModel(tenant).latest(
+        {
+          skip,
+          limit,
+        },
+        next
+      );
+
+      if (
+        language !== undefined &&
+        !isEmpty(readingsResponse) &&
+        readingsResponse.success === true &&
+        !isEmpty(readingsResponse.data)
+      ) {
+        const data = readingsResponse.data;
+        for (const event of data) {
+          const translatedHealthTips = await translateUtil.translateTips(
+            { healthTips: event.health_tips, targetLanguage: language },
+            next
+          );
+          if (translatedHealthTips.success === true) {
+            event.health_tips = translatedHealthTips.data;
+          }
+        }
+      }
+
+      if (readingsResponse.success === true) {
+        const data = readingsResponse.data;
+
+        logText("Setting cache...");
+
+        try {
+          const resultOfCacheOperation = await Promise.race([
+            createEvent.setCache(readingsResponse, request, next),
+            new Promise((resolve) =>
+              setTimeout(resolve, 60000, {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: { message: "Cache timeout" },
+              })
+            ),
+          ]);
+          if (resultOfCacheOperation.success === false) {
+            const errors = resultOfCacheOperation.errors
+              ? resultOfCacheOperation.errors
+              : { message: "Internal Server Error" };
+            logger.error(`🐛🐛 Internal Server Error -- ${jsonify(errors)}`);
+            // return resultOfCacheOperation;
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
+        }
+
+        logText("Cache set.");
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data)
+            ? "no measurements for this search"
+            : readingsResponse.message,
+          data,
+          status: readingsResponse.status || "",
+          isCache: false,
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve events --- ${jsonify(readingsResponse.errors)}`
+        );
+
+        return {
+          success: false,
+          message: readingsResponse.message,
+          errors: readingsResponse.errors || { message: "" },
+          status: readingsResponse.status || "",
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  signal: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const {
+        query: { tenant, language, limit, skip },
+      } = request;
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request, next),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Errors -- ${jsonify(error)}`);
+      }
+
+      const readingsResponse = await SignalModel(tenant).latest(
         {
           skip,
           limit,
