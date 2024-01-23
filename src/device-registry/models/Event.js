@@ -1127,6 +1127,471 @@ async function fetchData(model, filter) {
     return data;
   }
 }
+async function signalData(model, filter) {
+  let { metadata, recent, skip, limit, page } = filter;
+
+  if (page) {
+    skip = parseInt((page - 1) * limit);
+  }
+
+  logObject("filter BABY", filter);
+
+  const startTime = filter["values.time"]["$gte"];
+  const endTime = filter["values.time"]["$lte"];
+  let idField;
+  // const visibilityFilter = true;
+
+  let search = filter;
+  let groupId = "$device";
+  let localField = "device";
+  let foreignField = "name";
+  let from = "devices";
+  let _as = "_deviceDetails";
+  let as = "deviceDetails";
+  let pm2_5 = "$average_pm2_5";
+  let pm10 = "$average_pm10";
+  let s1_pm2_5 = "$pm2_5";
+  let s1_pm10 = "$pm10";
+  let elementAtIndex0 = elementAtIndexName(metadata, recent);
+  let projection = {
+    _id: 0,
+  };
+  let meta = {
+    total: { $arrayElemAt: ["$total.device", 0] },
+    skip: { $literal: skip },
+    limit: { $literal: limit },
+    page: {
+      $trunc: {
+        $literal: skip / limit + 1,
+      },
+    },
+    pages: {
+      $ifNull: [
+        {
+          $ceil: {
+            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+          },
+        },
+        1,
+      ],
+    },
+    startTime,
+    endTime,
+  };
+  let siteProjection = {};
+  let sort = { time: -1 };
+
+  delete search["external"];
+  delete search["frequency"];
+  delete search["metadata"];
+  delete search["tenant"];
+  delete search["device"];
+  delete search["recent"];
+  delete search["page"];
+  delete search["running"];
+  delete search["brief"];
+  delete search["index"];
+  delete search["limit"];
+  delete search["skip"];
+
+  projection["s2_pm10"] = 0;
+  projection["s1_pm10"] = 0;
+  projection["s2_pm2_5"] = 0;
+  projection["s1_pm2_5"] = 0;
+  projection["rtc_adc"] = 0;
+  projection["rtc_v"] = 0;
+  projection["rtc"] = 0;
+  projection["stc_adc"] = 0;
+  projection["stc_v"] = 0;
+  projection["stc"] = 0;
+  projection["pm1"] = 0;
+  projection["externalHumidity"] = 0;
+  projection["externalAltitude"] = 0;
+  projection["internalHumidity"] = 0;
+  projection["externalTemperature"] = 0;
+  projection["internalTemperature"] = 0;
+  projection["hdop"] = 0;
+  projection["satellites"] = 0;
+  projection["speed"] = 0;
+  projection["altitude"] = 0;
+  projection["site_image"] = 0;
+  projection["location"] = 0;
+  projection["network"] = 0;
+  projection["battery"] = 0;
+  projection["average_pm10"] = 0;
+  projection["average_pm2_5"] = 0;
+  projection["device_number"] = 0;
+  projection["pm2_5.uncertaintyValue"] = 0;
+  projection["pm2_5.calibratedValue"] = 0;
+  projection["pm2_5.standardDeviationValue"] = 0;
+  projection["pm10.uncertaintyValue"] = 0;
+  projection["pm10.calibratedValue"] = 0;
+  projection["pm10.standardDeviationValue"] = 0;
+  projection["no2.uncertaintyValue"] = 0;
+  projection["no2.standardDeviationValue"] = 0;
+  projection["no2.calibratedValue"] = 0;
+  projection["site"] = 0;
+  projection[as] = 0;
+
+  idField = "$site_id";
+  groupId = "$" + metadata;
+  localField = metadata;
+  if (metadata === "site") {
+    foreignField = "generated_name";
+  }
+  if (metadata === "site_id") {
+    foreignField = "_id";
+  }
+  from = "sites";
+  _as = "_siteDetails";
+  as = "siteDetails";
+  elementAtIndex0 = elementAtIndexName(metadata, recent);
+
+  siteProjection = constants.EVENTS_METADATA_PROJECTION("brief_site", as);
+
+  Object.assign(projection, siteProjection);
+
+  logObject("the query for this request", search);
+
+  const data = await model
+    .aggregate()
+    .unwind("values")
+    .match(search)
+    .replaceRoot("values")
+    .lookup({
+      from: "photos",
+      localField: "site_id",
+      foreignField: "site_id",
+      as: "site_images",
+    })
+    .lookup({
+      from: "devices",
+      localField: "device_id",
+      foreignField: "_id",
+      as: "device_details",
+    })
+    .lookup({
+      from: "cohorts",
+      localField: "device_details.cohorts",
+      foreignField: "_id",
+      as: "cohort_details",
+    })
+    .match({
+      "cohort_details.visibility": { $ne: false },
+    })
+    .match({
+      "cohort_details.name": "map",
+    })
+    .lookup({
+      from,
+      localField,
+      foreignField,
+      as,
+    })
+    .lookup({
+      from: "healthtips",
+      let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                {
+                  $lte: ["$aqi_category.min", "$$pollutantValue"],
+                },
+                {
+                  $gte: ["$aqi_category.max", "$$pollutantValue"],
+                },
+              ],
+            },
+          },
+        },
+      ],
+      as: "healthTips",
+    })
+    .sort(sort)
+    .group({
+      _id: idField,
+      device: { $first: "$device" },
+      device_id: { $first: "$device_id" },
+      site_image: {
+        $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+      },
+      is_reading_primary: {
+        $first: {
+          $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+        },
+      },
+      device_number: { $first: "$device_number" },
+      health_tips: { $first: "$healthTips" },
+      site: { $first: "$site" },
+      site_id: { $first: "$site_id" },
+      time: { $first: "$time" },
+      average_pm2_5: { $first: "$average_pm2_5" },
+      pm2_5: { $first: pm2_5 },
+      s1_pm2_5: { $first: s1_pm2_5 },
+      s2_pm2_5: { $first: "$s2_pm2_5" },
+      average_pm10: { $first: "$average_pm10" },
+      pm10: { $first: pm10 },
+      s1_pm10: { $first: s1_pm10 },
+      s2_pm10: { $first: "$s2_pm10" },
+      frequency: { $first: "$frequency" },
+      battery: { $first: "$battery" },
+      network: { $first: "$network" },
+      location: { $first: "$location" },
+      altitude: { $first: "$altitude" },
+      speed: { $first: "$speed" },
+      satellites: { $first: "$satellites" },
+      hdop: { $first: "$hdop" },
+      internalTemperature: { $first: "$internalTemperature" },
+      externalTemperature: { $first: "$externalTemperature" },
+      internalHumidity: { $first: "$internalHumidity" },
+      externalHumidity: { $first: "$externalHumidity" },
+      externalAltitude: { $first: "$externalAltitude" },
+      pm1: { $first: "$pm1" },
+      no2: { $first: "$no2" },
+      rtc_adc: { $first: "$rtc_adc" },
+      rtc_v: { $first: "$rtc_v" },
+      rtc: { $first: "$rtc" },
+      stc_adc: { $first: "$stc_adc" },
+      stc_v: { $first: "$stc_v" },
+      stc: { $first: "$stc" },
+      [as]: elementAtIndex0,
+    })
+    .addFields({
+      timeDifferenceHours: {
+        $divide: [
+          { $subtract: [new Date(), "$time"] },
+          1000 * 60 * 60, // milliseconds to hours
+        ],
+      },
+    })
+    .project({
+      "health_tips.aqi_category": 0,
+      "health_tips.value": 0,
+      "health_tips.createdAt": 0,
+      "health_tips.updatedAt": 0,
+      "health_tips.__v": 0,
+    })
+    .project({
+      "site_image.createdAt": 0,
+      "site_image.updatedAt": 0,
+      "site_image.metadata": 0,
+      "site_image.__v": 0,
+      "site_image.device_name": 0,
+      "site_image.device_id": 0,
+      "site_image._id": 0,
+      "site_image.tags": 0,
+      "site_image.image_code": 0,
+      "site_image.site_id": 0,
+      "site_image.airqloud_id": 0,
+    })
+    .project(projection)
+    .facet({
+      total: [{ $count: "device" }],
+      data: [
+        {
+          $addFields: {
+            device: "$device",
+            aqi_color: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 0] },
+                        { $lt: ["$pm2_5.value", 12.1] },
+                      ],
+                    },
+                    then: "00e400",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 12.1] },
+                        { $lt: ["$pm2_5.value", 35.5] },
+                      ],
+                    },
+                    then: "ffff00",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 35.5] },
+                        { $lt: ["$pm2_5.value", 55.5] },
+                      ],
+                    },
+                    then: "ff7e00",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 55.5] },
+                        { $lt: ["$pm2_5.value", 150.5] },
+                      ],
+                    },
+                    then: "ff0000",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 150.5] },
+                        { $lt: ["$pm2_5.value", 250.5] },
+                      ],
+                    },
+                    then: "8f3f97",
+                  },
+                  {
+                    case: { $gte: ["$pm2_5.value", 250.5] },
+                    then: "7e0023",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+
+            aqi_category: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 0] },
+                        { $lte: ["$pm2_5.value", 12] },
+                      ],
+                    },
+                    then: "Good",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 12] },
+                        { $lte: ["$pm2_5.value", 35.4] },
+                      ],
+                    },
+                    then: "Moderate",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 35.4] },
+                        { $lte: ["$pm2_5.value", 55.4] },
+                      ],
+                    },
+                    then: "Unhealthy for Sensitive Groups",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 55.4] },
+                        { $lte: ["$pm2_5.value", 150.4] },
+                      ],
+                    },
+                    then: "Unhealthy",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 150.4] },
+                        { $lte: ["$pm2_5.value", 250.4] },
+                      ],
+                    },
+                    then: "Very Unhealthy",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 250.4] },
+                        { $lte: ["$pm2_5.value", 500] },
+                      ],
+                    },
+                    then: "Hazardous",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+            aqi_color_name: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", 0] },
+                        { $lte: ["$pm2_5.value", 12] },
+                      ],
+                    },
+                    then: "Green",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 12] },
+                        { $lte: ["$pm2_5.value", 35.4] },
+                      ],
+                    },
+                    then: "Yellow",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 35.4] },
+                        { $lte: ["$pm2_5.value", 55.4] },
+                      ],
+                    },
+                    then: "Orange",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 55.4] },
+                        { $lte: ["$pm2_5.value", 150.4] },
+                      ],
+                    },
+                    then: "Red",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 150.4] },
+                        { $lte: ["$pm2_5.value", 250.4] },
+                      ],
+                    },
+                    then: "Purple",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gt: ["$pm2_5.value", 250.4] },
+                        { $lte: ["$pm2_5.value", 500] },
+                      ],
+                    },
+                    then: "Maroon",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+          },
+        },
+      ],
+    })
+    .project({
+      meta,
+      data: {
+        $slice: [
+          "$data",
+          skip,
+          {
+            $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+          },
+        ],
+      },
+    })
+    .allowDiskUse(true);
+
+  return data;
+}
 function filterNullAndReportOffDevices(data) {
   data.forEach((record) => {
     if (record.timeDifferenceHours > 14) {
@@ -1945,6 +2410,31 @@ eventSchema.statics.fetch = async function(filter) {
     request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
     request.page = filter.page ? filter.page : DEFAULT_PAGE;
     const result = await fetchData(this, request);
+    const transformedData = filterNullAndReportOffDevices(result[0].data);
+    result[0].data = transformedData;
+    const calculatedValues = computeAveragePm2_5(transformedData);
+    result[0].meta.pm2_5Avg = calculatedValues;
+    return {
+      success: true,
+      data: result,
+      message: "successfully returned the measurements",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error --- view events -- ${error.message}`
+    );
+    return;
+  }
+};
+
+eventSchema.statics.signal = async function(filter) {
+  try {
+    const request = filter;
+    request.skip = filter.skip ? filter.skip : DEFAULT_SKIP;
+    request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
+    request.page = filter.page ? filter.page : DEFAULT_PAGE;
+    const result = await signalData(this, request);
     const transformedData = filterNullAndReportOffDevices(result[0].data);
     result[0].data = transformedData;
     const calculatedValues = computeAveragePm2_5(transformedData);

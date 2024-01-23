@@ -27,3 +27,4 @@ coverage
 pytest-cov
 firebase-admin
 db_dtypes
+tweepy
