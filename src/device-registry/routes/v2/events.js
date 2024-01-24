@@ -1354,8 +1354,6 @@ router.get(
   eventController.listEventsForAllDevices
 );
 
-router.get("/map", eventController.listForMap);
-
 router.get(
   "/",
   oneOf([
