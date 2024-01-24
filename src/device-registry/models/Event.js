@@ -1269,14 +1269,14 @@ async function signalData(model, filter) {
       foreignField: "_id",
       as: "device_details",
     })
+    .match({
+      "device_details.status": "deployed",
+    })
     .lookup({
       from: "cohorts",
       localField: "device_details.cohorts",
       foreignField: "_id",
       as: "cohort_details",
-    })
-    .match({
-      "device_details.status": "deployed",
     })
     .match({
       "cohort_details.visibility": { $ne: false },
