@@ -199,13 +199,13 @@ SignalsSchema.statics.latest = async function(
   next
 ) {
   try {
-    let threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    let threeHoursAgo = new Date();
+    threeHoursAgo.setHours(threeHoursAgo.getHours() - 3);
 
     const pipeline = this.aggregate()
       .match({
         time: {
-          $gte: threeDaysAgo,
+          $gte: threeHoursAgo,
         },
       })
       .sort({ time: -1 })
