@@ -1380,6 +1380,7 @@ const createUser = {
   },
   loginInViaEmail: async (req, res, next) => {
     try {
+      console.log("Inside Controller")
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
@@ -1393,6 +1394,7 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
+      request.query.purpose = "login";
       const result = await createUserUtil.generateSignInWithEmailLink(
         request,
         next
