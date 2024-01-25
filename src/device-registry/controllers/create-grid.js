@@ -303,7 +303,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -417,7 +417,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -451,9 +451,6 @@ const createGrid = {
         return;
       }
 
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -578,7 +575,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -632,7 +629,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -687,7 +684,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -743,7 +740,7 @@ const createGrid = {
             : { message: "Internal Server Error" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

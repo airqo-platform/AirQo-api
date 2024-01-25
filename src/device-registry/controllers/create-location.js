@@ -82,7 +82,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -135,7 +135,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -188,7 +188,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -242,7 +242,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -295,7 +295,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -348,7 +348,7 @@ const createLocation = {
           errors: result.errors ? result.errors : { message: "" },
         });
       }
-    } catch (errors) {
+    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

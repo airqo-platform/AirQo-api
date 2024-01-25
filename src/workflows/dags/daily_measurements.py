@@ -47,6 +47,7 @@ def cleanup_measurements():
 def realtime_daily_measurements():
     import pandas as pd
 
+    @task()
     def extract():
         from airqo_etl_utils.daily_data_utils import DailyDataUtils
         from airqo_etl_utils.date import date_to_str_days

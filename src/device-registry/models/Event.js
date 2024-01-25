@@ -1139,7 +1139,6 @@ async function signalData(model, filter) {
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
   let idField;
-  // const visibilityFilter = true;
 
   let search = filter;
   let groupId = "$device";
@@ -1270,6 +1269,9 @@ async function signalData(model, filter) {
       foreignField: "_id",
       as: "device_details",
     })
+    .match({
+      "device_details.status": "deployed",
+    })
     .lookup({
       from: "cohorts",
       localField: "device_details.cohorts",
@@ -1277,10 +1279,9 @@ async function signalData(model, filter) {
       as: "cohort_details",
     })
     .match({
+      cohort_details: { $exists: true },
       "cohort_details.visibility": { $ne: false },
-    })
-    .match({
-      "cohort_details.name": "map",
+      "cohort_details.name": { $eq: "map" },
     })
     .lookup({
       from,

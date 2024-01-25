@@ -17,23 +17,22 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 
 | Service                                        | Language               | Description                                                                                                                                                         |
 | ---------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [analytics](./src/analytics-service)           | Flask/Python & MongoDB | This is the one to be used for all analytics work                                                                                                                   |
+| [analytics](./src/analytics)           | Flask/Python & MongoDB | This is the one to be used for all analytics work                                                                                                                   |
 | [auth-service](./src/auth-service)             | Node.js                | Authentication services for this endpoint                                                                                                                           |
 | [data-mgt](./src/data-mgt)                     | Node.js & MongoDB      | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness |
 | [device-registry](./src/device-registry) .     | Node.js                | Carry out the management of the devices.                                                                                                                            |
-| [incetives](./src/incetives-service)           | Node.js                | The payment service to incetivise various stakeholders                                                                                                              |
+| [incentives](./src/incentives)           | Node.js                | The payment service to incetivise various stakeholders                                                                                                              |
 | [predict](./src/predict)                       | Flask/Python & MongoDB | microservice to handle predictions or forecasts of air quality                                                                                                      |
 | [device-monitoring](./src/device-monitoring)   | Flask/Python & MongoDB | Monitoring the status of all devices on the network.                                                                                                                |
 | [locate](./src/locate)                         | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
-| [calibrate](./src/locate)                      | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
-| [location-registry](./src/location-registry)   | Flask/Python & MongoDB | microservice that handles the registration of locations in the network                                                                                              |
+| [calibrate](./src/calibrate)                      | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |                                                                                          |
 
 ## Features
 
 - Multi-protocol connectivity (HTTP and MQTT)
 - Device management
 - Access control
-- Incetives
+- Incentives
 - Message persistence (MongoDB and PostgresSQL)
 - Container-based deployment using [Docker](https://www.docker.com/) and [Kubernetes](https://kubernetes.io/)
 - Microservices architecture, high-quality code and test coverage

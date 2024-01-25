@@ -344,9 +344,7 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
-
-    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13";
+    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13,46,176,51";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
 
     logObject("blockedIpPrefixes", blockedIpPrefixes);
@@ -1127,7 +1125,23 @@ const controlAccess = {
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
-      return responseFromUpdateClient;
+      if (responseFromUpdateClient.success === true) {
+        const ip = update.ip_address || "";
+        if (!isEmpty(ip)) {
+          const newWhitelistResponse = await WhitelistedIPModel(
+            tenant
+          ).register({ ip }, next);
+          if (newWhitelistResponse.success === false) {
+            return newWhitelistResponse;
+          } else {
+            return responseFromUpdateClient;
+          }
+        } else {
+          return responseFromUpdateClient;
+        }
+      } else {
+        return responseFromUpdateClient;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

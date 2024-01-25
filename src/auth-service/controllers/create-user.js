@@ -1393,6 +1393,7 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
+      request.query.purpose = "login";
       const result = await createUserUtil.generateSignInWithEmailLink(
         request,
         next
