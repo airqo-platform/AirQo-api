@@ -1198,11 +1198,11 @@ async function quizTranslations(index, target) {
                 },
                 {
                   content: [
-                    "Okukozesa ekyuma ekifumba ggaasi okutwalira awamu kiyonjo bw’ogeraageranya n’amafuta amakalu.",
-                    "Kakasa nti empewo eyingira bulungi okutangira omukka ogufuluma mu nnyumba okukuŋŋaanyizibwa.",
-                    "Kuuma ebifumba bya ggaasi n’ebiyungo okuziyiza okukulukuta okuyinza okukosa omutindo gw’empewo mu nnyumba."
+                    "Okukozesa ekyuma ekifumbisa ggaasi okutwalira awamu kiyonjo nnyo bw’ogeraageranya n’amafuta amakalu.",
+                    "Kakasa nti empewo eyingira bulungi okutangira omukka ogufuluma mu nkyuma okuŋŋanira munda.",
+                    "Kuuma ebifumba bya ggaasi n’ebiyungibwako okuziyiza okukulukuta okuyinza okukosa omutindo gw’empewo mu nnyumba."
                   ],
-                  title: "Ekyuma ekifumba Gaasi",
+                  title: "Ekyuma ekifumbisa Gaasi",
                 },
                 {
                   content: [
@@ -1219,7 +1219,7 @@ async function quizTranslations(index, target) {
                     "Ne bwe kiba nti tolina bucaafu bufuluma, kakasa nti empewo emala okuziyiza obucaafu obulala obuva mu mpewo munda.",
                     "Okukozesa ebyuma ebifumba eby’amasannyalaze ebikekkereza amaanyi kiyinza okukendeeza ku butonde bw’ensi okutwalira awamu."
                   ],
-                  title: "Ekyuma ekifumba eky’amasannyalaze",
+                  title: "Ekyuma ekifumbisa amasannyalaze",
                 }
               ]
             },
