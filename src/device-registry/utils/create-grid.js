@@ -267,13 +267,24 @@ const createGrid = {
         }
 
         // Remove old grid_ids from sites
+        // const pullResponse = await SiteModel(tenant).updateMany(
+        //   {
+        //     _id: { $in: batchSiteIds },
+        //     grids: { $ne: grid_id.toString() },
+        //   },
+        //   {
+        //     $pull: { grids: { $ne: grid_id.toString() } },
+        //   }
+        // );
+
+        // Remove the Grid from Sites which no longer have devices deployed to them
         const pullResponse = await SiteModel(tenant).updateMany(
           {
-            _id: { $in: batchSiteIds },
-            grids: { $ne: grid_id.toString() },
+            _id: { $nin: batchSiteIds }, // Select sites not in batchSiteIds
+            grids: { $in: [grid_id.toString()] }, // Select sites that contain the grid_id
           },
           {
-            $pull: { grids: { $ne: grid_id.toString() } },
+            $pull: { grids: grid_id.toString() }, // Remove grid_id from the selected sites
           }
         );
 
