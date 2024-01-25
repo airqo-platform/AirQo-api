@@ -267,34 +267,34 @@ const createGrid = {
         }
 
         // Remove old grid_ids from sites
-        const pullResponse = await SiteModel(tenant).updateMany(
-          {
-            _id: { $in: batchSiteIds },
-            grids: { $ne: grid_id.toString() },
-          },
-          {
-            $pull: { grids: { $ne: grid_id.toString() } },
-          }
-        );
+        // const pullResponse = await SiteModel(tenant).updateMany(
+        //   {
+        //     _id: { $in: batchSiteIds },
+        //     grids: { $ne: grid_id.toString() },
+        //   },
+        //   {
+        //     $pull: { grids: { $ne: grid_id.toString() } },
+        //   }
+        // );
 
-        logObject("pullResponse", pullResponse);
+        // logObject("pullResponse", pullResponse);
 
-        // Check if pull operation was successful
-        if (!pullResponse.ok) {
-          logger.error(
-            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
-          );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-              }
-            )
-          );
-          return;
-        }
+        // // Check if pull operation was successful
+        // if (!pullResponse.ok) {
+        //   logger.error(
+        //     `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+        //   );
+        //   next(
+        //     new HttpError(
+        //       "Internal Server Error",
+        //       httpStatus.INTERNAL_SERVER_ERROR,
+        //       {
+        //         message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
+        //       }
+        //     )
+        //   );
+        //   return;
+        // }
       }
 
       return {
