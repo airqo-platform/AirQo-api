@@ -1279,6 +1279,7 @@ async function signalData(model, filter) {
       as: "cohort_details",
     })
     .match({
+      cohort_details: { $exists: true },
       "cohort_details.visibility": { $ne: false },
       "cohort_details.name": { $eq: "map" },
     })
