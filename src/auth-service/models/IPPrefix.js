@@ -10,6 +10,14 @@ const logger = log4js.getLogger(
 const { getModelByTenant } = require("@config/database");
 const { HttpError } = require("@utils/errors");
 
+function getDay() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const IPPrefixSchema = new mongoose.Schema(
   {
     prefix: {
