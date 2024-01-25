@@ -277,24 +277,35 @@ const createGrid = {
         //   }
         // );
 
-        // logObject("pullResponse", pullResponse);
+        // Remove the Grid from Sites which no longer have devices deployed to them
+        const pullResponse = await SiteModel(tenant).updateMany(
+          {
+            _id: { $nin: batchSiteIds }, // Select sites not in batchSiteIds
+            grids: { $in: [grid_id.toString()] }, // Select sites that contain the grid_id
+          },
+          {
+            $pull: { grids: grid_id.toString() }, // Remove grid_id from the selected sites
+          }
+        );
 
-        // // Check if pull operation was successful
-        // if (!pullResponse.ok) {
-        //   logger.error(
-        //     `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
-        //   );
-        //   next(
-        //     new HttpError(
-        //       "Internal Server Error",
-        //       httpStatus.INTERNAL_SERVER_ERROR,
-        //       {
-        //         message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-        //       }
-        //     )
-        //   );
-        //   return;
-        // }
+        logObject("pullResponse", pullResponse);
+
+        // Check if pull operation was successful
+        if (!pullResponse.ok) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
+              }
+            )
+          );
+          return;
+        }
       }
 
       return {
