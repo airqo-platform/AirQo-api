@@ -1280,9 +1280,7 @@ async function signalData(model, filter) {
     })
     .match({
       "cohort_details.visibility": { $ne: false },
-    })
-    .match({
-      "cohort_details.name": "map",
+      "cohort_details.name": { $eq: "map" },
     })
     .lookup({
       from,
