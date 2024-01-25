@@ -625,6 +625,11 @@ const dbProjections = {
         grid_tags: 0,
         grid_codes: 0,
         centers: 0,
+        "sites.latitude": 0,
+        "sites.longitude": 0,
+        "sites.generated_name": 0,
+        "sites.bearing_in_radians": 0,
+        "sites.approximate_distance_in_km": 0,
       });
     }
     if (category === "public") {
