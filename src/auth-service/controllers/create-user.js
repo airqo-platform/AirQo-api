@@ -1380,7 +1380,6 @@ const createUser = {
   },
   loginInViaEmail: async (req, res, next) => {
     try {
-      console.log("Inside Controller")
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
