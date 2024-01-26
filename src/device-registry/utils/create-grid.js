@@ -15,6 +15,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
+const jsonify = require("@utils/jsonify");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -108,7 +109,7 @@ const createGrid = {
               messages: [
                 {
                   action: "create",
-                  value: JSON.stringify(responseFromRegisterGrid.data),
+                  value: jsonify(responseFromRegisterGrid.data),
                 },
               ],
             });
@@ -232,7 +233,7 @@ const createGrid = {
         _id.toString()
       );
 
-      // Process the site_ids in batches
+      // Process the  active site_ids in batches
       for (let i = 0; i < site_ids.length; i += BATCH_SIZE) {
         const batchSiteIds = site_ids.slice(i, i + BATCH_SIZE);
 
@@ -266,27 +267,48 @@ const createGrid = {
           return;
         }
 
-        // Remove old grid_ids from sites
-        const pullResponse = await SiteModel(tenant).updateMany(
-          {
-            _id: { $in: batchSiteIds },
-            grids: { $ne: grid_id.toString() },
-          },
-          {
-            $pull: { grids: { $ne: grid_id.toString() } },
-          }
-        );
-
-        // Remove the Grid from Sites which no longer have devices deployed to them
+        // // Remove old grid_ids from sites
         // const pullResponse = await SiteModel(tenant).updateMany(
         //   {
-        //     _id: { $nin: batchSiteIds }, // Select sites not in batchSiteIds
-        //     grids: { $in: [grid_id.toString()] }, // Select sites that contain the grid_id
+        //     _id: { $in: batchSiteIds },
+        //     grids: { $ne: grid_id.toString() },
         //   },
         //   {
-        //     $pull: { grids: grid_id.toString() }, // Remove grid_id from the selected sites
+        //     $pull: { grids: { $ne: grid_id.toString() } },
         //   }
         // );
+
+        // logObject("pullResponse", pullResponse);
+
+        // // Check if pull operation was successful
+        // if (!pullResponse.ok) {
+        //   logger.error(
+        //     `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+        //   );
+        //   next(
+        //     new HttpError(
+        //       "Internal Server Error",
+        //       httpStatus.INTERNAL_SERVER_ERROR,
+        //       {
+        //         message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
+        //       }
+        //     )
+        //   );
+        //   return;
+        // }
+      }
+
+      try {
+        // Remove the Grid from INACTIVE Sites
+        const pullResponse = await SiteModel(tenant).updateMany(
+          {
+            _id: { $nin: site_ids }, // select INACTIVE sites
+            grids: { $in: [grid_id.toString()] }, // Select sites that contain the grid_id
+          },
+          {
+            $pull: { grids: grid_id.toString() }, // Remove grid_id from the selected sites
+          }
+        );
 
         logObject("pullResponse", pullResponse);
 
@@ -295,17 +317,13 @@ const createGrid = {
           logger.error(
             `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
           );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-              }
-            )
-          );
-          return;
         }
+      } catch (error) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- grid refresh -- Remove the Grid from INACTIVE Sites -- ${jsonify(
+            error
+          )}`
+        );
       }
 
       return {
