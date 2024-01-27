@@ -412,9 +412,28 @@ const createGrid = {
 
       logObject("sitesWithDeployedDevices", sitesWithDeployedDevices);
 
-      const sites = await SiteModel(tenant).find({
-        _id: { $in: sitesWithDeployedDevices },
-      });
+      // Calculate the bounding box of the grid polygon
+      const minLongitude = Math.min(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const maxLongitude = Math.max(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const minLatitude = Math.min(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+      const maxLatitude = Math.max(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+
+      // Fetch only sites within the bounding box
+      const sites = await SiteModel(tenant)
+        .find({
+          _id: { $in: sitesWithDeployedDevices },
+          longitude: { $gte: minLongitude, $lte: maxLongitude },
+          latitude: { $gte: minLatitude, $lte: maxLatitude },
+        })
+        .lean();
 
       const site_ids = sites
         .filter(
