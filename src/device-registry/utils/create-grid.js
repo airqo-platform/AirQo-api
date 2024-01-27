@@ -233,69 +233,45 @@ const createGrid = {
         _id.toString()
       );
 
+      // Create an array to hold all operations
+      const operations = [];
+
       // Process the  active site_ids in batches
       for (let i = 0; i < site_ids.length; i += BATCH_SIZE) {
         const batchSiteIds = site_ids.slice(i, i + BATCH_SIZE);
-
         // Add new grid_id to sites
-        const addToSetResponse = await SiteModel(tenant).updateMany(
-          {
-            _id: { $in: batchSiteIds },
-            grids: { $ne: grid_id.toString() },
+        operations.push({
+          updateMany: {
+            filter: {
+              _id: { $in: batchSiteIds },
+              grids: { $ne: grid_id.toString() },
+            },
+            update: {
+              $addToSet: { grids: grid_id.toString() },
+            },
           },
-          {
-            $addToSet: { grids: grid_id.toString() },
-          }
+        });
+      }
+
+      // Execute the bulk operation
+      const addToSetResponse = await SiteModel(tenant).bulkWrite(operations);
+      logObject("addToSetResponse", addToSetResponse);
+
+      // Check if addToSet operation was successful
+      if (!addToSetResponse.ok) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
         );
-
-        logObject("addToSetResponse", addToSetResponse);
-
-        // Check if addToSet operation was successful
-        if (!addToSetResponse.ok) {
-          logger.error(
-            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
-          );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Only ${addToSetResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-              }
-            )
-          );
-          return;
-        }
-
-        // // Remove old grid_ids from sites
-        // const pullResponse = await SiteModel(tenant).updateMany(
-        //   {
-        //     _id: { $in: batchSiteIds },
-        //     grids: { $ne: grid_id.toString() },
-        //   },
-        //   {
-        //     $pull: { grids: { $ne: grid_id.toString() } },
-        //   }
-        // );
-
-        // logObject("pullResponse", pullResponse);
-
-        // // Check if pull operation was successful
-        // if (!pullResponse.ok) {
-        //   logger.error(
-        //     `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
-        //   );
-        //   next(
-        //     new HttpError(
-        //       "Internal Server Error",
-        //       httpStatus.INTERNAL_SERVER_ERROR,
-        //       {
-        //         message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-        //       }
-        //     )
-        //   );
-        //   return;
-        // }
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Only ${addToSetResponse.nModified} out of ${site_ids.length} sites were updated`,
+            }
+          )
+        );
+        return;
       }
 
       try {
@@ -442,9 +418,28 @@ const createGrid = {
 
       logObject("sitesWithDeployedDevices", sitesWithDeployedDevices);
 
-      const sites = await SiteModel(tenant).find({
-        _id: { $in: sitesWithDeployedDevices },
-      });
+      // Calculate the bounding box of the grid polygon
+      const minLongitude = Math.min(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const maxLongitude = Math.max(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const minLatitude = Math.min(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+      const maxLatitude = Math.max(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+
+      // Fetch only sites within the bounding box
+      const sites = await SiteModel(tenant)
+        .find({
+          _id: { $in: sitesWithDeployedDevices },
+          longitude: { $gte: minLongitude, $lte: maxLongitude },
+          latitude: { $gte: minLatitude, $lte: maxLatitude },
+        })
+        .lean();
 
       const site_ids = sites
         .filter(
