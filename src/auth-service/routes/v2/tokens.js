@@ -27,6 +27,7 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(validatePagination);
 
+/******************** tokens ***********************************/
 router.get(
   "/",
   oneOf([
@@ -245,7 +246,7 @@ router.get(
   // rateLimitMiddleware,
   createTokenController.verify
 );
-/******************** unknown IP addresses *********************/
+/******************** unknown IP addresses *************************/
 router.get(
   "/unknown-ip",
   oneOf([
@@ -372,6 +373,27 @@ router.delete(
   authJWT,
   createTokenController.removeBlacklistedIp
 );
+router.get(
+  "/blacklist-ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.listBlacklistedIp
+);
+
+/******************** blacklisted IP address RANGES *********************/
 router.post(
   "/blacklist-ip-range",
   oneOf([
@@ -491,7 +513,8 @@ router.get(
   authJWT,
   createTokenController.listBlacklistedIpRange
 );
-/******************** whitelisted IP addresses *********************/
+
+/******************** whitelisted IP addresses ************************/
 router.post(
   "/whitelist-ip",
   oneOf([
@@ -554,6 +577,269 @@ router.delete(
   authJWT,
   createTokenController.removeWhitelistedIp
 );
+router.get(
+  "/whitelist-ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.listWhitelistedIp
+);
+
+/********************  ip prefixes ***************************************/
+router.post(
+  "/ip-prefix",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("prefix")
+      .exists()
+      .withMessage("the prefix is missing in your request body")
+      .bail()
+      .notEmpty()
+      .withMessage("the prefix should not be empty if provided")
+      .trim(),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.ipPrefix
+);
+router.post(
+  "/ip-prefix/bulk",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("prefixes")
+        .exists()
+        .withMessage("the prefixes are missing in your request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the prefixes should not be empty in the request body")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the prefixes should be an array"),
+      body("prefixes.*")
+        .notEmpty()
+        .withMessage("Provided prefix should NOT be empty"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.bulkInsertIpPrefix
+);
+router.delete(
+  "/ip-prefix/:id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("id")
+      .exists()
+      .withMessage("the id param is missing in the request")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the id cannot be empty when provided")
+      .bail()
+      .isMongoId()
+      .withMessage("the id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.removeIpPrefix
+);
+router.get(
+  "/ip-prefix",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.listIpPrefix
+);
+
+/********************  blacklisted ip prefixes ****************************/
+router.post(
+  "/blacklist-ip-prefix",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("prefix")
+      .exists()
+      .withMessage("the prefix is missing in your request body")
+      .bail()
+      .notEmpty()
+      .withMessage("the prefix should not be empty if provided")
+      .trim(),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.blackListIpPrefix
+);
+router.post(
+  "/blacklist-ip-prefix/bulk",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("prefixes")
+        .exists()
+        .withMessage("the prefixes are missing in your request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the prefixes should not be empty in the request body")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the ranges should be an array"),
+      body("prefixes.*")
+        .notEmpty()
+        .withMessage("Provided prefix should NOT be empty"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.bulkInsertBlacklistIpPrefix
+);
+router.delete(
+  "/blacklist-ip-prefix/:id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("id")
+      .exists()
+      .withMessage("the id param is missing in the request")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the id cannot be empty when provided")
+      .bail()
+      .isMongoId()
+      .withMessage("the id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.removeBlacklistedIpPrefix
+);
+router.get(
+  "/blacklist-ip-prefix",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.listBlacklistedIpPrefix
+);
+
+/*************************** Get TOKEN's information ********************* */
 
 router.get(
   "/:token",
