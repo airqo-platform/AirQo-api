@@ -53,7 +53,6 @@ const UnknownIPSchema = new mongoose.Schema(
         day: {
           type: String,
           default: getDay(),
-          unique: true,
         },
         count: {
           type: Number,
@@ -73,7 +72,7 @@ UnknownIPSchema.pre("update", function (next) {
   return next();
 });
 
-UnknownIPSchema.index({ ip: 1 }, { unique: true });
+UnknownIPSchema.index({ ip: 1, "ipCounts.day": 1 }, { unique: true });
 
 UnknownIPSchema.statics = {
   async register(args, next) {
