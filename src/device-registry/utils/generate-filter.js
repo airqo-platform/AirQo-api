@@ -5,6 +5,7 @@ const {
   generateDateFormatWithoutHrs,
   getDifferenceInWeeks,
   addWeeksToProvideDateTime,
+  addDaysToProvideDateTime,
   addDays,
 } = require("./date");
 const mongoose = require("mongoose");
@@ -768,11 +769,11 @@ const generateFilter = {
     // Handle startTime and endTime corner cases
     if (startTime && !endTime) {
       if (!isTimeEmpty(startTime)) {
-        filter["values.time"]["$lte"] = addWeeksToProvideDateTime(startTime, 1);
+        filter["values.time"]["$lte"] = addDaysToProvideDateTime(startTime, 1);
       } else {
         delete filter["values.time"];
       }
-      const addedTwoWeeksToProvidedDateTime = addWeeksToProvideDateTime(
+      const addedTwoWeeksToProvidedDateTime = addDaysToProvideDateTime(
         startTime,
         1
       );
@@ -783,11 +784,11 @@ const generateFilter = {
 
     if (!startTime && endTime) {
       if (!isTimeEmpty(endTime)) {
-        filter["values.time"]["$gte"] = addWeeksToProvideDateTime(endTime, -1);
+        filter["values.time"]["$gte"] = addDaysToProvideDateTime(endTime, -1);
       } else {
         delete filter["values.time"];
       }
-      const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+      const removedTwoWeeksFromProvidedDateTime = addDaysToProvideDateTime(
         endTime,
         -1
       );
@@ -801,14 +802,11 @@ const generateFilter = {
       logObject("the weeks between provided dates", weeks);
       if (weeks > 1) {
         if (!isTimeEmpty(endTime)) {
-          filter["values.time"]["$gte"] = addWeeksToProvideDateTime(
-            endTime,
-            -1
-          );
+          filter["values.time"]["$gte"] = addDaysToProvideDateTime(endTime, -1);
         } else {
           delete filter["values.time"];
         }
-        const removedTwoWeeksFromProvidedDateTime = addWeeksToProvideDateTime(
+        const removedTwoWeeksFromProvidedDateTime = addDaysToProvideDateTime(
           endTime,
           -1
         );

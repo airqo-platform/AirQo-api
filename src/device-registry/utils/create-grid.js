@@ -15,6 +15,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
+const jsonify = require("@utils/jsonify");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -108,7 +109,7 @@ const createGrid = {
               messages: [
                 {
                   action: "create",
-                  value: JSON.stringify(responseFromRegisterGrid.data),
+                  value: jsonify(responseFromRegisterGrid.data),
                 },
               ],
             });
@@ -232,55 +233,52 @@ const createGrid = {
         _id.toString()
       );
 
-      // Process the site_ids in batches
+      // Create an array to hold all operations
+      const operations = [];
+
+      // Process the  active site_ids in batches
       for (let i = 0; i < site_ids.length; i += BATCH_SIZE) {
         const batchSiteIds = site_ids.slice(i, i + BATCH_SIZE);
-
         // Add new grid_id to sites
-        const addToSetResponse = await SiteModel(tenant).updateMany(
-          {
-            _id: { $in: batchSiteIds },
-            grids: { $ne: grid_id.toString() },
+        operations.push({
+          updateMany: {
+            filter: {
+              _id: { $in: batchSiteIds },
+              grids: { $ne: grid_id.toString() },
+            },
+            update: {
+              $addToSet: { grids: grid_id.toString() },
+            },
           },
-          {
-            $addToSet: { grids: grid_id.toString() },
-          }
+        });
+      }
+
+      // Execute the bulk operation
+      const addToSetResponse = await SiteModel(tenant).bulkWrite(operations);
+      logObject("addToSetResponse", addToSetResponse);
+
+      // Check if addToSet operation was successful
+      if (!addToSetResponse.ok) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
         );
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Only ${addToSetResponse.nModified} out of ${site_ids.length} sites were updated`,
+            }
+          )
+        );
+        return;
+      }
 
-        logObject("addToSetResponse", addToSetResponse);
-
-        // Check if addToSet operation was successful
-        if (!addToSetResponse.ok) {
-          logger.error(
-            `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
-          );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Only ${addToSetResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-              }
-            )
-          );
-          return;
-        }
-
-        // Remove old grid_ids from sites
-        // const pullResponse = await SiteModel(tenant).updateMany(
-        //   {
-        //     _id: { $in: batchSiteIds },
-        //     grids: { $ne: grid_id.toString() },
-        //   },
-        //   {
-        //     $pull: { grids: { $ne: grid_id.toString() } },
-        //   }
-        // );
-
-        // Remove the Grid from Sites which no longer have devices deployed to them
+      try {
+        // Remove the Grid from INACTIVE Sites
         const pullResponse = await SiteModel(tenant).updateMany(
           {
-            _id: { $nin: batchSiteIds }, // Select sites not in batchSiteIds
+            _id: { $nin: site_ids }, // select INACTIVE sites
             grids: { $in: [grid_id.toString()] }, // Select sites that contain the grid_id
           },
           {
@@ -295,17 +293,13 @@ const createGrid = {
           logger.error(
             `🐛🐛 Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
           );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Only ${pullResponse.nModified} out of ${batchSiteIds.length} sites were updated`,
-              }
-            )
-          );
-          return;
         }
+      } catch (error) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- grid refresh -- Remove the Grid from INACTIVE Sites -- ${jsonify(
+            error
+          )}`
+        );
       }
 
       return {
@@ -424,9 +418,28 @@ const createGrid = {
 
       logObject("sitesWithDeployedDevices", sitesWithDeployedDevices);
 
-      const sites = await SiteModel(tenant).find({
-        _id: { $in: sitesWithDeployedDevices },
-      });
+      // Calculate the bounding box of the grid polygon
+      const minLongitude = Math.min(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const maxLongitude = Math.max(
+        ...gridPolygon.map((point) => point.longitude)
+      );
+      const minLatitude = Math.min(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+      const maxLatitude = Math.max(
+        ...gridPolygon.map((point) => point.latitude)
+      );
+
+      // Fetch only sites within the bounding box
+      const sites = await SiteModel(tenant)
+        .find({
+          _id: { $in: sitesWithDeployedDevices },
+          longitude: { $gte: minLongitude, $lte: maxLongitude },
+          latitude: { $gte: minLatitude, $lte: maxLatitude },
+        })
+        .lean();
 
       const site_ids = sites
         .filter(
