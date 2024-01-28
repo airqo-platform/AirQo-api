@@ -42,6 +42,7 @@ function handleResponse({
 }
 
 const createAccessToken = {
+  /************************* tokens ********************************* */
   create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -317,11 +318,7 @@ const createAccessToken = {
       return;
     }
   },
-
-  /******************** IP ADDRESSES ********************** */
-
-  //bulkInsertBlacklistIpRanges
-
+  /******************** Blaclisted IP address *********************************/
   blackListIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -472,6 +469,57 @@ const createAccessToken = {
       return;
     }
   },
+  listBlacklistedIp: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.listBlacklistedIp(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          blacklisted_ip: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  /************************* blacklisted IP ranges *********************** */
   blackListIpRange: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -681,6 +729,7 @@ const createAccessToken = {
       return;
     }
   },
+  /************************** Whitelist IPs **************************************** */
   whiteListIp: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -781,6 +830,57 @@ const createAccessToken = {
       return;
     }
   },
+  listWhitelistedIp: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.listWhitelistedIp(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          whitelisted_ip_ranges: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  /************************** Unknown IPs **************************************** */
   listUnknownIPs: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -807,6 +907,417 @@ const createAccessToken = {
         return res.status(status).json({
           message: result.message ? result.message : "",
           unknown_ips: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  /************************* blacklisted IP Prefixes *********************** */
+  blackListIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.blackListIpPrefix(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          blacklisted_ip_prefix: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  bulkInsertBlacklistIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.bulkInsertBlacklistIpPrefix(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          blacklisted_ip_prefix: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeBlacklistedIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.removeBlacklistedIpPrefix(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          removed_ip_prefix: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  listBlacklistedIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.listBlacklistedIpPrefix(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          blacklisted_ip_prefix: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  /************************* IP Prefix **************************************/
+  ipPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.ipPrefix(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          ip_prefix: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  bulkInsertIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.bulkInsertIpPrefix(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          ip_prefix: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.removeIpPrefix(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          removed_ip_prefix: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  listIpPrefix: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await controlAccessUtil.listIpPrefix(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          message: result.message ? result.message : "",
+          ip_prefix: result.data ? result.data : {},
         });
       } else if (result.success === false) {
         const status = result.status

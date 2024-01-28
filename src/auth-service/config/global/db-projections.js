@@ -904,6 +904,20 @@ const dbProjections = {
     return projection;
   },
 
+  IP_PREFIX_INCLUSION_PROJECTION: {
+    _id: 1,
+    prefix: 1,
+    prefixCounts: 1,
+  },
+  IP_PREFIX_EXCLUSION_PROJECTION: function (category) {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
   CLIENTS_INCLUSION_PROJECTION: {
     _id: 1,
     client_id: 1,
