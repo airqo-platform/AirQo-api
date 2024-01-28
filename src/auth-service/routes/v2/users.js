@@ -1040,6 +1040,131 @@ router.get(
   createUserController.getUserStats
 );
 
+/*********************************** user notifications **********************/
+router.post(
+  "/subscribe/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.subscribeToNotifications
+);
+router.post(
+  "/unsubscribe/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.unSubscribeFromNotifications
+);
+router.post(
+  "/notification-status/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.checkNotificationStatus
+);
+/*********************************** Get User Information ********************/
 router.get(
   "/:user_id",
   oneOf([

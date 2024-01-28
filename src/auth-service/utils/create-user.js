@@ -2,7 +2,7 @@ const UserModel = require("@models/User");
 const VerifyTokenModel = require("@models/VerifyToken");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText, logError } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const { generateDateFormatWithoutHrs } = require("@utils/date");
 const bcrypt = require("bcrypt");
@@ -341,7 +341,6 @@ const createUserModule = {
       return;
     }
   },
-
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(
@@ -2253,6 +2252,125 @@ const createUserModule = {
           { message: error.message }
         )
       );
+    }
+  },
+  subscribeToNotifications: async (request, next) => {
+    try {
+      const { email, type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { email },
+        { $set: { [`notifications.${type}`]: true } }
+      );
+
+      if (updatedUser) {
+        return {
+          success: true,
+          message: `Successfully Subscribed to ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: `Internal Server Error`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: `Failed to subscribe users to ${type} notifications`,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  unSubscribeFromNotifications: async (request, next) => {
+    try {
+      const { email, type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { email },
+        { $set: { [`notifications.${type}`]: false } }
+      );
+
+      if (updatedUser) {
+        return {
+          success: true,
+          message: `Successfully UnSubscribed user from ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: `Internal Server Error`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: `Failed to UnSubscribe the user from ${type} notifications`,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  checkNotificationStatus: async (request, next) => {
+    try {
+      const { email, type, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const user = await UserModel(tenant).findOne({ email });
+      if (!user.notifications[type]) {
+        return {
+          success: false,
+          message: `Forbidden`,
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: `User is not subscribed to ${type} notifications`,
+          },
+        };
+      } else {
+        return {
+          success: true,
+          message: `User is subscribed to ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
