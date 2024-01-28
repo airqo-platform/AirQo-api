@@ -335,7 +335,7 @@ const isIPBlacklistedHelper = async (
         AccessTokenModel("airqo")
           .findOne(acessTokenFilter)
           .select("name token client_id"),
-        BlacklistedIPPrefixModel("airqo").find().exec(),
+        BlacklistedIPPrefixModel("airqo").find().select("prefix").exec(),
       ]);
 
     const {

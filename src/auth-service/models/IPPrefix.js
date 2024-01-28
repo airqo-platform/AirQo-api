@@ -225,7 +225,7 @@ IPPrefixSchema.methods = {
 
 const IPPrefixModel = (tenant) => {
   try {
-    let prefix = mongoose.model("IPPrefix");
+    let prefix = mongoose.model("IPPrefixes");
     return prefix;
   } catch (error) {
     let prefix = getModelByTenant(tenant, "IPPrefix", IPPrefixSchema);

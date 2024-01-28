@@ -199,7 +199,7 @@ BlacklistedIPPrefixSchema.methods = {
 
 const BlacklistedIPPrefixModel = (tenant) => {
   try {
-    let prefix = mongoose.model("BlacklistedIPPrefix");
+    let prefix = mongoose.model("BlacklistedIPPrefixes");
     return prefix;
   } catch (error) {
     let prefix = getModelByTenant(
