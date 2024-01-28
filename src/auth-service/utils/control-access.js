@@ -309,7 +309,7 @@ const postProcessing = async ({
     endpoint,
     day,
   });
-  ipPrefixQueue.push({ prefix });
+  ipPrefixQueue.push({ prefix, day });
 };
 
 const isIPBlacklistedHelper = async (
