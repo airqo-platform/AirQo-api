@@ -251,7 +251,7 @@ let unknownIPQueue = async.queue(async (task, callback) => {
 let ipPrefixQueue = async.queue(async (task, callback) => {
   let { prefix, day } = task;
   await IPPrefixModel("airqo")
-    .findOne({ prefix })
+    .findOne({ prefix, "prefixCounts.day": day })
     .then(async (checkDoc) => {
       if (checkDoc) {
         const update = {
@@ -298,7 +298,6 @@ const postProcessing = async ({
   endpoint = "unknown",
   day,
 }) => {
-  logText("we are now postProcessing()....");
   const prefix = generatePrefix(ip);
   blacklistQueue.push({ ip });
   unknownIPQueue.push({
