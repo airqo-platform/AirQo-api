@@ -47,6 +47,19 @@ const IPPrefixSchema = new mongoose.Schema(
 );
 
 IPPrefixSchema.pre("save", function (next) {
+  // if (
+  //   !this.prefixCounts ||
+  //   !this.prefixCounts.day ||
+  //   this.prefixCounts.length === 0
+  // ) {
+  //   this.prefixCounts = [
+  //     {
+  //       timestamp: Date.now,
+  //       day: getDay(),
+  //       count: 1,
+  //     },
+  //   ];
+  // }
   return next();
 });
 
@@ -60,6 +73,7 @@ IPPrefixSchema.statics = {
   async register(args, next) {
     try {
       let modifiedArgs = args;
+
       const data = await this.create({
         ...modifiedArgs,
       });

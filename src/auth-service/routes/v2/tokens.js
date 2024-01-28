@@ -614,12 +614,12 @@ router.post(
     ],
   ]),
   oneOf([
-    body("range")
+    body("prefix")
       .exists()
-      .withMessage("the range is missing in your request body")
+      .withMessage("the prefix is missing in your request body")
       .bail()
       .notEmpty()
-      .withMessage("the range should not be empty if provided")
+      .withMessage("the prefix should not be empty if provided")
       .trim(),
   ]),
   setJWTAuth,
@@ -643,20 +643,20 @@ router.post(
   ]),
   oneOf([
     [
-      body("ranges")
+      body("prefixes")
         .exists()
-        .withMessage("the ranges are missing in your request body")
+        .withMessage("the prefixes are missing in your request body")
         .bail()
         .notEmpty()
-        .withMessage("the ranges should not be empty in the request body")
+        .withMessage("the prefixes should not be empty in the request body")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the ranges should be an array"),
-      body("ranges.*")
+        .withMessage("the prefixes should be an array"),
+      body("prefixes.*")
         .notEmpty()
-        .withMessage("Provided range should NOT be empty"),
+        .withMessage("Provided prefix should NOT be empty"),
     ],
   ]),
   setJWTAuth,
@@ -735,12 +735,12 @@ router.post(
     ],
   ]),
   oneOf([
-    body("range")
+    body("prefix")
       .exists()
-      .withMessage("the range is missing in your request body")
+      .withMessage("the prefix is missing in your request body")
       .bail()
       .notEmpty()
-      .withMessage("the range should not be empty if provided")
+      .withMessage("the prefix should not be empty if provided")
       .trim(),
   ]),
   setJWTAuth,
@@ -764,20 +764,20 @@ router.post(
   ]),
   oneOf([
     [
-      body("ranges")
+      body("prefixes")
         .exists()
-        .withMessage("the ranges are missing in your request body")
+        .withMessage("the prefixes are missing in your request body")
         .bail()
         .notEmpty()
-        .withMessage("the ranges should not be empty in the request body")
+        .withMessage("the prefixes should not be empty in the request body")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
         .withMessage("the ranges should be an array"),
-      body("ranges.*")
+      body("prefixes.*")
         .notEmpty()
-        .withMessage("Provided range should NOT be empty"),
+        .withMessage("Provided prefix should NOT be empty"),
     ],
   ]),
   setJWTAuth,
