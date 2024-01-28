@@ -3573,6 +3573,33 @@ const controlAccess = {
       );
     }
   },
+  listBlacklistedIp: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await BlacklistedIPModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  /****************** Blacklisting IP ranges *********************************/
   blackListIpRange: async (request, next) => {
     try {
       const { range, tenant } = {
@@ -3580,15 +3607,13 @@ const controlAccess = {
         ...request.query,
         ...request.params,
       };
-      const responseFromBlacklistIpRange = await BlacklistedIPRangeModel(
-        tenant
-      ).register(
+      const response = await BlacklistedIPRangeModel(tenant).register(
         {
           range,
         },
         next
       );
-      return responseFromBlacklistIpRange;
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -3682,9 +3707,11 @@ const controlAccess = {
         ...request.params,
       };
       const filter = generateFilter.ips(request, next);
-      const responseFromRemoveBlacklistedIpRange =
-        await BlacklistedIPRangeModel(tenant).remove({ filter }, next);
-      return responseFromRemoveBlacklistedIpRange;
+      const response = await BlacklistedIPRangeModel(tenant).remove(
+        { filter },
+        next
+      );
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -3704,15 +3731,13 @@ const controlAccess = {
         ...request.params,
       };
       const filter = generateFilter.ips(request, next);
-      const responseFromListBlacklistedIpRange = await BlacklistedIPRangeModel(
-        tenant
-      ).list(
+      const response = await BlacklistedIPRangeModel(tenant).list(
         {
           filter,
         },
         next
       );
-      return responseFromListBlacklistedIpRange;
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -3724,7 +3749,300 @@ const controlAccess = {
       );
     }
   },
+  /****************** Blacklisting IP prefix *********************************/
+  blackListIpPrefix: async (request, next) => {
+    try {
+      const { prefix, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const response = await BlacklistedIPPrefixModel(tenant).register(
+        {
+          prefix,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  bulkInsertBlacklistIpPrefix: async (request, next) => {
+    try {
+      const { prefixes, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
 
+      if (!prefixes || !Array.isArray(prefixes) || prefixes.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid input. Please provide an array of IP address prefixes.",
+          })
+        );
+        return;
+      }
+
+      const responses = await Promise.all(
+        prefixes.map(async (prefix) => {
+          const result = await BlacklistedIPPrefixModel(tenant).register(
+            { prefix },
+            next
+          );
+          return { prefix, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.prefix);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.prefix);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IP prefixes have been blacklisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IP prefixes provided were blacklisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeBlacklistedIpPrefix: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await BlacklistedIPPrefixModel(tenant).remove(
+        { filter },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listBlacklistedIpPrefix: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await BlacklistedIPPrefixModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  /****************** IP prefix *********************************/
+  ipPrefix: async (request, next) => {
+    try {
+      const { prefix, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const response = await IPPrefixModel(tenant).register(
+        {
+          prefix,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  bulkInsertIpPrefix: async (request, next) => {
+    try {
+      const { prefixes, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!prefixes || !Array.isArray(prefixes) || prefixes.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Invalid input. Please provide an array of IP address prefixes.",
+          })
+        );
+        return;
+      }
+
+      const responses = await Promise.all(
+        prefixes.map(async (prefix) => {
+          const result = await IPPrefixModel(tenant).register({ prefix }, next);
+          return { prefix, success: result.success };
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.prefix);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.prefix);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IP prefixes have been added.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IP prefixes provided were added.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeIpPrefix: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await IPPrefixModel(tenant).remove({ filter }, next);
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listIpPrefix: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await IPPrefixModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   /****************** Whitelisting IPs ******************************/
   whiteListIp: async (request, next) => {
     try {
@@ -3774,7 +4092,32 @@ const controlAccess = {
       );
     }
   },
-
+  listWhitelistedIp: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const filter = generateFilter.ips(request, next);
+      const response = await WhitelistedIPModel(tenant).list(
+        {
+          filter,
+        },
+        next
+      );
+      return response;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   /****************** Unknown IPs ******************************/
   listUnknownIPs: async (request, next) => {
     try {
