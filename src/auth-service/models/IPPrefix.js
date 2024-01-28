@@ -34,7 +34,6 @@ const IPPrefixSchema = new mongoose.Schema(
         day: {
           type: String,
           default: getDay(),
-          unique: true,
         },
         count: {
           type: Number,
@@ -67,7 +66,7 @@ IPPrefixSchema.pre("update", function (next) {
   return next();
 });
 
-IPPrefixSchema.index({ prefix: 1 }, { unique: true });
+IPPrefixSchema.index({ prefix: 1, "prefixCounts.day": 1 }, { unique: true });
 
 IPPrefixSchema.statics = {
   async register(args, next) {
