@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
@@ -2262,12 +2263,15 @@ const createUserModule = {
         ...request.params,
       };
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+      const updatedSubscription = await SubscriptionModel(
+        tenant
+      ).findOneAndUpdate(
         { email },
-        { $set: { [`notifications.${type}`]: true } }
+        { $set: { [`notifications.${type}`]: true } },
+        { new: true, upsert: true }
       );
 
-      if (updatedUser) {
+      if (updatedSubscription) {
         return {
           success: true,
           message: `Successfully Subscribed to ${type} notifications`,
@@ -2295,6 +2299,7 @@ const createUserModule = {
       return;
     }
   },
+
   unSubscribeFromNotifications: async (request, next) => {
     try {
       const { email, type, tenant } = {
@@ -2303,12 +2308,15 @@ const createUserModule = {
         ...request.params,
       };
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+      const updatedSubscription = await SubscriptionModel(
+        tenant
+      ).findOneAndUpdate(
         { email },
-        { $set: { [`notifications.${type}`]: false } }
+        { $set: { [`notifications.${type}`]: false } },
+        { new: true }
       );
 
-      if (updatedUser) {
+      if (updatedSubscription) {
         return {
           success: true,
           message: `Successfully UnSubscribed user from ${type} notifications`,
@@ -2336,6 +2344,7 @@ const createUserModule = {
       return;
     }
   },
+
   checkNotificationStatus: async (request, next) => {
     try {
       const { email, type, tenant } = {
@@ -2344,8 +2353,8 @@ const createUserModule = {
         ...request.params,
       };
 
-      const user = await UserModel(tenant).findOne({ email });
-      if (!user.notifications[type]) {
+      const subscription = await SubscriptionModel(tenant).findOne({ email });
+      if (!subscription.notifications[type]) {
         return {
           success: false,
           message: `Forbidden`,
