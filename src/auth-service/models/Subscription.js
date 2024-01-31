@@ -246,11 +246,64 @@ SubscriptionSchema.statics.remove = async function (
         message: error.message,
       })
     );
+    return;
   }
 };
 
 SubscriptionSchema.statics.unsubscribe = async function (email, type) {
   await this.updateOne({ email }, { [`notifications.${type}`]: false });
+};
+
+SubscriptionSchema.statics.checkNotificationStatus = async function (
+  { email, type },
+  next
+) {
+  try {
+    const subscription = await this.findOne({ email });
+
+    if (!subscription) {
+      return {
+        success: true,
+        message: `Not Found`,
+        status: httpStatus.OK,
+        errors: {
+          message: `No subscription found for email: ${email}`,
+        },
+      };
+    } else if (!subscription.notifications[type]) {
+      return {
+        success: true,
+        message: `not subscribed to type`,
+        status: httpStatus.OK,
+        errors: {
+          message: `User is not subscribed to ${type} notifications`,
+        },
+      };
+    } else if (subscription.notifications[type] === false) {
+      return {
+        success: false,
+        message: `Forbidden`,
+        status: httpStatus.FORBIDDEN,
+        errors: {
+          message: `User unsubscribed from ${type} notifications`,
+        },
+      };
+    } else {
+      return {
+        success: true,
+        message: `User is subscribed to ${type} notifications`,
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`Data conflicts detected -- ${error.message}`);
+    next(
+      new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
+        message: error.message,
+      })
+    );
+    return;
+  }
 };
 
 const SubscriptionModel = (tenant) => {
