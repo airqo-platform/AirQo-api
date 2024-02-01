@@ -105,7 +105,9 @@ def mean_daily_pm2_5(dataframe):
     return dataframe.groupby('date')[PM_COLUMNS].mean().reset_index()
 
 def mean_pm2_5_by_site_name(dataframe):
-    return dataframe.groupby('site_name')[PM_COLUMNS_CORD].mean().reset_index()
+    pm_result = dataframe.groupby('site_name')[PM_COLUMNS].mean().reset_index()
+    result_sorted = pm_result.sort_values(by='pm2_5_calibrated_value', ascending=False)
+    return result_sorted
  
 def monthly_mean_pm_site_name(dataframe):
     return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().reset_index() 
