@@ -1,6 +1,7 @@
 const transporter = require("@config/mailer");
-const { logObject, logText } = require("@utils/log");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
 const msgTemplates = require("@utils/email.templates");
@@ -54,6 +55,12 @@ const mailer = {
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -107,6 +114,12 @@ const mailer = {
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -170,6 +183,12 @@ const mailer = {
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -237,10 +256,16 @@ const mailer = {
     }
   },
   inquiry: async (
-    { fullName, email, category, message, tenant } = {},
+    { fullName, email, category, message, tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = "";
       let html = "";
       if (tenant.toLowerCase() === "airqo") {
@@ -323,10 +348,16 @@ const mailer = {
     }
   },
   user: async (
-    { firstName, lastName, email, password, tenant, type } = {},
+    { firstName, lastName, email, password, tenant = "airqo", type } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = "";
       if (type === "confirm") {
         bcc = constants.REQUEST_ACCESS_EMAILS;
@@ -407,10 +438,17 @@ const mailer = {
       email = "",
       firstName = "",
       category = "",
+      tenant = "airqo",
     } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
@@ -505,10 +543,16 @@ const mailer = {
     }
   },
   verifyMobileEmail: async (
-    { firebase_uid = "", token = "", email = "" } = {},
+    { firebase_uid = "", token = "", email = "", tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
@@ -601,10 +645,16 @@ const mailer = {
     }
   },
   afterEmailVerification: async (
-    { firstName = "", username = "", email = "" } = {},
+    { firstName = "", username = "", email = "", tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
       mailOptions = {
@@ -652,10 +702,16 @@ const mailer = {
     }
   },
   afterAcceptingInvitation: async (
-    { firstName, username, email, entity_title } = {},
+    { firstName, username, email, entity_title, tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
       mailOptions = {
@@ -707,8 +763,15 @@ const mailer = {
       );
     }
   },
-  forgot: async ({ email, token, tenant } = {}, next) => {
+  forgot: async ({ email, token, tenant = "airqo" } = {}, next) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      logObject("checkResult", checkResult);
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -752,8 +815,17 @@ const mailer = {
       );
     }
   },
-  signInWithEmailLink: async ({ email, token } = {}, next) => {
+  signInWithEmailLink: async (
+    { email, token, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
@@ -807,8 +879,17 @@ const mailer = {
       );
     }
   },
-  deleteMobileAccountEmail: async ({ email, token } = {}, next) => {
+  deleteMobileAccountEmail: async (
+    { email, token, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -862,8 +943,14 @@ const mailer = {
       );
     }
   },
-  authenticateEmail: async ({ email, token } = {}, next) => {
+  authenticateEmail: async ({ email, token, tenant = "airqo" } = {}, next) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -918,10 +1005,22 @@ const mailer = {
     }
   },
   update: async (
-    { email = "", firstName = "", lastName = "", updatedUserDetails = {} } = {},
+    {
+      email = "",
+      firstName = "",
+      lastName = "",
+      updatedUserDetails = {},
+      tenant = "airqo",
+    } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -970,8 +1069,17 @@ const mailer = {
       );
     }
   },
-  assign: async ({ email, firstName, lastName, assignedTo } = {}, next) => {
+  assign: async (
+    { email, firstName, lastName, assignedTo, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1016,10 +1124,16 @@ const mailer = {
     }
   },
   updateForgottenPassword: async (
-    { email, firstName, lastName } = {},
+    { email, firstName, lastName, tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1063,8 +1177,17 @@ const mailer = {
       );
     }
   },
-  updateKnownPassword: async ({ email, firstName, lastName } = {}, next) => {
+  updateKnownPassword: async (
+    { email, firstName, lastName, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1108,8 +1231,17 @@ const mailer = {
       );
     }
   },
-  newMobileAppUser: async ({ email, message, subject } = {}, next) => {
+  newMobileAppUser: async (
+    { email, message, subject, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       logObject("the values to send to email function", {
         email,
         message,
@@ -1169,8 +1301,17 @@ const mailer = {
       );
     }
   },
-  feedback: async ({ email, message, subject } = {}, next) => {
+  feedback: async (
+    { email, message, subject, tenant = "airqo" } = {},
+    next
+  ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let bcc = constants.REQUEST_ACCESS_EMAILS;
 
       const mailOptions = {
@@ -1228,10 +1369,16 @@ const mailer = {
     }
   },
   sendReport: async (
-    { senderEmail, recepientEmails, pdfFile, csvFile } = {},
+    { senderEmail, recepientEmails, pdfFile, csvFile, tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let formart;
       let reportAttachments = [...attachments];
 
@@ -1335,10 +1482,17 @@ const mailer = {
       firstName = "",
       lastName = "",
       siteActivityDetails = {},
+      tenant = "airqo",
     } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1392,10 +1546,22 @@ const mailer = {
     }
   },
   compromisedToken: async (
-    { email = "", firstName = "", lastName = "", ip = "" } = {},
+    {
+      email = "",
+      firstName = "",
+      lastName = "",
+      ip = "",
+      tenant = "airqo",
+    } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1449,10 +1615,16 @@ const mailer = {
     }
   },
   existingUserAccessRequest: async (
-    { email = "", firstName = "", lastName = "" } = {},
+    { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
