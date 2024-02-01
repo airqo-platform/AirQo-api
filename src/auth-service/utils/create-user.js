@@ -1,8 +1,9 @@
 const UserModel = require("@models/User");
+const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
-const { logObject, logElement, logText, logError } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const { generateDateFormatWithoutHrs } = require("@utils/date");
 const bcrypt = require("bcrypt");
@@ -341,7 +342,6 @@ const createUserModule = {
       return;
     }
   },
-
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(
@@ -2253,6 +2253,179 @@ const createUserModule = {
           { message: error.message }
         )
       );
+    }
+  },
+  subscribeToNotifications: async (request, next) => {
+    try {
+      let { email, type, tenant, user_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        logObject("the email", user.email);
+        email = user.email;
+      }
+
+      const updatedSubscription = await SubscriptionModel(
+        tenant
+      ).findOneAndUpdate(
+        { email },
+        { $set: { [`notifications.${type}`]: true } },
+        { new: true, upsert: true }
+      );
+
+      if (updatedSubscription) {
+        return {
+          success: true,
+          message: `Successfully Subscribed to ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: `Internal Server Error`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: `Failed to subscribe users to ${type} notifications`,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  unSubscribeFromNotifications: async (request, next) => {
+    try {
+      let { email, type, tenant, user_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        email = user.email;
+      }
+
+      const updatedSubscription = await SubscriptionModel(
+        tenant
+      ).findOneAndUpdate(
+        { email },
+        { $set: { [`notifications.${type}`]: false } },
+        { new: true, upsert: true }
+      );
+
+      if (updatedSubscription) {
+        return {
+          success: true,
+          message: `Successfully UnSubscribed user from ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: `Internal Server Error`,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: `Failed to UnSubscribe the user from ${type} notifications`,
+          },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  checkNotificationStatus: async (request, next) => {
+    try {
+      let { email, type, tenant, user_id } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        email = user.email;
+      }
+
+      const subscription = await SubscriptionModel(tenant).findOne({ email });
+      if (!subscription.notifications[type]) {
+        return {
+          success: false,
+          message: `Forbidden`,
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: `User is not subscribed to ${type} notifications`,
+          },
+        };
+      } else {
+        return {
+          success: true,
+          message: `User is subscribed to ${type} notifications`,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
