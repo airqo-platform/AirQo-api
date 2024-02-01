@@ -2313,7 +2313,7 @@ const createUserModule = {
       ).findOneAndUpdate(
         { email },
         { $set: { [`notifications.${type}`]: false } },
-        { new: true }
+        { new: true, upsert: true }
       );
 
       if (updatedSubscription) {

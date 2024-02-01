@@ -57,7 +57,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -116,7 +116,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -185,7 +185,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -262,7 +262,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -354,7 +354,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -445,7 +445,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -549,7 +549,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -651,7 +651,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -708,7 +708,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -767,7 +767,8 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
+      logObject("checkResult", checkResult);
       if (!checkResult.success) {
         return checkResult;
       }
@@ -821,7 +822,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -885,7 +886,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -946,7 +947,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1016,7 +1017,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1075,7 +1076,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1129,7 +1130,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1183,7 +1184,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1237,7 +1238,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1307,7 +1308,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1374,7 +1375,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1488,7 +1489,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1557,7 +1558,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1620,7 +1621,7 @@ const mailer = {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus(email, "email");
+      ).checkNotificationStatus({ email, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }

@@ -1009,7 +1009,6 @@ const createUser = {
         return res.status(status).json({
           success: false,
           message: result.message,
-          error: result.error ? result.error : "",
           errors: result.errors
             ? result.errors
             : { message: "Internal Server Error" },

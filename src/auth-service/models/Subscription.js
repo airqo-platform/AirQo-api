@@ -270,7 +270,7 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
           message: `No subscription found for email: ${email}`,
         },
       };
-    } else if (!subscription.notifications[type]) {
+    } else if (isEmpty(subscription.notifications[type])) {
       return {
         success: true,
         message: `not subscribed to type`,
