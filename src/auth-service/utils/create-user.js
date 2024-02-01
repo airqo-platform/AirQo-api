@@ -2257,11 +2257,28 @@ const createUserModule = {
   },
   subscribeToNotifications: async (request, next) => {
     try {
-      const { email, type, tenant } = {
+      let { email, type, tenant, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        logObject("the email", user.email);
+        email = user.email;
+      }
 
       const updatedSubscription = await SubscriptionModel(
         tenant
@@ -2299,14 +2316,28 @@ const createUserModule = {
       return;
     }
   },
-
   unSubscribeFromNotifications: async (request, next) => {
     try {
-      const { email, type, tenant } = {
+      let { email, type, tenant, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        email = user.email;
+      }
 
       const updatedSubscription = await SubscriptionModel(
         tenant
@@ -2344,14 +2375,29 @@ const createUserModule = {
       return;
     }
   },
-
   checkNotificationStatus: async (request, next) => {
     try {
-      const { email, type, tenant } = {
+      let { email, type, tenant, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant)
+          .findOne({ _id: user_id })
+          .select("email")
+          .lean();
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `Provided user_id ${user_id} does not exist` },
+          };
+        }
+        email = user.email;
+      }
 
       const subscription = await SubscriptionModel(tenant).findOne({ email });
       if (!subscription.notifications[type]) {

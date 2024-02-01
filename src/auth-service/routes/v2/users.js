@@ -1057,14 +1057,37 @@ router.post(
     ],
   ]),
   oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
     [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
       param("type")
         .exists()
         .withMessage("the type must be provided")
@@ -1098,14 +1121,37 @@ router.post(
     ],
   ]),
   oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
     [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
       param("type")
         .exists()
         .withMessage("the type must be provided")
@@ -1139,14 +1185,37 @@ router.post(
     ],
   ]),
   oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
     [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
       param("type")
         .exists()
         .withMessage("the type must be provided")
