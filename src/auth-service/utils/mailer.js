@@ -61,9 +61,31 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        bcc = subscribedBccEmails;
       }
       const mailOptions = {
         from: {
@@ -120,9 +142,31 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        bcc = subscribedBccEmails;
       }
 
       const mailOptions = {
@@ -189,9 +233,30 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
       let bcc = "";
       if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        bcc = subscribedBccEmails;
       }
       const mailOptions = {
         from: {
@@ -266,33 +331,46 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      let bcc = "";
-      let html = "";
+
+      let bccEmails = [];
       if (tenant.toLowerCase() === "airqo") {
-        html = msgs.inquiry(fullName, email, category);
+        let bccEmailString = "";
         switch (category) {
           case "partners":
-            bcc = constants.PARTNERS_EMAILS;
+            bccEmailString = constants.PARTNERS_EMAILS;
             break;
           case "policy":
-            bcc = constants.POLICY_EMAILS;
+            bccEmailString = constants.POLICY_EMAILS;
             break;
           case "champions":
-            bcc = constants.CHAMPIONS_EMAILS;
+            bccEmailString = constants.CHAMPIONS_EMAILS;
             break;
           case "researchers":
-            bcc = constants.RESEARCHERS_EMAILS;
+            bccEmailString = constants.RESEARCHERS_EMAILS;
             break;
           case "developers":
-            bcc = constants.DEVELOPERS_EMAILS;
+            bccEmailString = constants.DEVELOPERS_EMAILS;
             break;
           case "general":
-            bcc = constants.PARTNERS_EMAILS;
+            bccEmailString = constants.PARTNERS_EMAILS;
             break;
           default:
-            bcc = constants.PARTNERS_EMAILS;
+            bccEmailString = constants.PARTNERS_EMAILS;
         }
+        bccEmails = bccEmailString.split(",").map((email) => email.trim());
       }
+
+      // Check notification status for all BCC emails concurrently
+      const checkPromises = bccEmails.map(async (bccEmail) => {
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+        return checkResult.success ? bccEmail : null;
+      });
+      const successfulEmails = (await Promise.all(checkPromises)).filter(
+        (email) => email !== null
+      );
+      const subscribedBccEmails = successfulEmails.join(",");
 
       const mailOptionsForAirQo = {
         to: `${email}`,
@@ -301,8 +379,8 @@ const mailer = {
           address: constants.EMAIL,
         },
         subject: `Welcome to AirQo`,
-        html,
-        bcc,
+        html: msgs.inquiry(fullName, email, category),
+        bcc: subscribedBccEmails,
         attachments,
       };
 
@@ -358,9 +436,31 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       let bcc = "";
       if (type === "confirm") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        bcc = subscribedBccEmails;
       }
 
       let mailOptions = {};
@@ -449,8 +549,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
       const imagePath = path.join(__dirname, "../config/images");
-      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
       let mailOptions = {};
       mailOptions = {
         from: {
@@ -466,7 +586,7 @@ const mailer = {
           token,
           category,
         }),
-        bcc,
+        bcc: subscribedBccEmails,
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -553,8 +673,30 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       const imagePath = path.join(__dirname, "../config/images");
-      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
       let mailOptions = {};
       mailOptions = {
         from: {
@@ -568,7 +710,7 @@ const mailer = {
           firebase_uid,
           token,
         }),
-        bcc,
+        bcc: subscribedBccEmails,
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -655,7 +797,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       let mailOptions = {};
       mailOptions = {
         from: {
@@ -665,7 +828,7 @@ const mailer = {
         to: `${email}`,
         subject: "Welcome to AirQo!",
         html: msgTemplates.afterEmailVerification(firstName, username, email),
-        bcc,
+        bcc: subscribedBccEmails,
         attachments: attachments,
       };
 
@@ -712,7 +875,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       let mailOptions = {};
       mailOptions = {
         from: {
@@ -727,7 +911,7 @@ const mailer = {
           email,
           entity_title,
         }),
-        bcc,
+        bcc: subscribedBccEmails,
         attachments: attachments,
       };
 
@@ -1242,12 +1426,34 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       logObject("the values to send to email function", {
         email,
         message,
         subject,
       });
-      const bcc = constants.REQUEST_ACCESS_EMAILS;
+
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1256,7 +1462,7 @@ const mailer = {
         subject,
         html: message,
         to: email,
-        bcc,
+        bcc: subscribedBccEmails,
       };
 
       if (email === "automated-tests@airqo.net") {
@@ -1312,7 +1518,27 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
 
       const mailOptions = {
         from: {
@@ -1323,7 +1549,7 @@ const mailer = {
         text: message,
         cc: email,
         to: constants.SUPPORT_EMAIL,
-        bcc,
+        bcc: subscribedBccEmails,
       };
 
       if (email === "automated-tests@airqo.net") {
@@ -1493,6 +1719,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.HARDWARE_AND_DS_EMAILS) {
+        bccEmails = constants.HARDWARE_AND_DS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1507,7 +1755,7 @@ const mailer = {
           siteActivityDetails,
           email,
         })}`,
-        bcc: constants.HARDWARE_AND_DS_EMAILS || "",
+        bcc: subscribedBccEmails,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1562,6 +1810,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.PLATFORM_AND_DS_EMAILS) {
+        bccEmails = constants.PLATFORM_AND_DS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1576,7 +1846,7 @@ const mailer = {
           ip,
           email,
         })}`,
-        bcc: constants.PLATFORM_AND_DS_EMAILS || "",
+        bcc: subscribedBccEmails,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1625,6 +1895,28 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
+
+      let bccEmails = [];
+
+      if (constants.PLATFORM_AND_DS_EMAILS) {
+        bccEmails = constants.PLATFORM_AND_DS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -1637,7 +1929,7 @@ const mailer = {
           lastName,
           email,
         })}`,
-        bcc: constants.PLATFORM_AND_DS_EMAILS || "",
+        bcc: subscribedBccEmails,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
