@@ -7,7 +7,6 @@ from google.oauth2 import service_account
 from configure import Config
 import geopandas as gpd
 import pytz
-
 from pysal.explore import esda
 from libpysal.weights.contiguity import Queen
 from esda.moran import Moran_Local

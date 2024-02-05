@@ -28,3 +28,13 @@ Create an API token from https://platform.airqo.net/settings
     Registered Clients
         Generate Token
     Access Tokens
+
+
+http://127.0.0.1:5000/spatial
+
+{
+    "grid_id": "64b7f325d7249f0029fed743",
+    "start_time": "2024-01-01T00:00",
+    "end_time": "2024-01-27T00:00"
+}
+ 

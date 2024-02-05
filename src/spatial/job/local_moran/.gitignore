@@ -16,8 +16,7 @@ production.env
 *.pkl
 
 # datafiles
-train.csv
-test.csv
+
 
 .vscode
 .vscode/
