@@ -342,21 +342,23 @@ def read_faulty_devices(query):
     return result
 
 
-def add_forecast_health_tips(result: dict, language: str = ""):
+def add_forecast_health_tips(results: dict, language: str = ""):
     health_tips = get_health_tips(language=language)
-    if health_tips:
-        for i in result["forecasts"]:
-            pm2_5 = i["pm2_5"]
-            i["health_tips"] = list(
-                filter(
-                    lambda x: x["aqi_category"]["max"]
-                    >= pm2_5
-                    >= x["aqi_category"]["min"],
-                    health_tips,
-                )
-            )
-    else:
+    if not health_tips:
         print("Error: could not get health tips from external API")
-        return result
+        return results
 
-    return result
+    for site_id, forecasts in results.items():
+        for forecast in forecasts:
+            forecast["health_tips"] = [
+                [
+                    tip
+                    for tip in health_tips
+                    if tip["aqi_category"]["max"]
+                    >= pm2_5_value
+                    >= tip["aqi_category"]["min"]
+                ]
+                for pm2_5_value in forecast["pm2_5"]
+            ]
+
+    return results
