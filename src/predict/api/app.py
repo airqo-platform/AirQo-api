@@ -1,5 +1,10 @@
-import logging
+import json
+# import logging
+import logging.config
+import logging.handlers
+# from logging import getHandlerByName
 import os
+import pathlib
 
 from dotenv import load_dotenv
 from flask import Flask
@@ -14,7 +19,13 @@ import config
 app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "staging"))
 load_dotenv()
 
-_logger = logging.getLogger(__name__)
+
+def setup_logging():
+    config_file = pathlib.Path(__file__).parent / "logging_config.json"
+    with open(config_file) as f:
+        config_logging = json.load(f)
+    logging.config.dictConfig(config_logging)
+
 
 mongo = PyMongo()
 
@@ -30,7 +41,7 @@ cache = Cache(
 
 
 def create_app(environment):
-    from prediction import ml_app
+    setup_logging()
 
     app = Flask(__name__)
     app.config.from_object(config.app_config[environment])
@@ -39,6 +50,7 @@ def create_app(environment):
     app.config["SQLALCHEMY_DATABASE_URI"] = app_configuration.POSTGRES_CONNECTION_URL
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     CORS(app)
+    from prediction import ml_app
     app.register_blueprint(ml_app)
 
     return app
@@ -54,7 +66,3 @@ class Predictions(postgres_db.Model):
     pm2_5 = postgres_db.Column(postgres_db.Float())
     geometry = postgres_db.Column(Geometry("POLYGON"))
     timestamp = postgres_db.Column(postgres_db.DateTime())
-
-
-if __name__ == "__main__":
-    application.run(debug=True)
