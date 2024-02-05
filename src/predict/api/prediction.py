@@ -13,6 +13,8 @@ from helpers import (
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
+    all_daily_forecasts_cache_key,
+    all_hourly_forecasts_cache_key,
     get_predictions_by_geo_coordinates_v2,
     get_predictions_by_geo_coordinates,
     get_health_tips,
@@ -164,6 +166,49 @@ def get_next_1_week_forecasts():
     data = jsonify(response)
     return data, 200
 
+
+@ml_app.route(routes.route["all_1_week_forecasts"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_daily_forecasts_cache_key)
+def get_all_daily_forecasts():
+    """
+    Get all forecasts from the database.
+    """
+    language = request.args.get("language", default="", type=str)
+    result = get_forecasts(db_name="daily_forecasts_1")
+    if result:
+        try:
+            add_forecast_health_tips(result, language=language)
+        except Exception as e:
+            print("Error adding health tips: ", str(e))
+        response = result
+    else:
+        response = {
+            "message": "No forecasts are available.",
+            "success": False,
+        }
+    return jsonify(response), 200
+
+
+@ml_app.route(routes.route["all_24hr_forecasts"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_hourly_forecasts_cache_key)
+def get_all_hourly_forecasts():
+    """
+    Get all forecasts from the database.
+    """
+    language = request.args.get("language", default="", type=str)
+    result = get_forecasts(db_name="hourly_forecasts_1")
+    if result:
+        try:
+            add_forecast_health_tips(result, language=language)
+        except Exception as e:
+            print("Error adding health tips: ", str(e))
+        response = result
+    else:
+        response = {
+            "message": "No forecasts are available.",
+            "success": False,
+        }
+    return jsonify(response), 200
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)

@@ -48,8 +48,12 @@ def daily_forecasts_cache_key():
     return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{language}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
-def hourly_forecasts_cache_key():
+def all_daily_forecasts_cache_key():
     current_day = datetime.now().strftime("%Y-%m-%d")
+    return f"all_daily_{current_day}"
+
+def hourly_forecasts_cache_key():
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -62,8 +66,12 @@ def hourly_forecasts_cache_key():
     site_id = args.get("site_id")
     device_id = args.get("device_id")
 
-    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
+    return f"hourly_{current_hour}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
+
+def all_hourly_forecasts_cache_key():
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
+    return f"all_hourly_{current_hour}"
 
 def get_faults_cache_key():
     args = request.args
