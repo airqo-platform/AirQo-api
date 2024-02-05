@@ -52,6 +52,7 @@ def all_daily_forecasts_cache_key():
     current_day = datetime.now().strftime("%Y-%m-%d")
     return f"all_daily_{current_day}"
 
+
 def hourly_forecasts_cache_key():
     current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     args = request.args
@@ -72,6 +73,7 @@ def hourly_forecasts_cache_key():
 def all_hourly_forecasts_cache_key():
     current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     return f"all_hourly_{current_hour}"
+
 
 def get_faults_cache_key():
     args = request.args
@@ -225,44 +227,38 @@ def get_forecasts(
     city=None,
     district=None,
     region=None,
+    all_forecasts=False,
 ):
     query = {}
-    params = {
-        "device_id": device_id,
-        "site_id": site_id,
-        "site_name": site_name,
-        "parish": parish,
-        "county": county,
-        "city": city,
-        "district": district,
-        "region": region,
-    }
-    for name, value in params.items():
-        if value is not None:
-            query[name] = value
-    site_forecasts = list(
-        db[db_name].find(query, {"_id": 0}).sort([("$natural", -1)]).limit(1)
-    )
+    if not all_forecasts:
+        params = {
+            "device_id": device_id,
+            "site_id": site_id,
+            "site_name": site_name,
+            "parish": parish,
+            "county": county,
+            "city": city,
+            "district": district,
+            "region": region,
+        }
+        for name, value in params.items():
+            if value is not None:
+                query[name] = value
+    cursor = db[db_name].find(query, {"_id": 0})
 
-    results = []
-    if site_forecasts:
-        for time, pm2_5 in zip(
-            site_forecasts[0]["timestamp"],
-            site_forecasts[0]["pm2_5"],
-            # site_forecasts[0]["margin_of_error"],
-            # site_forecasts[0]["adjusted_forecast"],
-        ):
-            result = {
-                key: value
-                for key, value in zip(
-                    ["time", "pm2_5"],
-                    [time, pm2_5],
-                )
+    results = {}
+    for forecast in cursor:
+        site_id = forecast["site_id"]
+        if site_id:
+            if site_id not in results:
+                results[site_id] = []
+            forecast_entry = {
+                "time": forecast.get("timestamp"),
+                "pm2_5": forecast.get("pm2_5"),
             }
-            results.append(result)
+            results[site_id].append(forecast_entry)
 
-    formatted_results = {"forecasts": results}
-    return formatted_results
+    return results
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)

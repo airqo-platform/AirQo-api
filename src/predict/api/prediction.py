@@ -1,4 +1,3 @@
-import logging
 import traceback
 
 from dotenv import load_dotenv
@@ -29,7 +28,6 @@ from helpers import (
 
 load_dotenv()
 
-_logger = logging.getLogger(__name__)
 
 ml_app = Blueprint("ml_app", __name__)
 
@@ -174,7 +172,7 @@ def get_all_daily_forecasts():
     Get all forecasts from the database.
     """
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(db_name="daily_forecasts_1")
+    result = get_forecasts(db_name="daily_forecasts_1", all_forecasts=True)
     if result:
         try:
             add_forecast_health_tips(result, language=language)
@@ -196,7 +194,7 @@ def get_all_hourly_forecasts():
     Get all forecasts from the database.
     """
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(db_name="hourly_forecasts_1")
+    result = get_forecasts(db_name="hourly_forecasts_1", all_forecasts=True)
     if result:
         try:
             add_forecast_health_tips(result, language=language)
@@ -209,6 +207,7 @@ def get_all_hourly_forecasts():
             "success": False,
         }
     return jsonify(response), 200
+
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
