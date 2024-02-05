@@ -108,7 +108,11 @@ def get_next_24hr_forecasts():
             add_forecast_health_tips(result, language=language)
         except Exception as e:
             print("Error adding health tips", e)
-        response = result
+        response = {
+            "success": True,
+            "message": "Hourly forecasts successfully retrieved",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -155,7 +159,11 @@ def get_next_1_week_forecasts():
 
         except Exception as e:
             print("Error adding health tips")
-        response = result
+        response = {
+            "success": True,
+            "message": "Daily forecasts successfully retrieved.",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -178,7 +186,11 @@ def get_all_daily_forecasts():
             add_forecast_health_tips(result, language=language)
         except Exception as e:
             print("Error adding health tips: ", str(e))
-        response = result
+        response = {
+            "success": True,
+            "message": "All daily forecasts successfully retrieved.",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "No forecasts are available.",
@@ -200,7 +212,11 @@ def get_all_hourly_forecasts():
             add_forecast_health_tips(result, language=language)
         except Exception as e:
             print("Error adding health tips: ", str(e))
-        response = result
+        response = {
+            "success": True,
+            "message": "All hourly forecasts successfully retrieved.",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "No forecasts are available.",
