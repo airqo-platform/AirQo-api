@@ -1,8 +1,8 @@
-import logging
 import traceback
 
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
+from flask import current_app
 
 import routes
 from app import cache
@@ -13,6 +13,8 @@ from helpers import (
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
+    all_daily_forecasts_cache_key,
+    all_hourly_forecasts_cache_key,
     get_predictions_by_geo_coordinates_v2,
     get_predictions_by_geo_coordinates,
     get_health_tips,
@@ -27,7 +29,6 @@ from helpers import (
 
 load_dotenv()
 
-_logger = logging.getLogger(__name__)
 
 ml_app = Blueprint("ml_app", __name__)
 
@@ -69,7 +70,9 @@ def fetch_faulty_devices():
         result = read_faulty_devices(query)
         return jsonify(result), 200
     except Exception as e:
-        _logger.error(e)
+        current_app.logger.error(
+            f"Failed to retrieve faulty devices: {e}", exc_info=True
+        )
         return jsonify({"error": "Failed to retrieve faulty devices"}), 500
 
 
@@ -107,8 +110,14 @@ def get_next_24hr_forecasts():
         try:
             add_forecast_health_tips(result, language=language)
         except Exception as e:
-            print("Error adding health tips", e)
-        response = result
+            current_app.logger.warning(
+                "Error adding health tips: ", str(e), exc_info=True
+            )
+        response = {
+            "success": True,
+            "message": "Hourly forecasts successfully retrieved",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -154,8 +163,12 @@ def get_next_1_week_forecasts():
             add_forecast_health_tips(result, language=language)
 
         except Exception as e:
-            print("Error adding health tips")
-        response = result
+            current_app.logger.error("Error adding health tips", str(e), exc_info=False)
+        response = {
+            "success": True,
+            "message": "Daily forecasts successfully retrieved.",
+            "forecasts": result,
+        }
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -163,6 +176,59 @@ def get_next_1_week_forecasts():
         }
     data = jsonify(response)
     return data, 200
+
+
+@ml_app.route(routes.route["all_1_week_forecasts"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_daily_forecasts_cache_key)
+def get_all_daily_forecasts():
+    """
+    Get all forecasts from the database.
+    """
+    language = request.args.get("language", default="", type=str)
+    result = get_forecasts(db_name="daily_forecasts_1", all_forecasts=True)
+    current_app.logger.info(f"result: result retriece", exc_info=True)
+    if result:
+        try:
+            add_forecast_health_tips(result, language=language)
+        except Exception as e:
+            current_app.logger.error("Error adding health tips: ", str(e))
+        response = {
+            "success": True,
+            "message": "All daily forecasts successfully retrieved.",
+            "forecasts": result,
+        }
+    else:
+        response = {
+            "message": "No forecasts are available.",
+            "success": False,
+        }
+    return jsonify(response), 200
+
+
+@ml_app.route(routes.route["all_24hr_forecasts"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_hourly_forecasts_cache_key)
+def get_all_hourly_forecasts():
+    """
+    Get all forecasts from the database.
+    """
+    language = request.args.get("language", default="", type=str)
+    result = get_forecasts(db_name="hourly_forecasts_1", all_forecasts=True)
+    if result:
+        try:
+            add_forecast_health_tips(result, language=language)
+        except Exception as e:
+            current_app.logger.error("Error adding health tips: ", str(e))
+        response = {
+            "success": True,
+            "message": "All hourly forecasts successfully retrieved.",
+            "forecasts": result,
+        }
+    else:
+        response = {
+            "message": "No forecasts are available.",
+            "success": False,
+        }
+    return jsonify(response), 200
 
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
@@ -189,6 +255,7 @@ def predictions_for_heatmap():
             status_code = 404
     except Exception as e:
         response["error"] = f"Unfortunately an error occured"
+        current_app.logger.error("Error: ", str(e), exc_info=True)
         status_code = 500
     finally:
         return jsonify(response), status_code
@@ -260,7 +327,3 @@ def parish_predictions():
         print(ex)
         traceback.print_exc()
         return {"message": "Please contact support", "success": False}, 500
-
-
-if __name__ == "__main__":
-    print(predictions_for_heatmap())
