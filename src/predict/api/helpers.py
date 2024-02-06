@@ -15,7 +15,6 @@ from config import connect_mongo, Config
 
 load_dotenv()
 db = connect_mongo()
-logger = current_app.logger
 
 
 def date_to_str(date: datetime):
@@ -117,7 +116,7 @@ def get_health_tips(language="") -> list[dict]:
         else:
             raise Exception(f"Bad status code: {response.status_code}")
     except Exception as ex:
-        logger.error(f"Failed to retrieve health tips: {ex}")
+        current_app.logger.error("Failed to retrieve health tips: %s", ex, exc_info=False)
         cache.delete_memoized(get_health_tips)
         return []
 
@@ -345,7 +344,6 @@ def read_faulty_devices(query):
 def add_forecast_health_tips(results: dict, language: str = ""):
     health_tips = get_health_tips(language=language)
     if not health_tips:
-        logger.error("Failed to retrieve health tips", exc_info=True)
         return results
 
     for site_id, forecasts in results.items():

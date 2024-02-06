@@ -1,13 +1,12 @@
 import json
-# import logging
 import logging.config
 import logging.handlers
-# from logging import getHandlerByName
 import os
 import pathlib
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask.logging import default_handler
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
@@ -41,6 +40,8 @@ cache = Cache(
 
 
 def create_app(environment):
+    from prediction import ml_app
+
     setup_logging()
 
     app = Flask(__name__)
@@ -50,13 +51,13 @@ def create_app(environment):
     app.config["SQLALCHEMY_DATABASE_URI"] = app_configuration.POSTGRES_CONNECTION_URL
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     CORS(app)
-    from prediction import ml_app
     app.register_blueprint(ml_app)
 
     return app
 
 
 application = create_app(os.getenv("FLASK_ENV", "staging"))
+application.logger.removeHandler(default_handler)
 postgres_db = SQLAlchemy(application)
 
 
