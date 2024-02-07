@@ -1829,10 +1829,13 @@ const createUserModule = {
 
       logObject("isPasswordTokenValid FILTER", filter);
       const responseFromCheckTokenValidity =
-        await createUserModule.isPasswordTokenValid({
-          tenant,
-          filter,
-        });
+        await createUserModule.isPasswordTokenValid(
+          {
+            tenant,
+            filter,
+          },
+          next
+        );
 
       logObject(
         "responseFromCheckTokenValidity",
