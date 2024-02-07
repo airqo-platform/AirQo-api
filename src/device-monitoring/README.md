@@ -1,4 +1,4 @@
-clone project from github.
+clone project from github
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
 change directory to the analytics micro-service
