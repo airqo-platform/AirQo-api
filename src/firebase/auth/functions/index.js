@@ -553,6 +553,7 @@ async function sendPushNotifications(groupedUsers) {
           },
           data: {
             subject: "favorites",
+            site: targetPlace.placeId
           },
           token: registrationToken
         };
@@ -582,7 +583,6 @@ exports.sendFCMNotificationV2 =
 
         const BATCH_SIZE = 200;
 
-        let groupedUsers;
         let users = await utils.getAllUsers();
 
         let processedUsers = 0;
