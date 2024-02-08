@@ -24,6 +24,7 @@ const transporter = nodemailer.createTransport({
 const { firestoreDb } = require("./utils/firebaseConfig");
 const { getAuth } = require("firebase-admin/auth");
 const admin = require("firebase-admin");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 const headers = {
   "Authorization": process.env.JWT_TOKEN,
@@ -528,72 +529,73 @@ exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
  * @param {any} groupedUsers List of Users and their favorites
  */
 async function sendPushNotifications(groupedUsers) {
-  let i = 1;
-  for (const userID in groupedUsers) {
-    i++;
-    const userLocations = groupedUsers[userID];
+  try {
+    for (const userID in groupedUsers) {
+      const userLocations = groupedUsers[userID];
+      const targetPlace = userLocations[Math.floor(Math.random() * userLocations.length)];
 
-    //randomly choose a favorite
-    const targetPlace = userLocations[Math.floor(Math.random() * userLocations.length)];
+      const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${targetPlace.placeId}?token=${process.env.API_TOKEN}`,);
+      if (responseFromGetMeasurements.data.success == true && responseFromGetMeasurements.data.measurements.length > 0) {
 
-    const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${targetPlace.placeId}?token=${process.env.API_TOKEN}`,);
-    if (responseFromGetMeasurements.status !== 200) {
-      functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
-      return null;
+        let pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
+
+        //get the token from firestore data
+        const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
+        const userDoc = await userRef.get();
+        const registrationToken = userDoc.data().device;
+
+        const name = userDoc.data().firstName;
+
+        const message = {
+          notification: {
+            title: `Concentration level:${pmValue.toFixed(2)}µg/m3!`,
+            body: `Good morning ${name}, ${targetPlace.name}’s air quality is ${utils.mapPMValues(pmValue)}. Enjoy the outdoors and have a great day!`,
+          },
+          data: {
+            subject: "favorites",
+          },
+          token: registrationToken
+        };
+
+        admin.messaging().send(message)
+          .then((response) => {
+            functions.logger.info("Successfully sent message:", response);
+          })
+          .catch((error) => {
+            functions.logger.error("Error sending message:", error);
+          });
+      }
+      else {
+        functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
+      }
     }
-    const pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
-
-    //get the token from firestore data
-    // const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
-    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc("NaafgVnt0NUrSoKqI5fasjrYG5M2");
-    const userDoc = await userRef.get();
-    const registrationToken = userDoc.data().device;
-
-    const name = userDoc.data().firstName;
-
-    const message = {
-      notification: {
-        title: `Concentration level:${pmValue.toFixed(2)}µg/m3!`,
-        body: `Good morning ${name}, ${targetPlace.name}’s air quality is ${utils.mapPMValues(pmValue)}. Enjoy the outdoors and have a great day!`,
-      },
-      data: {
-        subject: "favorites",
-      },
-      // topic: "push-notifications",
-      token: registrationToken
-    };
-
-    admin.messaging().send(message)
-      .then((response) => {
-        functions.logger.info("Successfully sent message:", response);
-      })
-      .catch((error) => {
-        functions.logger.error("Error sending message:", error);
-      });
-    if (i > 10) {
-      break;
-    }
+  } catch (error) {
+    functions.logger.error("Error while pushing notifications:", error);
   }
 }
 
-exports.sendFCMNotification =
-  functions.pubsub
-    .schedule("0 8 * * *")
-    .timeZone("Africa/Kampala")
-    .onRun(async (context) => {
+
+
+exports.sendFCMNotificationV2 =
+  onSchedule("0 8 * * *", async (event) => {
       try {
+
+        const BATCH_SIZE = 200;
 
         let groupedUsers;
         let users = await utils.getAllUsers();
 
-        groupedUsers = await utils.groupPushNotifications(users)
+        let processedUsers = 0;
 
-        if (groupedUsers.success === false) {
-          functions.logger.error("Error Sending Push notifications ", groupedUsers.error);
-          return null;
+        while (processedUsers < users.length) {
+          let batchUsers = users.slice(processedUsers, processedUsers + BATCH_SIZE);
+          let batchGroupedUsers = await utils.groupPushNotifications(batchUsers);
+
+          await sendPushNotifications(batchGroupedUsers)
+          functions.logger.log("Finished a batch of users");
+
+          processedUsers += batchUsers.length;
         }
-
-        await sendPushNotifications(groupedUsers);
 
         return null;
       } catch (error) {

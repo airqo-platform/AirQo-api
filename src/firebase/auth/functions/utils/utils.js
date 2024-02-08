@@ -207,7 +207,6 @@ const utils = {
                 groupedUsers[user.uid].push({ name, location, placeId });
 
             }
-            console.log("Grouped Users", groupedUsers)
             return groupedUsers;
         } catch (error) {
             functions.logger.error("Error grouping Users for Push notifications", error);
