@@ -41,6 +41,42 @@ const utils = {
         }
     },
 
+    checkSubscription: async (userID) => {
+        const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
+        const userDoc = await userRef.get();
+        if (userDoc.exists) {
+            const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs !== false;
+            return isSubscribedToEmailNotifs;
+        }
+        return false;
+
+    },
+
+    getAllUsers: async () => {
+        try {
+            let allUsers = [];
+            let pageToken = undefined;
+
+            do {
+                // Fetch users in batches
+                const result = await admin.auth().listUsers(1000, pageToken);
+                const users = result.users;
+                allUsers = allUsers.concat(users);
+
+                // Update the pageToken for the next iteration
+                pageToken = result.pageToken;
+            } while (pageToken);
+
+            allUsers = allUsers.filter(async (user) => {
+                return await utils.checkSubscription(user.uid);
+            });
+
+            return allUsers;
+        } catch (error) {
+            functions.logger.error("Error getting users", error);
+        }
+    },
+
     groupFavorites: async (groupingType) => {
 
         const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`,
@@ -61,9 +97,9 @@ const utils = {
                     const userDoc = await userRef.get();
 
                     if (userDoc.exists) {
-                        const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs;
+                        const isSubscribedToEmailNotifs = utils.checkSubscription(userID);
 
-                        if (userEmail && isSubscribedToEmailNotifs !== false) {
+                        if (userEmail && isSubscribedToEmailNotifs) {
                             const { name, location } = favorite;
 
                             if (!groupedFavorites[userID]) {
@@ -74,7 +110,7 @@ const utils = {
                                 const responseFromGetForecast = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/predict/daily-forecast?site_id=${favorite.place_id}`,
                                     { headers: headers });
                                 if (responseFromGetForecast.status !== 200) {
-                                    functions.logger.log("Error getting Forecast", responseFromGetForecast);
+                                    functions.logger.error("Error getting Forecast", responseFromGetForecast);
                                     return {
                                         success: false,
                                         error: error,
@@ -89,7 +125,7 @@ const utils = {
                         }
                     }
                 } catch (error) {
-                    functions.logger.log("Error grouping favorites", error);
+                    functions.logger.error("Error grouping favorites", error);
                     return {
                         success: false,
                         error: error,
@@ -99,7 +135,7 @@ const utils = {
 
         }
         else {
-            functions.logger.log("Error fetching Favorites", responseFromGetFavorites);
+            functions.logger.error("Error fetching Favorites", responseFromGetFavorites);
             return {
                 success: false,
                 error: responseFromGetFavorites,
@@ -107,6 +143,82 @@ const utils = {
         }
         return groupedFavorites;
     },
+
+    groupPushNotifications: async (users) => {
+        let groupedUsers = {};
+        let placeGroupings = [];
+        try {
+            for (const user of users) {
+                let name, location, placeId;
+
+                const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites/users/${user.uid}`,
+                    { headers: headers });
+                if (responseFromGetFavorites.data.success !== true) {
+                    functions.logger.error("Error fetching Favorites", responseFromGetFavorites.data);
+                }
+                placeGroupings = responseFromGetFavorites.data.favorites;
+                if (placeGroupings.length === 0) {
+                    // functions.logger.log(`User ${user.uid} has no Favorites`);
+                    const responsefromGetLocationHistories = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/locationHistory/users/${user.uid}`,
+                        { headers: headers });
+                    if (responsefromGetLocationHistories.data.success !== true) {
+                        functions.logger.error("Error fetching Location Histories", responsefromGetLocationHistories.data);
+                    }
+
+                    placeGroupings = responsefromGetLocationHistories.data.location_histories;
+
+                    if (placeGroupings.length === 0) {
+                        // functions.logger.log(`User ${user.uid} has no Location Histories`);
+                        const responsefromGetSearchHistories = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/searchHistory/users/${user.uid}`,
+                            { headers: headers });
+                        if (responsefromGetSearchHistories.data.success !== true) {
+                            functions.logger.error("Error fetching Search Histories", responsefromGetSearchHistories.data);
+                        }
+                        placeGroupings = responsefromGetSearchHistories.data.search_histories;
+                        if (placeGroupings.length === 0) {
+                            // functions.logger.log(`User ${user.uid} has no Search Histories`);
+                            const responsefromGetSites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/sites/summary`,
+                                { headers: headers });
+                            if (responsefromGetSites.data.success !== true) {
+                                functions.logger.error("Error fetching Sites", responsefromGetSites.data);
+                            }
+                            const sites = responsefromGetSites.data.sites;
+                            const randomIndex = Math.floor(Math.random() * sites.length);
+                            const targetPlace = sites[randomIndex];
+                            name = targetPlace.search_name
+                            location = targetPlace.location_name
+                            placeId = targetPlace._id
+                        }
+
+                    }
+                }
+                if (placeGroupings.length !== 0) {
+                    const randomIndex = Math.floor(Math.random() * placeGroupings.length);
+                    const targetPlace = placeGroupings[randomIndex];
+
+                    name = targetPlace.name
+                    location = targetPlace.location
+                    placeId = targetPlace.place_id
+
+                }
+                if (!groupedUsers[user.uid]) {
+                    groupedUsers[user.uid] = [];
+                }
+                groupedUsers[user.uid].push({ name, location, placeId });
+
+            }
+            console.log("Grouped Users", groupedUsers)
+            return groupedUsers;
+        } catch (error) {
+            functions.logger.error("Error grouping Users for Push notifications", error);
+            return {
+                success: false,
+                error: error,
+            };
+        }
+
+    },
+
 };
 
 module.exports = utils;

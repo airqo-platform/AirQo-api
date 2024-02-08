@@ -118,7 +118,7 @@ async function sendDeleteConfirmationEmail(email, userId, token) {
     functions.logger.log("Delete Confirmation email sent to:", email);
     return null;
   } catch (error) {
-    functions.logger.log("Transporter failed to send email", error);
+    functions.logger.error("Transporter failed to send email", error);
   }
 }
 
@@ -163,7 +163,7 @@ exports.confirmAccountDeletionMobile =
         message: "Account deletion email sent",
       });
     } catch (error) {
-      functions.logger.log(
+      functions.logger.error(
           "Error sending Account deletion confirmation Email:",
           error,
       );
@@ -230,7 +230,7 @@ async function sendWelcomeEmail(email, name) {
     functions.logger.log("New welcome email sent to:", email);
     return null;
   } catch (error) {
-    functions.logger.log("Transporter failed to send email", error);
+    functions.logger.error("Transporter failed to send email", error);
   }
 }
 exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
@@ -249,7 +249,7 @@ exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
         sendWelcomeEmail(email, firstName);
       }, 300000);
     } catch (error) {
-      functions.logger.log("Error fetching user data:", error);
+      functions.logger.error("Error fetching user data:", error);
     }
   }
 });
@@ -304,7 +304,7 @@ async function sendGoodByeMessage(email, firstName) {
     functions.logger.log("New Goodbye email sent to:", email);
     return null;
   } catch (error) {
-    functions.logger.log("Transporter failed to send email", error);
+    functions.logger.error("Transporter failed to send email", error);
   }
 }
 exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
@@ -321,7 +321,7 @@ exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
       }
       await sendGoodByeMessage(email, firstName);
     } catch (error) {
-      functions.logger.log("Error fetching user data:", error);
+      functions.logger.error("Error fetching user data:", error);
     }
   }
 });
@@ -339,7 +339,7 @@ async function sendWeeklyNotifications(groupedFavorites) {
 
     const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${randomFavorite.placeId}?token=${process.env.API_TOKEN}`,);
     if (responseFromGetMeasurements.status !== 200) {
-      functions.logger.log("Error getting Measurements", responseFromGetMeasurements);
+      functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
       return null;
     }
     const pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
@@ -394,7 +394,7 @@ async function sendWeeklyNotifications(groupedFavorites) {
       await transporter.sendMail(mailOptions);
       functions.logger.log("New Email notification sent to ", userFavorites[0].userEmail);
     } catch (error) {
-      functions.logger.log("Transporter failed to send email", error);
+      functions.logger.error("Transporter failed to send email", error);
     }
   }
 }
@@ -405,7 +405,7 @@ exports.sendWeeklyNotifications = functions.pubsub
     try {
       const groupedFavorites = await utils.groupFavorites("weekly");
       if (groupedFavorites.success === false) {
-        functions.logger.log("Error grouping Favorites", groupedFavorites.error);
+        functions.logger.error("Error grouping Favorites", groupedFavorites.error);
         return null;
       }
 
@@ -413,7 +413,7 @@ exports.sendWeeklyNotifications = functions.pubsub
 
       return null;
     } catch (error) {
-      functions.logger.log("Error sending notifications", error);
+      functions.logger.error("Error sending notifications", error);
     }
   });
 
@@ -469,7 +469,7 @@ async function sendUnsubscriptionEmail(email, firstName, userId) {
     functions.logger.log("New Unscription email sent to:", email);
     return null;
   } catch (error) {
-    functions.logger.log("Transporter failed to send email", error);
+    functions.logger.error("Transporter failed to send email", error);
   }
 }
 
@@ -524,35 +524,80 @@ exports.emailNotifsSubscribe = functions.https.onRequest(async (req, res) => {
 });
 
 
+/**
+ * @param {any} groupedUsers List of Users and their favorites
+ */
+async function sendPushNotifications(groupedUsers) {
+  let i = 1;
+  for (const userID in groupedUsers) {
+    i++;
+    const userLocations = groupedUsers[userID];
+
+    //randomly choose a favorite
+    const targetPlace = userLocations[Math.floor(Math.random() * userLocations.length)];
+
+    const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${targetPlace.placeId}?token=${process.env.API_TOKEN}`,);
+    if (responseFromGetMeasurements.status !== 200) {
+      functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
+      return null;
+    }
+    const pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
+
+    //get the token from firestore data
+    // const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
+    const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc("NaafgVnt0NUrSoKqI5fasjrYG5M2");
+    const userDoc = await userRef.get();
+    const registrationToken = userDoc.data().device;
+
+    const name = userDoc.data().firstName;
+
+    const message = {
+      notification: {
+        title: `Concentration level:${pmValue.toFixed(2)}µg/m3!`,
+        body: `Good morning ${name}, ${targetPlace.name}’s air quality is ${utils.mapPMValues(pmValue)}. Enjoy the outdoors and have a great day!`,
+      },
+      data: {
+        subject: "favorites",
+      },
+      // topic: "push-notifications",
+      token: registrationToken
+    };
+
+    admin.messaging().send(message)
+      .then((response) => {
+        functions.logger.info("Successfully sent message:", response);
+      })
+      .catch((error) => {
+        functions.logger.error("Error sending message:", error);
+      });
+    if (i > 10) {
+      break;
+    }
+  }
+}
+
 exports.sendFCMNotification =
   functions.pubsub
-  .schedule("0 8 * * *")
+    .schedule("0 8 * * *")
     .timeZone("Africa/Kampala")
     .onRun(async (context) => {
       try {
-        // group and send individually using the id
 
-        const message = {
-          notification: {
-            title: "Air quality update from favorites!",
-            body: "You have some updates from your favorite locations. View now",
-          },
-          data: {
-            subject: "favorites",
-          },
-          topic: "push-notifications",
-        };
+        let groupedUsers;
+        let users = await utils.getAllUsers();
 
-        admin.messaging().send(message)
-          .then((response) => {
-            console.log("Successfully sent message:", response);
-          })
-          .catch((error) => {
-            console.log("Error sending message:", error);
-          });
+        groupedUsers = await utils.groupPushNotifications(users)
+
+        if (groupedUsers.success === false) {
+          functions.logger.error("Error Sending Push notifications ", groupedUsers.error);
+          return null;
+        }
+
+        await sendPushNotifications(groupedUsers);
+
         return null;
       } catch (error) {
-        console.error("Error sending FCM notifications:", error);
+        functions.logger.error("Error sending Push notifications:", error);
         return null;
       }
     });
@@ -606,7 +651,7 @@ async function sendForecastEmails(groupedFavorites) {
 
       const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${randomFavorite.placeId}?token=${process.env.API_TOKEN}`,);
       if (responseFromGetMeasurements.status !== 200) {
-        functions.logger.log("Error getting Measurements", responseFromGetMeasurements);
+        functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
         return null;
       }
       const pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
@@ -626,11 +671,11 @@ async function sendForecastEmails(groupedFavorites) {
         await transporter.sendMail(mailOptions);
         functions.logger.log("New Email notification sent to ", userFavorites[0].userEmail);
       } catch (error) {
-        functions.logger.log("Transporter failed to send email", error);
+        functions.logger.error("Transporter failed to send email", error);
       }
     }
   } catch (error) {
-    functions.logger.log("Forecast Favorites Email sending failed", error);
+    functions.logger.error("Forecast Favorites Email sending failed", error);
   }
 }
 
@@ -640,7 +685,7 @@ exports.sendFavoritesForecastEmails = functions.pubsub
     try {
       const groupedFavorites = await utils.groupFavorites("forecast");
       if (groupedFavorites.success === false) {
-        functions.logger.log("Error grouping Favorites", groupedFavorites.error);
+        functions.logger.error("Error grouping Favorites", groupedFavorites.error);
         return null;
       }
 
@@ -648,6 +693,6 @@ exports.sendFavoritesForecastEmails = functions.pubsub
 
       return;
     } catch (error) {
-      functions.logger.log("Error sending notifications", error);
+      functions.logger.error("Error sending notifications", error);
     }
   });
