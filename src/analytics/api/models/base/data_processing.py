@@ -8,7 +8,8 @@ from api.utils.pollutants.report import (fetch_air_quality_data,
                                          mean_pm2_5_by_month_name, query_bigquery, 
                                          mean_pm2_5_by_month, results_to_dataframe,
                                            mean_pm2_5_by_year, mean_daily_pm2_5, 
-                                           mean_pm2_5_by_site_name, mean_pm2_5_by_hour)
+                                           mean_pm2_5_by_site_name, mean_pm2_5_by_hour,
+                                           pm_day_name,pm_day_hour_name)
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO)
  
@@ -44,6 +45,8 @@ def air_quality_data():
             mean_pm_by_city=pm_by_city(processed_data)
             mean_pm_by_country =pm_by_country(processed_data)
             mean_pm_by_region=pm_by_region(processed_data)
+            mean_pm_by_day_of_week=pm_day_name(processed_data)
+            mean_pm_by_day_hour =pm_day_hour_name(processed_data)
             # Log some information for debugging or monitoring
             logging.info('Successfully processed air quality data for grid_id %s', grid_id)
             # Prepare the response data in a structured format
@@ -68,6 +71,8 @@ def air_quality_data():
                 'mean_pm_by_city': mean_pm_by_city.to_dict(orient='records'),   
                 'mean_pm_by_country': mean_pm_by_country.to_dict(orient='records'),
                 'mean_pm_by_region': mean_pm_by_region.to_dict(orient='records'),
+                'mean_pm_by_day_of_week':mean_pm_by_day_of_week.to_dict(orient='records'),
+                'mean_pm_by_day_hour':mean_pm_by_day_hour.to_dict(orient='records'),
                 }
             }
             return jsonify(response_data)

@@ -136,5 +136,12 @@ def pm_by_country(dataframe):
 def pm_by_region(dataframe):
     return dataframe.groupby('region')[PM_COLUMNS].mean().reset_index()
 
+def pm_day_name(dataframe):
+    return dataframe.groupby('day')[PM_COLUMNS].mean().reset_index()
+
+def pm_day_hour_name(dataframe):
+    return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().reset_index()
+
+
  
  
