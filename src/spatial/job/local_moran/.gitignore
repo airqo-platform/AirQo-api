@@ -16,7 +16,7 @@ production.env
 *.pkl
 
 # datafiles
-
+google_application_credentials.json
 
 .vscode
 .vscode/

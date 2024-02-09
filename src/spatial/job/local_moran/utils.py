@@ -10,6 +10,7 @@ import pytz
 from pysal.explore import esda
 from libpysal.weights.contiguity import Queen
 from esda.moran import Moran_Local
+from esda.moran import Moran
 
 def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
     # Convert start_time and end_time to ISO format
@@ -111,11 +112,26 @@ def get_data_for_moran(df):
     return gdf
 
 
+def create_spatial_weights(gdf):
+    w = Queen.from_dataframe(gdf, use_index=False)
+    return w
+
 def moran_local_regression(gdf):
-    w = Queen.from_dataframe(gdf)
+    w = create_spatial_weights(gdf)
     y = gdf['calibratedValue'].values
     moran_loc = Moran_Local(y, w)
     return moran_loc
+
+def moran_statistics(gdf):
+    w = create_spatial_weights(gdf)
+    moran = Moran(gdf['calibratedValue'], w)    
+    moran_table = pd.DataFrame({
+        "Moran's I": [moran.I],
+        'Z Value': [moran.z_sim],
+        'P-value': [moran.p_sim]
+    })    
+    return moran_table
+
 
 def moran_local(moran_loc, gdf):
     # Create a new category column based on cluster types
