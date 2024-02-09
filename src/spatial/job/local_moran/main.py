@@ -64,17 +64,21 @@ def get_air_quality_data():
                 'latitude': xy[1],  # Extract latitude from coordinates
                 'longitude': xy[0],  # Extract longitude from coordinates
                 'PM2_5_calibrated_Value': val,  # Replace with your function for LOCAL moran
+                'moran_result_num': moran_num,
                 'cluster': cluster
             }
-            for xy, val, cluster in zip(gdf.geometry.apply(lambda geom: (geom.x, geom.y)), gdf['calibratedValue'], moran_result_list)
-        ])
+            for xy, val, cluster, moran_num in zip(gdf.geometry.apply(lambda geom: (geom.x, geom.y)), gdf['calibratedValue'], moran_result_list, moran_result_num)
+            ])
 
         # Construct the final response data
         response_data = {
             'airquality': {
                 'status': 'success',
                 'grid_id': grid_id,
-                'site_ids': site_ids,
+                'sites':{
+                    'site_ids': site_ids,
+                    'number_of_sites': len(site_ids)
+                        },                
                 'period': {
                     'startTime': start_time.isoformat(),
                     'endTime': end_time.isoformat(),
@@ -99,4 +103,4 @@ def get_air_quality_data():
         return jsonify(response_data)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()

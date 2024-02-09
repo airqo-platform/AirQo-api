@@ -22,14 +22,14 @@
 python main.py
 ### RUN local on web browser
 python app.py
-
+python main.py
 ### API token 
 Create an API token from https://platform.airqo.net/settings
     Registered Clients
         Generate Token
     Access Tokens
 
-
+#run     postman
 http://127.0.0.1:5000/spatial
 
 {
