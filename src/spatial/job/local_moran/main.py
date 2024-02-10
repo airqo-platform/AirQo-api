@@ -98,7 +98,7 @@ def get_air_quality_data():
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
+        return jsonify({'error': f'An error occurred: Please try again '}), 500
 
 if __name__ == '__main__':
     app.run()
