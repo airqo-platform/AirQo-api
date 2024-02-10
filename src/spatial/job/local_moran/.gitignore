@@ -1,0 +1,30 @@
+#.gitignore
+__pycache__/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+production.env
+# pycharm
+.idea/
+
+# pickle files
+*.pkl
+
+# datafiles
+google_application_credentials.json
+
+.vscode
+.vscode/
+
+*.csv
+
+.gitkeep
+.DS_Store
+
+*json
