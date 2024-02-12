@@ -101,19 +101,23 @@ def collocation_periodic_task():
 def handle_exception(error):
     traceback.print_exc()
     print(error)
-    return jsonify({"message": "Error occurred. Contact support"}), 500
+    response = jsonify({"message Error occurred. Contact support": str(error)})
+    
+    return response, 500
 
 
 @app.errorhandler(NotFound)
 def handle_404_exception(error):
     print(error)
-    return jsonify({"message": "Requested Url not found on this service"}), 404
+    response = jsonify({"message: Requested Url not found on this service": str(error)})
+    return response, 404
 
 
 @app.errorhandler(MethodNotAllowed)
 def handle_405_exception(error):
     print(error)
-    return jsonify({"message": "Method not allowed for this endpoint."}), 405
+    response = jsonify({"message: Method not allowed for this endpoint": str(error)})
+    return response, 405
 
 
 @app.before_request
