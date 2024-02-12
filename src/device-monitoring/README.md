@@ -45,7 +45,7 @@ Run the Flask App
 - `celery -A app.celery beat`
 - `celery -A app.celery worker --loglevel=info`
 
-Run Tests
+Run Tests.
 ```commandline
 python -m pytest
 ```
