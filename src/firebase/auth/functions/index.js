@@ -578,7 +578,7 @@ async function sendPushNotifications(groupedUsers) {
 
 
 exports.sendFCMNotificationV2 =
-  onSchedule("0 8 * * *", async (event) => {
+  onSchedule("0 5 * * *", async (event) => {
       try {
 
         const BATCH_SIZE = 200;
