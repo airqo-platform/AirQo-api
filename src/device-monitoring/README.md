@@ -4,7 +4,7 @@ clone project from github
 change directory to the analytics micro-service
 - `cd src/device-monitoring`
 
-create local python environment
+create local python environment.
 
 windows
 
