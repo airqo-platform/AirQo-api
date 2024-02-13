@@ -8,7 +8,7 @@
     * linux/mac
 	`python3 -m venv [local_env_name e.g env]`
 
-* Activate the environment
+* Activate the environment.
     * windows  
 	  `env\scripts\activate`
 	
