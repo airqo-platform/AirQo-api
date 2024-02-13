@@ -354,6 +354,9 @@ const mailer = {
           case "general":
             bccEmailString = constants.PARTNERS_EMAILS;
             break;
+          case "assistance":
+            bccEmailString = constants.ASSISTANCE_EMAILS;
+            break;
           default:
             bccEmailString = constants.PARTNERS_EMAILS;
         }
