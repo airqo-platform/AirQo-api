@@ -61,6 +61,10 @@ const gridSchema = new Schema(
       type: String,
       trim: true,
     },
+    country_code: {
+      type: String,
+      trim: true,
+    },
     grid_tags: {
       type: Array,
       default: [],
@@ -130,10 +134,12 @@ gridSchema.methods.toJSON = function() {
     centers,
     shape,
     geoHash,
+    country_code,
   } = this;
   return {
     _id,
     name,
+    country_code,
     visibility,
     long_name,
     description,
