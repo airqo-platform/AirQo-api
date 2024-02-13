@@ -1,7 +1,7 @@
 ## Device Status
 
 #### Local Setup using a Python virtual environment.
-* Create local python environment
+* Create local python environment.
     * windows
 	`python -m venv [local_env_name e.g env]`
 
