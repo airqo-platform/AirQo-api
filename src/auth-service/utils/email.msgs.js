@@ -134,8 +134,7 @@ module.exports = {
                                    <td
                                        style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">  
                                    <p>Thank you for reaching out for assistance. </p>
-                                   <p>We have received your query and our technical support team will be reaching out shortly. </p>
-                                   <p>We appreciate your patience and will strive to respond to your inquiry in a timely manner.</p>
+                                   <p>Please reach out to our Analytics Team Lead Belinda at belindamarion@airqo.net for further support. </p>
                                    <p>Thank you for choosing AirQo.</p>
                                    </td>
                     </tr>`;
