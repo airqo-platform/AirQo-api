@@ -1431,8 +1431,8 @@ const createUserModule = {
       const filter = generateFilter.users(request, next);
       const userId = filter._id;
       const responseFromCascadeDeletion = await cascadeUserDeletion(
-        userId,
-        tenant
+        { userId, tenant },
+        next
       );
 
       if (responseFromCascadeDeletion.success === true) {
