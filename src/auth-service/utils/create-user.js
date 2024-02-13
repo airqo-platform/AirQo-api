@@ -1582,9 +1582,10 @@ const createUserModule = {
         });
       }
 
+      const userBody = request.body;
       const newRequest = Object.assign(
         { userName: email, password, analyticsVersion: 3 },
-        request
+        userBody
       );
 
       const responseFromCreateUser = await UserModel(tenant).register(
