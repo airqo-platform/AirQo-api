@@ -8,7 +8,7 @@ images:
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-906e745a-1707807346
+  tag: stage-3ac4e870-1707949010
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
