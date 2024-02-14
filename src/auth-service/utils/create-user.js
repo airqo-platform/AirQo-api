@@ -834,7 +834,7 @@ const createUserModule = {
       if (!userExistsLocally) {
         let newAnalyticsUserDetails = {};
         newAnalyticsUserDetails.firebase_uid = firebase_uid;
-        newAnalyticsUserDetails.userName = firstName || email;
+        newAnalyticsUserDetails.userName = email;
         newAnalyticsUserDetails.email = email;
         newAnalyticsUserDetails.phoneNumber = phoneNumber || null;
         newAnalyticsUserDetails.firstName = firstName || "Unknown";
