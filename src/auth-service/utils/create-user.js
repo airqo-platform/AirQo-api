@@ -834,7 +834,7 @@ const createUserModule = {
       if (!userExistsLocally) {
         let newAnalyticsUserDetails = {};
         newAnalyticsUserDetails.firebase_uid = firebase_uid;
-        newAnalyticsUserDetails.userName = firstName || email;
+        newAnalyticsUserDetails.userName = email;
         newAnalyticsUserDetails.email = email;
         newAnalyticsUserDetails.phoneNumber = phoneNumber || null;
         newAnalyticsUserDetails.firstName = firstName || "Unknown";
@@ -1431,8 +1431,8 @@ const createUserModule = {
       const filter = generateFilter.users(request, next);
       const userId = filter._id;
       const responseFromCascadeDeletion = await cascadeUserDeletion(
-        userId,
-        tenant
+        { userId, tenant },
+        next
       );
 
       if (responseFromCascadeDeletion.success === true) {
@@ -1582,9 +1582,10 @@ const createUserModule = {
         });
       }
 
+      const userBody = request.body;
       const newRequest = Object.assign(
         { userName: email, password, analyticsVersion: 3 },
-        request
+        userBody
       );
 
       const responseFromCreateUser = await UserModel(tenant).register(

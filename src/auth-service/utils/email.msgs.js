@@ -129,8 +129,16 @@ module.exports = {
                                 </td>
                             </tr>`;
         break;
-      case "general":
-      case "partners":
+      case "assistance":
+        content = `<tr>
+                                   <td
+                                       style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">  
+                                   <p>Thank you for reaching out for assistance. </p>
+                                   <p>Please reach out to our Analytics Team Lead Belinda at belindamarion@airqo.net for further support. </p>
+                                   <p>Thank you for choosing AirQo.</p>
+                                   </td>
+                    </tr>`;
+        break;
       default:
         content = `<tr>
                                 <td

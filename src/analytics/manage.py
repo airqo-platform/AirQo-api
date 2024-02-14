@@ -29,5 +29,6 @@ def index():
     return jsonify(dict(message=f"App status - OK."))
 
 
+
 if __name__ == "__main__":
     app.run()
