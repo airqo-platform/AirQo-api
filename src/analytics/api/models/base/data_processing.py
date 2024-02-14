@@ -77,4 +77,3 @@ def air_quality_data():
             }
             return jsonify(response_data)
 
- 

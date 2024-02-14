@@ -142,6 +142,3 @@ def pm_day_name(dataframe):
 def pm_day_hour_name(dataframe):
     return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().reset_index()
 
-
- 
- 

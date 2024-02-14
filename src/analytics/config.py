@@ -113,3 +113,4 @@ config = {
 print(f"app running - {APP_ENV.upper()} mode")
 
 CONFIGURATIONS = config[APP_ENV]
+
