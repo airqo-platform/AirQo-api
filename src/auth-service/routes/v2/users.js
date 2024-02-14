@@ -1041,8 +1041,8 @@ router.get(
 );
 
 /*********************************** user notifications **********************/
-router.post(
-  "/subscribe/:type",
+router.get(
+  "/subscribe/:product/:type",
   oneOf([
     [
       query("tenant")
@@ -1054,40 +1054,49 @@ router.post(
         .toLowerCase()
         .isIn(["airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+      query("email")
+        .optional()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      query("mongo_user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the mongo_user_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the mongo_user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("firebase_user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the firebase_uid must not be empty if provided")
+        .bail()
+        .trim(),
     ],
   ]),
   oneOf([
-    body("email")
-      .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using the email"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the email must not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address")
-      .trim(),
-    body("user_id")
-      .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the user_id must not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the user_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
     [
+      param("product")
+        .exists()
+        .withMessage("the product must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the product should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["analytics", "mobile", "website"])
+        .withMessage(
+          "the product value is not among the expected ones: analytics, mobile and website"
+        ),
       param("type")
         .exists()
         .withMessage("the type must be provided")
@@ -1105,8 +1114,8 @@ router.post(
   ]),
   createUserController.subscribeToNotifications
 );
-router.post(
-  "/unsubscribe/:type",
+router.get(
+  "/unsubscribe/:product/:type",
   oneOf([
     [
       query("tenant")
@@ -1118,40 +1127,49 @@ router.post(
         .toLowerCase()
         .isIn(["airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+      query("email")
+        .optional()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      query("mongo_user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the mongo_user_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the mongo_user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("firebase_user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the firebase_uid must not be empty if provided")
+        .bail()
+        .trim(),
     ],
   ]),
   oneOf([
-    body("email")
-      .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using the email"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the email must not be empty if provided")
-      .bail()
-      .isEmail()
-      .withMessage("this is not a valid email address")
-      .trim(),
-    body("user_id")
-      .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the user_id must not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the user_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
     [
+      param("product")
+        .exists()
+        .withMessage("the product must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the product should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["analytics", "mobile", "website"])
+        .withMessage(
+          "the product value is not among the expected ones: analytics, mobile and website"
+        ),
       param("type")
         .exists()
         .withMessage("the type must be provided")

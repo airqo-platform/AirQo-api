@@ -13,7 +13,7 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token, tenant, email) => {
+  recovery_email: (token, tenant, email, user_id) => {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -29,9 +29,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  joinRequest: (firstName, lastName, email) => {
+  joinRequest: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -47,10 +47,10 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
-  joinEntityRequest: (email, entity_title) => {
+  joinEntityRequest: (email, entity_title, user_id) => {
     const name = "";
     const content = ` <tr>
                                 <td
@@ -68,9 +68,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  inquiry: (fullName, email, category) => {
+  inquiry: (fullName, email, category, user_id) => {
     let content;
     switch (category) {
       case "policy":
@@ -147,7 +147,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY(email, content, fullName);
+    return constants.EMAIL_BODY(email, content, fullName, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
   welcome_kcca: (firstName, lastName, password, email) => {
@@ -433,5 +433,34 @@ module.exports = {
                             </tr>
   `;
     return constants.EMAIL_BODY(recepientEmail, content);
+  },
+
+  emailNotificationUnsubscibe: (product, type, email, name, paramString) => {
+
+    const subsciptionUrl = `${constants.PLATFORM_BASE_URL}/api/v2/users/subscribe/${product}/${type}?${paramString}`;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We're sorry to see you go, but we've successfully unsubscribed you from our email notifications. You will no longer receive updates and notifications from your favorite locations. 
+                                    <br />
+                                    <br />
+                                    You will no longer receive updates and notifications from your favorite locations. If you ever change your mind and want to rejoin us, feel free to subscribe again at any time.
+                                    <br />
+                                    <br />
+                                    <a href=${subsciptionUrl} target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Subscribe </div>
+                                        </div>
+                                    </a>
+                                    <br />
+                                    If you have any questions or require further assistance, please feel free to reach out to our support team.<br />
+                                    <br />Thank you for being a part of the AirQo community. We hope to see you back in the future!
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name, product, type, paramString);
   },
 };

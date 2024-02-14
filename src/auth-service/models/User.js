@@ -195,11 +195,17 @@ const UserSchema = new Schema(
     category: {
       type: String,
     },
-    notifications: {
-      email: { type: Boolean, default: false },
-      push: { type: Boolean, default: false },
-      text: { type: Boolean, default: false },
-      phone: { type: Boolean, default: false },
+    mobile_notifications: {
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+      text: { type: Boolean, default: true },
+      phone: { type: Boolean, default: true },
+    },
+    analytics_notifications: {
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+      text: { type: Boolean, default: true },
+      phone: { type: Boolean, default: true },
     },
     profilePicture: {
       type: String,

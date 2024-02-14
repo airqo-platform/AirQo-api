@@ -51,7 +51,7 @@ let attachments = [
 
 const mailer = {
   candidate: async (
-    { firstName, lastName, email, tenant = "airqo" } = {},
+    { firstName, lastName, email, tenant = "airqo", user_id } = {},
     next
   ) => {
     try {
@@ -94,7 +94,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics JOIN request",
-        html: msgs.joinRequest(firstName, lastName, email),
+        html: msgs.joinRequest(firstName, lastName, email, user_id),
         bcc,
         attachments: attachments,
       };
@@ -132,7 +132,7 @@ const mailer = {
     }
   },
   request: async (
-    { email, targetId, tenant = "airqo", entity_title = "" } = {},
+    { email, targetId, tenant = "airqo", entity_title = "", user_id } = {},
     next
   ) => {
     try {
@@ -178,7 +178,7 @@ const mailer = {
         subject: `AirQo Analytics Request to Access ${processString(
           entity_title
         )} Team`,
-        html: msgs.joinEntityRequest(email, entity_title),
+        html: msgs.joinEntityRequest(email, entity_title, user_id),
         bcc,
         attachments: attachments,
       };
@@ -321,7 +321,7 @@ const mailer = {
     }
   },
   inquiry: async (
-    { fullName, email, category, message, tenant = "airqo" } = {},
+    { fullName, email, category, message, tenant = "airqo", user_id } = {},
     next
   ) => {
     try {
@@ -379,8 +379,8 @@ const mailer = {
           address: constants.EMAIL,
         },
         subject: `Welcome to AirQo`,
-        html: msgs.inquiry(fullName, email, category),
-        bcc: subscribedBccEmails,
+        html: msgs.inquiry(fullName, email, category, user_id),
+        // bcc: subscribedBccEmails,
         attachments,
       };
 
@@ -947,7 +947,7 @@ const mailer = {
       );
     }
   },
-  forgot: async ({ email, token, tenant = "airqo" } = {}, next) => {
+  forgot: async ({ email, token, tenant = "airqo", user_id } = {}, next) => {
     try {
       const checkResult = await SubscriptionModel(
         tenant
@@ -963,7 +963,7 @@ const mailer = {
         },
         to: email,
         subject: `Link To Reset Password`,
-        html: msgs.recovery_email(token, tenant, email),
+        html: msgs.recovery_email(token, tenant, email, user_id),
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1415,6 +1415,69 @@ const mailer = {
       );
     }
   },
+
+  sendUnsubscriptionEmail: async (
+    { product, type, userEmail, name, paramString } = {},
+    next
+  ) => {
+    try {
+
+      const mailOptions = {
+        from: {
+          name: "AirQo Data Team",
+          address: process.env.MAIL_USER,
+        },
+        to: `${userEmail}`,
+        subject: "We're Sad to See You Go - Unsubscription Confirmation!",
+        html: `${msgs.emailNotificationUnsubscibe(product, type, userEmail, name, paramString)}`,
+        attachments: attachments,
+      };
+
+
+      if (userEmail === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+
   newMobileAppUser: async (
     { email, message, subject, tenant = "airqo" } = {},
     next
