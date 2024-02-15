@@ -34,7 +34,7 @@ def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
 
         return site_ids
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching air quality data: {e}")
+        print(f"Error fetching air quality data: ")
         return []
 
 # Create a BigQuery client
@@ -61,7 +61,6 @@ def query_bigquery(site_ids, start_time, end_time):
         if data.empty:
             print("No data available for the given parameters.")
             return None
-        
         if np.isnan(data['site_latitude']).any() or np.isnan(data['site_longitude']).any():
             data = data[~np.isnan(data['site_latitude']) & ~np.isnan(data['site_longitude'])]
 

@@ -11,7 +11,7 @@ from api.utils.pollutants.report import (fetch_air_quality_data,
                                          mean_pm2_5_by_site_name, mean_pm2_5_by_hour,
                                          pm_day_name,pm_day_hour_name)
 
-#Configure logging
+# Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO)
 
 def air_quality_data():
