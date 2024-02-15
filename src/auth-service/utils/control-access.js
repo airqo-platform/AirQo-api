@@ -839,7 +839,9 @@ const controlAccess = {
       // };
       const { tenant, client_id } = { ...request.body, ...request.query };
 
-      const client = await ClientModel(tenant).findById(ObjectId(client_id));
+      const client = await ClientModel(tenant)
+        .findById(ObjectId(client_id))
+        .lean();
 
       if (!client) {
         next(

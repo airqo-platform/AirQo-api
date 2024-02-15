@@ -925,6 +925,7 @@ const dbProjections = {
     client_secret: 1,
     redirect_uri: 1,
     ip_address: 1,
+    isActive: 1,
     name: 1,
     description: 1,
     networks: "$networks",
