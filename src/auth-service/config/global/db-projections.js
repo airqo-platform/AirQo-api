@@ -775,6 +775,7 @@ const dbProjections = {
     user_id: 1,
     token: 1,
     last_used_at: 1,
+    isActive: 1,
     expires: 1,
     name: 1,
     permissions: 1,
