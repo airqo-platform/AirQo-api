@@ -12,7 +12,7 @@ from api.utils.pollutants.report import (fetch_air_quality_data,
                                          pm_day_name,pm_day_hour_name)
 
 # Configure logging
-logging.basicConfig(filename='app.log', level=logging.INFO)
+logging.basicConfig(filename='app.log', level=logging.INFO, filemode='w')
 
 def air_quality_data():
     data = request.get_json()
