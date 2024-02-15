@@ -7,12 +7,13 @@ from api.utils.pollutants.report import (fetch_air_quality_data,
                                          datetime_pm2_5, mean_pm2_5_by_month_year, 
                                          mean_pm2_5_by_month_name, query_bigquery, 
                                          mean_pm2_5_by_month, results_to_dataframe,
-                                           mean_pm2_5_by_year, mean_daily_pm2_5, 
-                                           mean_pm2_5_by_site_name, mean_pm2_5_by_hour,
-                                           pm_day_name,pm_day_hour_name)
+                                         mean_pm2_5_by_year, mean_daily_pm2_5, 
+                                         mean_pm2_5_by_site_name, mean_pm2_5_by_hour,
+                                         pm_day_name,pm_day_hour_name)
+
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO)
- 
+
 def air_quality_data():
     data = request.get_json()
 
@@ -52,31 +53,35 @@ def air_quality_data():
             # Prepare the response data in a structured format
             response_data = {
                 'airquality': {
-                'status': 'success',
-                'grid_id': grid_id,
-                'sites': {
-                    'site_ids': site_ids,
-                    'number_of_sites': len(site_ids)
-                },
-                'period': {
-                    'startTime': start_time.isoformat(),
-                    'endTime': end_time.isoformat(),
-                },
-                'daily_mean_pm': daily_mean_pm2_5.to_dict(orient='records'),
-                'datetime_mean_pm': datetime_mean_pm2_5.to_dict(orient='records'),
-                'site_mean_pm': site_mean_pm2_5.to_dict(orient='records'),
-                'diurnal': hour_mean_pm2_5.to_dict(orient='records'),
-                'annual_pm': mean_pm2_5_year.to_dict(orient='records'),
-                'monthly_pm': pm2_5_by_month.to_dict(orient='records'),
-                'pm_by_month_year': pm2_5_by_month_year.to_dict(orient='records'),
-                'pm_by_month_name': pm2_5_by_month_name.to_dict(orient='records'),
-                'monthly_mean_pm_site_name': monthly_mean_pm_by_site_name.to_dict(orient='records'),
-                'mean_pm_by_city': mean_pm_by_city.to_dict(orient='records'),   
-                'mean_pm_by_country': mean_pm_by_country.to_dict(orient='records'),
-                'mean_pm_by_region': mean_pm_by_region.to_dict(orient='records'),
-                'mean_pm_by_day_of_week':mean_pm_by_day_of_week.to_dict(orient='records'),
-                'mean_pm_by_day_hour':mean_pm_by_day_hour.to_dict(orient='records'),
+                    'status': 'success',
+                    'grid_id': grid_id,
+                    'sites': {
+                        'site_ids': site_ids,
+                        'number_of_sites': len(site_ids)
+                    },
+                    'period': {
+                        'startTime': start_time.isoformat(),
+                        'endTime': end_time.isoformat(),
+                    },
+                    'daily_mean_pm': daily_mean_pm2_5.to_dict(orient='records'),
+                    'datetime_mean_pm': datetime_mean_pm2_5.to_dict(orient='records'),
+                    'site_mean_pm': site_mean_pm2_5.to_dict(orient='records'),
+                    'diurnal': hour_mean_pm2_5.to_dict(orient='records'),
+                    'annual_pm': mean_pm2_5_year.to_dict(orient='records'),
+                    'monthly_pm': pm2_5_by_month.to_dict(orient='records'),
+                    'pm_by_month_year': pm2_5_by_month_year.to_dict(orient='records'),
+                    'pm_by_month_name': pm2_5_by_month_name.to_dict(orient='records'),
+                    'monthly_mean_pm_site_name': monthly_mean_pm_by_site_name.to_dict(orient='records'),
+                    'mean_pm_by_city': mean_pm_by_city.to_dict(orient='records'),   
+                    'mean_pm_by_country': mean_pm_by_country.to_dict(orient='records'),
+                    'mean_pm_by_region': mean_pm_by_region.to_dict(orient='records'),
+                    'mean_pm_by_day_of_week':mean_pm_by_day_of_week.to_dict(orient='records'),
+                    'mean_pm_by_day_hour':mean_pm_by_day_hour.to_dict(orient='records'),
                 }
             }
             return jsonify(response_data)
+        else:
+            return jsonify({"message": "No data available for the given time frame."}), 404
+    else:
+        return jsonify({"message": "No site IDs found for the given parameters."}), 404
 

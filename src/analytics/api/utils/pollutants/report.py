@@ -58,6 +58,10 @@ def query_bigquery(site_ids, start_time, end_time):
 
         # Fetch and return the results as a Pandas DataFrame
         data = query_job.to_dataframe()
+        if data.empty:
+            print("No data available for the given parameters.")
+            return None
+        
         if np.isnan(data['site_latitude']).any() or np.isnan(data['site_longitude']).any():
             data = data[~np.isnan(data['site_latitude']) & ~np.isnan(data['site_longitude'])]
 
