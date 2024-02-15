@@ -5,7 +5,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from config import Config
-
+import numpy as np
 from timezonefinder import TimezoneFinder
 import pytz
 
@@ -58,6 +58,9 @@ def query_bigquery(site_ids, start_time, end_time):
 
         # Fetch and return the results as a Pandas DataFrame
         data = query_job.to_dataframe()
+        if np.isnan(data['site_latitude']).any() or np.isnan(data['site_longitude']).any():
+            data = data[~np.isnan(data['site_latitude']) & ~np.isnan(data['site_longitude'])]
+
                 # Convert timestamp to local time based on latitude and longitude
         data['timestamp'] = convert_utc_to_local(data['timestamp'], data['site_latitude'], data['site_longitude'])
 
@@ -92,6 +95,7 @@ def results_to_dataframe(results):
     df['month'] = df['timestamp'].dt.month
     df['month_name'] = df['timestamp'].dt.month_name()   
     df=df.dropna(subset='site_latitude')
+    df=df.dropna(subset='site_longitude')
 
     return df
 # Define the list of columns as a constant

@@ -54,7 +54,10 @@ def air_quality_data():
                 'airquality': {
                 'status': 'success',
                 'grid_id': grid_id,
-                'site_ids': site_ids,
+                'sites': {
+                    'site_ids': site_ids,
+                    'number_of_sites': len(site_ids)
+                },
                 'period': {
                     'startTime': start_time.isoformat(),
                     'endTime': end_time.isoformat(),
