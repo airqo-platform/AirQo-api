@@ -5,6 +5,7 @@
 {{- $artifactCommand = printf "--%s=gs://%s/%s" $artifactCommandPrefix .Values.artifactRoot.gcs.bucket .Values.artifactRoot.gcs.path }}
 {{- $dbConnectionDriver := "" }}
 {{- $dbConnectionDriver = printf "+%s" .Values.backendStore.postgres.driver }}
+{{- $staticPrefix := "/mlflow"}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,6 +47,7 @@ spec:
               pip install --upgrade pip && pip install psycopg2-binary &&
               mlflow server \
                 --host=0.0.0.0 \
+                --static-prefix={{ $staticPrefix }} \
                 --port={{ .Values.service.port }} \
                 --backend-store-uri=postgresql{{ $dbConnectionDriver }}:// \
                 {{ $artifactCommand }} \
