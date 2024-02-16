@@ -209,6 +209,49 @@ router.put(
   createClientController.update
 );
 
+router.post(
+  "/activate/:client_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("isActive")
+        .exists()
+        .withMessage("isActive field is missing")
+        .bail()
+        .notEmpty()
+        .withMessage("isActive should not be empty if provided")
+        .bail()
+        .isBoolean()
+        .withMessage("isActive should be a Boolean value")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createClientController.activateClient
+);
+
 router.delete(
   "/:client_id",
   oneOf([
