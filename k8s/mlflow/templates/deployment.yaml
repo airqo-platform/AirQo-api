@@ -6,6 +6,7 @@
 {{- $dbConnectionDriver := "" }}
 {{- $dbConnectionDriver = printf "+%s" .Values.backendStore.postgres.driver }}
 {{- $staticPrefix := "/mlflow"}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
