@@ -103,50 +103,50 @@ def results_to_dataframe(results):
 
 # Define the list of columns as a constant
 PM_COLUMNS = ['pm2_5_raw_value', 'pm2_5_calibrated_value', 'pm10_raw_value', 'pm10_calibrated_value']
-PM_COLUMNS_CORD = ['pm2_5_raw_value','pm2_5_calibrated_value','pm10_raw_value','pm10_calibrated_value','site_latitude', 'site_longitude']
+PM_COLUMNS_CORD = PM_COLUMNS + ['site_latitude', 'site_longitude']
 class PManalysis:
     @staticmethod
     def datetime_pm2_5(dataframe):
-        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_daily_pm2_5(dataframe):
-        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_pm2_5_by_site_name(dataframe):
-        pm_result = dataframe.groupby('site_name')[PM_COLUMNS].mean().reset_index()
+        pm_result = dataframe.groupby('site_name')[PM_COLUMNS_CORD].mean().round(4).reset_index()
         result_sorted = pm_result.sort_values(by='pm2_5_calibrated_value', ascending=False)
         return result_sorted
     @staticmethod
     def monthly_mean_pm_site_name(dataframe):
-        return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().reset_index() 
+        return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
     @staticmethod
     def mean_pm2_5_by_hour(dataframe):
-        return dataframe.groupby('hour')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('hour')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_pm2_5_by_month_year(dataframe):
-        return dataframe.groupby(['month','year'])[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby(['month','year'])[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_pm2_5_by_month(dataframe):
-        return dataframe.groupby('month')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('month')[PM_COLUMNS].mean().round(2).reset_index()
     @staticmethod
     def mean_pm2_5_by_month_name(dataframe):
-        return dataframe.groupby(['month_name'])[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby(['month_name'])[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod  
     def mean_pm2_5_by_year(dataframe):
-        return dataframe.groupby('year')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('year')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def pm_by_city(dataframe):
-        return dataframe.groupby(['city','month','year'])[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby(['city','month','year'])[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def pm_by_country(dataframe):
-        return dataframe.groupby('country')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('country')[PM_COLUMNS].mean().round(2).reset_index()
     @staticmethod
     def pm_by_region(dataframe):
-        return dataframe.groupby('region')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('region')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def pm_day_name(dataframe):
-        return dataframe.groupby('day')[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby('day')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def pm_day_hour_name(dataframe):
-        return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().reset_index()
+        return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().round(4).reset_index()
 
