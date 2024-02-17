@@ -21,7 +21,7 @@ def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
         "recent": "no"
     }
 
-    grid_url = f"https://platform.airqo.net/api/v2/devices/measurements/grids/{grid_id}"
+    grid_url = f"{Config.GRID_URL}{grid_id}"
 
     try:
         grid_response = requests.get(grid_url, params=grid_params)

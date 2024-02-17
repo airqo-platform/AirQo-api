@@ -21,6 +21,8 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
+    GRID_URL = "https://platform.airqo.net/api/v2/devices/measurements/grids/"
+
 
     CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
