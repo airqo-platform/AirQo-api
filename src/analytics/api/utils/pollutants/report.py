@@ -9,6 +9,18 @@ import numpy as np
 from timezonefinder import TimezoneFinder
 import pytz
 
+def convert_utc_to_local(timestamps,site_latitude, site_longitude):
+    tf = TimezoneFinder()
+    local_times = []
+
+    for timestamp, latitude, longitude in zip(timestamps, site_latitude, site_longitude):
+        timezone_str = tf.timezone_at(lat=latitude, lng=longitude)
+        timezone = pytz.timezone(timezone_str)
+        local_time = timestamp.astimezone(timezone)
+        local_times.append(local_time)
+
+    return local_times
+
 def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
     # Convert start_time and end_time to ISO format
     start_time_iso = start_time.isoformat() + 'Z'
@@ -71,18 +83,6 @@ def query_bigquery(site_ids, start_time, end_time):
     except Exception as e:
         print(f"Error querying BigQuery: {e}")
         return None
-    
-def convert_utc_to_local(timestamps,site_latitude, site_longitude):
-    tf = TimezoneFinder()
-    local_times = []
-
-    for timestamp, latitude, longitude in zip(timestamps, site_latitude, site_longitude):
-        timezone_str = tf.timezone_at(lat=latitude, lng=longitude)
-        timezone = pytz.timezone(timezone_str)
-        local_time = timestamp.astimezone(timezone)
-        local_times.append(local_time)
-
-    return local_times
 
 def results_to_dataframe(results):
     # Convert 'timestamp' to datetime format
@@ -99,53 +99,54 @@ def results_to_dataframe(results):
     df['month_name'] = df['timestamp'].dt.month_name()   
     df=df.dropna(subset='site_latitude')
     df=df.dropna(subset='site_longitude')
-
     return df
+
 # Define the list of columns as a constant
 PM_COLUMNS = ['pm2_5_raw_value', 'pm2_5_calibrated_value', 'pm10_raw_value', 'pm10_calibrated_value']
 PM_COLUMNS_CORD = ['pm2_5_raw_value','pm2_5_calibrated_value','pm10_raw_value','pm10_calibrated_value','site_latitude', 'site_longitude']
-   
-def datetime_pm2_5(dataframe):
-    return dataframe.groupby('timestamp')[PM_COLUMNS].mean().reset_index()
-
-def mean_daily_pm2_5(dataframe):
-    return dataframe.groupby('date')[PM_COLUMNS].mean().reset_index()
-
-def mean_pm2_5_by_site_name(dataframe):
-    pm_result = dataframe.groupby('site_name')[PM_COLUMNS].mean().reset_index()
-    result_sorted = pm_result.sort_values(by='pm2_5_calibrated_value', ascending=False)
-    return result_sorted
- 
-def monthly_mean_pm_site_name(dataframe):
-    return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().reset_index() 
-
-def mean_pm2_5_by_hour(dataframe):
-    return dataframe.groupby('hour')[PM_COLUMNS].mean().reset_index()
-
-def mean_pm2_5_by_month_year(dataframe):
-    return dataframe.groupby(['month','year'])[PM_COLUMNS].mean().reset_index()
-
-def mean_pm2_5_by_month(dataframe):
-    return dataframe.groupby('month')[PM_COLUMNS].mean().reset_index()
-
-def mean_pm2_5_by_month_name(dataframe):
-    return dataframe.groupby(['month_name'])[PM_COLUMNS].mean().reset_index()
-    
-def mean_pm2_5_by_year(dataframe):
-    return dataframe.groupby('year')[PM_COLUMNS].mean().reset_index()
-
-def pm_by_city(dataframe):
-    return dataframe.groupby(['city','month','year'])[PM_COLUMNS].mean().reset_index()
-
-def pm_by_country(dataframe):
-    return dataframe.groupby('country')[PM_COLUMNS].mean().reset_index()
-
-def pm_by_region(dataframe):
-    return dataframe.groupby('region')[PM_COLUMNS].mean().reset_index()
-
-def pm_day_name(dataframe):
-    return dataframe.groupby('day')[PM_COLUMNS].mean().reset_index()
-
-def pm_day_hour_name(dataframe):
-    return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().reset_index()
+class PManalysis:
+    @staticmethod
+    def datetime_pm2_5(dataframe):
+        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def mean_daily_pm2_5(dataframe):
+        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def mean_pm2_5_by_site_name(dataframe):
+        pm_result = dataframe.groupby('site_name')[PM_COLUMNS].mean().reset_index()
+        result_sorted = pm_result.sort_values(by='pm2_5_calibrated_value', ascending=False)
+        return result_sorted
+    @staticmethod
+    def monthly_mean_pm_site_name(dataframe):
+        return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().reset_index() 
+    @staticmethod
+    def mean_pm2_5_by_hour(dataframe):
+        return dataframe.groupby('hour')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def mean_pm2_5_by_month_year(dataframe):
+        return dataframe.groupby(['month','year'])[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def mean_pm2_5_by_month(dataframe):
+        return dataframe.groupby('month')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def mean_pm2_5_by_month_name(dataframe):
+        return dataframe.groupby(['month_name'])[PM_COLUMNS].mean().reset_index()
+    @staticmethod  
+    def mean_pm2_5_by_year(dataframe):
+        return dataframe.groupby('year')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def pm_by_city(dataframe):
+        return dataframe.groupby(['city','month','year'])[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def pm_by_country(dataframe):
+        return dataframe.groupby('country')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def pm_by_region(dataframe):
+        return dataframe.groupby('region')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def pm_day_name(dataframe):
+        return dataframe.groupby('day')[PM_COLUMNS].mean().reset_index()
+    @staticmethod
+    def pm_day_hour_name(dataframe):
+        return dataframe.groupby(['day','hour'])[PM_COLUMNS].mean().reset_index()
 

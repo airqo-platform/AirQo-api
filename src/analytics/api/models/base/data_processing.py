@@ -1,15 +1,9 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 import logging
-from api.utils.pollutants.report import (fetch_air_quality_data, 
-                                         pm_by_city,pm_by_country,
-                                         pm_by_region, monthly_mean_pm_site_name,
-                                         datetime_pm2_5, mean_pm2_5_by_month_year, 
-                                         mean_pm2_5_by_month_name, query_bigquery, 
-                                         mean_pm2_5_by_month, results_to_dataframe,
-                                         mean_pm2_5_by_year, mean_daily_pm2_5, 
-                                         mean_pm2_5_by_site_name, mean_pm2_5_by_hour,
-                                         pm_day_name,pm_day_hour_name)
+from api.utils.pollutants.report import (fetch_air_quality_data, query_bigquery, 
+                                         results_to_dataframe,PManalysis
+                                         )
 
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO, filemode='w')
@@ -34,20 +28,20 @@ def air_quality_data():
         results = query_bigquery(site_ids, start_time, end_time)
         if results is not None:
             processed_data = results_to_dataframe(results)
-            daily_mean_pm2_5 = mean_daily_pm2_5(processed_data)
-            datetime_mean_pm2_5 = datetime_pm2_5(processed_data)
-            site_mean_pm2_5 = mean_pm2_5_by_site_name(processed_data)
-            hour_mean_pm2_5 = mean_pm2_5_by_hour(processed_data)
-            mean_pm2_5_year = mean_pm2_5_by_year(processed_data)
-            pm2_5_by_month = mean_pm2_5_by_month(processed_data)
-            pm2_5_by_month_name = mean_pm2_5_by_month_name(processed_data)
-            pm2_5_by_month_year = mean_pm2_5_by_month_year(processed_data)
-            monthly_mean_pm_by_site_name =  monthly_mean_pm_site_name(processed_data)
-            mean_pm_by_city=pm_by_city(processed_data)
-            mean_pm_by_country =pm_by_country(processed_data)
-            mean_pm_by_region=pm_by_region(processed_data)
-            mean_pm_by_day_of_week=pm_day_name(processed_data)
-            mean_pm_by_day_hour =pm_day_hour_name(processed_data)
+            daily_mean_pm2_5 = PManalysis.mean_daily_pm2_5(processed_data)
+            datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
+            site_mean_pm2_5 = PManalysis.mean_pm2_5_by_site_name(processed_data)
+            hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
+            mean_pm2_5_year = PManalysis.mean_pm2_5_by_year(processed_data)
+            pm2_5_by_month = PManalysis.mean_pm2_5_by_month(processed_data)
+            pm2_5_by_month_name = PManalysis.mean_pm2_5_by_month_name(processed_data)
+            pm2_5_by_month_year = PManalysis.mean_pm2_5_by_month_year(processed_data)
+            monthly_mean_pm_by_site_name =  PManalysis.monthly_mean_pm_site_name(processed_data)
+            mean_pm_by_city=PManalysis.pm_by_city(processed_data)
+            mean_pm_by_country =PManalysis.pm_by_country(processed_data)
+            mean_pm_by_region=PManalysis.pm_by_region(processed_data)
+            mean_pm_by_day_of_week=PManalysis.pm_day_name(processed_data)
+            mean_pm_by_day_hour =PManalysis.pm_day_hour_name(processed_data)
             # Log some information for debugging or monitoring
             logging.info('Successfully processed air quality data for grid_id %s', grid_id)
             # Prepare the response data in a structured format
