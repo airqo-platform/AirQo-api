@@ -110,7 +110,7 @@ class PManalysis:
         return dataframe.groupby('timestamp')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_daily_pm2_5(dataframe):
-        return dataframe.groupby('timestamp')[PM_COLUMNS].mean().round(4).reset_index()
+        return dataframe.groupby('date')[PM_COLUMNS].mean().round(4).reset_index()
     @staticmethod
     def mean_pm2_5_by_site_name(dataframe):
         pm_result = dataframe.groupby('site_name')[PM_COLUMNS_CORD].mean().round(4).reset_index()

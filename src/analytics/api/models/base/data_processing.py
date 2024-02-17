@@ -42,6 +42,11 @@ def air_quality_data():
             mean_pm_by_region=PManalysis.pm_by_region(processed_data)
             mean_pm_by_day_of_week=PManalysis.pm_day_name(processed_data)
             mean_pm_by_day_hour =PManalysis.pm_day_hour_name(processed_data)
+
+            # Convert timestamps to the desired format
+            daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
+            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M %z')
+#            daily_mean_pm_dict = daily_mean_pm2_5.to_dict(orient='records')
             # Log some information for debugging or monitoring
             logging.info('Successfully processed air quality data for grid_id %s', grid_id)
             # Prepare the response data in a structured format
