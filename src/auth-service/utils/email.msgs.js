@@ -122,12 +122,12 @@ module.exports = {
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in our work.
-                                    <br />
-                            Please get in touch with our Software Engineering Lead Martin Bbaale at martin@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in our work.</p>
+                                    <p>If you are interested in data science, please reach out to the data science lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: Raja Wabinyai (raja@airqo.net) and Usman Abdul-Ganiy (usman@airqo.net).</p>
+                                    <p>If you are interested in hardware engineering, reach out to our hardware lead, Joel Ssematimba, at joel@airqo.net and CC: Gideon Lubisia (gideon@airqo.net).</p>
+                                    <p>If interested in software engineering or UI/UX design, please reach out to software engineering lead, Martin Bbaale, at martin@airqo.net and CC: Belinda (belindamarion@airqo.net).</p>
                                 </td>
-                            </tr>`;
+                  </tr>`;
         break;
       case "assistance":
         content = `<tr>
