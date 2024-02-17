@@ -52,5 +52,5 @@ spec:
               memory: 100Mi
             limits:
               cpu: 250m
-              memory: 1000Mi
+              memory: 2000Mi
       restartPolicy: Always
