@@ -384,6 +384,7 @@ const createAccessRequest = {
                 username: email,
                 email,
                 entity_title,
+                user_id: newUser._id,
               },
               next
             );

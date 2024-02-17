@@ -63,6 +63,7 @@ const createCandidate = {
             email,
             firstName,
             lastName,
+            user_id: userExists._id,
           },
           next
         );

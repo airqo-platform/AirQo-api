@@ -150,7 +150,7 @@ module.exports = {
     return constants.EMAIL_BODY(email, content, fullName, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
-  welcome_kcca: (firstName, lastName, password, email) => {
+  welcome_kcca: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -181,9 +181,9 @@ module.exports = {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  welcome_general: (firstName, lastName, password, email) => {
+  welcome_general: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                                 <td
@@ -218,13 +218,14 @@ module.exports = {
                                     AirQo Data Team
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   user_updated: ({
     firstName = "",
     lastName = "",
     updatedUserDetails = {},
     email = "",
+    user_id
   } = {}) => {
     let updatedFields = "<ol>\n";
     Object.keys(updatedUserDetails).forEach((field) => {
@@ -251,7 +252,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   site_activity: ({
     firstName = "",
@@ -290,6 +291,7 @@ module.exports = {
     lastName = "",
     ip = "",
     email = "",
+    user_id
   } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
@@ -303,9 +305,9 @@ module.exports = {
     </tr>
    `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
+  existing_user: ({ firstName = "", lastName = "", email = "", user_id = "" } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
     <tr>
@@ -316,7 +318,7 @@ module.exports = {
     </tr>
     `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
   user_assigned: (firstName, lastName, assignedTo, email) => {
@@ -339,7 +341,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
   },
-  forgotten_password_updated: (firstName, lastName, email) => {
+  forgotten_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -356,9 +358,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  known_password_updated: (firstName, lastName, email) => {
+  known_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                                 <td
@@ -375,7 +377,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   join_by_email: (email, token) => {
     const content = `<tr>
@@ -392,7 +394,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
   authenticate_email: (token, email) => {
     const content = ` <tr>
@@ -409,7 +411,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
 
   report: (senderEmail, recepientEmail, formart) => {

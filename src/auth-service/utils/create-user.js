@@ -632,7 +632,7 @@ const createUserModule = {
           const lastName = user[0].lastName;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            { email, firstName, lastName, updatedUserDetails, user_id: _id },
             next
           );
 
@@ -865,6 +865,7 @@ const createUserModule = {
               password,
               tenant,
               type: "user",
+              user_id: createdUser._id,
             },
             next
           );
@@ -1709,6 +1710,7 @@ const createUserModule = {
             password,
             tenant,
             type: "user",
+            user_id: createdUser._id,
           },
           next
         );
@@ -1876,6 +1878,7 @@ const createUserModule = {
               email,
               firstName,
               lastName,
+              user_id: userDetails._id,
             },
             next
           );
@@ -1972,6 +1975,7 @@ const createUserModule = {
             email,
             firstName,
             lastName,
+            user_id: user[0]._id,
           },
           next
         );
@@ -2279,7 +2283,15 @@ const createUserModule = {
       switch (product) {
         case "mobile":
 
-          const userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          let userRef;
+          if (!isEmpty(firebase_user_id)) {
+            userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          }
+          else {
+            const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
+            userRef = querySnapshot.docs[0].ref;
+          } 
+
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
           let updateField = {};
