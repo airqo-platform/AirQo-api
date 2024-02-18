@@ -6,7 +6,7 @@ from api.utils.pollutants.report import (fetch_air_quality_data, query_bigquery,
                                          )
 
 # Configure logging
-logging.basicConfig(filename='app.log', level=logging.INFO, filemode='w')
+logging.basicConfig(filename='report_log.log', level=logging.INFO, filemode='w')
 
 def air_quality_data():
     data = request.get_json()
