@@ -10,7 +10,6 @@ logging.basicConfig(filename='report_log.log', level=logging.INFO, filemode='w')
 
 def air_quality_data():
     data = request.get_json()
-
     grid_id = data.get("grid_id", "")
     start_time_str = data.get("start_time", "")
     end_time_str = data.get("end_time", "")
@@ -45,7 +44,7 @@ def air_quality_data():
 
             # Convert timestamps to the desired format
             daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
-            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M %z')
+            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
 #            daily_mean_pm_dict = daily_mean_pm2_5.to_dict(orient='records')
             # Log some information for debugging or monitoring
             logging.info('Successfully processed air quality data for grid_id %s', grid_id)
