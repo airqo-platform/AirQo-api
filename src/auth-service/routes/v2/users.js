@@ -1040,6 +1040,200 @@ router.get(
   createUserController.getUserStats
 );
 
+/*********************************** user notifications **********************/
+router.post(
+  "/subscribe/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.subscribeToNotifications
+);
+router.post(
+  "/unsubscribe/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.unSubscribeFromNotifications
+);
+router.post(
+  "/notification-status/:type",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+    body("user_id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the user_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      param("type")
+        .exists()
+        .withMessage("the type must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the type should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["email", "phone", "push", "text"])
+        .withMessage(
+          "the type value is not among the expected ones: email, phone, push and text"
+        ),
+    ],
+  ]),
+  createUserController.checkNotificationStatus
+);
+/*********************************** Get User Information ********************/
 router.get(
   "/:user_id",
   oneOf([

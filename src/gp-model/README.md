@@ -1,4 +1,4 @@
-# GP Model
+# GP Model.
 
 This folder contains functionality for running the GP model, mainly used in spatial temporal modelling works.
 

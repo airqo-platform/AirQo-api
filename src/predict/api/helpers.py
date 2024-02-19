@@ -1,11 +1,11 @@
 import json
 import math
-import traceback
 from datetime import datetime
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+from flask import current_app
 from flask import request
 from google.cloud import bigquery
 from sqlalchemy import func
@@ -48,8 +48,13 @@ def daily_forecasts_cache_key():
     return f"daily_{current_day}_{site_name}_{region}_{sub_county}_{language}_{county}_{district}_{parish}_{city}_{site_id}_{device_id}"
 
 
-def hourly_forecasts_cache_key():
+def all_daily_forecasts_cache_key():
     current_day = datetime.now().strftime("%Y-%m-%d")
+    return f"all_daily_{current_day}"
+
+
+def hourly_forecasts_cache_key():
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
     args = request.args
     site_name = args.get("site_name")
     region = args.get("region")
@@ -62,7 +67,12 @@ def hourly_forecasts_cache_key():
     site_id = args.get("site_id")
     device_id = args.get("device_id")
 
-    return f"hourly_{current_day}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
+    return f"hourly_{current_hour}_{site_name}_{region}_{sub_county}_{county}_{language}_{district}_{parish}_{city}_{site_id}_{device_id}"
+
+
+def all_hourly_forecasts_cache_key():
+    current_hour = datetime.now().strftime("%Y-%m-%d-%H")
+    return f"all_hourly_{current_hour}"
 
 
 def get_faults_cache_key():
@@ -106,8 +116,7 @@ def get_health_tips(language="") -> list[dict]:
         else:
             raise Exception(f"Bad status code: {response.status_code}")
     except Exception as ex:
-        print(ex)
-        traceback.print_exc()
+        current_app.logger.error("Failed to retrieve health tips: %s", ex, exc_info=False)
         cache.delete_memoized(get_health_tips)
         return []
 
@@ -217,44 +226,38 @@ def get_forecasts(
     city=None,
     district=None,
     region=None,
+    all_forecasts=False,
 ):
     query = {}
-    params = {
-        "device_id": device_id,
-        "site_id": site_id,
-        "site_name": site_name,
-        "parish": parish,
-        "county": county,
-        "city": city,
-        "district": district,
-        "region": region,
-    }
-    for name, value in params.items():
-        if value is not None:
-            query[name] = value
-    site_forecasts = list(
-        db[db_name].find(query, {"_id": 0}).sort([("$natural", -1)]).limit(1)
-    )
+    if not all_forecasts:
+        params = {
+            "device_id": device_id,
+            "site_id": site_id,
+            "site_name": site_name,
+            "parish": parish,
+            "county": county,
+            "city": city,
+            "district": district,
+            "region": region,
+        }
+        for name, value in params.items():
+            if value is not None:
+                query[name] = value
+    cursor = db[db_name].find(query, {"_id": 0})
 
-    results = []
-    if site_forecasts:
-        for time, pm2_5 in zip(
-            site_forecasts[0]["timestamp"],
-            site_forecasts[0]["pm2_5"],
-            # site_forecasts[0]["margin_of_error"],
-            # site_forecasts[0]["adjusted_forecast"],
-        ):
-            result = {
-                key: value
-                for key, value in zip(
-                    ["time", "pm2_5"],
-                    [time, pm2_5],
-                )
+    results = {}
+    for forecast in cursor:
+        site_id = forecast["site_id"]
+        if site_id:
+            if site_id not in results:
+                results[site_id] = []
+            forecast_entry = {
+                "time": forecast.get("timestamp"),
+                "pm2_5": forecast.get("pm2_5"),
             }
-            results.append(result)
+            results[site_id].append(forecast_entry)
 
-    formatted_results = {"forecasts": results}
-    return formatted_results
+    return results
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
@@ -338,21 +341,22 @@ def read_faulty_devices(query):
     return result
 
 
-def add_forecast_health_tips(result: dict, language: str = ""):
+def add_forecast_health_tips(results: dict, language: str = ""):
     health_tips = get_health_tips(language=language)
-    if health_tips:
-        for i in result["forecasts"]:
-            pm2_5 = i["pm2_5"]
-            i["health_tips"] = list(
-                filter(
-                    lambda x: x["aqi_category"]["max"]
-                    >= pm2_5
-                    >= x["aqi_category"]["min"],
-                    health_tips,
-                )
-            )
-    else:
-        print("Error: could not get health tips from external API")
-        return result
+    if not health_tips:
+        return results
 
-    return result
+    for site_id, forecasts in results.items():
+        for forecast in forecasts:
+            forecast["health_tips"] = [
+                [
+                    tip
+                    for tip in health_tips
+                    if tip["aqi_category"]["max"]
+                    >= pm2_5_value
+                    >= tip["aqi_category"]["min"]
+                ]
+                for pm2_5_value in forecast["pm2_5"]
+            ]
+
+    return results

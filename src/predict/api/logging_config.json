@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "formatters": {
+    "detailed": {
+      "format": "[%(levelname)s | %(module)s | L%(lineno)d] %(asctime)s %(message)s",
+      "datefmt": "%Y-%m-%dT%H:%M:%S%z"
+    }
+  },
+    "handlers": {
+      "wsgi": {
+        "class": "logging.StreamHandler",
+        "level": "WARN",
+        "stream": "ext://flask.logging.wsgi_errors_stream",
+        "formatter": "detailed"
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "WARN",
+        "handlers": [
+          "wsgi"
+        ]
+      }
+    }
+}

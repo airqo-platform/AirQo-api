@@ -2,10 +2,10 @@ app:
   name: stage-gpmodel
   cronJobName: stage-gpmodel-cron-job
   label: gpmodel
-  namespace: staging
+  namespace: development
   configMap: env-gp-model-staging
 images:
-  tag: stage-5f334371-1708344578
+  tag: latest
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
 nameOverride: ''

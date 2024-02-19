@@ -343,8 +343,7 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    const BLOCKED_IP_PREFIXES =
-      "65,66,52,3,43,54,18,57,23,40,13,46,176,51,17,146";
+    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
 
     logObject("blockedIpPrefixes", blockedIpPrefixes);
@@ -840,7 +839,9 @@ const controlAccess = {
       // };
       const { tenant, client_id } = { ...request.body, ...request.query };
 
-      const client = await ClientModel(tenant).findById(ObjectId(client_id));
+      const client = await ClientModel(tenant)
+        .findById(ObjectId(client_id))
+        .lean();
 
       if (!client) {
         next(
@@ -848,8 +849,21 @@ const controlAccess = {
             message: `Invalid request, Client ${client_id} not found`,
           })
         );
+        return;
       }
 
+      if (isEmpty(client.isActive) || client.isActive === false) {
+        next(
+          new HttpError(
+            "Client not yet activated, reach out to Support",
+            httpStatus.BAD_REQUEST,
+            {
+              message: `Invalid request, Client ${client_id} not yet activated, reach out to Support`,
+            }
+          )
+        );
+        return;
+      }
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -1122,6 +1136,9 @@ const controlAccess = {
       if (update.client_secret) {
         delete update.client_secret;
       }
+      if (update.isActive) {
+        delete update.isActive;
+      }
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
@@ -1151,6 +1168,30 @@ const controlAccess = {
           { message: error.message }
         )
       );
+    }
+  },
+  activateClient: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const filter = generateFilter.clients(request, next);
+      const update = {
+        isActive: body.isActive || false,
+      };
+      const responseFromUpdateClient = await ClientModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update }, next);
+      return responseFromUpdateClient;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   deleteClient: async (request, next) => {

@@ -65,9 +65,10 @@ router.post(
           "policy",
           "champions",
           "developers",
+          "assistance",
         ])
         .withMessage(
-          "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers"
+          "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers,assistance"
         ),
       body("message")
         .exists()

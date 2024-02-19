@@ -1,6 +1,6 @@
-# Running the application
+# Running the view application .
 
-## Using Command line
+## Using Command line.
 
 ### Exposing the API
 

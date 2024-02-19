@@ -1,10 +1,10 @@
-clone project from github.
+clone project from github
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
 change directory to the analytics micro-service
 - `cd src/device-monitoring`
 
-create local python environment
+create local python environment.
 
 windows
 
@@ -45,7 +45,7 @@ Run the Flask App
 - `celery -A app.celery beat`
 - `celery -A app.celery worker --loglevel=info`
 
-Run Tests
+Run Tests.
 ```commandline
 python -m pytest
 ```
