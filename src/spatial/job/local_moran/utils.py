@@ -127,8 +127,8 @@ def moran_statistics(gdf):
     w = create_spatial_weights(gdf)
     moran = Moran(gdf['calibratedValue'], w)    
     moran_table = pd.DataFrame({
-        "Moran's I": [moran.I],
-        'Z Value': [moran.z_sim],
+        "Moran-Index": [moran.I],
+        'Z-Value': [moran.z_sim],
         'P-value': [moran.p_sim]
     })    
     return moran_table
