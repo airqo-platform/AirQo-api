@@ -144,4 +144,3 @@ def moran_num_local(moran_loc, gdf):
     gdf['cluster_num_category'] = moran_loc.q
     return gdf['cluster_num_category']
 
-
