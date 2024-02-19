@@ -44,7 +44,7 @@ def air_quality_data():
 
             # Convert timestamps to the desired format
             daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
-            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
+            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M %Z')
 #            daily_mean_pm_dict = daily_mean_pm2_5.to_dict(orient='records')
             # Log some information for debugging or monitoring
             logging.info('Successfully processed air quality data for grid_id %s', grid_id)
