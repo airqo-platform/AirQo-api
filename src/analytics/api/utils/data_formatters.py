@@ -1,6 +1,8 @@
+from enum import Enum
 from typing import Any
 
 import pandas as pd
+import requests
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
@@ -11,6 +13,12 @@ from api.utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
+from config import Config
+
+
+class Entity(Enum):
+    DEVICES = "devices"
+    SITES = "sites"
 
 
 def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
@@ -280,3 +288,31 @@ def device_category_to_str(device_category: str) -> str:
         pass
 
     return ""
+
+
+def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
+    source = "cohorts" if entity_type == Entity.DEVICES else "grids"
+
+    try:
+        response = requests.post(
+            url=f"{Config.AIRQO_API_BASE_URL}/devices/f{source}/filterNonPrivate{entity_type.value.capitalize()}",
+            json={entity_type: entities},
+            headers={
+                "Authorization": Config.AIRQO_API_TOKEN,
+                "Content-Type": "application/json",
+            },
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if data.get("success"):
+            return data.get(entity_type, [])
+        else:
+            print(f"API Error: {data.get('message')}. Details: {data.get('errors')}")
+            return []
+    except requests.exceptions.HTTPError as err:
+        print(f"HTTP Error: {err}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+
+    return []
