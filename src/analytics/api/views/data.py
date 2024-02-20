@@ -4,7 +4,7 @@ import traceback
 import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
-from flask import request, jsonify
+from flask import request
 from flask_restx import Resource
 
 from api.models import (
@@ -17,6 +17,7 @@ from api.models.data_export import (
     DataExportFormat,
     Frequency,
 )
+from api.utils.data_formatters import filter_non_private_entities, Entity
 
 # Middlewares
 from api.utils.data_formatters import (
@@ -62,8 +63,12 @@ class DataExportResource(Resource):
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
-        sites = json_data.get("sites", [])
-        devices = json_data.get("devices", [])
+        sites = filter_non_private_entities(
+            entities=json_data.get("sites", []), entity_type=Entity.SITES
+        )
+        devices = filter_non_private_entities(
+            entities=json_data.get("devices", []), entity_type=Entity.SITES
+        )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
         frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
@@ -204,8 +209,12 @@ class DataExportV2Resource(Resource):
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
         meta_data = json_data.get("meta_data", [])
-        sites = json_data.get("sites", [])
-        devices = json_data.get("devices", [])
+        sites = filter_non_private_entities(
+            entities=json_data.get("sites", []), entity_type=Entity.SITES
+        )
+        devices = filter_non_private_entities(
+            entities=json_data.get("devices", []), entity_type=Entity.SITES
+        )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
         user_id = json_data.get("userId")

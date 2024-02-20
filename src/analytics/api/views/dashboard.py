@@ -11,6 +11,7 @@ from api.models import (
     SiteModel,
     ExceedanceModel,
 )
+from api.utils.data_formatters import filter_non_private_entities, Entity
 
 # Middlewares
 from api.utils.http import create_response, Status
@@ -39,7 +40,9 @@ class ChartDataResource(Resource):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = json_data["sites"]
+        sites = filter_non_private_entities(
+            entities=json_data["sites"], entity_type=Entity.SITES
+        )
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
