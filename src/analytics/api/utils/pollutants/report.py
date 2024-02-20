@@ -85,7 +85,6 @@ def query_bigquery(site_ids, start_time, end_time):
         return None
 
 def results_to_dataframe(results):
-    # Convert 'timestamp' to datetime format and drop rows with NA values
     df = (
         pd.DataFrame(results)
         .assign(timestamp=lambda x: pd.to_datetime(x['timestamp']))
@@ -99,7 +98,6 @@ def results_to_dataframe(results):
             month_name=lambda x: x['timestamp'].dt.month_name()
         )
         .dropna(subset=['site_latitude', 'site_longitude'])
-        .drop(columns=['dates'])
     )
     return df
 
