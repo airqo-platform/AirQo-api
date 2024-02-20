@@ -1,10 +1,5 @@
-#main.py
 from flask import Flask, jsonify, request
-from utils import (fetch_air_quality_data, query_bigquery,
-                    results_to_dataframe, get_data_for_moran,
-                    moran_local_regression, moran_local, moran_num_local,
-                    moran_statistics
-                    )
+from utils import AirQualitySpatilaAnalyzer
 from geojson import FeatureCollection
 from datetime import datetime
 
@@ -34,32 +29,35 @@ def get_air_quality_data():
         except ValueError:
             return jsonify({'error': 'Invalid datetime format for start_time or end_time. Required format: YYYY-MM-DDTHH:MM:SS'}), 400
 
+        # Initialize AirQualitySpatilaAnalyzer
+        analyzer = AirQualitySpatilaAnalyzer()
+
         # Fetch site_ids using the provided grid_id and time range
-        site_ids = fetch_air_quality_data(grid_id, start_time, end_time)
+        site_ids = analyzer.fetch_air_quality_data(grid_id, start_time, end_time)
 
         if not site_ids:
             return jsonify({'error': 'No air quality data available for the specified parameters.'}), 404
 
         # Query BigQuery for air quality data based on site_ids and time range
-        results = query_bigquery(site_ids, start_time, end_time)
+        results = analyzer.query_bigquery(site_ids, start_time, end_time)
 
         if results is None:
             return jsonify({'error': 'Error querying BigQuery for air quality data.'}), 500
 
         # Convert results to DataFrame and perform necessary data manipulations
-        df = results_to_dataframe(results)
+        df = analyzer.results_to_dataframe(results)
 
         # Get GeoDataFrame for Local Moran's I analysis
-        gdf = get_data_for_moran(df)
+        gdf = analyzer.get_data_for_moran(df)
 
         # Perform Local Moran's I analysis
-        moran_result = moran_local(moran_local_regression(gdf), gdf)
+        moran_result = analyzer.moran_local(analyzer.moran_local_regression(gdf), gdf)
         moran_result_list = moran_result.tolist()
 
-        moran_result_num = moran_num_local(moran_local_regression(gdf), gdf)
+        moran_result_num = analyzer.moran_num_local(analyzer.moran_local_regression(gdf), gdf)
         moran_result_num = moran_result_num.tolist()
 
-        local_moran_statistics = moran_statistics(gdf)
+        local_moran_statistics = analyzer.moran_statistics(gdf)
 
         # Create GeoJSON with "cluster" attribute
         gdf_geojson = FeatureCollection([
