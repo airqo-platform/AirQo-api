@@ -102,7 +102,6 @@ class DevelopmentConfig(Config):
     GRID_URL = os.getenv("DEV_GRID_URL_ID")
     BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED_DEV")
 
-
 class TestingConfig(Config):
     TESTING = True
     DEBUG = True
