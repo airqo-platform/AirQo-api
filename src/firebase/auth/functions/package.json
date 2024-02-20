@@ -7,7 +7,9 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "memory-1gb": "firebase functions:config:set functions.memory=1GB",
+    "timeout-3600s": "firebase functions:config:set functions.timeout=3600s"
   },
   "engines": {
     "node": "18"
