@@ -1788,7 +1788,7 @@ const createEvent = {
         longitude,
         network,
         language,
-      } = request.query;
+      } = { ...request.query, ...request.params };
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
       return `list_events_${device ? device : "noDevice"}_${tenant}_${
