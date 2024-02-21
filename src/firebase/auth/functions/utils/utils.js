@@ -62,9 +62,11 @@ const utils = {
             for (const doc of usersSnapshot.docs) {
                 const userData = doc.data();
                 const userId = userData.userId;
-                const isSubscribed = await utils.checkSubscription(userId);
-                if (isSubscribed) {
-                    allUsers.push(userData);
+                if (userId !== undefined) {
+                    const isSubscribed = await utils.checkSubscription(userId);
+                    if (isSubscribed) {
+                        allUsers.push(userData);
+                    }
                 }
             }
             functions.logger.log("Number of users: ", allUsers.length);
