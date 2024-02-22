@@ -23,7 +23,6 @@ class Config:
     SECRET_KEY = env_var("SECRET_KEY")
     GRID_URL = os.getenv("GRID_URL_ID")
 
-
     CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
     CACHE_KEY_PREFIX = f"Analytics-{APP_ENV}"
