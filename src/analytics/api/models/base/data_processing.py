@@ -18,7 +18,7 @@ def air_quality_data():
         start_time = datetime.fromisoformat(start_time_str)
         end_time = datetime.fromisoformat(end_time_str)
         if (end_time - start_time).days > 365:
-            return jsonify({'error':'Time range exceeds 12 months'}),400
+            return jsonify({'error':'Time range exceeded 12 months'}),400
     except ValueError as e:
         logging.error('Invalid date format: %s', e)
         return jsonify({'error': 'Invalid date format'}), 400
