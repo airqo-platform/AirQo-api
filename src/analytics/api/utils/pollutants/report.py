@@ -119,6 +119,9 @@ class PManalysis:
     @staticmethod
     def monthly_mean_pm_site_name(dataframe):
         return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
+    def annual_mean_pm_site_name(dataframe):
+        return dataframe.groupby(['site_name','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
+    
     @staticmethod
     def mean_pm2_5_by_hour(dataframe):
         return dataframe.groupby('hour')[PM_COLUMNS].mean().round(4).reset_index()
