@@ -15,7 +15,6 @@ API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
-
 class Config:
     DEBUG = False
     TESTING = False
