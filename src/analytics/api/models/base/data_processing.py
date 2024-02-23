@@ -17,6 +17,9 @@ def air_quality_data():
     try:
         start_time = datetime.fromisoformat(start_time_str)
         end_time = datetime.fromisoformat(end_time_str)
+        if start_time == end_time:
+            return jsonify({'error':'Start time and end time cannot be the same.'}), 400
+        
         if (end_time - start_time).days > 365:
             return jsonify({'error':'Time range exceeded 12 months'}),400
     except ValueError as e:
