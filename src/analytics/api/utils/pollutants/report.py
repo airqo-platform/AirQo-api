@@ -55,13 +55,13 @@ client = bigquery.Client()
 def query_bigquery(site_ids, start_time, end_time):
     # Construct the BigQuery SQL query
     query = f"""
-        SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5, pm2_5_raw_value,
-        pm2_5_calibrated_value, pm10, pm10_raw_value, pm10_calibrated_value, country, region, city, county
+        SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5_raw_value,
+        pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value, country, region, city, county
         FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
         WHERE site_id IN UNNEST({site_ids})
         AND timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
         AND TIMESTAMP('{end_time.isoformat()}')
-        AND NOT pm2_5 IS NULL
+        AND NOT pm2_5_raw_value IS NULL
     """
 
     try:
@@ -119,9 +119,9 @@ class PManalysis:
     @staticmethod
     def monthly_mean_pm_site_name(dataframe):
         return dataframe.groupby(['site_name','month','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
+    @staticmethod
     def annual_mean_pm_site_name(dataframe):
         return dataframe.groupby(['site_name','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
-    
     @staticmethod
     def mean_pm2_5_by_hour(dataframe):
         return dataframe.groupby('hour')[PM_COLUMNS].mean().round(4).reset_index()
