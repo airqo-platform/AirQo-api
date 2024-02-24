@@ -42,13 +42,13 @@ class AirQualitySpatilaAnalyzer:
 
     def query_bigquery(self, site_ids, start_time, end_time):
         query = f"""
-            SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5, pm2_5_raw_value,
-            pm2_5_calibrated_value, pm10, pm10_raw_value, pm10_calibrated_value, country, region, city, county
+            SELECT site_id, timestamp, site_name, site_latitude, site_longitude,  pm2_5_raw_value,
+            pm2_5_calibrated_value,  pm10_raw_value, pm10_calibrated_value, country, region, city, county
             FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
             WHERE site_id IN UNNEST({site_ids})
             AND timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
             AND TIMESTAMP('{end_time.isoformat()}')
-            AND NOT pm2_5 IS NULL
+            AND NOT pm2_5_raw_value IS NULL
         """
 
         try:
@@ -81,7 +81,7 @@ class AirQualitySpatilaAnalyzer:
         for index, row in df.iterrows():
             calibrated_value = row['pm2_5_calibrated_value']
             if pd.isnull(calibrated_value):
-                calibrated_value = row['pm2_5']
+                calibrated_value = row['pm2_5_raw_value']
             latitude = row['site_latitude']
             longitude = row['site_longitude']
             features.append({'calibratedValue': calibrated_value, 'latitude': latitude, 'longitude': longitude})

@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from datetime import datetime
 from geojson import FeatureCollection
-from utils import AirQualitySpatilaAnalyzer  
+from models.model import AirQualitySpatilaAnalyzer  
 
 class SpatialDataHandler:
     @staticmethod
@@ -22,6 +22,10 @@ class SpatialDataHandler:
             try:
                 start_time = datetime.fromisoformat(start_time_str)
                 end_time = datetime.fromisoformat(end_time_str)
+                if start_time == end_time:
+                    return jsonify({'error':'Start time and end time cannot be the same.'}), 400
+                if (end_time - start_time).days > 365:
+                    return jsonify({'error':'Time range exceeded 12 months'}),400
             except ValueError:
                 return jsonify({'error': 'Invalid datetime format for start_time or end_time. Required format: YYYY-MM-DDTHH:MM:SS'}), 400
 
@@ -58,6 +62,7 @@ class SpatialDataHandler:
             response_data = {
                 'LocalMoranReport': {
                     'status': 'success',
+                    'local_moran_weight_method': 'Queen Contiguity Method',
                     'grid_id': grid_id,
                     'sites': {
                         'site_ids': site_ids,

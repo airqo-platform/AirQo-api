@@ -1,7 +1,7 @@
 #.gitignore
 __pycache__/
 
-# Environments
+# Environments 
 .env
 .venv
 env/

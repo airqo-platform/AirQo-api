@@ -31,7 +31,7 @@ Create an API token from https://platform.airqo.net/settings
     Access Tokens
 
 #run     postman
-http://127.0.0.1:5000/spatial
+http://127.0.0.1:5000/api/v2/spatial/localmoran
 
 {
     "grid_id": "64b7f325d7249f0029fed743",
