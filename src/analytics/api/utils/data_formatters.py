@@ -297,10 +297,7 @@ def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
         response = requests.post(
             url=f"{Config.AIRQO_API_BASE_URL}/devices/{source}/filterNonPrivate{entity_type.value.capitalize()}",
             json={entity_type.value: entities},
-            headers={
-                "Authorization": Config.AIRQO_API_TOKEN,
-                "Content-Type": "application/json",
-            },
+            params={"token": Config.AIRQO_API_TOKEN}
         )
         response.raise_for_status()
 
