@@ -295,8 +295,8 @@ def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
 
     try:
         response = requests.post(
-            url=f"{Config.AIRQO_API_BASE_URL}/devices/f{source}/filterNonPrivate{entity_type.value.capitalize()}",
-            json={f"{entity_type}": entities},
+            url=f"{Config.AIRQO_API_BASE_URL}/devices/{source}/filterNonPrivate{entity_type.value.capitalize()}",
+            json={entity_type.value: entities},
             headers={
                 "Authorization": Config.AIRQO_API_TOKEN,
                 "Content-Type": "application/json",
@@ -306,13 +306,11 @@ def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
 
         data = response.json()
         if data.get("success"):
-            return data.get(entity_type, [])
-        else:
-            print(f"API Error: {data.get('message')}. Details: {data.get('errors')}")
-            return []
+            return data.get(entity_type.value, [])
     except requests.exceptions.HTTPError as err:
         print(f"HTTP Error: {err}")
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
-    return []
+    # TODO: Remove once @Martin updates endpoint to support other ID format
+    return entities

@@ -12,6 +12,7 @@ from api.models import (
     ExceedanceModel,
 )
 from api.utils.data_formatters import filter_non_private_entities, Entity
+
 # Middlewares
 from api.utils.http import create_response, Status
 from api.utils.pollutants import (
