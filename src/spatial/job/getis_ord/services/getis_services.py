@@ -1,0 +1,110 @@
+from flask import request, jsonify
+from datetime import datetime
+from geojson import FeatureCollection
+from model.model import AirQualitySpatialAnalyzer 
+
+class SpatialDataHandler:
+    @staticmethod
+    def get_air_quality_data():
+        try:
+            post_data = request.get_json()
+
+            if not all(key in post_data for key in ['grid_id', 'start_time', 'end_time']):
+                return jsonify({'error': 'Missing required fields'}), 400
+
+            grid_id = post_data.get('grid_id')
+            start_time_str = post_data.get('start_time')
+            end_time_str = post_data.get('end_time')
+
+            if not isinstance(grid_id, str):
+                return jsonify({'error': 'grid_id must be a string'}), 400
+
+            try:
+                start_time = datetime.fromisoformat(start_time_str)
+                end_time = datetime.fromisoformat(end_time_str)
+                if start_time == end_time:
+                    return jsonify({'error':'Start time and end time cannot be the same.'}), 400
+                if (end_time - start_time).days > 365:
+                    return jsonify({'error':'Time range exceeded 12 months'}), 400
+            except ValueError:
+                return jsonify({'error': 'Invalid datetime format for start_time or end_time. Required format: YYYY-MM-DDTHH:MM:SS'}), 400
+
+            analyzer = AirQualitySpatialAnalyzer()  # Corrected class name
+            site_ids = analyzer.fetch_air_quality_data(grid_id, start_time, end_time)
+
+            if not site_ids:
+                return jsonify({'error': 'No air quality data available for the specified parameters.'}), 404
+
+            results = analyzer.query_bigquery(site_ids, start_time, end_time)
+
+            if results is None:
+                return jsonify({'error': 'Error querying BigQuery for air quality data.'}), 500
+
+            df = analyzer.results_to_dataframe(results)
+            gdf = analyzer.get_data_for_getis(df)
+            
+            getis_results = analyzer.Getis_ord_GI(gdf)
+            hot_spots, cold_spots, not_significant = getis_results  # Corrected function call
+            
+            significant_hot_spots_df = gdf[hot_spots]
+            significant_cold_spots_df = gdf[cold_spots]
+            not_significant_df = gdf[not_significant]
+
+            # Modify GeoDataFrame representations
+            significant_hot_spots_geojson = []
+            for feature in significant_hot_spots_df.iterfeatures():
+                properties = feature['properties']
+                geometry = feature['geometry']
+                properties['longitude'] = properties.pop('longitude')
+                properties['latitude'] = properties.pop('latitude')
+                properties['calibratedValue'] = properties.pop('calibratedValue')
+                feature['geometry'] = geometry
+                feature['properties'] = properties
+                significant_hot_spots_geojson.append(feature)
+
+            significant_cold_spots_geojson = []
+            for feature in significant_cold_spots_df.iterfeatures():
+                properties = feature['properties']
+                geometry = feature['geometry']
+                properties['longitude'] = properties.pop('longitude')
+                properties['latitude'] = properties.pop('latitude')
+                properties['calibratedValue'] = properties.pop('calibratedValue')
+                feature['geometry'] = geometry
+                feature['properties'] = properties
+                significant_cold_spots_geojson.append(feature)
+
+            not_significant_geojson = []
+            for feature in not_significant_df.iterfeatures():
+                properties = feature['properties']
+                geometry = feature['geometry']
+                properties['longitude'] = properties.pop('longitude')
+                properties['latitude'] = properties.pop('latitude')
+                properties['calibratedValue'] = properties.pop('calibratedValue')
+                feature['geometry'] = geometry
+                feature['properties'] = properties
+                not_significant_geojson.append(feature)
+
+            response_data = {
+                'getis_Report': {
+                    'status': 'success',
+                    'grid_id': grid_id,
+                    'sites': {
+                        'site_ids': site_ids,
+                        'number_of_sites': len(site_ids)
+                    },
+                    'period': {
+                        'startTime': start_time.isoformat(),
+                        'endTime': end_time.isoformat(),
+                    },
+                    'getis_statistics': {
+                            'significant_hot_spots': FeatureCollection(significant_hot_spots_geojson),
+                            'significant_cold_spots': FeatureCollection(significant_cold_spots_geojson),
+                            'not_significant': FeatureCollection(not_significant_geojson),
+                        
+                    }
+                }
+            }
+            return jsonify(response_data), 200
+
+        except Exception as e:
+            return jsonify({'error': f'An error occurred: {str(e)}'}), 500  # Include specific error message
