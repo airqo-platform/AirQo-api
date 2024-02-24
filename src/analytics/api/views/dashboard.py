@@ -355,7 +355,7 @@ class ExceedancesResource2(Resource):
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         devices = filter_non_private_entities(
-            entities=json_data.get("devices", None), entity_type=Entity.SITES
+            entities=json_data.get("devices", None), entity_type=Entity.DEVICES
         )
 
         events_model = EventsModel(tenant)

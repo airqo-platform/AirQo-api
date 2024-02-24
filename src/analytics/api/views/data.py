@@ -18,7 +18,6 @@ from api.models.data_export import (
     Frequency,
 )
 from api.utils.data_formatters import filter_non_private_entities, Entity
-
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
@@ -67,7 +66,7 @@ class DataExportResource(Resource):
             entities=json_data.get("sites", []), entity_type=Entity.SITES
         )
         devices = filter_non_private_entities(
-            entities=json_data.get("devices", []), entity_type=Entity.SITES
+            entities=json_data.get("devices", []), entity_type=Entity.DEVICES
         )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
@@ -213,7 +212,7 @@ class DataExportV2Resource(Resource):
             entities=json_data.get("sites", []), entity_type=Entity.SITES
         )
         devices = filter_non_private_entities(
-            entities=json_data.get("devices", []), entity_type=Entity.SITES
+            entities=json_data.get("devices", []), entity_type=Entity.DEVICES
         )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
