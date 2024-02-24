@@ -37,7 +37,7 @@ class AirQualitySpatialAnalyzer:
 
             return site_ids
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching air quality data: {e}")
+            print(f"Error fetching air quality data:  ")
             return []
 
     def query_bigquery(self, site_ids, start_time, end_time):

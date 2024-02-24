@@ -107,4 +107,4 @@ class SpatialDataHandler:
             return jsonify(response_data), 200
 
         except Exception as e:
-            return jsonify({'error': f'An error occurred: {str(e)}'}), 500  # Include specific error message
+            return jsonify({'error': f'An error occurred: '}), 500  # Include specific error message
