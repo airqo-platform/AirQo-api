@@ -84,15 +84,15 @@ class AirQualitySpatialAnalyzer:
                 calibrated_value = row['pm2_5_raw_value']
             latitude = row['site_latitude']
             longitude = row['site_longitude']
-            features.append({'calibratedValue': calibrated_value, 'latitude': latitude, 'longitude': longitude})
+            features.append({'PM2_5_Value': calibrated_value, 'latitude': latitude, 'longitude': longitude})
         
         feature_df = pd.DataFrame(features)
-        feature_df = feature_df.groupby(['latitude', 'longitude'])['calibratedValue'].mean().reset_index()
+        feature_df = feature_df.groupby(['latitude', 'longitude'])['PM2_5_Value'].mean().reset_index()
         gdf = gpd.GeoDataFrame(feature_df, geometry=gpd.points_from_xy(feature_df['longitude'], feature_df['latitude']))
         return gdf
 
     def Getis_ord_GI(self, gdf, k=4): 
-        pm2_5 = gdf['calibratedValue'].values
+        pm2_5 = gdf['PM2_5_Value'].values
         w = KNN.from_dataframe(gdf, k=k) 
         g_local = G_Local(pm2_5, w)
         p_values = g_local.p_sim
@@ -104,7 +104,7 @@ class AirQualitySpatialAnalyzer:
         return significant_hot_spots, significant_cold_spots, not_significant 
     
     def Getis_ord_GI_confidence(self, gdf, k=4): 
-        pm2_5 = gdf['calibratedValue'].values
+        pm2_5 = gdf['PM2_5_Value'].values
         w = KNN.from_dataframe(gdf, k=k) 
         g_local = G_Local(pm2_5, w)
         p_values = g_local.p_sim

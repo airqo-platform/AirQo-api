@@ -57,7 +57,7 @@ class SpatialDataHandler:
                         geometry = feature['geometry']
                         properties['longitude'] = properties.pop('longitude')
                         properties['latitude'] = properties.pop('latitude')
-                        properties['calibratedValue'] = properties.pop('calibratedValue')
+                        properties['PM2_5_Value'] = properties.pop('PM2_5_Value')
                         feature['geometry'] = geometry
                         feature['properties'] = properties
                         geojson_features.append(feature)
