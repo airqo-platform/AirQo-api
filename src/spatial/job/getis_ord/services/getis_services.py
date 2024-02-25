@@ -79,9 +79,9 @@ class SpatialDataHandler:
                         'endTime': end_time.isoformat(),
                     },
                     'getis_statistics': {
-                            'significant_hot_spots': FeatureCollection(significant_hot_spots_geojson),
-                            'significant_cold_spots': FeatureCollection(significant_cold_spots_geojson),
-                            'not_significant': FeatureCollection(not_significant_geojson),                        
+                            'significant_hot_spots': significant_hot_spots_geojson,
+                            'significant_cold_spots': significant_cold_spots_geojson,
+                            'not_significant': not_significant_geojson,                        
                     }
                 }
             }

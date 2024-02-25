@@ -90,13 +90,13 @@ class SpatialDataHandler_confidence:
                         'endTime': end_time.isoformat(),
                     },
                     'getis_statistics': {
-                            'significant_hot_spots_99': FeatureCollection(significant_hot_spots_99_geojson),
-                            'significant_hot_spots_95': FeatureCollection(significant_hot_spots_95_geojson),
-                            'significant_hot_spots_90':  FeatureCollection(significant_hot_spots_90_geojson),   
-                            'significant_cold_spots_99':  FeatureCollection(significant_cold_spots_99_geojson), 
-                            'significant_cold_spots_95':  FeatureCollection(significant_cold_spots_95_geojson),  
-                            'significant_cold_spots_90':  FeatureCollection(significant_cold_spots_90_geojson),    
-                            'not_significant': FeatureCollection(not_significant_df_geojson)                   
+                            'significant_hot_spots_99': significant_hot_spots_99_geojson,
+                            'significant_hot_spots_95': significant_hot_spots_95_geojson,
+                            'significant_hot_spots_90':  significant_hot_spots_90_geojson,   
+                            'significant_cold_spots_99':  significant_cold_spots_99_geojson, 
+                            'significant_cold_spots_95':  significant_cold_spots_95_geojson,  
+                            'significant_cold_spots_90':  significant_cold_spots_90_geojson,    
+                            'not_significant': not_significant_df_geojson                 
                     }
                 }
             }
