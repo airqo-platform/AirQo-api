@@ -32,6 +32,8 @@ Create an API token from https://platform.airqo.net/settings
 #run     postman
 http://127.0.0.1:5000/api/v2/spatial/getisord
 
+http://127.0.0.1:5000/api/v2/spatial/getisord_confidence
+
 {
     "grid_id": "64b7f325d7249f0029fed743",
     "start_time": "2024-01-01T00:00",

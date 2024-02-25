@@ -93,7 +93,7 @@ class AirQualitySpatialAnalyzer:
 
     def Getis_ord_GI(self, gdf, k=4): 
         pm2_5 = gdf['calibratedValue'].values
-        w = KNN.from_dataframe(gdf, k=k)  # You can adjust the number of neighbors (k) as needed
+        w = KNN.from_dataframe(gdf, k=k) 
         g_local = G_Local(pm2_5, w)
         p_values = g_local.p_sim
         z_scores = g_local.Zs
@@ -102,3 +102,29 @@ class AirQualitySpatialAnalyzer:
         significant_cold_spots = (p_values < alpha) & (z_scores < 0)
         not_significant = p_values >= alpha
         return significant_hot_spots, significant_cold_spots, not_significant 
+    
+    def Getis_ord_GI_confidence(self, gdf, k=4): 
+        pm2_5 = gdf['calibratedValue'].values
+        w = KNN.from_dataframe(gdf, k=k) 
+        g_local = G_Local(pm2_5, w)
+        p_values = g_local.p_sim
+        z_scores = g_local.Zs
+        alpha_99 = 0.01  # 99% confidence level
+        alpha_95 = 0.05  # 95% confidence level
+        alpha_90 = 0.10  # 90% confidence level
+        significant_hot_spots_99 = (p_values < alpha_99) & (z_scores > 0)
+        significant_hot_spots_95 = (p_values < alpha_95) & (z_scores > 0)
+        significant_hot_spots_90 = (p_values < alpha_90) & (z_scores > 0)
+
+        significant_cold_spots_99 = (p_values < alpha_99) & (z_scores < 0)
+        significant_cold_spots_95 = (p_values < alpha_95) & (z_scores < 0)
+        significant_cold_spots_90 = (p_values < alpha_90) & (z_scores < 0)
+        not_significant = ~(
+        significant_hot_spots_99 | significant_hot_spots_95 | significant_hot_spots_90 |
+        significant_cold_spots_99 | significant_cold_spots_95 | significant_cold_spots_90
+    )
+
+        return (significant_hot_spots_99,significant_hot_spots_95,
+                significant_hot_spots_90, significant_cold_spots_99,
+                significant_cold_spots_95,significant_cold_spots_90,
+                not_significant)

@@ -3,7 +3,7 @@ from datetime import datetime
 from geojson import FeatureCollection
 from model.model import AirQualitySpatialAnalyzer 
 
-class SpatialDataHandler:
+class SpatialDataHandler_confidence:
     @staticmethod
     def get_air_quality_data():
         try:
@@ -43,11 +43,18 @@ class SpatialDataHandler:
             df = analyzer.results_to_dataframe(results)
             gdf = analyzer.get_data_for_getis(df)
             
-            getis_results = analyzer.Getis_ord_GI(gdf)
-            hot_spots, cold_spots, not_significant = getis_results
+            getis_results = analyzer.Getis_ord_GI_confidence(gdf)
+            (significant_hot_spots_99,significant_hot_spots_95,
+            significant_hot_spots_90, significant_cold_spots_99,
+            significant_cold_spots_95,significant_cold_spots_90,not_significant)= getis_results
             
-            significant_hot_spots_df = gdf[hot_spots]
-            significant_cold_spots_df = gdf[cold_spots]
+            significant_hot_spots_99_df = gdf[significant_hot_spots_99]
+            significant_hot_spots_95_df = gdf[significant_hot_spots_95]
+            significant_hot_spots_90_df = gdf[significant_hot_spots_90]
+            significant_cold_spots_99_df = gdf[significant_cold_spots_99]
+            significant_cold_spots_95_df = gdf[significant_cold_spots_95]
+            significant_cold_spots_90_df = gdf[significant_cold_spots_90]
+
             not_significant_df = gdf[not_significant]
                       
             def convert_dataframe_to_geojson(df):
@@ -62,9 +69,13 @@ class SpatialDataHandler:
                         feature['properties'] = properties
                         geojson_features.append(feature)
                 return FeatureCollection(geojson_features)
-            significant_hot_spots_geojson = convert_dataframe_to_geojson(significant_hot_spots_df)
-            significant_cold_spots_geojson = convert_dataframe_to_geojson(significant_cold_spots_df)
-            not_significant_geojson = convert_dataframe_to_geojson(not_significant_df)
+            significant_hot_spots_99_geojson = convert_dataframe_to_geojson(significant_hot_spots_99_df)
+            significant_hot_spots_95_geojson = convert_dataframe_to_geojson(significant_hot_spots_95_df)
+            significant_hot_spots_90_geojson = convert_dataframe_to_geojson(significant_hot_spots_90_df)
+            significant_cold_spots_99_geojson = convert_dataframe_to_geojson(significant_cold_spots_99_df)
+            significant_cold_spots_95_geojson = convert_dataframe_to_geojson(significant_cold_spots_95_df)
+            significant_cold_spots_90_geojson = convert_dataframe_to_geojson(significant_cold_spots_90_df)
+            not_significant_df_geojson = convert_dataframe_to_geojson(not_significant_df)
 
             response_data = {
                 'getis_Report': {
@@ -79,9 +90,13 @@ class SpatialDataHandler:
                         'endTime': end_time.isoformat(),
                     },
                     'getis_statistics': {
-                            'significant_hot_spots': FeatureCollection(significant_hot_spots_geojson),
-                            'significant_cold_spots': FeatureCollection(significant_cold_spots_geojson),
-                            'not_significant': FeatureCollection(not_significant_geojson),                        
+                            'significant_hot_spots_99': FeatureCollection(significant_hot_spots_99_geojson),
+                            'significant_hot_spots_95': FeatureCollection(significant_hot_spots_95_geojson),
+                            'significant_hot_spots_90':  FeatureCollection(significant_hot_spots_90_geojson),   
+                            'significant_cold_spots_99':  FeatureCollection(significant_cold_spots_99_geojson), 
+                            'significant_cold_spots_95':  FeatureCollection(significant_cold_spots_95_geojson),  
+                            'significant_cold_spots_90':  FeatureCollection(significant_cold_spots_90_geojson),    
+                            'not_significant': FeatureCollection(not_significant_df_geojson)                   
                     }
                 }
             }
