@@ -33,7 +33,7 @@ class SpatialDataHandler_confidence:
             site_ids = analyzer.fetch_air_quality_data(grid_id, start_time, end_time)
 
             if not site_ids:
-                return jsonify({'error': 'No air quality data available for the specified parameters.'}), 404
+                return jsonify({'error': 'No air quality data available for the specified id.'}), 404
 
             results = analyzer.query_bigquery(site_ids, start_time, end_time)
 
