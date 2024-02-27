@@ -28,9 +28,11 @@ class DeviceChannelRecords:
         self.token = configuration.AIRQO_API_TOKEN
 
     def get_recent_event(self):
-        api_url = f'{configuration.DEVICE_RECENT_EVENTS_URL}?tenant={self.tenant}&channel={self.channel_id}&token={self.token}'
+        api_url = f'{configuration.DEVICE_RECENT_EVENTS_URL}?tenant={self.tenant}&channel={self.channel_id}'
 
-        recent_event = requests.get(api_url, verify=False)
+        recent_event = requests.get(api_url, verify=False, headers={
+            "Authorization": configuration.AIRQO_JWT_TOKEN
+        })
 
         if recent_event.status_code != 200:
             print(recent_event.json())

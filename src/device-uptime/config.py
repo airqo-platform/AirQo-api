@@ -17,6 +17,7 @@ class Config:
     BASE_API_URL = os.getenv("BASE_API_URL")
     DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/feeds/transform/recent"
     AIRQO_API_TOKEN =os.getenv("AIRQO_API_TOKEN")
+    AIRQO_JWT_TOKEN =os.getenv("AIRQO_JWT_TOKEN")
 
     # Mongo Connections
     REGISTRY_MONGO_URI = os.getenv("REGISTRY_MONGO_GCE_URI")
