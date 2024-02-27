@@ -34,7 +34,7 @@ class DeviceChannelRecords:
 
         if recent_event.status_code != 200:
             print(recent_event.json())
-            return recent_event.json()
+            return {}
 
         return recent_event.json()
 
