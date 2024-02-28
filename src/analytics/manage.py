@@ -39,6 +39,5 @@ def air_quality_data_route():
 def air_quality_data_diurnal_route():
     return air_quality_data_diurnal()  # Call the air_quality_data_diurnal function
 
-
 if __name__ == "__main__":
     app.run()
