@@ -43,12 +43,12 @@ def air_quality_data():
             pm2_5_by_month_year = PManalysis.mean_pm2_5_by_month_year(processed_data)
             monthly_mean_pm_by_site_name =  PManalysis.monthly_mean_pm_site_name(processed_data)
             mean_pm2_5_year = PManalysis.mean_pm2_5_by_year(processed_data)
-            mean_pm_by_city=PManalysis.pm_by_city(processed_data)
-            mean_pm_by_country =PManalysis.pm_by_country(processed_data)
-            mean_pm_by_region=PManalysis.pm_by_region(processed_data)
-            mean_pm_by_day_of_week=PManalysis.pm_day_name(processed_data)
-            mean_pm_by_day_hour =PManalysis.pm_day_hour_name(processed_data)
-            mean_pm_by_site_year =PManalysis.annual_mean_pm_site_name(processed_data)
+            mean_pm_by_city= PManalysis.pm_by_city(processed_data)
+            mean_pm_by_country = PManalysis.pm_by_country(processed_data)
+            mean_pm_by_region= PManalysis.pm_by_region(processed_data)
+            mean_pm_by_day_of_week= PManalysis.pm_day_name(processed_data)
+            mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
+            mean_pm_by_site_year = PManalysis.annual_mean_pm_site_name(processed_data)
 
             # Convert timestamps to the desired format
             daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
