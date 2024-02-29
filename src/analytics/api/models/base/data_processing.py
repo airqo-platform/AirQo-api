@@ -7,7 +7,6 @@ from api.utils.pollutants.report import (
 # Configure logging
 logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
 
-
 def air_quality_data():
     data = request.get_json()
     grid_id = data.get("grid_id", "")
