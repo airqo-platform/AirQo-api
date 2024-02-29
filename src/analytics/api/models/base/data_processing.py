@@ -2,11 +2,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import logging
 from api.utils.pollutants.report import (
-    fetch_air_quality_data,
-    query_bigquery,
-    results_to_dataframe,
-    PManalysis)
-
+    fetch_air_quality_data, query_bigquery,
+    results_to_dataframe, PManalysis)
 # Configure logging
 logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
 
@@ -50,8 +47,6 @@ def air_quality_data():
             mean_pm_by_day_of_week= PManalysis.pm_day_name(processed_data)
             mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
             mean_pm_by_site_year = PManalysis.annual_mean_pm_site_name(processed_data)
-
-
             # Convert timestamps to the desired format
             daily_mean_pm2_5["date"] = daily_mean_pm2_5["date"].dt.strftime("%Y-%m-%d")
             datetime_mean_pm2_5["timestamp"] = datetime_mean_pm2_5[
