@@ -45,4 +45,4 @@ if __name__ == "__main__":
 
     predicted_gdf = predict_air_quality(merged_gdf)
     save_predicted_air_quality_in_postgresql(predicted_gdf)
-    save_predicted_air_quality_in_bigquery(predicted_gdf)
+    #save_predicted_air_quality_in_bigquery(predicted_gdf)

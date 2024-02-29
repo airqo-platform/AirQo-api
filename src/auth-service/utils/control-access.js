@@ -327,15 +327,19 @@ const isIPBlacklistedHelper = async (
       $gt: moment().tz(timeZone).toDate(),
     };
 
-    const [blacklistedIP, whitelistedIP, accessToken, blacklistedIpPrefixes] =
-      await Promise.all([
-        BlacklistedIPModel("airqo").findOne({ ip }),
-        WhitelistedIPModel("airqo").findOne({ ip }),
-        AccessTokenModel("airqo")
-          .findOne(acessTokenFilter)
-          .select("name token client_id"),
-        BlacklistedIPPrefixModel("airqo").find().select("prefix").exec(),
-      ]);
+    const [
+      blacklistedIP,
+      whitelistedIP,
+      accessToken,
+      blacklistedIpPrefixesData,
+    ] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+      BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
+    ]);
 
     const {
       token = "",
@@ -343,18 +347,25 @@ const isIPBlacklistedHelper = async (
       client_id = "",
     } = (accessToken && accessToken._doc) || {};
 
-    const BLOCKED_IP_PREFIXES = "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146";
+    const BLOCKED_IP_PREFIXES =
+      "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146,142";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+    const ipPrefix = ip.split(".")[0];
+    const blacklistedIpPrefixes = blacklistedIpPrefixesData.map(
+      (item) => item.prefix
+    );
 
     logObject("blockedIpPrefixes", blockedIpPrefixes);
+
+    logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
 
     if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
       return false;
-    } else if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+    } else if (blockedIpPrefixes.includes(ipPrefix)) {
       return true;
-    } else if (blacklistedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+    } else if (blacklistedIpPrefixes.includes(ipPrefix)) {
       return true;
     } else if (blacklistedIP) {
       logger.info(

@@ -11,6 +11,7 @@ from api.models import (
     SiteModel,
     ExceedanceModel,
 )
+from api.utils.data_formatters import filter_non_private_entities, Entity
 
 # Middlewares
 from api.utils.http import create_response, Status
@@ -39,7 +40,9 @@ class ChartDataResource(Resource):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = json_data["sites"]
+        sites = filter_non_private_entities(
+            entities=json_data["sites"], entity_type=Entity.SITES
+        )
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
@@ -143,7 +146,9 @@ class D3ChartDataResource(Resource):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = json_data["sites"]
+        sites = filter_non_private_entities(
+            entities=json_data["sites"], entity_type=Entity.SITES
+        )
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
@@ -196,7 +201,9 @@ class DailyAveragesResource(Resource):
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = json_data.get("sites", None)
+        sites = filter_non_private_entities(
+            entities=json_data.get("sites", None), entity_type=Entity.SITES
+        )
 
         events_model = EventsModel(tenant)
         site_model = SiteModel(tenant)
@@ -258,7 +265,9 @@ class DailyAveragesResource2(Resource):
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = json_data["devices"]
+        devices = filter_non_private_entities(
+            entities=json_data["devices"], entity_type=Entity.DEVICES
+        )
 
         events_model = EventsModel(tenant)
         data = events_model.get_device_averages_from_bigquery(
@@ -310,7 +319,9 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = json_data.get("sites", None)
+        sites = filter_non_private_entities(
+            entities=json_data.get("sites", None), entity_type=Entity.SITES
+        )
 
         exc_model = ExceedanceModel(tenant)
         data = exc_model.get_exceedances(
@@ -344,7 +355,9 @@ class ExceedancesResource2(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = json_data.get("devices", None)
+        devices = filter_non_private_entities(
+            entities=json_data.get("devices", None), entity_type=Entity.DEVICES
+        )
 
         events_model = EventsModel(tenant)
         data = events_model.get_device_readings_from_bigquery(

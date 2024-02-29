@@ -30,8 +30,9 @@ def check_tenant_param():
 def index():
     return jsonify(dict(message=f"App status - OK."))
 
+
 # Add a new route for air_quality_data
-@app.route("/api/v2/analytics/grid/report", methods=['POST'])
+@app.route("/api/v2/analytics/grid/report", methods=["POST"])
 def air_quality_data_route():
     return air_quality_data()  # Call the air_quality_data function
 

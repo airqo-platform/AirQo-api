@@ -1,9 +1,9 @@
 import os
-
 from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
+
 from decouple import config as env_var
+from dotenv import load_dotenv
 from flasgger import LazyString
 
 env_path = Path(".") / ".env"
@@ -21,7 +21,7 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
-    GRID_URL = os.getenv("GRID_URL_ID")
+    GRID_URL = os.getenv("GRID_URL_ID") 
 
     CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
@@ -122,4 +122,3 @@ config = {
 print(f"app running - {APP_ENV.upper()} mode")
 
 CONFIGURATIONS = config[APP_ENV]
-

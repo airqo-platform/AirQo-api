@@ -5,10 +5,11 @@ from api.utils.pollutants.report import (
     fetch_air_quality_data,
     query_bigquery,
     results_to_dataframe,
-    PManalysis
-)
+    PManalysis)
+
 # Configure logging
-logging.basicConfig(filename='report_log.log', level=logging.INFO, filemode='w')
+logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
+
 
 def air_quality_data():
     data = request.get_json()
@@ -25,8 +26,8 @@ def air_quality_data():
         if (end_time - start_time).days > 365:
             return jsonify({'error':'Time range exceeded 12 months'}),400
     except ValueError as e:
-        logging.error('Invalid date format: %s', e)
-        return jsonify({'error': 'Invalid date format'}), 400
+        logging.error("Invalid date format: %s", e)
+        return jsonify({"error": "Invalid date format"}), 400
 
     site_ids = fetch_air_quality_data(grid_id, start_time, end_time)
 
@@ -50,25 +51,28 @@ def air_quality_data():
             mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
             mean_pm_by_site_year = PManalysis.annual_mean_pm_site_name(processed_data)
 
+
             # Convert timestamps to the desired format
-            daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
-            datetime_mean_pm2_5['timestamp'] = datetime_mean_pm2_5['timestamp'].dt.strftime('%Y-%m-%d %H:%M %Z')
-#            daily_mean_pm_dict = daily_mean_pm2_5.to_dict(orient='records')
+            daily_mean_pm2_5["date"] = daily_mean_pm2_5["date"].dt.strftime("%Y-%m-%d")
+            datetime_mean_pm2_5["timestamp"] = datetime_mean_pm2_5[
+                "timestamp"
+            ].dt.strftime("%Y-%m-%d %H:%M %Z")
+            #            daily_mean_pm_dict = daily_mean_pm2_5.to_dict(orient='records')
             # Log some information for debugging or monitoring
-            logging.info('Successfully processed air quality data for grid_id %s', grid_id)
+            logging.info(
+                "Successfully processed air quality data for grid_id %s", grid_id
+            )
             # Prepare the response data in a structured format
             response_data = {
-                'airquality': {
-                    'status': 'success',
-                    'grid_id': grid_id,
-                    'sites': {
-                        'site_ids': site_ids,
-                        'number_of_sites': len(site_ids)
+                "airquality": {
+                    "status": "success",
+                    "grid_id": grid_id,
+                    "sites": {"site_ids": site_ids, "number_of_sites": len(site_ids)},
+                    "period": {
+                        "startTime": start_time.isoformat(),
+                        "endTime": end_time.isoformat(),
                     },
-                    'period': {
-                        'startTime': start_time.isoformat(),
-                        'endTime': end_time.isoformat(),
-                    },
+
                     'daily_mean_pm': daily_mean_pm2_5.to_dict(orient='records'),
                     'datetime_mean_pm': datetime_mean_pm2_5.to_dict(orient='records'),
                     'diurnal': hour_mean_pm2_5.to_dict(orient='records'),
@@ -82,13 +86,16 @@ def air_quality_data():
                     'mean_pm_by_city': mean_pm_by_city.to_dict(orient='records'),   
                     'mean_pm_by_country': mean_pm_by_country.to_dict(orient='records'),
                     'mean_pm_by_region': mean_pm_by_region.to_dict(orient='records'),
-                    'mean_pm_by_day_of_week':mean_pm_by_day_of_week.to_dict(orient='records'),
-                    'mean_pm_by_day_hour':mean_pm_by_day_hour.to_dict(orient='records'),
-                    
+                    'mean_pm_by_day_of_week': mean_pm_by_day_of_week.to_dict(orient='records'),
+                    'mean_pm_by_day_hour': mean_pm_by_day_hour.to_dict(orient='records'),                    
+
                 }
             }
             return jsonify(response_data)
         else:
-            return jsonify({"message": "No data available for the given time frame."}), 404
+            return (
+                jsonify({"message": "No data available for the given time frame."}),
+                404,
+            )
     else:
         return jsonify({"message": "No site IDs found for the given parameters."}), 404
