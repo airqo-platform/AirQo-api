@@ -1,9 +1,9 @@
 import os
+
 from datetime import datetime
 from pathlib import Path
-
-from decouple import config as env_var
 from dotenv import load_dotenv
+from decouple import config as env_var
 from flasgger import LazyString
 
 env_path = Path(".") / ".env"
@@ -21,7 +21,7 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
-    GRID_URL = os.getenv("GRID_URL_ID") 
+    GRID_URL = os.getenv("GRID_URL_ID")
 
     CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
@@ -84,9 +84,6 @@ class ProductionConfig(Config):
     DB_NAME = env_var("MONGO_PROD")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_PROD")
-    API_TOKEN = os.getenv('PROD_TOKEN')
-    GRID_URL = os.getenv("PROD_GRID_URL_ID")
-    BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED_PR0D")
 
 
 class DevelopmentConfig(Config):
@@ -96,9 +93,6 @@ class DevelopmentConfig(Config):
     DB_NAME = env_var("MONGO_DEV")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
-    API_TOKEN = os.getenv('DEV_TOKEN')
-    GRID_URL = os.getenv("DEV_GRID_URL_ID")
-    BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED_DEV")
 
 class TestingConfig(Config):
     TESTING = True
@@ -107,9 +101,6 @@ class TestingConfig(Config):
     DB_NAME = env_var("MONGO_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
-    API_TOKEN = os.getenv('STAGE_TOKEN')
-    GRID_URL = os.getenv("STAGE_GRID_URL_ID")
-    BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED_STAGE")
 
 
 config = {
@@ -122,3 +113,4 @@ config = {
 print(f"app running - {APP_ENV.upper()} mode")
 
 CONFIGURATIONS = config[APP_ENV]
+
