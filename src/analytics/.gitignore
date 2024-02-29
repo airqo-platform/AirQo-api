@@ -18,3 +18,4 @@ jobs/reports/airqo-250220-642e046f4223.json
 *.db
 *.json
 env (3)
+*.log
