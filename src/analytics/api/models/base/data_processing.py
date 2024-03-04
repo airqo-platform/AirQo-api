@@ -46,6 +46,7 @@ def air_quality_data():
             mean_pm_by_day_of_week= PManalysis.pm_day_name(processed_data)
             mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
             mean_pm_by_site_year = PManalysis.annual_mean_pm_site_name(processed_data)
+            grid_name = PManalysis.gridname(processed_data)
             # Convert timestamps to the desired format
             daily_mean_pm2_5["date"] = daily_mean_pm2_5["date"].dt.strftime("%Y-%m-%d")
             datetime_mean_pm2_5["timestamp"] = datetime_mean_pm2_5[
@@ -61,7 +62,10 @@ def air_quality_data():
                 "airquality": {
                     "status": "success",
                     "grid_id": grid_id,
-                    "sites": {"site_ids": site_ids, "number_of_sites": len(site_ids)},
+                    "sites": {"site_ids": site_ids, 
+                              "number_of_sites": len(site_ids),
+                              "grid name": grid_name,},
+                              
                     "period": {
                         "startTime": start_time.isoformat(),
                         "endTime": end_time.isoformat(),
