@@ -35,6 +35,7 @@ def air_quality_data_diurnal():
             datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
             hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
             mean_pm_by_day_hour =PManalysis.pm_day_hour_name(processed_data)
+            grid_name = PManalysis.gridname(processed_data)
 
             # Convert timestamps to the desired format
             daily_mean_pm2_5['date'] = daily_mean_pm2_5['date'].dt.strftime('%Y-%m-%d')
@@ -49,7 +50,8 @@ def air_quality_data_diurnal():
                     'grid_id': grid_id,
                     'sites': {
                         'site_ids': site_ids,
-                        'number_of_sites': len(site_ids)
+                        'number_of_sites': len(site_ids),
+                        "grid name": grid_name
                     },
                     'period': {
                         'startTime': start_time.isoformat(),
