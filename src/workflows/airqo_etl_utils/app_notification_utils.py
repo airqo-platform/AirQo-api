@@ -158,7 +158,7 @@ def send_push_notifications(grouped_users):
                             body=f"Good morning {name}, {target_place['name']}'s air quality is {category}. Enjoy the outdoors and have a great day!"
                         ),
                         data={
-                            'subject': 'favorites',
+                            'subject': 'daily_air_quality',
                             'site': target_place['placeId']
                         },
                         token=registration_token
