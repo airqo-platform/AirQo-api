@@ -118,3 +118,8 @@ class AirQualitySpatilaAnalyzer:
     def moran_num_local(self, moran_loc, gdf):
         gdf['cluster_num_category'] = moran_loc.q
         return gdf['cluster_num_category']
+
+    def gridname(self, df):
+        unique_cities = df['city'].unique().tolist()
+        return unique_cities
+        

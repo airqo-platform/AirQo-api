@@ -39,3 +39,6 @@ http://127.0.0.1:5000/api/v2/spatial/localmoran
     "end_time": "2024-01-27T00:00"
 }
  
+## Docker
+### 1. Create a docker file
+### docker build .

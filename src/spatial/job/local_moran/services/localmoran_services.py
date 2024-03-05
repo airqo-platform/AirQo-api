@@ -42,11 +42,13 @@ class SpatialDataHandler:
 
             df = analyzer.results_to_dataframe(results)
             gdf = analyzer.get_data_for_moran(df)
+            grid_name= analyzer.gridname(df)
             moran_result = analyzer.moran_local(analyzer.moran_local_regression(gdf), gdf)
             moran_result_list = moran_result.tolist()
             moran_result_num = analyzer.moran_num_local(analyzer.moran_local_regression(gdf), gdf)
             moran_result_num = moran_result_num.tolist()
             local_moran_statistics = analyzer.moran_statistics(gdf)
+
 
             gdf_geojson = FeatureCollection([
                 {
@@ -63,8 +65,10 @@ class SpatialDataHandler:
                 'LocalMoranReport': {
                     'status': 'success',
                     'local_moran_weight_method': 'Queen Contiguity Method',
-                    'grid_id': grid_id,
-                    'sites': {
+                    
+                    'grids_summary': {
+                        'grid_name': grid_name,
+                        'grid_id': grid_id,
                         'site_ids': site_ids,
                         'number_of_sites': len(site_ids)
                     },
