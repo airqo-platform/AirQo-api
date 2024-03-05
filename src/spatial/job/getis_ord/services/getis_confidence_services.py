@@ -80,8 +80,8 @@ class SpatialDataHandler_confidence:
             response_data = {
                 'getis_Report': {
                     'status': 'success',
-                    'grid_id': grid_id,
-                    'sites': {
+                    'grid_summary': {                        
+                        'grid_id': grid_id,
                         'site_ids': site_ids,
                         'number_of_sites': len(site_ids)
                     },
