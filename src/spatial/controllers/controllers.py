@@ -6,7 +6,7 @@ from views.localmoran_services import SpatialDataHandler_moran
 
 
 controller_bp = Blueprint('controller', __name__)
-
+  # 95% confidence level
 @controller_bp.route('/getisord', methods=['POST'])
 def get_air_quality_data():
     return SpatialDataHandler.get_air_quality_data()

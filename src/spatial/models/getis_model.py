@@ -97,7 +97,7 @@ class AirQualitySpatialAnalyzer_getis:
         g_local = G_Local(pm2_5, w)
         p_values = g_local.p_sim
         z_scores = g_local.Zs
-        alpha = 0.05
+        alpha = 0.05   # 95% confidence level
         significant_hot_spots = (p_values < alpha) & (z_scores > 0)
         significant_cold_spots = (p_values < alpha) & (z_scores < 0)
         not_significant = p_values >= alpha
