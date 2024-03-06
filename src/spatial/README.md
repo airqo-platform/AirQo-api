@@ -19,10 +19,8 @@
 ```Fort Portal : 618b850c9326560036a453eb```
 
 ### RUN local 
-python main.py
-### RUN local on web browser
-python app.py
-python main.py
+python main.py 
+flask run
 ### API token 
 Create an API token from https://platform.airqo.net/settings
     Registered Clients
