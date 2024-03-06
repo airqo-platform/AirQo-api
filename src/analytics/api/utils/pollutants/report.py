@@ -63,13 +63,13 @@ client = bigquery.Client()
 def query_bigquery(site_ids, start_time, end_time):
     # Construct the BigQuery SQL query
     query = f"""
-        SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5, pm2_5_raw_value,
-        pm2_5_calibrated_value, pm10, pm10_raw_value, pm10_calibrated_value, country, region, city, county
-        FROM `airqo-250220.consolidated_data.hourly_device_measurements`
+        SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5_raw_value,
+        pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value, country, region, city, county
+        FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
         WHERE site_id IN UNNEST({site_ids})
         AND timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
         AND TIMESTAMP('{end_time.isoformat()}')
-        AND NOT pm2_5 IS NULL
+        AND NOT pm2_5_raw_value IS NULL
     """
 
     try:
@@ -101,20 +101,21 @@ def query_bigquery(site_ids, start_time, end_time):
 
 
 def results_to_dataframe(results):
-    # Convert 'timestamp' to datetime format
-    df = pd.DataFrame(results)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = (
+        pd.DataFrame(results)
+        .assign(timestamp=lambda x: pd.to_datetime(x['timestamp']))
+        .assign(
+            dates=lambda x: x['timestamp'].dt.date.astype(str),
+            date=lambda x: pd.to_datetime(x['dates']),
+            day=lambda x: x['timestamp'].dt.day_name(),
+            hour=lambda x: x['timestamp'].dt.hour,
+            year=lambda x: x['timestamp'].dt.year,
+            month=lambda x: x['timestamp'].dt.month,
+            month_name=lambda x: x['timestamp'].dt.month_name()
+        )
+        .dropna(subset=['site_latitude', 'site_longitude'])
+    )
 
-    # Create additional columns using dt accessor
-    df["dates"] = df["timestamp"].dt.date.astype(str)
-    df["date"] = pd.to_datetime(df["dates"])
-    df["day"] = df["timestamp"].dt.day_name()
-    df["hour"] = df["timestamp"].dt.hour
-    df["year"] = df["timestamp"].dt.year
-    df["month"] = df["timestamp"].dt.month
-    df["month_name"] = df["timestamp"].dt.month_name()
-    df = df.dropna(subset="site_latitude")
-    df = df.dropna(subset="site_longitude")
     return df
 
 
@@ -159,6 +160,9 @@ class PManalysis:
             .reset_index()
         )
 
+    @staticmethod
+    def annual_mean_pm_site_name(dataframe):
+        return dataframe.groupby(['site_name','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
     @staticmethod
     def mean_pm2_5_by_hour(dataframe):
         return dataframe.groupby("hour")[PM_COLUMNS].mean().round(4).reset_index()
@@ -209,6 +213,9 @@ class PManalysis:
 
     @staticmethod
     def pm_day_hour_name(dataframe):
-        return (
-            dataframe.groupby(["day", "hour"])[PM_COLUMNS].mean().round(4).reset_index()
-        )
+        return (dataframe.groupby(["day", "hour"])[PM_COLUMNS].mean().round(4).reset_index())
+    
+    @staticmethod
+    def gridname(dataframe):
+        unique_cities = dataframe['city'].unique().tolist()
+        return unique_cities
