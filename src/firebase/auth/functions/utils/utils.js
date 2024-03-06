@@ -12,6 +12,9 @@ const headers = {
     "Authorization": process.env.JWT_TOKEN,
 };
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 10000;
+
 
 const utils = {
 
@@ -55,21 +58,18 @@ const utils = {
     getAllUsers: async () => {
         try {
             let allUsers = [];
-            let pageToken = undefined;
-
-            do {
-                // Fetch users in batches
-                const result = await admin.auth().listUsers(1000, pageToken);
-                const users = result.users;
-                allUsers = allUsers.concat(users);
-
-                // Update the pageToken for the next iteration
-                pageToken = result.pageToken;
-            } while (pageToken);
-
-            allUsers = allUsers.filter(async (user) => {
-                return await utils.checkSubscription(user.uid);
-            });
+            const usersSnapshot = await firestoreDb.collection(process.env.USERS_COLLECTION).get();
+            for (const doc of usersSnapshot.docs) {
+                const userData = doc.data();
+                const userId = userData.userId;
+                if (userId !== undefined) {
+                    const isSubscribed = await utils.checkSubscription(userId);
+                    if (isSubscribed) {
+                        allUsers.push(userData);
+                    }
+                }
+            }
+            functions.logger.log("Number of users: ", allUsers.length);
 
             return allUsers;
         } catch (error) {
@@ -79,8 +79,7 @@ const utils = {
 
     groupFavorites: async (groupingType) => {
 
-        const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites`,
-            { headers: headers });
+        const responseFromGetFavorites = await utils.apiRequest("users/favorites", "GET", null);
 
         const groupedFavorites = {};
         if (responseFromGetFavorites.data.success === true) {
@@ -107,8 +106,7 @@ const utils = {
                             }
 
                             if (groupingType === "forecast") {
-                                const responseFromGetForecast = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/predict/daily-forecast?site_id=${favorite.place_id}`,
-                                    { headers: headers });
+                                const responseFromGetForecast = await utils.apiRequest(`predict/daily-forecast?site_id=${favorite.place_id}`, "GET", null);
                                 if (responseFromGetForecast.status !== 200) {
                                     functions.logger.error("Error getting Forecast", responseFromGetForecast);
                                     return {
@@ -144,6 +142,35 @@ const utils = {
         return groupedFavorites;
     },
 
+    apiRequest: async (url, method, data) => {
+        let retryCount = 0;
+        let lastError = null;
+
+        while (retryCount < MAX_RETRIES) {
+            try {
+                const endpoint = `${process.env.PLATFORM_BASE_URL}/api/v2/${url}`;
+                const response = await axios({
+                    method: method,
+                    url: endpoint,
+                    data: data,
+                    headers: headers,
+                });
+                return response;
+            } catch (error) {
+                lastError = error;
+                functions.logger.error(`Error making API request for ${url}, Error: ${error}`);
+                retryCount++;
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            }
+        }
+
+        functions.logger.error("Maximum retries reached for maing API request")
+        return {
+            success: false,
+            error: lastError,
+        };
+    },
+
     groupPushNotifications: async (users) => {
         let groupedUsers = {};
         let placeGroupings = [];
@@ -151,16 +178,13 @@ const utils = {
             for (const user of users) {
                 let name, location, placeId;
 
-                const responseFromGetFavorites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/favorites/users/${user.uid}`,
-                    { headers: headers });
+                const responseFromGetFavorites = await utils.apiRequest(`users/favorites/users/${user.userId}`, "GET", null);
                 if (responseFromGetFavorites.data.success !== true) {
                     functions.logger.error("Error fetching Favorites", responseFromGetFavorites.data);
                 }
                 placeGroupings = responseFromGetFavorites.data.favorites;
                 if (placeGroupings.length === 0) {
-                    // functions.logger.log(`User ${user.uid} has no Favorites`);
-                    const responsefromGetLocationHistories = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/locationHistory/users/${user.uid}`,
-                        { headers: headers });
+                    const responsefromGetLocationHistories = await utils.apiRequest(`users/locationHistory/users/${user.userId}`, "GET", null);
                     if (responsefromGetLocationHistories.data.success !== true) {
                         functions.logger.error("Error fetching Location Histories", responsefromGetLocationHistories.data);
                     }
@@ -168,17 +192,14 @@ const utils = {
                     placeGroupings = responsefromGetLocationHistories.data.location_histories;
 
                     if (placeGroupings.length === 0) {
-                        // functions.logger.log(`User ${user.uid} has no Location Histories`);
-                        const responsefromGetSearchHistories = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/users/searchHistory/users/${user.uid}`,
-                            { headers: headers });
+
+                        const responsefromGetSearchHistories = await utils.apiRequest(`users/searchHistory/users/${user.userId}`, "GET", null);
                         if (responsefromGetSearchHistories.data.success !== true) {
                             functions.logger.error("Error fetching Search Histories", responsefromGetSearchHistories.data);
                         }
                         placeGroupings = responsefromGetSearchHistories.data.search_histories;
                         if (placeGroupings.length === 0) {
-                            // functions.logger.log(`User ${user.uid} has no Search Histories`);
-                            const responsefromGetSites = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/sites/summary`,
-                                { headers: headers });
+                            const responsefromGetSites = await utils.apiRequest("devices/sites/summary", "GET", null);
                             if (responsefromGetSites.data.success !== true) {
                                 functions.logger.error("Error fetching Sites", responsefromGetSites.data);
                             }
@@ -201,10 +222,10 @@ const utils = {
                     placeId = targetPlace.place_id
 
                 }
-                if (!groupedUsers[user.uid]) {
-                    groupedUsers[user.uid] = [];
+                if (!groupedUsers[user.userId]) {
+                    groupedUsers[user.userId] = [];
                 }
-                groupedUsers[user.uid].push({ name, location, placeId });
+                groupedUsers[user.userId].push({ name, location, placeId });
 
             }
             return groupedUsers;

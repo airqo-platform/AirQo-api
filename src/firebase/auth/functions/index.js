@@ -532,39 +532,42 @@ async function sendPushNotifications(groupedUsers) {
   try {
     for (const userID in groupedUsers) {
       const userLocations = groupedUsers[userID];
-      const targetPlace = userLocations[Math.floor(Math.random() * userLocations.length)];
+      const targetPlace = userLocations[0];
 
-      const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/measurements/sites/${targetPlace.placeId}?token=${process.env.API_TOKEN}`,);
+      const responseFromGetMeasurements = await axios.get(`${process.env.PLATFORM_BASE_URL}/api/v2/devices/events?token=${process.env.API_TOKEN}&site_id=${targetPlace.placeId}`,);
+
+      // console.log("response", responseFromGetMeasurements.data)
       if (responseFromGetMeasurements.data.success == true && responseFromGetMeasurements.data.measurements.length > 0) {
 
         let pmValue = responseFromGetMeasurements.data.measurements[0].pm2_5.value;
 
-        //get the token from firestore data
         const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
         const userDoc = await userRef.get();
-        const registrationToken = userDoc.data().device;
+        if (userDoc.exists) {
+          const registrationToken = userDoc.data().device;
 
-        const name = userDoc.data().firstName;
+          const name = userDoc.data().firstName;
 
-        const message = {
-          notification: {
-            title: `Concentration level:${pmValue.toFixed(2)}µg/m3!`,
-            body: `Good morning ${name}, ${targetPlace.name}’s air quality is ${utils.mapPMValues(pmValue)}. Enjoy the outdoors and have a great day!`,
-          },
-          data: {
-            subject: "favorites",
-            site: targetPlace.placeId
-          },
-          token: registrationToken
-        };
+          const message = {
+            notification: {
+              title: `Concentration level:${pmValue.toFixed(2)}µg/m3!`,
+              body: `Good morning ${name}, ${targetPlace.name}’s air quality is ${utils.mapPMValues(pmValue)}. Enjoy the outdoors and have a great day!`,
+            },
+            data: {
+              subject: "favorites",
+              site: targetPlace.placeId
+            },
+            token: registrationToken
+          };
 
-        admin.messaging().send(message)
-          .then((response) => {
-            functions.logger.info("Successfully sent message:", response);
-          })
-          .catch((error) => {
-            functions.logger.error("Error sending message:", error);
-          });
+          admin.messaging().send(message)
+            .then((response) => {
+              functions.logger.info(`Successfully sent message to User ${userID}:`, response);
+            })
+            .catch((error) => {
+              functions.logger.error(`Error sending message for User ${userID} :`, error);
+            });
+        }
       }
       else {
         functions.logger.error("Error getting Measurements", responseFromGetMeasurements);
@@ -591,9 +594,9 @@ exports.sendFCMNotificationV2 =
           let batchUsers = users.slice(processedUsers, processedUsers + BATCH_SIZE);
           let batchGroupedUsers = await utils.groupPushNotifications(batchUsers);
 
-          await sendPushNotifications(batchGroupedUsers)
-          functions.logger.log("Finished a batch of users");
-
+          await sendPushNotifications(batchGroupedUsers).then(() => {
+            functions.logger.log("Finished a batch of users");
+          });
           processedUsers += batchUsers.length;
         }
 
