@@ -88,12 +88,12 @@ def get_faults_cache_key():
 
 def geo_coordinates_cache_key():
     key = (
-            "geo_coordinates:"
-            + str(round(float(request.args.get("latitude")), 6))
-            + ":"
-            + str(round(float(request.args.get("longitude")), 6))
-            + ":"
-            + str(request.args.get("distance_in_metres"))
+        "geo_coordinates:"
+        + str(round(float(request.args.get("latitude")), 6))
+        + ":"
+        + str(round(float(request.args.get("longitude")), 6))
+        + ":"
+        + str(request.args.get("distance_in_metres"))
     )
     return key
 
@@ -116,14 +116,16 @@ def get_health_tips(language="") -> list[dict]:
         else:
             raise Exception(f"Bad status code: {response.status_code}")
     except Exception as ex:
-        current_app.logger.error("Failed to retrieve health tips: %s", ex, exc_info=False)
+        current_app.logger.error(
+            "Failed to retrieve health tips: %s", ex, exc_info=False
+        )
         cache.delete_memoized(get_health_tips)
         return []
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_predictions_by_geo_coordinates(
-        latitude: float, longitude: float, distance_in_metres: int
+    latitude: float, longitude: float, distance_in_metres: int
 ) -> dict:
     client = bigquery.Client()
 
@@ -150,17 +152,17 @@ def get_predictions_by_geo_coordinates(
 
 def geo_coordinates_cache_key_v2():
     key = (
-            "geo_coordinates:"
-            + str(round(float(request.args.get("latitude")), 6))
-            + ":"
-            + str(round(float(request.args.get("longitude")), 6))
+        "geo_coordinates:"
+        + str(round(float(request.args.get("latitude")), 6))
+        + ":"
+        + str(round(float(request.args.get("longitude")), 6))
     )
     return key
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_parish_predictions(
-        parish: str, district: str, page_size: int, offset: int
+    parish: str, district: str, page_size: int, offset: int
 ) -> []:
     from app import postgres_db, Predictions
 
@@ -215,17 +217,18 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
     }
 
 
-#TODO: Delete once mobile app is updated
+# TODO: Delete once mobile app is updated
 def get_forecasts_1(
-        db_name,
-        device_id=None,
-        site_id=None,
-        site_name=None,
-        parish=None,
-        county=None,
-        city=None,
-        district=None,
-        region=None, ):
+    db_name,
+    device_id=None,
+    site_id=None,
+    site_name=None,
+    parish=None,
+    county=None,
+    city=None,
+    district=None,
+    region=None,
+):
     query = {}
     params = {
         "device_id": device_id,
@@ -247,10 +250,10 @@ def get_forecasts_1(
     results = []
     if site_forecasts:
         for time, pm2_5 in zip(
-                site_forecasts[0]["timestamp"],
-                site_forecasts[0]["pm2_5"],
-                # site_forecasts[0]["margin_of_error"],
-                # site_forecasts[0]["adjusted_forecast"],
+            site_forecasts[0]["timestamp"],
+            site_forecasts[0]["pm2_5"],
+            # site_forecasts[0]["margin_of_error"],
+            # site_forecasts[0]["adjusted_forecast"],
         ):
             result = {
                 key: value
@@ -267,16 +270,16 @@ def get_forecasts_1(
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts_2(
-        db_name,
-        device_id=None,
-        site_id=None,
-        site_name=None,
-        parish=None,
-        county=None,
-        city=None,
-        district=None,
-        region=None,
-        all_forecasts=False,
+    db_name,
+    device_id=None,
+    site_id=None,
+    site_name=None,
+    parish=None,
+    county=None,
+    city=None,
+    district=None,
+    region=None,
+    all_forecasts=False,
 ):
     query = {}
     if not all_forecasts:
@@ -403,8 +406,8 @@ def add_forecast_health_tips(results: dict, language: str = ""):
                     tip
                     for tip in health_tips
                     if tip["aqi_category"]["max"]
-                       >= pm2_5_value
-                       >= tip["aqi_category"]["min"]
+                    >= pm2_5_value
+                    >= tip["aqi_category"]["min"]
                 ]
                 for pm2_5_value in forecast["pm2_5"]
             ]

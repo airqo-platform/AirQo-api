@@ -62,9 +62,11 @@ def fetch_faulty_devices():
                 else:
                     if value is not None:
                         query[param] = {
-                            "$eq": int(value)
-                            if param in ["correlation_fault", "missing_data_fault"]
-                            else value
+                            "$eq": (
+                                int(value)
+                                if param in ["correlation_fault", "missing_data_fault"]
+                                else value
+                            )
                         }
 
         result = read_faulty_devices(query)
@@ -169,7 +171,7 @@ def get_next_1_week_forecasts():
         #     "success": True,
         #     "message": "Daily forecasts successfully retrieved.",
         #     "forecasts": result,
-        # }
+        # TODO delete once mobile app is updates
         response = result
     else:
         response = {
@@ -288,8 +290,8 @@ def search_predictions():
             data["health_tips"] = list(
                 filter(
                     lambda x: x["aqi_category"]["max"]
-                              >= pm2_5
-                              >= x["aqi_category"]["min"],
+                    >= pm2_5
+                    >= x["aqi_category"]["min"],
                     health_tips,
                 )
             )
