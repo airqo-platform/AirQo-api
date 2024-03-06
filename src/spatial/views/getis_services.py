@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from datetime import datetime
 from geojson import FeatureCollection
-from models.model import AirQualitySpatilaAnalyzer  
+from models.getis_model import AirQualitySpatialAnalyzer_getis
 
 class SpatialDataHandler:
     @staticmethod
@@ -25,11 +25,11 @@ class SpatialDataHandler:
                 if start_time == end_time:
                     return jsonify({'error':'Start time and end time cannot be the same.'}), 400
                 if (end_time - start_time).days > 365:
-                    return jsonify({'error':'Time range exceeded 12 months'}),400
+                    return jsonify({'error':'Time range exceeded 12 months'}), 400
             except ValueError:
                 return jsonify({'error': 'Invalid datetime format for start_time or end_time. Required format: YYYY-MM-DDTHH:MM:SS'}), 400
 
-            analyzer = AirQualitySpatilaAnalyzer()
+            analyzer = AirQualitySpatialAnalyzer_getis() 
             site_ids = analyzer.fetch_air_quality_data(grid_id, start_time, end_time)
 
             if not site_ids:
@@ -41,30 +41,37 @@ class SpatialDataHandler:
                 return jsonify({'error': 'Error querying BigQuery for air quality data.'}), 500
 
             df = analyzer.results_to_dataframe(results)
-            gdf = analyzer.get_data_for_moran(df)
-            moran_result = analyzer.moran_local(analyzer.moran_local_regression(gdf), gdf)
-            moran_result_list = moran_result.tolist()
-            moran_result_num = analyzer.moran_num_local(analyzer.moran_local_regression(gdf), gdf)
-            moran_result_num = moran_result_num.tolist()
-            local_moran_statistics = analyzer.moran_statistics(gdf)
-
-            gdf_geojson = FeatureCollection([
-                {
-                    'latitude': xy[1],
-                    'longitude': xy[0],
-                    'PM2_5_calibrated_Value': val,
-                    'moran_result_num': moran_num,
-                    'local_cluster_category': cluster
-                }
-                for xy, val, cluster, moran_num in zip(gdf.geometry.apply(lambda geom: (geom.x, geom.y)), gdf['calibratedValue'], moran_result_list, moran_result_num)
-            ])
+            gdf = analyzer.get_data_for_getis(df)
+            
+            getis_results = analyzer.Getis_ord_GI(gdf)
+            hot_spots, cold_spots, not_significant = getis_results
+            
+            significant_hot_spots_df = gdf[hot_spots]
+            significant_cold_spots_df = gdf[cold_spots]
+            not_significant_df = gdf[not_significant]
+                      
+            def convert_dataframe_to_geojson(df):
+                geojson_features = []
+                for feature in df.iterfeatures():
+                        properties = feature['properties']
+                        geometry = feature['geometry']
+                        properties['longitude'] = properties.pop('longitude')
+                        properties['latitude'] = properties.pop('latitude')
+                        properties['PM2_5_Value'] = properties.pop('PM2_5_Value')
+                        feature['geometry'] = geometry
+                        feature['properties'] = properties
+                        geojson_features.append(feature)
+                return FeatureCollection(geojson_features)
+            significant_hot_spots_geojson = convert_dataframe_to_geojson(significant_hot_spots_df)
+            significant_cold_spots_geojson = convert_dataframe_to_geojson(significant_cold_spots_df)
+            not_significant_geojson = convert_dataframe_to_geojson(not_significant_df)
 
             response_data = {
-                'LocalMoranReport': {
+                'getis_Report': {
                     'status': 'success',
-                    'local_moran_weight_method': 'Queen Contiguity Method',
-                    'grid_id': grid_id,
-                    'sites': {
+                    
+                    'grid_summary': {
+                        'grid_id': grid_id,
                         'site_ids': site_ids,
                         'number_of_sites': len(site_ids)
                     },
@@ -72,14 +79,14 @@ class SpatialDataHandler:
                         'startTime': start_time.isoformat(),
                         'endTime': end_time.isoformat(),
                     },
-                    'moran_data': {
-                        'moran': gdf_geojson,
-                        'moran_statistics': local_moran_statistics.to_dict(),
+                    'getis_statistics': {
+                            'significant_hot_spots': significant_hot_spots_geojson,
+                            'significant_cold_spots': significant_cold_spots_geojson,
+                            'not_significant': not_significant_geojson,                        
                     }
                 }
             }
-
             return jsonify(response_data), 200
 
         except Exception as e:
-            return jsonify({'error': f'An error occurred: Please try again '}), 500
+            return jsonify({'error': f'An error occurred: '}), 500  

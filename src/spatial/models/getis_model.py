@@ -5,12 +5,12 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import geopandas as gpd
-from pysal.explore import esda
-from libpysal.weights.contiguity import Queen
-from esda.moran import Moran_Local, Moran
+from libpysal.weights import KNN
+from esda import G_Local
+import numpy as np
 from configure import Config
 
-class AirQualitySpatilaAnalyzer:
+class AirQualitySpatialAnalyzer_getis:
     def __init__(self):
         self.client = bigquery.Client()
 
@@ -37,7 +37,7 @@ class AirQualitySpatilaAnalyzer:
 
             return site_ids
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching air quality data: {e}")
+            print(f"Error fetching air quality data:  ")
             return []
 
     def query_bigquery(self, site_ids, start_time, end_time):
@@ -76,7 +76,7 @@ class AirQualitySpatilaAnalyzer:
         )
         return df
 
-    def get_data_for_moran(self, df):
+    def get_data_for_getis(self, df):
         features = []
         for index, row in df.iterrows():
             calibrated_value = row['pm2_5_calibrated_value']
@@ -84,37 +84,47 @@ class AirQualitySpatilaAnalyzer:
                 calibrated_value = row['pm2_5_raw_value']
             latitude = row['site_latitude']
             longitude = row['site_longitude']
-            features.append({'calibratedValue': calibrated_value, 'latitude': latitude, 'longitude': longitude})
+            features.append({'PM2_5_Value': calibrated_value, 'latitude': latitude, 'longitude': longitude})
         
         feature_df = pd.DataFrame(features)
-        feature_df = feature_df.groupby(['latitude', 'longitude'])['calibratedValue'].mean().reset_index()
+        feature_df = feature_df.groupby(['latitude', 'longitude'])['PM2_5_Value'].mean().reset_index()
         gdf = gpd.GeoDataFrame(feature_df, geometry=gpd.points_from_xy(feature_df['longitude'], feature_df['latitude']))
         return gdf
 
-    def create_spatial_weights(self, gdf):
-        w = Queen.from_dataframe(gdf, use_index=False)
-        return w
+    def Getis_ord_GI(self, gdf, k=4): 
+        pm2_5 = gdf['PM2_5_Value'].values
+        w = KNN.from_dataframe(gdf, k=k) 
+        g_local = G_Local(pm2_5, w)
+        p_values = g_local.p_sim
+        z_scores = g_local.Zs
+        alpha = 0.05   # 95% confidence level
+        significant_hot_spots = (p_values < alpha) & (z_scores > 0)
+        significant_cold_spots = (p_values < alpha) & (z_scores < 0)
+        not_significant = p_values >= alpha
+        return significant_hot_spots, significant_cold_spots, not_significant 
+    
+    def Getis_ord_GI_confidence(self, gdf, k=4): 
+        pm2_5 = gdf['PM2_5_Value'].values
+        w = KNN.from_dataframe(gdf, k=k) 
+        g_local = G_Local(pm2_5, w)
+        p_values = g_local.p_sim
+        z_scores = g_local.Zs
+        alpha_99 = 0.01  # 99% confidence level
+        alpha_95 = 0.05  # 95% confidence level
+        alpha_90 = 0.10  # 90% confidence level
+        significant_hot_spots_99 = (p_values < alpha_99) & (z_scores > 0)
+        significant_hot_spots_95 = (p_values < alpha_95) & (z_scores > 0)
+        significant_hot_spots_90 = (p_values < alpha_90) & (z_scores > 0)
 
-    def moran_local_regression(self, gdf):
-        w = self.create_spatial_weights(gdf)
-        y = gdf['calibratedValue'].values
-        moran_loc = Moran_Local(y, w)
-        return moran_loc
+        significant_cold_spots_99 = (p_values < alpha_99) & (z_scores < 0)
+        significant_cold_spots_95 = (p_values < alpha_95) & (z_scores < 0)
+        significant_cold_spots_90 = (p_values < alpha_90) & (z_scores < 0)
+        not_significant = ~(
+        significant_hot_spots_99 | significant_hot_spots_95 | significant_hot_spots_90 |
+        significant_cold_spots_99 | significant_cold_spots_95 | significant_cold_spots_90
+    )
 
-    def moran_statistics(self, gdf):
-        w = self.create_spatial_weights(gdf)
-        moran = Moran(gdf['calibratedValue'], w)    
-        moran_table = pd.DataFrame({
-            "Moran-Index": [moran.I],
-            'Z-Value': [moran.z_sim],
-            'P-value': [moran.p_sim]
-        })    
-        return moran_table
-
-    def moran_local(self, moran_loc, gdf):
-        gdf['cluster_category'] = ['HH' if c == 1 else 'LH' if c == 2 else 'LL' if c == 3 else 'HL' if c == 4 else 'NS' for c in moran_loc.q]
-        return gdf['cluster_category']
-
-    def moran_num_local(self, moran_loc, gdf):
-        gdf['cluster_num_category'] = moran_loc.q
-        return gdf['cluster_num_category']
+        return (significant_hot_spots_99,significant_hot_spots_95,
+                significant_hot_spots_90, significant_cold_spots_99,
+                significant_cold_spots_95,significant_cold_spots_90,
+                not_significant)
