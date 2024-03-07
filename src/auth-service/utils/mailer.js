@@ -950,7 +950,10 @@ const mailer = {
       );
     }
   },
-  forgot: async ({ email, token, tenant = "airqo" } = {}, next) => {
+  forgot: async (
+    { email, token, tenant = "airqo", version = 2 } = {},
+    next
+  ) => {
     try {
       const checkResult = await SubscriptionModel(
         tenant
@@ -966,7 +969,7 @@ const mailer = {
         },
         to: email,
         subject: `Link To Reset Password`,
-        html: msgs.recovery_email(token, tenant, email),
+        html: msgs.recovery_email({ token, tenant, email, version }),
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
