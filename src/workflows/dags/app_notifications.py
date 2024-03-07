@@ -215,3 +215,5 @@ def send_push_notification():
 # friday_evening_notifications_dag = friday_evening_notifications()
 # morning_notifications_dag = morning_notifications()
 # evening_notifications_dag = evening_notifications()
+
+send_push_notification()
