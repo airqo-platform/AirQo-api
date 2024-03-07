@@ -1742,7 +1742,8 @@ const createUserModule = {
   },
   forgotPassword: async (request, next) => {
     try {
-      const { query } = request;
+      const { query, body } = request;
+      const { version } = body;
       const { tenant } = query;
 
       const filter = generateFilter.users(request, next);
@@ -1760,11 +1761,7 @@ const createUserModule = {
 
       const responseFromGenerateResetToken =
         createUserModule.generateResetToken();
-      logObject(
-        "responseFromGenerateResetToken",
-        responseFromGenerateResetToken
-      );
-      logObject("filter", filter);
+
       if (responseFromGenerateResetToken.success === true) {
         const token = responseFromGenerateResetToken.data;
         const update = {
@@ -1781,11 +1778,15 @@ const createUserModule = {
           next
         );
         if (responseFromModifyUser.success === true) {
+          /**
+           * Based on the version number, return something different
+           */
           const responseFromSendEmail = await mailer.forgot(
             {
               email: filter.email,
               token,
               tenant,
+              version,
             },
             next
           );

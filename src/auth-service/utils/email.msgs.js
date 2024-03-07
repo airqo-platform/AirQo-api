@@ -13,7 +13,11 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token, tenant, email) => {
+  recovery_email: ({ token, email, version }) => {
+    let PASSWORD_RESET_URL = constants.PWD_RESET;
+    if (version === 3) {
+      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+    }
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -21,7 +25,7 @@ module.exports = {
                                     <br />
                                     <br />
                                     Please click on the following link, or paste this into your browser to complete the process within one hour of receiving
-                                    it: ${constants.PWD_RESET}?token=${token}&tenant=${tenant}
+                                    it: ${PASSWORD_RESET_URL}?token=${token}
                                     <br />
                                     <br />
                                     If you did not request this, please ignore this email and your password will remain unchanged.

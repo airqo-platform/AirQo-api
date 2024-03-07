@@ -5,8 +5,6 @@ const constants = require("@config/constants");
 const msgs = require("../email.msgs");
 
 describe("email.msgs", () => {
-
-
   describe("recovery_email", () => {
     it("should return the correct recovery email message", () => {
       const token = "example-token";
@@ -16,7 +14,12 @@ describe("email.msgs", () => {
         "Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n" +
         `https://example.com/reset-password?token=${token}&tenant=${tenant}\n\n` +
         "If you did not request this, please ignore this email and your password will remain unchanged.\n";
-      const result = constants.recovery_email(token, tenant);
+      const result = constants.recovery_email({
+        token,
+        tenant,
+        email,
+        version,
+      });
       expect(result).to.equal(expectedMessage);
     });
   });
@@ -45,7 +48,8 @@ describe("email.msgs", () => {
 
       const result = msgs.joinRequest(firstName, lastName, email);
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
+        .true;
       joinRequestSpy.restore();
     });
   });
@@ -53,7 +57,14 @@ describe("email.msgs", () => {
     it("should return the correct inquiry message with valid full name depending on the category", () => {
       const name = "John";
       const email = "john.doe@example.com";
-      const categories = ["policy", "partners", "general", "researchers", "developers", "champions"];
+      const categories = [
+        "policy",
+        "partners",
+        "general",
+        "researchers",
+        "developers",
+        "champions",
+      ];
       for (let category of categories) {
         let content;
         switch (category) {
@@ -133,7 +144,6 @@ describe("email.msgs", () => {
         const expectedMessage = constants.EMAIL_BODY(email, content, name);
         const result = msgs.inquiry(name, email, category);
         expect(result).to.equal(expectedMessage);
-
       }
     });
   });
@@ -175,15 +185,12 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.welcome_kcca(
-        firstName,
-        lastName,
-        password,
-        email
-      );
+      const result = msgs.welcome_kcca(firstName, lastName, password, email);
       const joinRequestSpy = sinon.spy(msgs, "welcome_kcca");
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, password, email)).to.be.true;
+      expect(
+        joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
+      ).to.be.true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
@@ -229,15 +236,12 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.welcome_general(
-        firstName,
-        lastName,
-        password,
-        email
-      );
+      const result = msgs.welcome_general(firstName, lastName, password, email);
       const joinRequestSpy = sinon.spy(msgs, "welcome_general");
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, password, email)).to.be.true;
+      expect(
+        joinRequestSpy.calledOnceWith(firstName, lastName, password, email)
+      ).to.be.true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
@@ -273,12 +277,12 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.user_updated(
-        firstName, lastName, updatedData, email
-      );
+      const result = msgs.user_updated(firstName, lastName, updatedData, email);
       const joinRequestSpy = sinon.spy(msgs, "user_updated");
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, updatedData, email)).to.be.true;
+      expect(
+        joinRequestSpy.calledOnceWith(firstName, lastName, updatedData, email)
+      ).to.be.true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
@@ -306,11 +310,14 @@ describe("email.msgs", () => {
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
       const result = msgs.forgotten_password_updated(
-        firstName, lastName, email
+        firstName,
+        lastName,
+        email
       );
       const joinRequestSpy = sinon.spy(msgs, "forgotten_password_updated");
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
+        .true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
@@ -337,12 +344,11 @@ describe("email.msgs", () => {
                                 </td>
                             </tr>`;
       const expectedMessage = constants.EMAIL_BODY(email, content, name);
-      const result = msgs.known_password_updated(
-        firstName, lastName, email
-      );
+      const result = msgs.known_password_updated(firstName, lastName, email);
       const joinRequestSpy = sinon.spy(msgs, "known_password_updated");
       expect(result).to.equal(expectedMessage);
-      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
+      expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be
+        .true;
       joinRequestSpy.restore();
       expect(result).to.equal(expectedMessage);
     });
