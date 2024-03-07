@@ -53,7 +53,7 @@ def train_model(X, Y, airqloud):
         Ytraining = Y.reshape(-1, 1)
 
     print(
-        "Number of rows in Xtraining for " +
+        "rows in Xtraining for " +
         airqloud + " airqloud", Xtraining.shape[0]
     )
 
