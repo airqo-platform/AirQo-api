@@ -271,6 +271,77 @@ class AirQoApi:
             }
             for airqloud in response.get("airqlouds", [])
         ]
+    
+    def get_favorites(self, user_id) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        response = self.__request(f"users/favorites/users/{user_id}", query_params)
+
+        favorites_with_pm = []
+        for favorite in response.get("favorites", []):
+            place_id = favorite.get("place_id")
+            pm_value = AirQoApi().get_site_measurement(place_id)
+            if pm_value is not None:
+                favorites_with_pm.append({
+                    "place_id": place_id,
+                    "name": favorite.get("name"),
+                    "location": favorite.get("location"),
+                    "pm_value": pm_value
+                })
+
+        return favorites_with_pm
+    
+    def get_location_history(self, user_id) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        response = self.__request(f"users/locationHistory/users/{user_id}", query_params)
+
+        locations_with_measurements = []
+        for location in response.get("location_histories", []):
+            place_id = location.get("place_id")
+            pm_value = AirQoApi().get_site_measurement(place_id)
+            if pm_value is not None:
+                locations_with_measurements.append({
+                    "placeId": place_id,
+                    "name": location.get("name"),
+                    "location": location.get("location"),
+                    "pm_value": pm_value
+                })
+
+        return locations_with_measurements
+
+    def get_search_history(self, user_id) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
+
+        search_histories_with_measurements = []
+        for location in response.get("search_histories", []):
+            place_id = location.get("place_id")
+            pm_value = AirQoApi().get_site_measurement(place_id)
+            if pm_value is not None:
+                search_histories_with_measurements.append({
+                    "placeId": place_id,
+                    "name": location.get("name"),
+                    "location": location.get("location"),
+                    "pm_value": pm_value
+                })
+
+        return search_histories_with_measurements
+
+    
+    def get_site_measurement(self, site_id):
+        try:
+            query_params = {"tenant": str(Tenant.AIRQO), "site_id": site_id}
+
+            response = self.__request("devices/measurements", query_params)
+
+
+            measurement = response['measurements'][0]['pm2_5']['value']
+            return measurement
+        except Exception as ex:
+            print(ex)
+            return None
 
     def get_grids(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}

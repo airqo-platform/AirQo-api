@@ -18,7 +18,7 @@ from airqo_etl_utils.ml_utils import ForecastUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job"],
 )
 def train_forecasting_models():
-    # Hourly forecast tasks
+    # Tasks for training hourly forecast job
     @task()
     def fetch_training_data_for_hourly_forecast_model():
         current_date = datetime.today()

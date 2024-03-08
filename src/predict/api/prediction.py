@@ -10,7 +10,8 @@ from config import Config
 from helpers import (
     get_parish_predictions,
     convert_to_geojson,
-    get_forecasts,
+    get_forecasts_1,
+    get_forecasts_2,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
     all_daily_forecasts_cache_key,
@@ -28,7 +29,6 @@ from helpers import (
 )
 
 load_dotenv()
-
 
 ml_app = Blueprint("ml_app", __name__)
 
@@ -62,9 +62,11 @@ def fetch_faulty_devices():
                 else:
                     if value is not None:
                         query[param] = {
-                            "$eq": int(value)
-                            if param in ["correlation_fault", "missing_data_fault"]
-                            else value
+                            "$eq": (
+                                int(value)
+                                if param in ["correlation_fault", "missing_data_fault"]
+                                else value
+                            )
                         }
 
         result = read_faulty_devices(query)
@@ -105,7 +107,7 @@ def get_next_24hr_forecasts():
             400,
         )
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(**params, db_name="hourly_forecasts_1")
+    result = get_forecasts_1(**params, db_name="hourly_forecasts_1")
     if result:
         try:
             add_forecast_health_tips(result, language=language)
@@ -113,11 +115,12 @@ def get_next_24hr_forecasts():
             current_app.logger.warning(
                 "Error adding health tips: ", str(e), exc_info=True
             )
-        response = {
-            "success": True,
-            "message": "Hourly forecasts successfully retrieved",
-            "forecasts": result,
-        }
+        # response = {
+        #     "success": True,
+        #     "message": "Hourly forecasts successfully retrieved",
+        #     "forecasts": result,
+        # }
+        response = result
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -157,18 +160,19 @@ def get_next_1_week_forecasts():
             400,
         )
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(**params, db_name="daily_forecasts_1")
+    result = get_forecasts_1(**params, db_name="daily_forecasts_1")
     if result:
         try:
             add_forecast_health_tips(result, language=language)
 
         except Exception as e:
             current_app.logger.error("Error adding health tips", str(e), exc_info=False)
-        response = {
-            "success": True,
-            "message": "Daily forecasts successfully retrieved.",
-            "forecasts": result,
-        }
+        # response = {
+        #     "success": True,
+        #     "message": "Daily forecasts successfully retrieved.",
+        #     "forecasts": result,
+        # TODO delete once mobile app is updates
+        response = result
     else:
         response = {
             "message": "forecasts for this site are not available",
@@ -185,7 +189,7 @@ def get_all_daily_forecasts():
     Get all forecasts from the database.
     """
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(db_name="daily_forecasts_1", all_forecasts=True)
+    result = get_forecasts_2(db_name="daily_forecasts_1", all_forecasts=True)
     current_app.logger.info(f"result: result retriece", exc_info=True)
     if result:
         try:
@@ -212,7 +216,7 @@ def get_all_hourly_forecasts():
     Get all forecasts from the database.
     """
     language = request.args.get("language", default="", type=str)
-    result = get_forecasts(db_name="hourly_forecasts_1", all_forecasts=True)
+    result = get_forecasts_2(db_name="hourly_forecasts_1", all_forecasts=True)
     if result:
         try:
             add_forecast_health_tips(result, language=language)

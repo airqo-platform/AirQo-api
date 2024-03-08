@@ -100,6 +100,12 @@ ClientSchema.statics = {
           foreignField: "client_id",
           as: "access_token",
         })
+        .lookup({
+          from: "users",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "user",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)

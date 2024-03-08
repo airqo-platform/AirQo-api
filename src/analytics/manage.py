@@ -13,7 +13,7 @@ from config import config
 from api.utils.pre_request import PreRequest
 
 from api.models.base.data_processing import air_quality_data
-
+from api.models.base.diurnal_data_processing import air_quality_data_diurnal
 
 config_name = env_config("FLASK_ENV", "production")
 
@@ -30,12 +30,15 @@ def check_tenant_param():
 def index():
     return jsonify(dict(message=f"App status - OK."))
 
+
 # Add a new route for air_quality_data
-@app.route("/api/v2/analytics/grid/report", methods=['POST'])
+@app.route("/api/v2/analytics/grid/report", methods=["POST"])
 def air_quality_data_route():
     return air_quality_data()  # Call the air_quality_data function
 
-
+@app.route("/api/v2/analytics/grid/report/diurnal", methods=['POST'])
+def air_quality_data_diurnal_route():
+    return air_quality_data_diurnal()  # Call the air_quality_data_diurnal function
 
 if __name__ == "__main__":
     app.run()

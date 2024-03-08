@@ -13,7 +13,11 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token, tenant, email) => {
+  recovery_email: ({ token, email, version }) => {
+    let PASSWORD_RESET_URL = constants.PWD_RESET;
+    if (version && parseInt(version) === 3) {
+      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+    }
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -21,7 +25,7 @@ module.exports = {
                                     <br />
                                     <br />
                                     Please click on the following link, or paste this into your browser to complete the process within one hour of receiving
-                                    it: ${constants.PWD_RESET}?token=${token}&tenant=${tenant}
+                                    it: ${PASSWORD_RESET_URL}?token=${token}
                                     <br />
                                     <br />
                                     If you did not request this, please ignore this email and your password will remain unchanged.
@@ -49,7 +53,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-
   joinEntityRequest: (email, entity_title) => {
     const name = "";
     const content = ` <tr>
@@ -157,7 +160,33 @@ module.exports = {
     }
     return constants.EMAIL_BODY(email, content, fullName);
   },
-
+  clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
+    const content = ` <tr>
+    <td
+        style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Your request to activate your Client ID <strong>${client_id}</strong> has been received, we shall get back to you as soon as possible.</p>
+        <p>Before utilising the AirQo API, your Client ID <strong>${client_id}</strong> has to undergo the process of approval by AirQo Analytics
+        administration.</p>
+        <p>Once your request is approved, you will receive a confirmation email</p>
+        <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
+    </td>
+</tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
+    const content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    <p>Congratulations! Your Client ID <strong>${client_id}</strong> has been successfully activated.</p>
+                                    <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                                    team. We are here to help. </p>
+                                    <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p
+                                    <p>Sincerely,</p>
+                                    <p>The AirQo Data Team </p>
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
   welcome_kcca: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
@@ -326,7 +355,6 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
-
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
                                 <td
@@ -419,7 +447,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
   },
-
   report: (senderEmail, recepientEmail, formart) => {
     const content = `
     <tr>

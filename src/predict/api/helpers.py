@@ -116,7 +116,9 @@ def get_health_tips(language="") -> list[dict]:
         else:
             raise Exception(f"Bad status code: {response.status_code}")
     except Exception as ex:
-        current_app.logger.error("Failed to retrieve health tips: %s", ex, exc_info=False)
+        current_app.logger.error(
+            "Failed to retrieve health tips: %s", ex, exc_info=False
+        )
         cache.delete_memoized(get_health_tips)
         return []
 
@@ -215,8 +217,59 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
     }
 
 
+# TODO: Delete once mobile app is updated
+def get_forecasts_1(
+    db_name,
+    device_id=None,
+    site_id=None,
+    site_name=None,
+    parish=None,
+    county=None,
+    city=None,
+    district=None,
+    region=None,
+):
+    query = {}
+    params = {
+        "device_id": device_id,
+        "site_id": site_id,
+        "site_name": site_name,
+        "parish": parish,
+        "county": county,
+        "city": city,
+        "district": district,
+        "region": region,
+    }
+    for name, value in params.items():
+        if value is not None:
+            query[name] = value
+    site_forecasts = list(
+        db[db_name].find(query, {"_id": 0}).sort([("$natural", -1)]).limit(1)
+    )
+
+    results = []
+    if site_forecasts:
+        for time, pm2_5 in zip(
+            site_forecasts[0]["timestamp"],
+            site_forecasts[0]["pm2_5"],
+            # site_forecasts[0]["margin_of_error"],
+            # site_forecasts[0]["adjusted_forecast"],
+        ):
+            result = {
+                key: value
+                for key, value in zip(
+                    ["time", "pm2_5"],
+                    [time, pm2_5],
+                )
+            }
+            results.append(result)
+
+    formatted_results = {"forecasts": results}
+    return formatted_results
+
+
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts(
+def get_forecasts_2(
     db_name,
     device_id=None,
     site_id=None,

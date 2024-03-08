@@ -1,0 +1,14 @@
+#requirements.txt
+flask
+pandas
+geopandas
+matplotlib
+pysal
+geojson
+libpysal
+requests
+python-dotenv
+google-cloud-bigquery
+google-cloud-storage
+google-cloud-bigquery[pandas] 
+gunicorn
