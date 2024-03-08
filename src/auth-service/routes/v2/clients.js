@@ -252,6 +252,35 @@ router.post(
   createClientController.activateClient
 );
 
+router.get(
+  "/activate-request/:client_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createClientController.activateClientRequest
+);
+
 router.delete(
   "/:client_id",
   oneOf([

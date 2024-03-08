@@ -14,7 +14,6 @@ module.exports = {
     `,
     text: `Copy and paste this link: ${constants.CLIENT_ORIGIN}/confirm/${id}`,
   }),
-
   inquiryTemplate: (fullName) => {
     return `
     <h3>Hi ${fullName}</h3>
@@ -37,7 +36,6 @@ module.exports = {
     <p>--The AirQo team.</p>
     </div>`;
   },
-
   emailVerification: (firstName, user_id, token) => {
     return `
 <h3>Dear ${firstName}</h3>
@@ -56,7 +54,6 @@ module.exports = {
 <p> The AirQo Data Team</p>
 `;
   },
-
   v2_emailVerification: ({
     email,
     firstName,
@@ -99,7 +96,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
   },
-
   acceptInvitation: ({
     email,
     entity_title = "",
@@ -148,7 +144,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
   },
-
   afterEmailVerification: (firstName, username, email) => {
     const name = firstName;
     const content = ` <tr>
@@ -176,7 +171,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-
   afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
     const name = firstName;
     const content = ` <tr>
@@ -204,7 +198,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-
   deleteMobileAccountEmail: (email, token) => {
     const content = ` <tr>
                                 <td
