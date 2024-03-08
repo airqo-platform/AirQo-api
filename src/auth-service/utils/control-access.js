@@ -1183,8 +1183,9 @@ const controlAccess = {
   },
   activateClient: async (request, next) => {
     try {
-      const { query, body } = request;
+      const { query, body, params } = request;
       const { tenant } = query;
+      const { client_id } = params;
       const filter = generateFilter.clients(request, next);
       const update = {
         isActive: body.isActive || false,
@@ -1192,7 +1193,50 @@ const controlAccess = {
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
-      return responseFromUpdateClient;
+      if (
+        isEmpty(responseFromUpdateClient.data) ||
+        isEmpty(responseFromUpdateClient.data.user_id)
+      ) {
+        return {
+          success: false,
+          message: "Unable to find the user associated with the Client ID",
+          errors: {
+            message: "Unable to find the user associated with the Client ID",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const user_id = ObjectId(responseFromUpdateClient.data.user_id);
+      const userDetails = await UserModel(tenant)
+        .findById(user_id)
+        .lean()
+        .select("firstName lastName email");
+
+      if (responseFromUpdateClient.success === true) {
+        const name = userDetails.firstName || userDetails.lastName;
+        const email = userDetails.email;
+        const responseFromSendEmail = await mailer.afterClientActivation(
+          {
+            name,
+            client_id,
+            email,
+          },
+          next
+        );
+
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "AirQo API client activated sucessfully",
+            status: httpStatus.OK,
+            data: responseFromUpdateClient.data,
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else {
+        return responseFromUpdateClient;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1203,6 +1247,53 @@ const controlAccess = {
         )
       );
       return;
+    }
+  },
+  activateClientRequest: async (request, next) => {
+    try {
+      const { client_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filter = generateFilter.clients(request, next);
+      const clientDetailsResponse = await ClientModel(tenant).list(
+        { filter },
+        next
+      );
+      logObject("clientDetailsResponse", clientDetailsResponse);
+      const { firstName, lastName, email } = clientDetailsResponse.data[0].user;
+      const name = firstName || lastName || "";
+      const responseFromSendEmail = await mailer.clientActivationRequest(
+        {
+          name,
+          email,
+          tenant,
+          client_id,
+        },
+        next
+      );
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "activation request successfully received",
+          status: responseFromSendEmail.status || "",
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        return responseFromSendEmail;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   deleteClient: async (request, next) => {
