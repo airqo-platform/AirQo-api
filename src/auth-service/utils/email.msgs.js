@@ -15,7 +15,7 @@ module.exports = {
   alreadyConfirmed: "Your email was already confirmed",
   recovery_email: ({ token, email, version }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
-    if (version === 3) {
+    if (version && parseInt(version) === 3) {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
     }
     const content = ` <tr>
