@@ -179,6 +179,7 @@ def evening_notifications():
     notifications = create_notifications(recipients)
     send_notifications(notifications)
 
+
 @dag(
     "Push-Notifications",
     schedule="0 5 * * *",
@@ -190,26 +191,28 @@ def send_push_notification():
     @task()
     def extract_users():
         from airqo_etl_utils.app_notification_utils import get_all_users
+
         users = get_all_users()
         return users
-    
+
     @task()
     def group_users(users):
         from airqo_etl_utils.app_notification_utils import group_users
-  
+
         grouped_users = group_users(users)
 
         return grouped_users
-     
-        
+
     @task()
     def send_push_notifications(grouped_users):
         from airqo_etl_utils.app_notification_utils import send_push_notifications
+
         send_push_notifications(grouped_users)
 
     users = extract_users()
     grouped = group_users(users)
     send_push_notifications(grouped)
+
 
 # monday_morning_notifications_dag = monday_morning_notifications()
 # friday_evening_notifications_dag = friday_evening_notifications()

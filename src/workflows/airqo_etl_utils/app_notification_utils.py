@@ -14,25 +14,27 @@ from .constants import Tenant
 from .config import configuration
 from .date import get_utc_offset_for_hour
 
-cred = credentials.Certificate({
-    "type": configuration.FIREBASE_TYPE,
-    "project_id": configuration.FIREBASE_PROJECT_ID,
-    "private_key_id": configuration.FIREBASE_PRIVATE_KEY_ID,
-    "private_key": configuration.FIREBASE_PRIVATE_KEY.replace('\\n', '\n'),
-    "client_email": configuration.FIREBASE_CLIENT_EMAIL,
-    "client_id": configuration.FIREBASE_CLIENT_ID,
-    "auth_uri": configuration.FIREBASE_AUTH_URI,
-    "token_uri": configuration.FIREBASE_TOKEN_URI,
-    "auth_provider_x509_cert_url": configuration.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-    "universe_domain": configuration.FIREBASE_UNIVERSE_DOMAIN
-})
+cred = credentials.Certificate(
+    {
+        "type": configuration.FIREBASE_TYPE,
+        "project_id": configuration.FIREBASE_PROJECT_ID,
+        "private_key_id": configuration.FIREBASE_PRIVATE_KEY_ID,
+        "private_key": configuration.FIREBASE_PRIVATE_KEY.replace("\\n", "\n"),
+        "client_email": configuration.FIREBASE_CLIENT_EMAIL,
+        "client_id": configuration.FIREBASE_CLIENT_ID,
+        "auth_uri": configuration.FIREBASE_AUTH_URI,
+        "token_uri": configuration.FIREBASE_TOKEN_URI,
+        "auth_provider_x509_cert_url": configuration.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+        "universe_domain": configuration.FIREBASE_UNIVERSE_DOMAIN,
+    }
+)
 
-firebase_admin.initialize_app(cred, {
-    "databaseURL": configuration.FIREBASE_DATABASE_URL
-})
+firebase_admin.initialize_app(
+    cred, {"databaseURL": configuration.FIREBASE_DATABASE_URL}
+)
 
 firestore_db = firestore.client()
-__all__ = ['firestore_db']
+__all__ = ["firestore_db"]
 # users_ref = firestore_db.collection("airqo-app-users")
 
 
@@ -45,13 +47,18 @@ NOTIFICATION_TEMPLATE_MAPPER = {
     "weekend_evening": "weekend_evening",
 }
 
+
 def check_subscription(userId):
     try:
-        user_ref = firestore_db.collection(configuration.FIREBASE_USERS_COLLECTION).document(userId)
+        user_ref = firestore_db.collection(
+            configuration.FIREBASE_USERS_COLLECTION
+        ).document(userId)
         user_doc = user_ref.get()
-        
+
         if user_doc.exists:
-            is_subscribed_to_email_notifs = user_doc.to_dict().get("isSubscribedToEmailNotifs", True)
+            is_subscribed_to_email_notifs = user_doc.to_dict().get(
+                "isSubscribedToEmailNotifs", True
+            )
 
             return is_subscribed_to_email_notifs
         else:
@@ -64,15 +71,17 @@ def check_subscription(userId):
 def get_all_users():
     try:
         all_users = []
-        i=0
-        users_snapshot = firestore_db.collection(configuration.FIREBASE_USERS_COLLECTION).get()
+        i = 0
+        users_snapshot = firestore_db.collection(
+            configuration.FIREBASE_USERS_COLLECTION
+        ).get()
         for doc in users_snapshot:
-            i+=1
-            if i ==20:
+            i += 1
+            if i == 20:
                 break
 
             user_data = doc.to_dict()
-            userId = user_data.get('userId')  
+            userId = user_data.get("userId")
             if userId is not None:
                 is_subscribed = check_subscription(userId)
                 if is_subscribed:
@@ -84,35 +93,37 @@ def get_all_users():
     except Exception as error:
         print("Error getting users")
         traceback.print_exc()
-        raise(error)
+        raise (error)
+
 
 def get_random_measurement():
-    name, location, pm_value= None, None, None
+    name, location, pm_value = None, None, None
     sites = AirQoApi().get_sites()
-    while pm_value is None:    
+    while pm_value is None:
         random_index = random.randint(0, len(sites) - 1)
         target_place = sites[random_index]
         name = target_place.get("search_name")
         location = target_place.get("location_name")
         place_id = target_place.get("site_id")
-        pm_value =AirQoApi().get_site_measurement(place_id)
-    
+        pm_value = AirQoApi().get_site_measurement(place_id)
+
     return pm_value, name, location, place_id
+
 
 def group_users(users):
     grouped_users = {}
     place_groupings = []
     try:
         for user in users:
-            user_id= user.get('userId')
+            user_id = user.get("userId")
             name, location, pm_value, place_id = None, None, None, None
             place_groupings = AirQoApi().get_favorites(user_id)
             if len(place_groupings) == 0:
 
                 place_groupings = AirQoApi().get_location_history(user_id)
-                
+
                 if len(place_groupings) == 0:
-                    place_groupings =  AirQoApi().get_search_history(user_id)
+                    place_groupings = AirQoApi().get_search_history(user_id)
 
                     if len(place_groupings) == 0:
                         pm_value, name, location, place_id = get_random_measurement()
@@ -125,11 +136,18 @@ def group_users(users):
                 location = target_place.get("location")
                 pm_value = target_place.get("pm_value")
                 place_id = target_place.get("place_id")
-                
+
             if user["userId"] not in grouped_users:
                 grouped_users[user["userId"]] = []
 
-            grouped_users[user["userId"]].append({"name": name, "location": location, "pmValue": pm_value, "placeId": place_id})
+            grouped_users[user["userId"]].append(
+                {
+                    "name": name,
+                    "location": location,
+                    "pmValue": pm_value,
+                    "placeId": place_id,
+                }
+            )
 
         return grouped_users
     except Exception as error:
@@ -139,38 +157,40 @@ def group_users(users):
 
 
 def send_push_notifications(grouped_users):
-        for userId, user_locations in grouped_users.items():
-            try:
-                target_place = user_locations[0]
+    for userId, user_locations in grouped_users.items():
+        try:
+            target_place = user_locations[0]
 
-                user_ref = firestore_db.collection(configuration.FIREBASE_USERS_COLLECTION).document(userId)
-                user_doc = user_ref.get()
+            user_ref = firestore_db.collection(
+                configuration.FIREBASE_USERS_COLLECTION
+            ).document(userId)
+            user_doc = user_ref.get()
 
-                if user_doc.exists:
-                    registration_token = user_doc.to_dict().get('device')
-                    name = user_doc.to_dict().get('firstName')
-                    pm_value = target_place['pmValue']
-                    category= map_pm_values(pm_value)
+            if user_doc.exists:
+                registration_token = user_doc.to_dict().get("device")
+                name = user_doc.to_dict().get("firstName")
+                pm_value = target_place["pmValue"]
+                category = map_pm_values(pm_value)
 
-                    message = messaging.Message(
-                        notification=messaging.Notification(
-                            title=f"Concentration level: {pm_value:.2f} µg/m3!",
-                            body=f"Good morning {name}, {target_place['name']}'s air quality is {category}. Enjoy the outdoors and have a great day!"
-                        ),
-                        data={
-                            'subject': 'daily_air_quality',
-                            'site': target_place['placeId']
-                        },
-                        token=registration_token
-                    )
+                message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=f"Concentration level: {pm_value:.2f} µg/m3!",
+                        body=f"Good morning {name}, {target_place['name']}'s air quality is {category}. Enjoy the outdoors and have a great day!",
+                    ),
+                    data={
+                        "subject": "daily_air_quality",
+                        "site": target_place["placeId"],
+                    },
+                    token=registration_token,
+                )
 
-                    response = messaging.send(message)
-                    print(f"Successfully sent message to User {userId}: {response}")
-                else:
-                    print(f"User {userId} document does not exist")
-            except Exception as error:
-                print(f"Error sending push notifications to User {userId}", error)
-                traceback.print_exc()
+                response = messaging.send(message)
+                print(f"Successfully sent message to User {userId}: {response}")
+            else:
+                print(f"User {userId} document does not exist")
+        except Exception as error:
+            print(f"Error sending push notifications to User {userId}", error)
+            traceback.print_exc()
 
 
 def map_pm_values(pm_value):
@@ -186,6 +206,7 @@ def map_pm_values(pm_value):
         return "Very Unhealthy"
     else:
         return "Hazardous"
+
 
 def get_valid_name(name):
     try:
