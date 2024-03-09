@@ -777,10 +777,26 @@ const controlAccess = {
         return createUnauthorizedResponse();
       }
 
+      const accessToken = await AccessTokenModel("airqo")
+        .findOne({ token })
+        .select("client_id");
+      if (!accessToken) {
+        return createUnauthorizedResponse();
+      }
+
+      const client = await ClientModel("airqo")
+        .findById(accessToken.client_id)
+        .select("isActive");
+      if (!client || !client.isActive) {
+        logger.error(`🚨🚨 Client associated with Token is INACTIVE`);
+        return createUnauthorizedResponse();
+      }
+
       const isBlacklisted = await isIPBlacklisted({
         request,
         next,
       });
+
       logText("I have now returned back to the verifyToken() function");
       if (isBlacklisted) {
         return createUnauthorizedResponse();
@@ -1187,8 +1203,11 @@ const controlAccess = {
       const { tenant } = query;
       const { client_id } = params;
       const filter = generateFilter.clients(request, next);
+
+      const isActive = body.isActive === "true";
+
       const update = {
-        isActive: body.isActive || false,
+        isActive: isActive,
       };
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
@@ -1220,16 +1239,23 @@ const controlAccess = {
             name,
             client_id,
             email,
+            action: isActive ? "activate" : "deactivate",
           },
           next
         );
+        const responseMessage = isActive
+          ? "AirQo API client activated successfully"
+          : "AirQo API client deactivated successfully";
 
         if (responseFromSendEmail.success === true) {
           return {
             success: true,
-            message: "AirQo API client activated sucessfully",
+            message: responseMessage,
             status: httpStatus.OK,
-            data: responseFromUpdateClient.data,
+            data: {
+              ...responseFromUpdateClient.data,
+              action: isActive ? "activate" : "deactivate",
+            },
           };
         } else if (responseFromSendEmail.success === false) {
           return responseFromSendEmail;

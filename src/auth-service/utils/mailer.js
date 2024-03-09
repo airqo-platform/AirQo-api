@@ -951,7 +951,13 @@ const mailer = {
     }
   },
   afterClientActivation: async (
-    { name = "", email = "", tenant = "airqo", client_id } = {},
+    {
+      name = "",
+      email = "",
+      tenant = "airqo",
+      client_id,
+      action = "activate",
+    } = {},
     next
   ) => {
     try {
@@ -983,6 +989,15 @@ const mailer = {
 
       const subscribedBccEmails = subscribedEmails.join(",");
 
+      const subject =
+        action === "activate"
+          ? "AirQo API Client Successfully Activated!"
+          : "AirQo API Client Successfully Deactivated!";
+      const htmlContent =
+        action === "activate"
+          ? msgs.afterClientActivation({ name, email, client_id })
+          : msgs.afterClientDeactivation({ name, email, client_id });
+
       let mailOptions = {};
       mailOptions = {
         from: {
@@ -990,8 +1005,8 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo API Client Successfully Activated!",
-        html: msgs.afterClientActivation({ name, email, client_id }),
+        subject,
+        html: htmlContent,
         bcc: subscribedBccEmails,
         attachments: attachments,
       };
