@@ -52,7 +52,7 @@ def fetch_faulty_devices():
             if valid is False:
                 return (
                     jsonify(
-                        {"error": "Please provide a valid value for the parameter"}
+                        {"error": "Please enter a valid value for the parameter"}
                     ),
                     400,
                 )
