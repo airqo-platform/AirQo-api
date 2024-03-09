@@ -52,43 +52,34 @@ def train_model(X, Y, airqloud):
         Xtraining = X
         Ytraining = Y.reshape(-1, 1)
 
-    print(
-        "rows in Xtraining for " +
-        airqloud + " airqloud", Xtraining.shape[0]
-    )
+    print("rows in Xtraining for " + airqloud + " airqloud", Xtraining.shape[0])
 
     if airqloud == "kampala":
         k = (
             gpflow.kernels.RBF(lengthscales=np.ones(Xtraining.shape[1]))
             + gpflow.kernels.Bias()
         )
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
         set_trainable(m.kernel.kernels[0].lengthscales, False)
     elif airqloud == "kawempe":
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
         set_trainable(m.kernel.kernels[0].variance, False)
     elif airqloud == "kira":
         k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
     elif airqloud == "jinja":
         k = (
             gpflow.kernels.RBF(lengthscales=np.ones(Xtraining.shape[1]))
             + gpflow.kernels.Bias()
         )
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
     elif airqloud == "makindye":
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
     else:
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                              kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
 
     if airqloud != "kampala":
         m.likelihood.variance.assign(400)
@@ -122,27 +113,35 @@ def save_predictions_on_bigquery(predictions):
     airqloud_id = predictions["airqloud_id"]
     timestamp = date_to_str(predictions["created_at"])
 
-    data = list(map(lambda record: {
-        "airqloud_id": airqloud_id,
-        "timestamp": timestamp,
-        "pm2_5": record["predicted_value"],
-        "pm2_5_variance": record["variance"],
-        "pm2_5_confidence_interval": record["interval"],
-        "location": Point(record["longitude"], record["latitude"]).wkt,
-
-    }, predictions["values"]))
+    data = list(
+        map(
+            lambda record: {
+                "airqloud_id": airqloud_id,
+                "timestamp": timestamp,
+                "pm2_5": record["predicted_value"],
+                "pm2_5_variance": record["variance"],
+                "pm2_5_confidence_interval": record["interval"],
+                "location": Point(record["longitude"], record["latitude"]).wkt,
+            },
+            predictions["values"],
+        )
+    )
 
     client = bigquery.Client()
     errors = client.insert_rows_json(
-        json_rows=data, table=Config.BIGQUERY_MEASUREMENTS_PREDICTIONS, skip_invalid_rows=True
+        json_rows=data,
+        table=Config.BIGQUERY_MEASUREMENTS_PREDICTIONS,
+        skip_invalid_rows=True,
     )
 
     if errors:
         print("Encountered errors while inserting rows:", errors)
     else:
-        client.query(f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
-                     f"WHERE airqloud_id ='{airqloud_id}' "
-                     f"AND timestamp < {timestamp}")
+        client.query(
+            f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
+            f"WHERE airqloud_id ='{airqloud_id}' "
+            f"AND timestamp < {timestamp}"
+        )
         print("Data inserted successfully.")
 
 
@@ -150,7 +149,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     """
     Makes the predictions and stores them in a database
     """
-    time =(
+    time = (
         datetime.now()
         .replace(microsecond=0, second=0, minute=0)
         .strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -162,8 +161,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     locations_flat = np.c_[locations[0].flatten(), locations[1].flatten()]
 
     df = pd.DataFrame(locations_flat, columns=["longitude", "latitude"])
-    df["point_exists"] = df.apply(
-        lambda row: point_in_polygon(row, poly), axis=1)
+    df["point_exists"] = df.apply(lambda row: point_in_polygon(row, poly), axis=1)
     new_df = df[df.point_exists == "True"]
     new_df.drop("point_exists", axis=1, inplace=True)
     new_df.reset_index(drop=True, inplace=True)
@@ -216,17 +214,15 @@ def periodic_function(tenant, airqloud, aq_id):
     Re-trains the model regularly
     """
 
-    poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
-        tenant, aq_id)
+    poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(tenant, aq_id)
     all_sites_data = get_airqloud_data(airqloud_id=aq_id)
 
     if len(all_sites_data) >= 1:
         train_data_df = data_to_df(data=all_sites_data)
         train_data_df = drop_missing_value(train_data_df)
-        train_data_df = train_data_df.drop('site_id', axis=1)
+        train_data_df = train_data_df.drop("site_id", axis=1)
         train_data_preprocessed = preprocess(df=train_data_df)
-        X_features = np.asarray(
-            train_data_preprocessed.drop("pm2_5", axis=1).values)
+        X_features = np.asarray(train_data_preprocessed.drop("pm2_5", axis=1).values)
         Y_target = np.asarray(train_data_preprocessed["pm2_5"].values)
         X = X_features
         Y = Y_target.reshape(-1, 1)
@@ -260,7 +256,15 @@ def get_all_airqlouds(tenant):
     names = [aq["name"] for aq in airqlouds]
     aq_ids = [aq["_id"] for aq in airqlouds]
     # Esxcluding Country level AirQloud
-    exclude = ['kenya', 'uganda', 'cameroon', 'senegal','ghana','nigeria','madagascar']
+    exclude = [
+        "kenya",
+        "uganda",
+        "cameroon",
+        "senegal",
+        "ghana",
+        "nigeria",
+        "madagascar",
+    ]
     names_update = set(names).difference(set(exclude))
     exclude_ind = list(map(names.index, exclude))
     aq_ids_update = [
@@ -284,4 +288,3 @@ if __name__ == "__main__":
         )
         exec(f"thread{index}.start()")
         exec(f"thread{index}.join()")
-
