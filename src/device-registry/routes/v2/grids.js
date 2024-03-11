@@ -572,15 +572,31 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  body()
+    .custom((value) => {
+      if (!value) {
+        return false;
+      }
+      const fields = ["sites", "site_ids", "site_names"];
+      const presentFields = fields.filter((field) => value[field]);
+      console.log("presentFields", presentFields);
+      if (presentFields.length > 1) {
+        return false;
+      }
+      return true;
+    })
+    .withMessage(
+      "Only one of sites, site_ids, or site_names should be provided"
+    ),
   oneOf([
     [
       body("sites")
         .exists()
-        .withMessage("the sites should be provided")
+        .withMessage(
+          "site identifiers are missing in the request, consider using sites"
+        )
         .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
+        .custom((value) => Array.isArray(value))
         .withMessage("the sites should be an array")
         .bail()
         .notEmpty()
@@ -588,6 +604,38 @@ router.post(
       body("sites.*")
         .isMongoId()
         .withMessage("site provided must be an object ID"),
+    ],
+    [
+      body("site_ids")
+        .exists()
+        .withMessage(
+          "site identifiers are missing in the request, consider using site_ids"
+        )
+        .bail()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the site_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the site_ids should not be empty"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("site_id provided must be an object ID"),
+    ],
+    [
+      body("site_names")
+        .exists()
+        .withMessage(
+          "site identifiers are missing in the request, consider using site_names"
+        )
+        .bail()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the site_names should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the site_names should not be empty"),
+      body("site_names.*")
+        .custom((value) => !/\s/.test(value))
+        .withMessage("site_name provided must not contain spaces"),
     ],
   ]),
   createGridController.filterOutPrivateSites

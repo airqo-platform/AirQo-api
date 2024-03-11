@@ -548,15 +548,31 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  body()
+    .custom((value) => {
+      if (!value) {
+        return false;
+      }
+      const fields = ["devices", "device_ids", "device_names"];
+      const presentFields = fields.filter((field) => value[field]);
+      console.log("presentFields", presentFields);
+      if (presentFields.length > 1) {
+        return false;
+      }
+      return true;
+    })
+    .withMessage(
+      "Only one of devices, device_ids, or device_names should be provided"
+    ),
   oneOf([
     [
       body("devices")
         .exists()
-        .withMessage("the devices should be provided")
+        .withMessage(
+          "device identifiers are missing in the request, consider using devices"
+        )
         .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
+        .custom((value) => Array.isArray(value))
         .withMessage("the devices should be an array")
         .bail()
         .notEmpty()
@@ -564,6 +580,38 @@ router.post(
       body("devices.*")
         .isMongoId()
         .withMessage("device provided must be an object ID"),
+    ],
+    [
+      body("device_ids")
+        .exists()
+        .withMessage(
+          "device identifiers are missing in the request, consider using device_ids"
+        )
+        .bail()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the device_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_ids should not be empty"),
+      body("device_ids.*")
+        .isMongoId()
+        .withMessage("device_id provided must be an object ID"),
+    ],
+    [
+      body("device_names")
+        .exists()
+        .withMessage(
+          "device identifiers are missing in the request, consider using device_names"
+        )
+        .bail()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the device_names should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_names should not be empty"),
+      body("device_names.*")
+        .custom((value) => !/\s/.test(value))
+        .withMessage("device_name provided must not contain spaces"),
     ],
   ]),
   createCohortController.filterOutPrivateDevices
