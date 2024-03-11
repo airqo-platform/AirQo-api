@@ -858,7 +858,7 @@ const createGrid = {
   },
   filterOutPrivateSites: async (request, next) => {
     try {
-      const { tenant, sites } = {
+      const { tenant, sites, site_ids, site_names } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -871,15 +871,28 @@ const createGrid = {
         .lean();
 
       const privateGridIds = privateGrids.map((grid) => grid._id);
-      // Fetch sites based on the private Grid IDs
       const privateSites = await SiteModel(tenant).find({
         grids: { $in: privateGridIds },
       });
 
-      // Extract site IDs from the fetched sites
       const privateSiteIds = privateSites.map((site) => site._id.toString());
-      const siteIds = sites.map((site) => site.toString());
-      const publicSites = filterOutPrivateIDs(privateSiteIds, siteIds);
+      const privateSiteNames = privateSites.map((site) => site.generated_name);
+
+      let idsForSites, siteIds, siteNames;
+
+      if (sites || site_ids) {
+        idsForSites = sites ? sites : site_ids || [];
+        siteIds = idsForSites.map((site) => site.toString());
+      } else if (site_names) {
+        siteNames = site_names;
+      }
+
+      let publicSites;
+      if (siteIds) {
+        publicSites = filterOutPrivateIDs(privateSiteIds, siteIds);
+      } else if (siteNames) {
+        publicSites = filterOutPrivateIDs(privateSiteNames, siteNames);
+      }
 
       return {
         success: true,
