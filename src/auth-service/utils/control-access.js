@@ -779,7 +779,7 @@ const controlAccess = {
 
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
-        .select("client_id");
+        .select("client_id token");
       if (!accessToken) {
         return createUnauthorizedResponse();
       }
@@ -789,7 +789,7 @@ const controlAccess = {
         .select("isActive");
       if (!client || !client.isActive) {
         logger.error(
-          `🚨🚨 Client ${accessToken.client_id} associated with Token is INACTIVE or does not exist`
+          `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
         );
         return createUnauthorizedResponse();
       }
