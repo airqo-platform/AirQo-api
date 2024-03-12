@@ -241,8 +241,8 @@ def get_greenness():
     response = dict(message="greenness value returned successfully", data=greenness)
     return jsonify(response), 200
 
-@extract_bp_v1.route(api.AOP_URL, methods=["GET"])
-@extract_bp_v2.route(api.AOP_URL, methods=["GET"])
+@extract_bp_v1.route(api.AOD_URL, methods=["GET"])
+@extract_bp_v2.route(api.AOD_URL, methods=["GET"])
 def get_Aerosol_optical_depth_055():
     input_params = {
         "latitude": request.args.get("latitude"),
