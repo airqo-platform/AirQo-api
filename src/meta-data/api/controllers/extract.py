@@ -280,6 +280,83 @@ def get_Aerosol_optical_depth_055():
     )
     return jsonify(response), 200
 
+@extract_bp_v1.route(api.NITROGEN_DIOXIDE_URL, methods=["GET"])
+@extract_bp_v2.route(api.NITROGEN_DIOXIDE_URL, methods=["GET"])
+def get_Nitrogen_Dioxide():
+    input_params = {
+        "latitude": request.args.get("latitude"),
+        "longitude": request.args.get("longitude"),
+        "start_date": request.args.get("startDate"),
+        "end_date": request.args.get("endDate"),
+    }
+    input_data, errors = validation.validate_inputs(input_data=input_params)
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    model = ext.Extract()
+    aerosol_depth = model.get_Nitrogen_Dioxide(
+        float(input_data["latitude"]),
+        float(input_data["longitude"]),
+        input_data["start_date"],
+        input_data["end_date"],
+    )
+
+    # Extracting the value of Optical_Depth_047 from the ComputedObject
+    optical_depth_value = aerosol_depth.getInfo()
+
+    response = dict(
+        message="Nitrogen Dioxide value returned successfully",
+        data=optical_depth_value
+    )
+    return jsonify(response), 200
+
+@extract_bp_v1.route(api.CARBON_MONOXIDE_URL, methods=["GET"])
+@extract_bp_v2.route(api.CARBON_MONOXIDE_URL, methods=["GET"])
+def get_carbon_monoxide():
+    input_params = {
+        "latitude": request.args.get("latitude"),
+        "longitude": request.args.get("longitude"),
+        "start_date": request.args.get("startDate"),
+        "end_date": request.args.get("endDate"),
+    }
+    input_data, errors = validation.validate_inputs(input_data=input_params)
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    model = ext.Extract()
+    aerosol_depth = model.get_carbon_monoxide(
+        float(input_data["latitude"]),
+        float(input_data["longitude"]),
+        input_data["start_date"],
+        input_data["end_date"],
+    )
+
+    # Extracting the value of Optical_Depth_047 from the ComputedObject
+    optical_depth_value = aerosol_depth.getInfo()
+
+    response = dict(
+        message="Carbon monoxide value returned successfully",
+        data=optical_depth_value
+    )
+    return jsonify(response), 200
 
 @extract_bp_v1.route(api.ALTITUDE_URL, methods=["GET"])
 @extract_bp_v2.route(api.ALTITUDE_URL, methods=["GET"])
