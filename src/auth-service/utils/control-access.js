@@ -788,7 +788,9 @@ const controlAccess = {
         .findById(accessToken.client_id)
         .select("isActive");
       if (!client || !client.isActive) {
-        logger.error(`🚨🚨 Client associated with Token is INACTIVE`);
+        logger.error(
+          `🚨🚨 Client ${accessToken.client_id} associated with Token is INACTIVE or does not exist`
+        );
         return createUnauthorizedResponse();
       }
 
