@@ -973,6 +973,14 @@ const dbProjections = {
       "user.lastLogin": 0,
       "user.resetPasswordExpires": 0,
       "user.resetPasswordToken": 0,
+      "user.jobTitle": 0,
+      "user.website": 0,
+      "user.description": 0,
+      "user.country": 0,
+      "user.profilePicture": 0,
+      "user.timezone": 0,
+      "user.groups": 0,
+      "user.networks": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

@@ -174,17 +174,31 @@ module.exports = {
     return constants.EMAIL_BODY(email, content, name);
   },
   afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
-    const content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    <p>Congratulations! Your Client ID <strong>${client_id}</strong> has been successfully activated.</p>
-                                    <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
-                                    team. We are here to help. </p>
-                                    <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p
-                                    <p>Sincerely,</p>
-                                    <p>The AirQo Data Team </p>
-                                </td>
-                            </tr>`;
+    const content = `<tr>
+                          <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                              <p>Congratulations! Your Client ID <strong>${client_id}</strong> has been successfully activated.</p>
+                              <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                              team. We are here to help. </p>
+                              <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p
+                              <p>Sincerely,</p>
+                              <p>The AirQo Data Team </p>
+                          </td>
+                      </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  afterClientDeactivation: ({ name = "", email, client_id = "" } = {}) => {
+    const content = `
+    <tr>
+         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+             <p>We are writing to inform you that your AirQo API client with ID: <strong> ${client_id} </strong> has been successfully deactivated.</p>
+             <p>This action means that the client will no longer be able to access the AirQo API services until it is reactivated.</p>
+             <p>If you have any questions or need further assistance, please do not hesitate to contact our support team.</p>
+             <p>Thank you for your understanding.</p>
+             <p>Best regards,</p>
+             <p>The AirQo Team</p>
+       </td>
+  </tr>`;
+
     return constants.EMAIL_BODY(email, content, name);
   },
   welcome_kcca: (firstName, lastName, password, email) => {

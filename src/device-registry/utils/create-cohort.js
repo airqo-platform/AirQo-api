@@ -882,7 +882,7 @@ const createCohort = {
   },
   filterOutPrivateDevices: async (request, next) => {
     try {
-      const { tenant, devices } = {
+      const { tenant, devices, device_ids, device_names } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -895,18 +895,30 @@ const createCohort = {
         .lean();
 
       const privateCohortIds = privateCohorts.map((cohort) => cohort._id);
-      // Fetch devices based on the private Cohort IDs
       const privateDevices = await DeviceModel(tenant).find({
         cohorts: { $in: privateCohortIds },
       });
 
-      // Extract device IDs from the fetched devices
       const privateDeviceIds = privateDevices.map((device) =>
         device._id.toString()
       );
-      const deviceIds = devices.map((device) => device.toString());
+      const privateDeviceNames = privateDevices.map((device) => device.name);
 
-      const publicDevices = filterOutPrivateIDs(privateDeviceIds, deviceIds);
+      let idsForDevices, deviceIds, deviceNames;
+
+      if (devices || device_ids) {
+        idsForDevices = devices ? devices : device_ids || [];
+        deviceIds = idsForDevices.map((device) => device.toString());
+      } else if (device_names) {
+        deviceNames = device_names;
+      }
+
+      let publicDevices;
+      if (deviceIds) {
+        publicDevices = filterOutPrivateIDs(privateDeviceIds, deviceIds);
+      } else if (deviceNames) {
+        publicDevices = filterOutPrivateIDs(privateDeviceNames, deviceNames);
+      }
 
       return {
         success: true,

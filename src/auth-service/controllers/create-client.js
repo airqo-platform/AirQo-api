@@ -237,10 +237,19 @@ const createClient = {
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
+        let responseField;
+        if (result.data.action === "activate") {
+          responseField = "activated_client";
+        } else if (result.data.action === "deactivate") {
+          responseField = "deactivated_client";
+        } else {
+          responseField = "unknown_action";
+        }
+
         return res.status(status).json({
           success: true,
           message: result.message ? result.message : "",
-          activated_client: result.data ? result.data : [],
+          [responseField]: result.data ? result.data : [],
         });
       } else if (result.success === false) {
         const status = result.status
