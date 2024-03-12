@@ -40,6 +40,18 @@ class Extract:
         mean_greenness = greenness_dict.get("NDVI")
         greenness = mean_greenness.getInfo()*0.0001
         return greenness
+    
+    def get_Aerosol_optical_depth_055(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("MODIS/061/MCD19A2_GRANULES")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_aerosol_depth = aerosol_dict.get("AOD_QA")  # Corrected property name
+        return mean_aerosol_depth
+
 
     def get_landuse(self, lat, lon):
         """
