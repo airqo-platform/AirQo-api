@@ -676,9 +676,10 @@ class BigQueryApi:
            `{self.raw_measurements_table}` AS raw_device_data_table
            WHERE
            DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL 7 DAY) 
+               CURRENT_DATE(), INTERVAL 21 DAY) 
             ORDER BY device_id, timestamp
            """
+        #TODO: May need to review frequency
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
