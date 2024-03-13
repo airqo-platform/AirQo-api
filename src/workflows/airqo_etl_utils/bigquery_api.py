@@ -669,9 +669,14 @@ class BigQueryApi:
 
     def fetch_raw_readings(self) -> pd.DataFrame:
         query = f"""
-        SELECT DISTINCT raw_device_data_table.timestamp
-           AS
-           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5
+        SELECT DISTINCT 
+        raw_device_data_table.timestamp AS timestamp,
+         raw_device_data_table.device_id AS device_name, 
+         raw_device_data_table.latitude AS latitude,
+         raw_device_data_table.longitude AS longitude,
+         raw_device_data_table.s1_pm2_5 AS s1_pm2_5, 
+         raw_device_data_table.s2_pm2_5 AS s2_pm2_5,
+         raw_device_data_table.pm2_5 AS pm2_5
            FROM
            `{self.raw_measurements_table}` AS raw_device_data_table
            WHERE

@@ -19,6 +19,9 @@ additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
 
+### This module contains utility functions for ML related jobs.
+
+
 
 class GCSUtils:
     """Utility class for saving and retrieving models from GCS"""
@@ -66,7 +69,9 @@ class GCSUtils:
         return mapping_dict
 
 
-class ForecastUtils:
+class MlUtils:
+    """Utility class for ML related tasks"""
+
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
         required_columns = {
@@ -615,3 +620,106 @@ class ForecastUtils:
                 print(
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
+    ###Fault Detection
+
+    @staticmethod
+    def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Flags rule-based faults such as correlation and missing data
+        Inputs:
+            df: pandas dataframe
+
+        Outputs:
+            pandas dataframe
+
+        Raises:
+            ValueError: if input is not a pandas dataframe
+        """
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        required_columns = ["device_name", "s1_pm2_5", "s2_pm2_5"]
+        if not set(required_columns).issubset(set(df.columns.to_list())):
+            raise ValueError(
+                f"Input must have the following columns: {required_columns}"
+            )
+
+        result = pd.DataFrame(
+            columns=["device_name", "correlation_fault", "missing_data_fault"]
+        )
+        for device in df["device_name"].unique():
+            device_df = df[df["device_name"] == device]
+            corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
+            correlation_fault = 1 if corr < 0.9 else 0
+            missing_data_fault = 0
+            for col in ["s1_pm2_5", "s2_pm2_5"]:
+                null_series = device_df[col].isna()
+                if (null_series.rolling(window=10).sum() >= 6).any():
+                    missing_data_fault = 1
+                    break
+
+            temp = pd.DataFrame(
+                {
+                    "device_name": [device],
+                    "correlation_fault": [correlation_fault],
+                    "missing_data_fault": [missing_data_fault],
+                }
+            )
+            result = pd.concat([result, temp], ignore_index=True)
+        result = result[
+            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
+        ]
+        result["created_at"] = datetime.now().isoformat(timespec="seconds")
+        return result
+
+
+    @staticmethod
+    def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Flags pattern-based faults such as high variance, constant values, etc"""
+        from sklearn.ensemble import IsolationForest
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        columns_to_ignore = ['device_id', 'timestamp']
+        df.fillna({'pm2_5': 0}, inplace=True)
+
+        isolation_forest = IsolationForest(contamination=0.37)
+        isolation_forest.fit(df['pm2_5'].drop(columns= columns_to_ignore))
+
+        df['anomaly_value'] = isolation_forest.predict(df.drop(columns=columns_to_ignore))
+
+
+        return df
+
+
+
+
+
+
+
+
+    @staticmethod
+    def save_faulty_devices(data: pd.DataFrame):
+        """Save or update faulty devices to MongoDB"""
+        with pm.MongoClient(configuration.MONGO_URI) as client:
+            db = client[configuration.MONGO_DATABASE_NAME]
+            records = data.to_dict("records")
+
+            bulk_ops = [
+                pm.UpdateOne(
+                    {"device_name": record["device_name"]},
+                    {"$set": record},
+                    upsert=True,
+                )
+                for record in records
+            ]
+
+            try:
+                db.faulty_devices_1.bulk_write(bulk_ops)
+            except Exception as e:
+                print(f"Error saving faulty devices to MongoDB: {e}")
+
+            print("Faulty devices saved/updated to MongoDB"
