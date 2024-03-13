@@ -275,7 +275,7 @@ def get_Aerosol_optical_depth_055():
     optical_depth_value = aerosol_depth.getInfo()
 
     response = dict(
-        message="Aerosol optical depth 55 value returned successfully",
+        message="absorbing aerosol index value returned successfully",
         data=optical_depth_value
     )
     return jsonify(response), 200
