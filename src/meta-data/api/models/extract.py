@@ -43,13 +43,13 @@ class Extract:
     
     def get_Aerosol_optical_depth_055(self, lat, lon, start_date, end_date):
         dataset = (
-        ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_AER_AI")
+        ee.ImageCollection("MODIS/061/MCD19A2_GRANULES")
         .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
         .mean()
                  )
         location_geometry = ee.Geometry.Point(lon, lat)
         aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
-        mean_aerosol_depth = aerosol_dict.get("absorbing_aerosol_index")  # Corrected property name
+        mean_aerosol_depth = aerosol_dict.get("AOD_QA")  # Corrected property name
         return mean_aerosol_depth
 
     def get_carbon_monoxide(self, lat, lon, start_date, end_date):
