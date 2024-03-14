@@ -19,7 +19,7 @@ additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
 
-### This module contains utility functions for ML related jobs.
+### This module contains utility functions for ML jobs.
 
 
 
@@ -628,12 +628,8 @@ class MlUtils:
         Flags rule-based faults such as correlation and missing data
         Inputs:
             df: pandas dataframe
-
         Outputs:
             pandas dataframe
-
-        Raises:
-            ValueError: if input is not a pandas dataframe
         """
 
         if not isinstance(df, pd.DataFrame):
@@ -655,7 +651,7 @@ class MlUtils:
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
                 null_series = device_df[col].isna()
-                if (null_series.rolling(window=10).sum() >= 6).any():
+                if (null_series.rolling(window=10).sum() >= 10).any():
                     missing_data_fault = 1
                     break
 
@@ -694,11 +690,27 @@ class MlUtils:
 
         return df
 
+    @staticmethod
+    def process_faulty_devices_percentage(df: pd.DataFrame):
+        """Process faulty devices dataframe and save to MongoDB"""
+
+        anomaly_percentage = pd.DataFrame((df[df['anomaly_value'] ==  -1].groupby('device_id').size() / df.groupby('device_id').size()) * 100, columns=['anomaly_percentage'])
+
+        return anomaly_percentage[anomaly_percentage['anomaly_percentage'] > 45]
 
 
+    @staticmethod
+    def process_faulty_devices_fault_sequence(df: pd.DataFrame):
+        """Process faulty devices dataframe and save to MongoDB"""
+        df['shifted_device'] = df['device_id'].shift(1, fill_value=df['device_id'].iloc[0])
+        df['shifted_status'] = df['anomaly_status'].shift(1, fill_value=df['anomaly_status'].iloc[0])
+        df['new_sequence'] = ((df['device_id'] != df['shifted_device']) |
+                              ((df['anomaly_status'] == -1) & (df['shifted_status'] == 1)))
+        df['sequence_id'] = df['new_sequence'].cumsum()
+        anomaly_sequences = df[df['anomaly_status'] == -1].groupby(['device_id', 'sequence_id']).size().reset_index(name='length')
+        faulty_sequences = anomaly_sequences[anomaly_sequences['length'] >= 80]
 
-
-
+        faulty_devices = faulty_sequences['device_id'].unique()
 
 
     @staticmethod
