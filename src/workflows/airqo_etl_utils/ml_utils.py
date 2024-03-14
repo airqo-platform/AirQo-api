@@ -9,7 +9,7 @@ import optuna
 import pandas as pd
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
-
+import pymongo as pm
 from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
@@ -20,7 +20,6 @@ additional_columns = ["site_id"]
 pd.options.mode.chained_assignment = None
 
 ### This module contains utility functions for ML jobs.
-
 
 
 class GCSUtils:
@@ -620,6 +619,7 @@ class MlUtils:
                 print(
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
+
     ###Fault Detection
 
     @staticmethod
@@ -669,7 +669,6 @@ class MlUtils:
         result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
 
-
     @staticmethod
     def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -679,14 +678,15 @@ class MlUtils:
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
-        columns_to_ignore = ['device_id', 'timestamp']
-        df.fillna({'pm2_5': 0}, inplace=True)
+        columns_to_ignore = ["device_id", "timestamp"]
+        df.fillna({"pm2_5": 0}, inplace=True)
 
         isolation_forest = IsolationForest(contamination=0.37)
-        isolation_forest.fit(df['pm2_5'].drop(columns= columns_to_ignore))
+        isolation_forest.fit(df["pm2_5"].drop(columns=columns_to_ignore))
 
-        df['anomaly_value'] = isolation_forest.predict(df.drop(columns=columns_to_ignore))
-
+        df["anomaly_value"] = isolation_forest.predict(
+            df.drop(columns=columns_to_ignore)
+        )
 
         return df
 
@@ -694,35 +694,48 @@ class MlUtils:
     def process_faulty_devices_percentage(df: pd.DataFrame):
         """Process faulty devices dataframe and save to MongoDB"""
 
-        anomaly_percentage = pd.DataFrame((df[df['anomaly_value'] ==  -1].groupby('device_id').size() / df.groupby('device_id').size()) * 100, columns=['anomaly_percentage'])
+        anomaly_percentage = pd.DataFrame(
+            (
+                df[df["anomaly_value"] == -1].groupby("device_id").size()
+                / df.groupby("device_id").size()
+            )
+            * 100,
+            columns=["anomaly_percentage"],
+        )
 
-        return anomaly_percentage[anomaly_percentage['anomaly_percentage'] > 45]
-
+        return anomaly_percentage[anomaly_percentage["anomaly_percentage"] > 45]
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
         """Process faulty devices dataframe and save to MongoDB"""
-        df['shifted_device'] = df['device_id'].shift(1, fill_value=df['device_id'].iloc[0])
-        df['shifted_status'] = df['anomaly_status'].shift(1, fill_value=df['anomaly_status'].iloc[0])
-        df['new_sequence'] = ((df['device_id'] != df['shifted_device']) |
-                              ((df['anomaly_status'] == -1) & (df['shifted_status'] == 1)))
-        df['sequence_id'] = df['new_sequence'].cumsum()
-        anomaly_sequences = df[df['anomaly_status'] == -1].groupby(['device_id', 'sequence_id']).size().reset_index(name='length')
-        faulty_sequences = anomaly_sequences[anomaly_sequences['length'] >= 80]
+        df["group"] = (df["anomaly_flag"] != df["anomaly_flag"].shift(1)).cumsum()
+        df["anomaly_sequence_length"] = (
+            df[df["anomaly_flag"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+        )
+        df["anomaly_sequence_length"].fillna(0, inplace=True)
+        device_max_anomaly_sequence = (
+            df.groupby("device_id")["anomaly_sequence_length"].max().reset_index()
+        )
+        faulty_devices_df = device_max_anomaly_sequence[
+            device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
+        ]
+        faulty_devices_df.columns = ["device_id", "fault_count"]
 
-        faulty_devices = faulty_sequences['device_id'].unique()
-
+        return faulty_devices_df
 
     @staticmethod
-    def save_faulty_devices(data: pd.DataFrame):
+    def save_faulty_devices(*dataframes):
         """Save or update faulty devices to MongoDB"""
+        merged_df = pd.DataFrame()
+        for df in dataframes:
+            merged_df = pd.concat([merged_df, df], ignore_index=True)
+        merged_df = merged_df.fillna(0)
         with pm.MongoClient(configuration.MONGO_URI) as client:
             db = client[configuration.MONGO_DATABASE_NAME]
-            records = data.to_dict("records")
-
+            records = merged_df.to_dict("records")
             bulk_ops = [
                 pm.UpdateOne(
-                    {"device_name": record["device_name"]},
+                    {"device_name": record["device_id"]},
                     {"$set": record},
                     upsert=True,
                 )
@@ -734,4 +747,4 @@ class MlUtils:
             except Exception as e:
                 print(f"Error saving faulty devices to MongoDB: {e}")
 
-            print("Faulty devices saved/updated to MongoDB"
+            print("Faulty devices saved/updated to MongoDB")
