@@ -272,7 +272,7 @@ def get_Aerosol_optical_depth_055():
     )
 
     # Extracting the value of Optical_Depth_047 from the ComputedObject
-    optical_depth_value = aerosol_depth.getInfo()*0.001
+    optical_depth_value = aerosol_depth.getInfo()
 
     response = dict(
         message="absorbing aerosol index value returned successfully",
