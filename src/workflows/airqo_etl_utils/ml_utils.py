@@ -51,23 +51,6 @@ class GCSUtils:
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
 
-    @staticmethod
-    def upload_mapping_to_gcs(
-        mapping_dict, project_name, bucket_name, source_blob_name
-    ):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        mapping_dict = json.dumps(mapping_dict)
-        with fs.open(bucket_name + "/" + source_blob_name, "w") as f:
-            f.write(mapping_dict)
-
-    @staticmethod
-    def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        with fs.open(bucket_name + "/" + source_blob_name, "r") as f:
-            mapping_dict = json.load(f)
-        return mapping_dict
-
-
 class MlUtils:
     """Utility class for ML related tasks"""
 
@@ -635,17 +618,17 @@ class MlUtils:
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
-        required_columns = ["device_name", "s1_pm2_5", "s2_pm2_5"]
+        required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
         if not set(required_columns).issubset(set(df.columns.to_list())):
             raise ValueError(
                 f"Input must have the following columns: {required_columns}"
             )
 
         result = pd.DataFrame(
-            columns=["device_name", "correlation_fault", "missing_data_fault"]
+            columns=["device_id", "correlation_fault", "correlation_value", "missing_data_fault"]
         )
-        for device in df["device_name"].unique():
-            device_df = df[df["device_name"] == device]
+        for device in df["device_id"].unique():
+            device_df = df[df["device_id"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
             correlation_fault = 1 if corr < 0.9 else 0
             missing_data_fault = 0
@@ -657,8 +640,9 @@ class MlUtils:
 
             temp = pd.DataFrame(
                 {
-                    "device_name": [device],
+                    "device_id": [device],
                     "correlation_fault": [correlation_fault],
+                    "correlation_value": [corr],
                     "missing_data_fault": [missing_data_fault],
                 }
             )
@@ -707,7 +691,6 @@ class MlUtils:
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
-        """Process faulty devices dataframe and save to MongoDB"""
         df["group"] = (df["anomaly_flag"] != df["anomaly_flag"].shift(1)).cumsum()
         df["anomaly_sequence_length"] = (
             df[df["anomaly_flag"] == -1].groupby(["device_id", "group"]).cumcount() + 1

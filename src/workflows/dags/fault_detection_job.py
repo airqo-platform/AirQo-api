@@ -17,20 +17,45 @@ def airqo_fault_detection_dag():
         return BigQueryApi().fetch_raw_readings()
 
     @task()
-    def flag_faults(data):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+    def flag_rule_based_faults(data):
+        from airqo_etl_utils.ml_utils import MlUtils
 
-        return AirQoDataUtils().flag_faults(data)
+        return MlUtils.flag_rule_based_faults(data)
 
     @task()
-    def save_to_mongo(data):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+    def flag_pattern_based_faults(data):
+        from airqo_etl_utils.ml_utils import MlUtils
 
-        return AirQoDataUtils().save_faulty_devices(data)
+        return MlUtils.flag_pattern_based_faults(data)
+
+    @task()
+    def process_faulty_devices_percentage(data):
+        from airqo_etl_utils.ml_utils import MlUtils
+
+        return MlUtils.process_faulty_devices_percentage(data)
+
+    @task()
+    def process_faulty_devices_sequence(data):
+        from airqo_etl_utils.ml_utils import MlUtils
+
+        return MlUtils.process_faulty_devices_fault_sequence(data)
+
+
+    @task()
+    def save_to_mongo(*data):
+        from airqo_etl_utils.ml_utils import MlUtils
+        return MlUtils.save_faulty_devices(*data)
 
     raw_data = fetch_raw_data()
-    flagged_data = flag_faults(raw_data)
-    save_to_mongo(flagged_data)
+    rule_based_faults = flag_rule_based_faults(raw_data)
+    pattern_based_faults = flag_pattern_based_faults(raw_data)
+    faulty_devices_percentage = process_faulty_devices_percentage(
+        pattern_based_faults
+    )
+    faulty_devices_sequence = process_faulty_devices_sequence(
+        pattern_based_faults
+    )
+    save_to_mongo(rule_based_faults, faulty_devices_percentage, faulty_devices_sequence)
 
 
 airqo_fault_detection_dag()
