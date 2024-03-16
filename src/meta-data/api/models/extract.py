@@ -51,6 +51,17 @@ class Extract:
         aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
         mean_aerosol_depth = aerosol_dict.get("absorbing_aerosol_index")  # Corrected property name
         return mean_aerosol_depth
+    
+    def get_Terra_Land_Surface_Temperature(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("MODIS/061/MOD11A1")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_aerosol_depth = aerosol_dict.get("LST_Day_1km")  # Corrected property name
+        return mean_aerosol_depth
 
     def get_carbon_monoxide(self, lat, lon, start_date, end_date):
         dataset = (
