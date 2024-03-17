@@ -27,15 +27,20 @@ setup(
         "firebase-admin",
         "apache-airflow-providers-http",
         "apache-airflow-providers-slack",
-        "apache-airflow-providers-slack[http]",
+        "apache-airflow-providers-google",
+        "apache-airflow[sentry]",
+        "lightgbm~=4.1.0",
+        "mlflow",
+        "gcsfs~=2023.9.2",
+        "pymongo~=4.5.0",
+        "optuna",
+        "tweepy"
+
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",
     classifiers=[
-        "Development Status :: 3 - Alpha",
         "Intended Audience :: AirQo Airflow Users",
         "Programming Language :: Python :: 3",
-        "Operating System :: MacOS :: MacOS X",
-        "Operating System :: Microsoft :: Windows",
     ],
 )

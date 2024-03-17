@@ -21,6 +21,7 @@ def airqo_fault_detection_dag():
     def flag_rule_based_faults(data):
         return MlUtils.flag_rule_based_faults(data)
 
+    @task()
     def feat_eng_data(data):
         return MlUtils.get_time_and_cyclic_features(data, "hourly")
 
