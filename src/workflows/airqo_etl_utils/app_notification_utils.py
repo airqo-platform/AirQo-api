@@ -75,7 +75,6 @@ def get_all_users():
             configuration.FIREBASE_USERS_COLLECTION
         ).get()
         for doc in users_snapshot:
-
             user_data = doc.to_dict()
             userId = user_data.get("userId")
             if userId is not None:
@@ -120,7 +119,6 @@ def group_users(users):
             name, location, pm_value, place_id = None, None, None, None
             place_groupings = AirQoApi().get_favorites(user_id)
             if len(place_groupings) == 0:
-
                 place_groupings = AirQoApi().get_location_history(user_id)
 
                 if len(place_groupings) == 0:
@@ -163,7 +161,6 @@ def send_push_notifications(grouped_users):
             target_place = user_locations[0]
 
             if target_place["pmValue"] is not None:
-
                 user_ref = firestore_db.collection(
                     configuration.FIREBASE_USERS_COLLECTION
                 ).document(userId)

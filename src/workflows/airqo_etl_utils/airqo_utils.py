@@ -925,4 +925,3 @@ class AirQoDataUtils:
             data = non_device_data.append(device_data, ignore_index=True)
 
         return data
-
