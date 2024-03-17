@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 
 import gcsfs
@@ -7,9 +6,10 @@ import mlflow
 import numpy as np
 import optuna
 import pandas as pd
+import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
-import pymongo as pm
+
 from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
@@ -50,6 +50,7 @@ class GCSUtils:
 
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
+
 
 class MlUtils:
     """Utility class for ML related tasks"""
@@ -625,7 +626,12 @@ class MlUtils:
             )
 
         result = pd.DataFrame(
-            columns=["device_id", "correlation_fault", "correlation_value", "missing_data_fault"]
+            columns=[
+                "device_id",
+                "correlation_fault",
+                "correlation_value",
+                "missing_data_fault",
+            ]
         )
         for device in df["device_id"].unique():
             device_df = df[df["device_id"] == device]
@@ -634,7 +640,7 @@ class MlUtils:
             missing_data_fault = 0
             for col in ["s1_pm2_5", "s2_pm2_5"]:
                 null_series = device_df[col].isna()
-                if (null_series.rolling(window=10).sum() >= 10).any():
+                if (null_series.rolling(window=60).sum() >= 60).any():
                     missing_data_fault = 1
                     break
 
@@ -650,7 +656,6 @@ class MlUtils:
         result = result[
             (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
         ]
-        result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
 
     @staticmethod
@@ -662,11 +667,12 @@ class MlUtils:
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
 
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
         columns_to_ignore = ["device_id", "timestamp"]
-        df.fillna({"pm2_5": 0}, inplace=True)
+        df.dropna(inplace=True)
 
         isolation_forest = IsolationForest(contamination=0.37)
-        isolation_forest.fit(df["pm2_5"].drop(columns=columns_to_ignore))
+        isolation_forest.fit(df.drop(columns=columns_to_ignore))
 
         df["anomaly_value"] = isolation_forest.predict(
             df.drop(columns=columns_to_ignore)
@@ -687,13 +693,15 @@ class MlUtils:
             columns=["anomaly_percentage"],
         )
 
-        return anomaly_percentage[anomaly_percentage["anomaly_percentage"] > 45]
+        return anomaly_percentage[
+            anomaly_percentage["anomaly_percentage"] > 45
+        ].reset_index(level=0)
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
-        df["group"] = (df["anomaly_flag"] != df["anomaly_flag"].shift(1)).cumsum()
+        df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
         df["anomaly_sequence_length"] = (
-            df[df["anomaly_flag"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
         )
         df["anomaly_sequence_length"].fillna(0, inplace=True)
         device_max_anomaly_sequence = (
@@ -709,10 +717,12 @@ class MlUtils:
     @staticmethod
     def save_faulty_devices(*dataframes):
         """Save or update faulty devices to MongoDB"""
-        merged_df = pd.DataFrame()
-        for df in dataframes:
-            merged_df = pd.concat([merged_df, df], ignore_index=True)
+        dataframes = list(dataframes)
+        merged_df = dataframes[0]
+        for df in dataframes[1:]:
+            merged_df = merged_df.merge(df, on="device_id", how="outer")
         merged_df = merged_df.fillna(0)
+        merged_df["created_at"] = datetime.now().isoformat(timespec="seconds")
         with pm.MongoClient(configuration.MONGO_URI) as client:
             db = client[configuration.MONGO_DATABASE_NAME]
             records = merged_df.to_dict("records")
