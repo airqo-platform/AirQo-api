@@ -34,8 +34,7 @@ setup(
         "gcsfs~=2023.9.2",
         "pymongo~=4.5.0",
         "optuna",
-        "tweepy"
-
+        "tweepy",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",
