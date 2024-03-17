@@ -21,6 +21,7 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
+    AIRQO_API_BASE_URL=env_var("AIRQO_API_BASE_URL")
     GRID_URL = os.getenv("GRID_URL_ID")
 
     CACHE_TYPE = "RedisCache"
