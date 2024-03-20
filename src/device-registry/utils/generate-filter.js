@@ -568,6 +568,7 @@ const generateFilter = {
           isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
         );
       const mergedArray = [...deviceArray, ...device.toString().split(",")];
+      filter["device"] = {};
       filter["device"]["$in"] = mergedArray;
     }
 
@@ -577,6 +578,7 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((id) => ObjectId(id));
+      filter["device_id"] = {};
       filter["device_id"]["$in"] = deviceIdArray;
     }
 
@@ -588,6 +590,7 @@ const generateFilter = {
           isLowerCase(value) ? value.toUpperCase() : value.toLowerCase()
         );
       const mergedArray = [...siteArray, ...site.toString().split(",")];
+      filter["site"] = {};
       filter["site"]["$in"] = mergedArray;
     }
 
@@ -596,8 +599,10 @@ const generateFilter = {
         .toString()
         .split(",")
         .map((id) => ObjectId(id));
+      filter["site_id"] = {};
       filter["site_id"]["$in"] = siteIdArray;
     }
+
     if (frequency) {
       filter["frequency"] = frequency;
     } else {
