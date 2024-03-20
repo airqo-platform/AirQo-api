@@ -1112,7 +1112,7 @@ jobs:
             --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/spatial-pr-previews:${{ github.sha }} \
             --port=5000 \
             --cpu=1000m \
-            --memory=256Mi \
+            --memory=400Mi \
             --update-secrets=/etc/env/.env=sta-env-spatial:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
