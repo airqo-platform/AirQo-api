@@ -249,8 +249,8 @@ ReadingsSchema.statics.recent = async function(
   next
 ) {
   try {
-    let twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    let sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     logObject("The recent filter inside Readings Model....", filter);
 
@@ -258,7 +258,7 @@ ReadingsSchema.statics.recent = async function(
       .match({
         ...filter,
         time: {
-          $gte: twoDaysAgo,
+          $gte: sevenDaysAgo,
         },
       })
       .sort({ time: -1 })
