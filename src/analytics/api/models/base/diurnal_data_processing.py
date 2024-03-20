@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 import logging
+import numpy as np
 from api.utils.pollutants.report import (fetch_air_quality_data, query_bigquery, 
                                          results_to_dataframe, PManalysis)
 
@@ -62,6 +63,16 @@ def air_quality_data_diurnal():
                     
                 }
             }
+            def replace_nan_with_null(obj):
+                if isinstance(obj, list):
+                    return [replace_nan_with_null(item) for item in obj]
+                elif isinstance(obj, dict):
+                    return {key: replace_nan_with_null(value) for key, value in obj.items()}
+                elif isinstance(obj, float) and np.isnan(obj):
+                    return None
+                else:
+                    return obj
+            response_data = replace_nan_with_null(response_data)
             return jsonify(response_data)
         else:
             return jsonify({"message": "No data available for the given time frame."}), 404
