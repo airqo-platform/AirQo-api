@@ -36,6 +36,7 @@ jobs:
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
+      run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -65,6 +66,7 @@ jobs:
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
           echo "run_incentives=false" >>$GITHUB_OUTPUT
+          echo "run_spatial=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
@@ -116,6 +118,11 @@ jobs:
             if [[ $file == src/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT
             fi
+
+            if [[ $file == src/spatial/* ]]; then
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
+            fi
+
 
           done < files.txt
 
@@ -1055,4 +1062,82 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Incentives API changes in this PR available for preview [here](${{ needs.incentives.outputs.url }})'
+            })
+            
+  ### spatial ###
+  spatial:
+    name: build-push-deploy-spatial
+    needs: [check, branch-name]
+    if: needs.check.outputs.run_spatial == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      url: ${{ steps.preview-url.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Build and Push Container
+        run: |
+          cd src/spatial/
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/spatial-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/spatial-pr-previews:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |-
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-spatial-preview \
+            --region=${{ secrets.REGION }} \
+            --max-instances=10 \
+            --timeout=60 \
+            --concurrency=10 \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/spatial-pr-previews:${{ github.sha }} \
+            --port=5000 \
+            --cpu=1000m \
+            --memory=256Mi \
+            --update-secrets=/etc/env/.env=sta-env-spatial:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
+            --allow-unauthenticated
+
+      - name: Get preview service url
+        id: preview-url
+        run: |
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-spatial-preview \
+            --format='value(status.url)' \
+            --platform managed \
+            --region ${{ secrets.REGION }})
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
+
+  spatial-pr-comment:
+    name: spatial-preview-link-comment
+    if: needs.check.outputs.run_spatial == 'true'
+    needs: [spatial]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Spatial changes in this PR available for preview [here](${{ needs.spatial.outputs.url }})'
             })

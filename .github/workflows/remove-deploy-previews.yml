@@ -34,6 +34,7 @@ jobs:
       remove_preview__view: ${{ steps.check_files.outputs.remove_preview__view }} # view
       remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
       remove_preview__incentives: ${{ steps.check_files.outputs.remove_preview__incentives }} #incentives
+      remove_preview__spatial: ${{ steps.check_files.outputs.remove_preview__spatial }} #spatial
 
     runs-on: ubuntu-latest
     steps:
@@ -63,7 +64,8 @@ jobs:
           echo "remove_preview__meta_data=false" >>$GITHUB_OUTPUT
           echo "remove_preview__view=false" >>$GITHUB_OUTPUT
           echo "remove_preview__calibrate=false" >>$GITHUB_OUTPUT 
-          echo "remove_preview__incentives=false" >>$GITHUB_OUTPUT 
+          echo "remove_preview__incentives=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__spatial=false" >>$GITHUB_OUTPUT 
 
           while IFS= read -r file
           do
@@ -114,6 +116,10 @@ jobs:
 
             if [[ $file == src/incentives/* ]]; then
               echo "remove_preview__incentives=true" >>$GITHUB_OUTPUT
+            fi     
+            
+            if [[ $file == src/spatial/* ]]; then
+              echo "remove_preview__spatial=true" >>$GITHUB_OUTPUT
             fi            
 
           done < files.txt
@@ -381,3 +387,25 @@ jobs:
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
             --region=${{ secrets.REGION }} \
             --quiet
+
+  ### spatial ###
+  spatial:
+    name: build-push-spatial
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__spatial == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
+      - name: Setup Cloud SDK
+        uses: "google-github-actions/setup-gcloud@v1.1.1"
+
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-spatial-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet            
