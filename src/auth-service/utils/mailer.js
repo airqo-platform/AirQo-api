@@ -1777,13 +1777,19 @@ const mailer = {
     }
   },
   sendReport: async (
-    { senderEmail, recepientEmails, pdfFile, csvFile, tenant = "airqo" } = {},
+    {
+      senderEmail,
+      normalizedRecepientEmails,
+      pdfFile,
+      csvFile,
+      tenant = "airqo",
+    } = {},
     next
   ) => {
     try {
       const checkResult = await SubscriptionModel(
         tenant
-      ).checkNotificationStatus({ email, type: "email" });
+      ).checkNotificationStatus({ email: senderEmail, type: "email" });
       if (!checkResult.success) {
         return checkResult;
       }
@@ -1813,7 +1819,7 @@ const mailer = {
       }
       const emailResults = [];
 
-      for (const recepientEmail of recepientEmails) {
+      for (const recepientEmail of normalizedRecepientEmails) {
         if (recepientEmail === "automated-tests@airqo.net") {
           return {
             success: true,
