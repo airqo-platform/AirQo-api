@@ -577,7 +577,7 @@ const generateFilter = {
       const deviceIdArray = device_id
         .toString()
         .split(",")
-        .map((id) => ObjectId(id));
+        .map((id) => id.toString());
       filter["device_id"] = {};
       filter["device_id"]["$in"] = deviceIdArray;
     }
@@ -598,7 +598,7 @@ const generateFilter = {
       const siteIdArray = site_id
         .toString()
         .split(",")
-        .map((id) => ObjectId(id));
+        .map((id) => id.toString());
       filter["site_id"] = {};
       filter["site_id"]["$in"] = siteIdArray;
     }
