@@ -1,4 +1,4 @@
-## Device Uptime
+## Device Uptime.
 
 #### Local Setup using a Python virtual environment.
 

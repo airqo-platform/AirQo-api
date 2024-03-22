@@ -1,4 +1,4 @@
-## Device Status
+## Device Status.
 
 #### Local Setup using a Python virtual environment.
 * Create local python environment.
