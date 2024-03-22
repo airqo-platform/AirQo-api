@@ -1,4 +1,4 @@
-# Data Management Microservice
+# Data Management Microservice.
 
 ![Node.js](https://img.shields.io/badge/node-%3E%3D%2012.0.0-brightgreen.svg)
 ![Docker](https://img.shields.io/docker/v/<your_docker_username>/iot-measurements-microservice)
