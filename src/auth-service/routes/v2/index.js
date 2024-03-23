@@ -7,6 +7,7 @@ router.use("/favorites", require("@routes/v2/favorites"));
 router.use("/roles", require("@routes/v2/roles"));
 router.use("/inquiries", require("@routes/v2/inquiries"));
 router.use("/candidates", require("@routes/v2/candidates"));
+router.use("/conversions", require("@routes/v2/conversions"));
 router.use("/requests", require("@routes/v2/requests"));
 router.use("/defaults", require("@routes/v2/defaults"));
 router.use("/checklist", require("@routes/v2/checklist"));
