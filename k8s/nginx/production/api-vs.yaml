@@ -51,6 +51,9 @@ spec:
     - name: notifications
       service: airqo-notification-api-svc
       port: 8080
+    - name: spatial
+      service: airqo-spatial-api-svc
+      port: 5000      
   routes:
     - path: ~ /api\/v[1-2]\/users
       action:
@@ -176,3 +179,11 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+    - path: ~ /api\/v[1-2]\/spatial
+      action:
+        proxy:
+          upstream: spatial
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json                

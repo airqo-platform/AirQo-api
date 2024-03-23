@@ -1,0 +1,38 @@
+app:
+  name: airqo-spatial-api
+  label: spatial-api
+  namespace: production
+  configmap: prod-spatial-api-config
+replicaCount: 3
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-spatial-api
+  tag: latest
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 100m
+    memory: 350Mi
+  requests:
+    cpu: 10m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-spatial-api-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 30019
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70
