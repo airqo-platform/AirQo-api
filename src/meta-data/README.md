@@ -1,4 +1,4 @@
-# Metadata microservice
+# Metadata microservice.
 
 Prerequisites
 Add the `.env` & `google_application_credentials.json` files to this directory. Both files can be obtained from the DevOps engineer.

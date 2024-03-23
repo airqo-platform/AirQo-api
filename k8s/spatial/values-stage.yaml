@@ -1,37 +1,37 @@
 app:
-  name: airqo-stage-device-registry-api
-  label: sta-device-reg
+  name: airqo-stage-spatial-api
+  label: sta-spatial-api
   namespace: staging
-  configmap: nv-device-registry-staging
+  configmap: stage-spatial-api-config
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: stage-0b94d45c-1711176077
+  repository: eu.gcr.io/airqo-250220/airqo-stage-spatial-api
+  tag: stage-ac0d3a44-1711177058
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 550Mi
+    memory: 400Mi
   requests:
-    cpu: 5m
-    memory: 450Mi
+    cpu: 10m
+    memory: 180Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
 volumes:
   - name: config-volume
     configMap:
-      name: device-registry-config-files
+      name: stage-spatial-api-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 5000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 31002
+  targetPort: 5000
+  nodePort: 31019
 autoscaling:
   minReplicas: 1
   maxReplicas: 2

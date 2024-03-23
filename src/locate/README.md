@@ -1,4 +1,4 @@
-fetch branch from github.
+fetch branch from github
 
 create local python environment
   windows
