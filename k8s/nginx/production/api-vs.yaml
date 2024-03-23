@@ -51,6 +51,9 @@ spec:
     - name: notifications
       service: airqo-notification-api-svc
       port: 8080
+    - name: spatial
+      service: airqo-spatial-api-svc
+      port: 5000      
   routes:
     - path: ~ /api\/v[1-2]\/users
       action:
@@ -100,14 +103,10 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-              - name: Access-Control-Allow-Origin
-                value: "*"
               - name: Access-Control-Allow-Methods
                 value: "GET, POST, OPTIONS, PUT, DELETE, HEAD, PATCH"
               - name: Access-Control-Allow-Headers
                 value: "Content-Type, Authorization, X-Requested-With, X-Auth-Token"
-              - name: Access-Control-Allow-Credentials
-                value: "true"
     - path: ~ /api\/v[1-2]\/predict
       action:
         proxy:
@@ -180,3 +179,11 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+    - path: ~ /api\/v[1-2]\/spatial
+      action:
+        proxy:
+          upstream: spatial
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json                

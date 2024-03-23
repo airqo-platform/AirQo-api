@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
+import numpy as np
 import logging
 from api.utils.pollutants.report import (
     fetch_air_quality_data, query_bigquery,
@@ -89,6 +90,16 @@ def air_quality_data():
 
                 }
             }
+            def replace_nan_with_null(obj):
+                if isinstance(obj, list):
+                    return [replace_nan_with_null(item) for item in obj]
+                elif isinstance(obj, dict):
+                    return {key: replace_nan_with_null(value) for key, value in obj.items()}
+                elif isinstance(obj, float) and np.isnan(obj):
+                    return None
+                else:
+                    return obj
+            response_data = replace_nan_with_null(response_data)
             return jsonify(response_data)
         else:
             return (

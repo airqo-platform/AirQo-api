@@ -196,26 +196,28 @@ def send_push_notification():
 
         users = get_all_users()
         return users
-
+    
     @task()
-    def group_users(users):
+    def group_and_send_push_notifications(users):
         from airqo_etl_utils.app_notification_utils import group_users
-
-        grouped_users = group_users(users)
-
-        return grouped_users
-
-    @task()
-    def send_push_notifications(grouped_users):
         from airqo_etl_utils.app_notification_utils import send_push_notifications
 
-        send_push_notifications(grouped_users)
+        BATCH_SIZE = 100
+        start_index = 0
+        while start_index < len(users):
+            end_index = min(start_index + BATCH_SIZE, len(users))
+            batch = users[start_index:end_index]
+            grouped_users = group_users(batch)
+            send_push_notifications(grouped_users)
+            start_index += BATCH_SIZE
 
+    
     if "staging" in configuration.AIRQO_BASE_URL_V2:
         return
+    
     users = extract_users()
-    grouped = group_users(users)
-    send_push_notifications(grouped)
+    group_and_send_push_notifications(users)
+
 
 
 # monday_morning_notifications_dag = monday_morning_notifications()

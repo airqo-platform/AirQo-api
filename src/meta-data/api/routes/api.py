@@ -22,3 +22,8 @@ DISTANCE_CLOSEST_TRUNK_ROAD_URL = "/distance/trunk/road"
 TAHMO_WEATHER_STATIONS_ACCOUNT_HAS_ACCESS_TO_URL = "/weather-stations"
 TAHMO_WEATHER_STATION_VARIABLES_URL = "/weather-station/variables"
 TAHMO_WEATHER_STATION_MEASUREMENTS_URL = "/weather-station/measurements"
+CARBON_MONOXIDE_URL="/carbon_monoxide"
+NITROGEN_DIOXIDE_URL="/nitrogen_dioxide"
+AOD_URL="/aerosol_optical_depth"
+LAND_SURFACE_TEMPERATURE_URL= "/land_surface_temperature"
+
