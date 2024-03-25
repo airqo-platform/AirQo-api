@@ -1,4 +1,4 @@
-# Metadata microservice
+# Metadata microservice.
 
 Prerequisites
 Add the `.env` & `google_application_credentials.json` files to this directory. Both files can be obtained from the DevOps engineer.
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 flask run
 ```
 
-## To run the Message broker connector
+## To run the Message broker connector.
 
 ```bash
 python message-broker.py --target=sites-consumer

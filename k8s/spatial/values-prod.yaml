@@ -1,37 +1,37 @@
 app:
-  name: airqo-device-registry-api
-  label: device-reg-api
+  name: airqo-spatial-api
+  label: spatial-api
   namespace: production
-  configmap: env-device-registry-production
+  configmap: prod-spatial-api-config
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
-  tag: prod-3a3205a9-1711399618
+  repository: eu.gcr.io/airqo-250220/airqo-spatial-api
+  tag: latest
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 200m
-    memory: 1500Mi
+    cpu: 100m
+    memory: 350Mi
   requests:
     cpu: 10m
-    memory: 600Mi
+    memory: 250Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
 volumes:
   - name: config-volume
     configMap:
-      name: device-registry-config-files
+      name: prod-spatial-api-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 5000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 30002
+  targetPort: 5000
+  nodePort: 30019
 autoscaling:
   minReplicas: 1
   maxReplicas: 3

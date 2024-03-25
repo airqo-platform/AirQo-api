@@ -1,4 +1,4 @@
-## Device Status
+## Device Status.
 
 #### Local Setup using a Python virtual environment.
 * Create local python environment.
@@ -35,4 +35,4 @@
     * or explicitly state the tenant `python main.py --tenant=airqo`
     
 #### Local Setup using docker
-* Coming soon...
+* Coming soon....

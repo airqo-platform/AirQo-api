@@ -109,7 +109,7 @@ spec:
       port: 4001
     - name: notifications
       service: airqo-notification-api-svc
-      port: 8080
+      port: 8080     
   routes:
     - path: /
       action:
@@ -244,3 +244,4 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+             

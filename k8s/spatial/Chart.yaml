@@ -1,0 +1,10 @@
+apiVersion: v2
+name: airqo-spatial-api
+description: AirQo Spatial Service Helm Chart
+version: 0.1.0
+appVersion: "1.16.0"
+home: https://airqo.net
+maintainers:
+  - name: AirQo
+    email: support@airqo.net
+    url: https://airqo.net

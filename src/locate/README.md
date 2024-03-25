@@ -1,4 +1,4 @@
-fetch branch from github.
+fetch branch from github
 
 create local python environment
   windows
@@ -15,5 +15,5 @@ activate the environment
 	  source env/bin/activate
 
 
-install required packages
+install required packages.
      pip install -r requirements.txt

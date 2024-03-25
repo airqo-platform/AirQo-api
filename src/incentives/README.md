@@ -1,4 +1,4 @@
-# Incentives API.
+# Incentives API
 
 The Incentives API is a service that facilitates the management of hosts' data and the loading of data bundles onto devices' SIM cards. It allows organizations to efficiently manage data provisioning.
 
@@ -13,7 +13,7 @@ The Incentives API is a service that facilitates the management of hosts' data a
 The base URL for accessing the Incentives API is:
 https://staging-platform.airqo.net/api/v2/incentives
 
-## Authentication
+## Authentication.
 
 The Incentives API requires authentication using an API token. Include the API token as a query parameter as follows:
 
