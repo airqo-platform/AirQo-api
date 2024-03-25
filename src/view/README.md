@@ -18,7 +18,7 @@ Spin up the API
 
 [Link to API Docs](http://localhost:8080/api/v1/view/docs/index.html)
 
-### Connecting to a message broker
+### Connecting to a message broker.
 
 Create an instance of kafka. You can follow the Quickstart guide. [Kafka Quickstart](https://kafka.apache.org/quickstart)
 

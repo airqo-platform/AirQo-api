@@ -12,7 +12,7 @@ This data management microservice is a Node.js-based application deployed using 
 - Fetches device measurements from external system
 - Transforms measurements into a new format with descriptive field names
 - Performs additional data transformations as needed
-- Monitors faults in device data and flags them for further analysis
+- Monitors faults in device data and flags them for further analysis.
 
 ## Installation
 

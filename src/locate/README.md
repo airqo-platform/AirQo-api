@@ -15,5 +15,5 @@ activate the environment
 	  source env/bin/activate
 
 
-install required packages
+install required packages.
      pip install -r requirements.txt
