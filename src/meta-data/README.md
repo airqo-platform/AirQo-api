@@ -16,7 +16,7 @@ pip install -r requirements.txt
 flask run
 ```
 
-## To run the Message broker connector
+## To run the Message broker connector.
 
 ```bash
 python message-broker.py --target=sites-consumer
