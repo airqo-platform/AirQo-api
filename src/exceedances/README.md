@@ -16,7 +16,7 @@
 	  `source env/bin/activate`
 
 
-* Install required packages
+* Install required packages.
      * `pip install -r requirements.txt`
 
 * Create a `.env` file with the following keys

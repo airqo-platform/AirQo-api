@@ -14,7 +14,7 @@ For team members, this can be accessed from GCP secret manager(`sta-env-gp-model
 * If you have mutliple python versions, you can specify the python version as follows:
   ```python3.8 -m venv venv```
 
-## Activate the virtual environment
+## Activate the virtual environment.
 #### Linux and MacOS
 ```source venv/bin/activate```
 #### Windows

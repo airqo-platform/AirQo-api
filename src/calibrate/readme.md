@@ -7,7 +7,7 @@
 2. `pip install -r requirements.txt`
 3. `flask run`
 
-## To build and run with docker desktop
+## To build and run with docker desktop.
 
 (Uses "production" dockerfile.)
 
