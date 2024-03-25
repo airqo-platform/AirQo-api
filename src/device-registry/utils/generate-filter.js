@@ -637,16 +637,16 @@ const generateFilter = {
 
     // Constants for date calculations
     const today = monthsInfront(0);
-    const oneWeekBack = addDays(-1);
+    const threeDaysBack = addDays(-3);
 
     // Initial filter object
     const filter = {
       day: {
-        $gte: generateDateFormatWithoutHrs(oneWeekBack),
+        $gte: generateDateFormatWithoutHrs(threeDaysBack),
         $lte: generateDateFormatWithoutHrs(today),
       },
       "values.time": {
-        $gte: oneWeekBack,
+        $gte: threeDaysBack,
         $lte: today,
       },
       "values.device": {},
