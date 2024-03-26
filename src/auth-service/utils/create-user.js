@@ -95,9 +95,11 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
 
     if (isEmpty(user)) {
-      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: `User ${userId} not found in the system`,
-      });
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `User ${userId} not found in the system`,
+        })
+      );
     }
 
     const updatedGroup = await GroupModel(tenant).updateMany(
@@ -739,9 +741,12 @@ const createUserModule = {
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "password must be provided when using email",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "password must be provided when using email",
+          })
+        );
+
         // return [
         //   {
         //     success: false,
@@ -787,9 +792,12 @@ const createUserModule = {
       logObject("Internal Server Error:", error);
       logObject("error.code", error.code);
       if (error.code && error.code === "auth/email-already-exists") {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: error.message,
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: error.message,
+          })
+        );
+
         // return [
         //   {
         //     success: false,
@@ -800,12 +808,14 @@ const createUserModule = {
         // ];
       }
 
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message: error.message,
-        }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
       // return [
       //   {
@@ -1016,9 +1026,11 @@ const createUserModule = {
     if (isEmpty(context) || isEmpty(tenant)) {
       logger.error(`the request is either missing the context or the tenant`);
 
-      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: "the request is either missing the context or tenant",
-      });
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "the request is either missing the context or tenant",
+        })
+      );
     }
     return `${context}_${tenant}`;
   },
@@ -1211,17 +1223,21 @@ const createUserModule = {
         logObject("the cachedData", cachedData);
 
         if (!isEmpty(cachedData.token) && cachedData.token !== token) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Either Token or Email are Incorrect",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Either Token or Email are Incorrect",
+            })
+          );
         }
 
         const firebaseUser = cachedData;
 
         if (!firebaseUser.email && !firebaseUser.phoneNumber) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Email or phoneNumber is required.",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Email or phoneNumber is required.",
+            })
+          );
         }
 
         let filter = {};
@@ -1434,7 +1450,6 @@ const createUserModule = {
         { userId, tenant },
         next
       );
-
       if (responseFromCascadeDeletion.success === true) {
         const responseFromRemoveUser = await UserModel(
           tenant.toLowerCase()
@@ -1504,9 +1519,11 @@ const createUserModule = {
         .lean();
       logObject("user", user);
       if (isEmpty(user)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "User not provided or does not exist",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not provided or does not exist",
+          })
+        );
       }
       const user_id = user._id;
 
@@ -1577,9 +1594,11 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "User is already part of the AirQo platform",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User is already part of the AirQo platform",
+          })
+        );
       }
 
       const userBody = request.body;
@@ -2024,9 +2043,11 @@ const createUserModule = {
           isEmpty(responseFromListUser.data) ||
           responseFromListUser.data.length > 1
         ) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "password reset link is invalid or has expired",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "password reset link is invalid or has expired",
+            })
+          );
         } else if (responseFromListUser.data.length === 1) {
           return {
             success: true,
