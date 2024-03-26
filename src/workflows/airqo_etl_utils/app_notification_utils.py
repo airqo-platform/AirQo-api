@@ -179,7 +179,7 @@ def send_push_notifications(grouped_users):
                     message = messaging.Message(
                         notification=messaging.Notification(
                             title=f"Concentration level: {pm_value:.2f} µg/m3!",
-                            body=f"Good morning {name}, {target_place['name']}'s air quality is {category}. {message}",
+                            body=f"Hey {name}, {target_place['name']}'s air quality is {category}. {message}",
                         ),
                         data={
                             "subject": "daily_air_quality",
