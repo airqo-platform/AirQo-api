@@ -172,6 +172,8 @@ def send_push_notifications(grouped_users):
                 if user_doc.exists:
                     registration_token = user_doc.to_dict().get("device")
                     name = user_doc.to_dict().get("firstName")
+                    if name is None:
+                        name = "there"
                     pm_value = target_place["pmValue"]
                     category = map_pm_values(pm_value)
                     message = map_notification_message(pm_value)
