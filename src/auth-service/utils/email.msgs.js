@@ -237,40 +237,28 @@ module.exports = {
   welcome_general: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics. Your login credentials are as follows:
-                                    <br />
-                                    YOUR USERNAME: ${email}
-                                    <br />
-                                    YOUR PASSWORD: ${password}
-                                    <br /><br />
-                                    To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
-                                    <br />
-                                    After login, you can change your password in your account settings. You can also use your AirQo Analytics credentials to
-                                    access the AirQo API.
-                                    <br />
-                                    The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
-                                        Documentation</a>
-                                    <br /><br />
-                                    By actively utilising AirQo Analytics, you automatically agree to the <a
-                                        href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
-                                    <br />
-                                    For any technical challenges or suggestions, please contact us at <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
-                                    <br /><br />
-                                    Please note that this is an automated message, so please do not reply to this email.
-                                    <br />
-                                    To learn more about AirQo Analytics and its features, please refer to the <a
-                                        href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
-                                    <br /><br />
-                                    Best regards,
-                                    <br />
-                                    AirQo Data Team
-                                </td>
-                            </tr>`;
+                         <td
+                             style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                             <p>Welcome to AirQo Analytics!! 🎉🎉</p>
+                             <p>Your login details are:</p>
+                             <ul>
+                                 <li>USERNAME: ${email}</li>
+                                 <li>PASSWORD: ${password}</li>
+                                 <li>Access your dashboard: <a href="${constants.LOGIN_PAGE}">LOGIN</a></li>
+                             </ul>
+                             <p>Key Documentations:</p>
+                             <ul>
+                                 <li><a href="https://docs.airqo.net/airqo-rest-api-documentation/">API Documentation</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo Terms and Conditions</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-platform/">User Guide</a></li>
+                             </ul>
+                             <p>For support, contact us at support@airqo.net. This is an automated message. Do not reply</p>
+                             <p>Best regards, AirQo Data Team</p>
+                         </td>
+                    </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
+
   user_updated: ({
     firstName = "",
     lastName = "",
