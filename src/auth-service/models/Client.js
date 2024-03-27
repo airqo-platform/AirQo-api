@@ -19,6 +19,7 @@ const ClientSchema = new Schema(
     },
     name: { type: String, trim: true, required: [true, "name is required!"] },
     client_secret: { type: String, trim: true },
+    isActive: { type: Boolean, default: false },
     redirect_uri: { type: String },
     ip_address: { type: String },
     description: { type: String },
@@ -98,6 +99,12 @@ ClientSchema.statics = {
           localField: "_id",
           foreignField: "client_id",
           as: "access_token",
+        })
+        .lookup({
+          from: "users",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "user",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -206,6 +213,7 @@ ClientSchema.methods = {
       client_secret: this.client_secret,
       redirect_uri: this.redirect_uri,
       name: this.name,
+      isActive: this.isActive,
       description: this.description,
       rateLimit: this.rateLimit,
       ip_address: this.ip_address,

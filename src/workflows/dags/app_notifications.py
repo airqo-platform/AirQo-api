@@ -4,6 +4,9 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
+from airqo_etl_utils.config import configuration
+
+
 
 # Runs at 5, 6, 7 and 8 (Monday) to send
 # good morning greetings to users
@@ -180,7 +183,47 @@ def evening_notifications():
     send_notifications(notifications)
 
 
+@dag(
+    "Push-Notifications",
+    schedule="0 2 * * *",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["app", "notifications", "push"],
+)
+def send_push_notification():
+    @task()
+    def extract_users():
+        from airqo_etl_utils.app_notification_utils import get_all_users
+
+        users = get_all_users()
+        return users
+    
+    @task()
+    def group_and_send_push_notifications(users):
+        from airqo_etl_utils.app_notification_utils import group_users
+        from airqo_etl_utils.app_notification_utils import send_push_notifications
+
+        BATCH_SIZE = 100
+        start_index = 0
+        while start_index < len(users):
+            end_index = min(start_index + BATCH_SIZE, len(users))
+            batch = users[start_index:end_index]
+            grouped_users = group_users(batch)
+            send_push_notifications(grouped_users)
+            start_index += BATCH_SIZE
+
+    
+    if "staging" in configuration.AIRQO_BASE_URL_V2:
+        return
+    
+    users = extract_users()
+    group_and_send_push_notifications(users)
+
+
+
 # monday_morning_notifications_dag = monday_morning_notifications()
 # friday_evening_notifications_dag = friday_evening_notifications()
 # morning_notifications_dag = morning_notifications()
 # evening_notifications_dag = evening_notifications()
+
+send_push_notification()

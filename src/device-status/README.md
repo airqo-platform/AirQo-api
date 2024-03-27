@@ -1,14 +1,14 @@
-## Device Status
+## Device Status.
 
 #### Local Setup using a Python virtual environment.
-* Create local python environment
+* Create local python environment.
     * windows
 	`python -m venv [local_env_name e.g env]`
 
     * linux/mac
 	`python3 -m venv [local_env_name e.g env]`
 
-* Activate the environment
+* Activate the environment.
     * windows  
 	  `env\scripts\activate`
 	
@@ -35,4 +35,4 @@
     * or explicitly state the tenant `python main.py --tenant=airqo`
     
 #### Local Setup using docker
-* Coming soon...
+* Coming soon....

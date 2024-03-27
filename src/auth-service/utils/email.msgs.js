@@ -13,7 +13,11 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token, tenant, email, user_id) => {
+  recovery_email: ({ token, email, version, user_id }) => {
+    let PASSWORD_RESET_URL = constants.PWD_RESET;
+    if (version && parseInt(version) === 3) {
+      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+    }
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -21,7 +25,7 @@ module.exports = {
                                     <br />
                                     <br />
                                     Please click on the following link, or paste this into your browser to complete the process within one hour of receiving
-                                    it: ${constants.PWD_RESET}?token=${token}&tenant=${tenant}
+                                    it: ${PASSWORD_RESET_URL}?token=${token}
                                     <br />
                                     <br />
                                     If you did not request this, please ignore this email and your password will remain unchanged.
@@ -56,8 +60,8 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to access ${processString(
-                                      entity_title
-                                    )} has been received, we shall get back to you as soon as possible.
+      entity_title
+    )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
@@ -122,15 +126,23 @@ module.exports = {
         content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Thank you for your interest in our work.
-                                    <br />
-                            Please get in touch with our Software Engineering Lead Martin Bbaale at martin@airqo.net for further support.
-                                    <br />
+                                    <p>Thank you for your interest in our work.</p>
+                                    <p>If you are interested in data science, please reach out to the data science lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: Raja Wabinyai (raja@airqo.net) and Usman Abdul-Ganiy (usman@airqo.net).</p>
+                                    <p>If you are interested in hardware engineering, reach out to our hardware lead, Joel Ssematimba, at joel@airqo.net and CC: Gideon Lubisia (gideon@airqo.net).</p>
+                                    <p>If interested in software engineering or UI/UX design, please reach out to software engineering lead, Martin Bbaale, at martin@airqo.net and CC: Belinda (belindamarion@airqo.net).</p>
                                 </td>
-                            </tr>`;
+                  </tr>`;
         break;
-      case "general":
-      case "partners":
+      case "assistance":
+        content = `<tr>
+                                   <td
+                                       style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">  
+                                   <p>Thank you for reaching out for assistance. </p>
+                                   <p>Please reach out to our Analytics Team Lead Belinda at belindamarion@airqo.net for further support. </p>
+                                   <p>Thank you for choosing AirQo.</p>
+                                   </td>
+                    </tr>`;
+        break;
       default:
         content = `<tr>
                                 <td
@@ -149,7 +161,47 @@ module.exports = {
     }
     return constants.EMAIL_BODY(email, content, fullName, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
+  clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
+    const content = ` <tr>
+    <td
+        style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Your request to activate your Client ID <strong>${client_id}</strong> has been received, we shall get back to you as soon as possible.</p>
+        <p>Before utilising the AirQo API, your Client ID <strong>${client_id}</strong> has to undergo the process of approval by AirQo Analytics
+        administration.</p>
+        <p>Once your request is approved, you will receive a confirmation email</p>
+        <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
+    </td>
+</tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
+    const content = `<tr>
+                          <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                              <p>Congratulations! Your Client ID <strong>${client_id}</strong> has been successfully activated.</p>
+                              <p>If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
+                              team. We are here to help. </p>
+                              <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals.</p
+                              <p>Sincerely,</p>
+                              <p>The AirQo Data Team </p>
+                          </td>
+                      </tr>`;
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  afterClientDeactivation: ({ name = "", email, client_id = "" } = {}) => {
+    const content = `
+    <tr>
+         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+             <p>We are writing to inform you that your AirQo API client with ID: <strong> ${client_id} </strong> has been successfully deactivated.</p>
+             <p>This action means that the client will no longer be able to access the AirQo API services until it is reactivated.</p>
+             <p>If you have any questions or need further assistance, please do not hesitate to contact our support team.</p>
+             <p>Thank you for your understanding.</p>
+             <p>Best regards,</p>
+             <p>The AirQo Team</p>
+       </td>
+  </tr>`;
 
+    return constants.EMAIL_BODY(email, content, name);
+  },
   welcome_kcca: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
@@ -186,40 +238,28 @@ module.exports = {
   welcome_general: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics. Your login credentials are as follows:
-                                    <br />
-                                    YOUR USERNAME: ${email}
-                                    <br />
-                                    YOUR PASSWORD: ${password}
-                                    <br /><br />
-                                    To access the dashboard, please follow this link: <a href="${constants.LOGIN_PAGE}">LOGIN PAGE</a>
-                                    <br />
-                                    After login, you can change your password in your account settings. You can also use your AirQo Analytics credentials to
-                                    access the AirQo API.
-                                    <br />
-                                    The AirQo API reference can be found here: <a href=" https://docs.airqo.net/airqo-rest-api-documentation/">API
-                                        Documentation</a>
-                                    <br /><br />
-                                    By actively utilising AirQo Analytics, you automatically agree to the <a
-                                        href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo terms and conditions:</a>
-                                    <br />
-                                    For any technical challenges or suggestions, please contact us at <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
-                                    <br /><br />
-                                    Please note that this is an automated message, so please do not reply to this email.
-                                    <br />
-                                    To learn more about AirQo Analytics and its features, please refer to the <a
-                                        href="https://docs.airqo.net/airqo-platform/">user guide available here:</a>
-                                    <br /><br />
-                                    Best regards,
-                                    <br />
-                                    AirQo Data Team
-                                </td>
-                            </tr>`;
+                         <td
+                             style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                             <p>Welcome to AirQo Analytics!! 🎉🎉</p>
+                             <p>Your login details are:</p>
+                             <ul>
+                                 <li>USERNAME: ${email}</li>
+                                 <li>PASSWORD: ${password}</li>
+                                 <li>Access your dashboard: <a href="${constants.LOGIN_PAGE}">LOGIN</a></li>
+                             </ul>
+                             <p>Key Documentations:</p>
+                             <ul>
+                                 <li><a href="https://docs.airqo.net/airqo-rest-api-documentation/">API Documentation</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">AirQo Terms and Conditions</a></li>
+                                 <li><a href="https://docs.airqo.net/airqo-platform/">User Guide</a></li>
+                             </ul>
+                             <p>For support, contact us at support@airqo.net. This is an automated message. Do not reply</p>
+                             <p>Best regards, AirQo Data Team</p>
+                         </td>
+                    </tr>`;
     return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
+
   user_updated: ({
     firstName = "",
     lastName = "",
@@ -320,7 +360,6 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
                                 <td
@@ -413,7 +452,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
-
   report: (senderEmail, recepientEmail, formart) => {
     const content = `
     <tr>

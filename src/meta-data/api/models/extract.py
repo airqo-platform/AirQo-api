@@ -40,6 +40,50 @@ class Extract:
         mean_greenness = greenness_dict.get("NDVI")
         greenness = mean_greenness.getInfo()*0.0001
         return greenness
+    
+    def get_Aerosol_optical_depth_055(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_AER_AI")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_aerosol_depth = aerosol_dict.get("absorbing_aerosol_index")  # Corrected property name
+        return mean_aerosol_depth
+    
+    def get_Terra_Land_Surface_Temperature(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("MODIS/061/MOD11A1")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        aerosol_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_aerosol_depth = aerosol_dict.get("LST_Day_1km")  # Corrected property name
+        return mean_aerosol_depth
+
+    def get_carbon_monoxide(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("COPERNICUS/S5P/NRTI/L3_CO")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        carbon_monoxide_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_carbon_monoxide = carbon_monoxide_dict.get("CO_column_number_density")  # Corrected property name
+        return mean_carbon_monoxide 
+
+    def get_Nitrogen_Dioxide(self, lat, lon, start_date, end_date):
+        dataset = (
+        ee.ImageCollection("COPERNICUS/S5P/NRTI/L3_NO2")
+        .filterDate(start_date, end_date)  # Changed "filter" to "filterDate"
+        .mean()
+                 )
+        location_geometry = ee.Geometry.Point(lon, lat)
+        Nitrogen_Dioxide_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, scale=90)
+        mean_Nitrogen_Dioxide = Nitrogen_Dioxide_dict.get("NO2_column_number_density")  # Corrected property name
+        return mean_Nitrogen_Dioxide 
 
     def get_landuse(self, lat, lon):
         """

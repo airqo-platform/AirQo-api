@@ -2,19 +2,20 @@ from datetime import datetime
 
 # Third-party libraries
 from flasgger import swag_from
-from flask_restx import Resource
 from flask import request
-
-# Middlewares
-from main import rest_api_v2
+from flask_restx import Resource
 
 # models
 from api.models import ReportTemplateModel
+from api.models.base.data_processing import air_quality_data
+from api.utils.case_converters import camel_to_snake
+from api.utils.http import create_response, Status
 
 # Utils
 from api.utils.request_validators import validate_request_params, validate_request_json
-from api.utils.http import create_response, Status
-from api.utils.case_converters import camel_to_snake
+
+# Middlewares
+from main import rest_api_v2
 
 
 @rest_api_v2.route("/report/default_template")
@@ -258,3 +259,14 @@ class MonthlyReportExtraResource(Resource):
             create_response("report not found", success=False),
             Status.HTTP_404_NOT_FOUND,
         )
+
+
+@rest_api_v2.route("/grid/report")
+class GridReportResource(Resource):
+    @swag_from("/api/docs/report/generate_grid_report_post.yml")
+    @validate_request_json(
+        "start_time|required:str", "end_time|required:str", "grid_id|optional:str"
+    )
+    def post(self):
+        data = request.get_json()
+        return air_quality_data(data)

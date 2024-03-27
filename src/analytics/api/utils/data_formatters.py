@@ -1,6 +1,8 @@
+from enum import Enum
 from typing import Any
 
 import pandas as pd
+import requests
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
@@ -11,6 +13,12 @@ from api.utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
+from config import Config
+
+
+class Entity(Enum):
+    DEVICES = "devices"
+    SITES = "sites"
 
 
 def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
@@ -280,3 +288,27 @@ def device_category_to_str(device_category: str) -> str:
         pass
 
     return ""
+
+
+def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
+    source = "cohorts" if entity_type == Entity.DEVICES else "grids"
+
+    if len(entities) == 0:
+        return []
+    try:
+        response = requests.post(
+            url=f"{Config.AIRQO_API_BASE_URL}/devices/{source}/filterNonPrivate{entity_type.value.capitalize()}",
+            json={entity_type.value: entities},
+            params={"token": Config.AIRQO_API_TOKEN}
+        )
+        data = response.json()
+        if data.get("success"):
+            return data.get(entity_type.value, [])
+        else:
+            raise RuntimeError(data.get("message"))
+    except RuntimeError as rex:
+        print(f"Error while filtering non private entities {rex}")
+    except Exception as ex:
+        print(f"Error while filtering non private entities {ex}")
+    # TODO: Remove once @Martin updates endpoint to support other ID format
+    return entities

@@ -14,7 +14,6 @@ module.exports = {
     `,
     text: `Copy and paste this link: ${constants.CLIENT_ORIGIN}/confirm/${id}`,
   }),
-
   inquiryTemplate: (fullName) => {
     return `
     <h3>Hi ${fullName}</h3>
@@ -37,7 +36,6 @@ module.exports = {
     <p>--The AirQo team.</p>
     </div>`;
   },
-
   emailVerification: (firstName, user_id, token) => {
     return `
 <h3>Dear ${firstName}</h3>
@@ -56,7 +54,6 @@ module.exports = {
 <p> The AirQo Data Team</p>
 `;
   },
-
   v2_emailVerification: ({
     email,
     firstName,
@@ -99,7 +96,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, "", "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-
   acceptInvitation: ({
     email,
     entity_title = "",
@@ -112,12 +108,12 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Join your team on ${processString(
-                                      entity_title
-                                    )} 🎉
+      entity_title
+    )} 🎉
                                     <br /><br />
                                     ${processString(
-                                      entity_title
-                                    )}, ${inviterEmail} has invited you to collaborate in ${processString(
+      entity_title
+    )}, ${inviterEmail} has invited you to collaborate in ${processString(
       entity_title
     )} on AirQo Analytics
                                     <br /><br />
@@ -129,8 +125,8 @@ module.exports = {
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
                                                 Join ${processString(
-                                                  entity_title
-                                                )}</div>
+      entity_title
+    )}</div>
                                         </div>
                                     </a>
                                     <br /><br />
@@ -204,7 +200,6 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-
   deleteMobileAccountEmail: (email, token) => {
     const content = ` <tr>
                                 <td

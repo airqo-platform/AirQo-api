@@ -5,6 +5,7 @@ __pycache__/
 testing.env
 env/
 env2/
+venv
 
 helpers/cloud_function_update_daily_measurements.py
 helpers/cloud_function_update_hourly_measurements.py
@@ -17,3 +18,4 @@ jobs/reports/airqo-250220-642e046f4223.json
 *.db
 *.json
 env (3)
+*.log

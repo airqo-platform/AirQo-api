@@ -4,6 +4,6 @@ app:
   configmap: env-exceedance-staging
 image:
   repository: eu.gcr.io/airqo-250220/stage-kcca-exceedance-job
-  tag: stage-8fa27685-1704227269
+  tag: stage-58b994c8-1711431364
 nameOverride: ''
 fullnameOverride: ''

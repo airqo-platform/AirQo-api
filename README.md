@@ -4,7 +4,7 @@
 
 ## What is AirQo??
 
-The AirQo project aims to measure and quantify the scale of air pollution in and around Kampala City through the design, development and deployment of a network of low-cost air quality sensing devices mounted on either static or mobile objects.
+The AirQo project aims to measure and quantify the scale of air pollution in and around African cities through the design, development and deployment of a network of low-cost air quality sensing devices mounted on either static or mobile objects.
 
 ## System Architecture.
 

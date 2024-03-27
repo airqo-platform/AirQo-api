@@ -1,4 +1,4 @@
-# Data Management Microservice
+# Data Management Microservice.
 
 ![Node.js](https://img.shields.io/badge/node-%3E%3D%2012.0.0-brightgreen.svg)
 ![Docker](https://img.shields.io/docker/v/<your_docker_username>/iot-measurements-microservice)
@@ -12,7 +12,7 @@ This data management microservice is a Node.js-based application deployed using 
 - Fetches device measurements from external system
 - Transforms measurements into a new format with descriptive field names
 - Performs additional data transformations as needed
-- Monitors faults in device data and flags them for further analysis
+- Monitors faults in device data and flags them for further analysis.
 
 ## Installation
 

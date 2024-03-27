@@ -95,9 +95,11 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
 
     if (isEmpty(user)) {
-      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: `User ${userId} not found in the system`,
-      });
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `User ${userId} not found in the system`,
+        })
+      );
     }
 
     const updatedGroup = await GroupModel(tenant).updateMany(
@@ -170,15 +172,11 @@ const generateCacheID = (request, next) => {
   } = { ...request.body, ...request.query, ...request.params };
   const currentTime = new Date().toISOString();
   const day = generateDateFormatWithoutHrs(currentTime, next);
-  return `list_users_${privilege ? privilege : "no_privilege"}_${
-    id ? id : "no_id"
-  }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${
-    email_address ? email_address : "no_email_address"
-  }_${role_id ? role_id : "no_role_id"}_${email ? email : "no_email"}_${
-    resetPasswordToken ? resetPasswordToken : "no_resetPasswordToken"
-  }_${user ? user : "no_user"}_${user_id ? user_id : "no_user_id"}_${
-    day ? day : "noDay"
-  }`;
+  return `list_users_${privilege ? privilege : "no_privilege"}_${id ? id : "no_id"
+    }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${email_address ? email_address : "no_email_address"
+    }_${role_id ? role_id : "no_role_id"}_${email ? email : "no_email"}_${resetPasswordToken ? resetPasswordToken : "no_resetPasswordToken"
+    }_${user ? user : "no_user"}_${user_id ? user_id : "no_user_id"}_${day ? day : "noDay"
+    }`;
 };
 const setCache = async ({ data, request } = {}, next) => {
   try {
@@ -517,8 +515,8 @@ const createUserModule = {
           message: !isEmpty(missingDataMessage)
             ? missingDataMessage
             : isEmpty(data[0].data)
-            ? "no users for this search"
-            : responseFromListUser.message,
+              ? "no users for this search"
+              : responseFromListUser.message,
           data,
           status: responseFromListUser.status || "",
           isCache: false,
@@ -739,9 +737,12 @@ const createUserModule = {
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "password must be provided when using email",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "password must be provided when using email",
+          })
+        );
+
         // return [
         //   {
         //     success: false,
@@ -787,9 +788,12 @@ const createUserModule = {
       logObject("Internal Server Error:", error);
       logObject("error.code", error.code);
       if (error.code && error.code === "auth/email-already-exists") {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: error.message,
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: error.message,
+          })
+        );
+
         // return [
         //   {
         //     success: false,
@@ -800,12 +804,14 @@ const createUserModule = {
         // ];
       }
 
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message: error.message,
-        }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
       );
       // return [
       //   {
@@ -834,7 +840,7 @@ const createUserModule = {
       if (!userExistsLocally) {
         let newAnalyticsUserDetails = {};
         newAnalyticsUserDetails.firebase_uid = firebase_uid;
-        newAnalyticsUserDetails.userName = firstName || email;
+        newAnalyticsUserDetails.userName = email;
         newAnalyticsUserDetails.email = email;
         newAnalyticsUserDetails.phoneNumber = phoneNumber || null;
         newAnalyticsUserDetails.firstName = firstName || "Unknown";
@@ -1017,9 +1023,11 @@ const createUserModule = {
     if (isEmpty(context) || isEmpty(tenant)) {
       logger.error(`the request is either missing the context or the tenant`);
 
-      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: "the request is either missing the context or tenant",
-      });
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "the request is either missing the context or tenant",
+        })
+      );
     }
     return `${context}_${tenant}`;
   },
@@ -1212,17 +1220,21 @@ const createUserModule = {
         logObject("the cachedData", cachedData);
 
         if (!isEmpty(cachedData.token) && cachedData.token !== token) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Either Token or Email are Incorrect",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Either Token or Email are Incorrect",
+            })
+          );
         }
 
         const firebaseUser = cachedData;
 
         if (!firebaseUser.email && !firebaseUser.phoneNumber) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Email or phoneNumber is required.",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Email or phoneNumber is required.",
+            })
+          );
         }
 
         let filter = {};
@@ -1432,10 +1444,9 @@ const createUserModule = {
       const filter = generateFilter.users(request, next);
       const userId = filter._id;
       const responseFromCascadeDeletion = await cascadeUserDeletion(
-        userId,
-        tenant
+        { userId, tenant },
+        next
       );
-
       if (responseFromCascadeDeletion.success === true) {
         const responseFromRemoveUser = await UserModel(
           tenant.toLowerCase()
@@ -1505,9 +1516,11 @@ const createUserModule = {
         .lean();
       logObject("user", user);
       if (isEmpty(user)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "User not provided or does not exist",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not provided or does not exist",
+          })
+        );
       }
       const user_id = user._id;
 
@@ -1578,14 +1591,17 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
-        throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "User is already part of the AirQo platform",
-        });
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User is already part of the AirQo platform",
+          })
+        );
       }
 
+      const userBody = request.body;
       const newRequest = Object.assign(
         { userName: email, password, analyticsVersion: 3 },
-        request
+        userBody
       );
 
       const responseFromCreateUser = await UserModel(tenant).register(
@@ -1743,7 +1759,8 @@ const createUserModule = {
   },
   forgotPassword: async (request, next) => {
     try {
-      const { query } = request;
+      const { query, body } = request;
+      const { version } = body;
       const { tenant } = query;
 
       const filter = generateFilter.users(request, next);
@@ -1761,11 +1778,7 @@ const createUserModule = {
 
       const responseFromGenerateResetToken =
         createUserModule.generateResetToken();
-      logObject(
-        "responseFromGenerateResetToken",
-        responseFromGenerateResetToken
-      );
-      logObject("filter", filter);
+
       if (responseFromGenerateResetToken.success === true) {
         const token = responseFromGenerateResetToken.data;
         const update = {
@@ -1783,6 +1796,9 @@ const createUserModule = {
         );
 
         if (responseFromModifyUser.success === true) {
+          /**
+           * Based on the version number, return something different
+           */
           const responseFromListUser = await UserModel(tenant).list(
             {
               filter,
@@ -1795,6 +1811,7 @@ const createUserModule = {
               email: filter.email,
               token,
               tenant,
+              version,
               user_id,
             },
             next
@@ -2035,9 +2052,11 @@ const createUserModule = {
           isEmpty(responseFromListUser.data) ||
           responseFromListUser.data.length > 1
         ) {
-          throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "password reset link is invalid or has expired",
-          });
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "password reset link is invalid or has expired",
+            })
+          );
         } else if (responseFromListUser.data.length === 1) {
           return {
             success: true,
@@ -2290,7 +2309,7 @@ const createUserModule = {
           else {
             const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
             userRef = querySnapshot.docs[0].ref;
-          } 
+          }
 
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
@@ -2449,7 +2468,7 @@ const createUserModule = {
           else {
             const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
             userRef = querySnapshot.docs[0].ref;
-          } 
+          }
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
           let updateField = {};

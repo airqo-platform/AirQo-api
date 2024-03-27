@@ -6,8 +6,6 @@ const { validationResult } = require("express-validator");
 
 class HttpError extends Error {
   constructor(message, statusCode, errors = null) {
-    // logObject("the error message we are getting", message);
-    // logObject("the errors we are getting", errors);
     super(message);
     this.statusCode = statusCode;
     this.errors = errors;
@@ -15,22 +13,31 @@ class HttpError extends Error {
 }
 
 const convertErrorArrayToObject = (arrays) => {
-  const initialValue = {};
   return arrays.reduce((obj, item) => {
-    let param = item.param;
+    let param = item.param || "message";
+    let msg = item.msg ? item.msg : "";
     return {
       ...obj,
-      [param]: `${item.msg}`,
+      [param]: msg,
     };
-  }, initialValue);
+  }, {});
 };
 
 const extractErrorsFromRequest = (req) => {
   const errors = validationResult(req);
-
   if (!errors.isEmpty()) {
-    const nestedErrors = errors.errors[0].nestedErrors;
-    return convertErrorArrayToObject(nestedErrors);
+    let allErrors = {};
+    errors.errors.forEach((error) => {
+      if (error.nestedErrors && Array.isArray(error.nestedErrors)) {
+        allErrors = {
+          ...allErrors,
+          ...convertErrorArrayToObject(error.nestedErrors),
+        };
+      } else {
+        allErrors = { ...allErrors, ...convertErrorArrayToObject([error]) };
+      }
+    });
+    return allErrors;
   }
 
   return null;

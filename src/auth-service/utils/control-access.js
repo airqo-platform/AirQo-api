@@ -327,15 +327,19 @@ const isIPBlacklistedHelper = async (
       $gt: moment().tz(timeZone).toDate(),
     };
 
-    const [blacklistedIP, whitelistedIP, accessToken, blacklistedIpPrefixes] =
-      await Promise.all([
-        BlacklistedIPModel("airqo").findOne({ ip }),
-        WhitelistedIPModel("airqo").findOne({ ip }),
-        AccessTokenModel("airqo")
-          .findOne(acessTokenFilter)
-          .select("name token client_id"),
-        BlacklistedIPPrefixModel("airqo").find().select("prefix").exec(),
-      ]);
+    const [
+      blacklistedIP,
+      whitelistedIP,
+      accessToken,
+      blacklistedIpPrefixesData,
+    ] = await Promise.all([
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
+        .findOne(acessTokenFilter)
+        .select("name token client_id"),
+      BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
+    ]);
 
     const {
       token = "",
@@ -345,18 +349,24 @@ const isIPBlacklistedHelper = async (
     } = (accessToken && accessToken._doc) || {};
 
     const BLOCKED_IP_PREFIXES =
-      "65,66,52,3,43,54,18,57,23,40,13,46,176,51,17,146";
+      "65,66,52,3,43,54,18,57,23,40,13,46,51,17,146,142";
     const blockedIpPrefixes = BLOCKED_IP_PREFIXES.split(",");
+    const ipPrefix = ip.split(".")[0];
+    const blacklistedIpPrefixes = blacklistedIpPrefixesData.map(
+      (item) => item.prefix
+    );
 
     logObject("blockedIpPrefixes", blockedIpPrefixes);
+
+    logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
 
     if (!accessToken) {
       return true;
     } else if (whitelistedIP) {
       return false;
-    } else if (blockedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+    } else if (blockedIpPrefixes.includes(ipPrefix)) {
       return true;
-    } else if (blacklistedIpPrefixes.some((prefix) => ip.startsWith(prefix))) {
+    } else if (blacklistedIpPrefixes.includes(ipPrefix)) {
       return true;
     } else if (blacklistedIP) {
       logger.info(
@@ -770,10 +780,28 @@ const controlAccess = {
         return createUnauthorizedResponse();
       }
 
+      const accessToken = await AccessTokenModel("airqo")
+        .findOne({ token })
+        .select("client_id token");
+      if (!accessToken) {
+        return createUnauthorizedResponse();
+      }
+
+      const client = await ClientModel("airqo")
+        .findById(accessToken.client_id)
+        .select("isActive");
+      if (!client || !client.isActive) {
+        logger.error(
+          `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
+        );
+        return createUnauthorizedResponse();
+      }
+
       const isBlacklisted = await isIPBlacklisted({
         request,
         next,
       });
+
       logText("I have now returned back to the verifyToken() function");
       if (isBlacklisted) {
         return createUnauthorizedResponse();
@@ -843,7 +871,9 @@ const controlAccess = {
       // };
       const { tenant, client_id } = { ...request.body, ...request.query };
 
-      const client = await ClientModel(tenant).findById(ObjectId(client_id));
+      const client = await ClientModel(tenant)
+        .findById(ObjectId(client_id))
+        .lean();
 
       if (!client) {
         next(
@@ -851,8 +881,21 @@ const controlAccess = {
             message: `Invalid request, Client ${client_id} not found`,
           })
         );
+        return;
       }
 
+      if (isEmpty(client.isActive) || client.isActive === false) {
+        next(
+          new HttpError(
+            "Client not yet activated, reach out to Support",
+            httpStatus.BAD_REQUEST,
+            {
+              message: `Invalid request, Client ${client_id} not yet activated, reach out to Support`,
+            }
+          )
+        );
+        return;
+      }
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -1126,6 +1169,9 @@ const controlAccess = {
       if (update.client_secret) {
         delete update.client_secret;
       }
+      if (update.isActive) {
+        delete update.isActive;
+      }
       const responseFromUpdateClient = await ClientModel(
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
@@ -1145,6 +1191,131 @@ const controlAccess = {
         }
       } else {
         return responseFromUpdateClient;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  activateClient: async (request, next) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant } = query;
+      const { client_id } = params;
+      const filter = generateFilter.clients(request, next);
+
+      const isActive = body.isActive === "true";
+
+      const update = {
+        isActive: isActive,
+      };
+      const responseFromUpdateClient = await ClientModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update }, next);
+      if (
+        isEmpty(responseFromUpdateClient.data) ||
+        isEmpty(responseFromUpdateClient.data.user_id)
+      ) {
+        return {
+          success: false,
+          message: "Unable to find the user associated with the Client ID",
+          errors: {
+            message: "Unable to find the user associated with the Client ID",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const user_id = ObjectId(responseFromUpdateClient.data.user_id);
+      const userDetails = await UserModel(tenant)
+        .findById(user_id)
+        .lean()
+        .select("firstName lastName email");
+
+      if (responseFromUpdateClient.success === true) {
+        const name = userDetails.firstName || userDetails.lastName;
+        const email = userDetails.email;
+        const responseFromSendEmail = await mailer.afterClientActivation(
+          {
+            name,
+            client_id,
+            email,
+            action: isActive ? "activate" : "deactivate",
+          },
+          next
+        );
+        const responseMessage = isActive
+          ? "AirQo API client activated successfully"
+          : "AirQo API client deactivated successfully";
+
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: responseMessage,
+            status: httpStatus.OK,
+            data: {
+              ...responseFromUpdateClient.data,
+              action: isActive ? "activate" : "deactivate",
+            },
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else {
+        return responseFromUpdateClient;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  activateClientRequest: async (request, next) => {
+    try {
+      const { client_id, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filter = generateFilter.clients(request, next);
+      const clientDetailsResponse = await ClientModel(tenant).list(
+        { filter },
+        next
+      );
+      logObject("clientDetailsResponse", clientDetailsResponse);
+      const { firstName, lastName, email } = clientDetailsResponse.data[0].user;
+      const name = firstName || lastName || "";
+      const responseFromSendEmail = await mailer.clientActivationRequest(
+        {
+          name,
+          email,
+          tenant,
+          client_id,
+        },
+        next
+      );
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "activation request successfully received",
+          status: responseFromSendEmail.status || "",
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        return responseFromSendEmail;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

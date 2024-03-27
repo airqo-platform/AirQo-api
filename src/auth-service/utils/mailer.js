@@ -336,6 +336,9 @@ const mailer = {
           case "general":
             bccEmailString = constants.PARTNERS_EMAILS;
             break;
+          case "assistance":
+            bccEmailString = constants.ASSISTANCE_EMAILS;
+            break;
           default:
             bccEmailString = constants.PARTNERS_EMAILS;
         }
@@ -363,6 +366,89 @@ const mailer = {
         subject: `Welcome to AirQo`,
         html: msgs.inquiry(fullName, email, category, user_id),
         // bcc: subscribedBccEmails,
+        attachments,
+      };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      let response = transporter.sendMail(mailOptionsForAirQo);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  clientActivationRequest: async (
+    { name, email, tenant = "airqo", client_id } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const activateClientBccEmails =
+        constants.REQUEST_ACCESS_EMAILS || "support@airqo.net";
+      const bccEmails = activateClientBccEmails
+        .split(",")
+        .map((email) => email.trim());
+
+      // Check notification status for all BCC emails concurrently
+      const checkPromises = bccEmails.map(async (bccEmail) => {
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+        return checkResult.success ? bccEmail : null;
+      });
+      const successfulEmails = (await Promise.all(checkPromises)).filter(
+        (email) => email !== null
+      );
+      const subscribedBccEmails = successfulEmails.join(",");
+
+      const mailOptionsForAirQo = {
+        to: `${email}`,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        subject: `AirQo API Client Activation Request`,
+        html: msgs.clientActivationRequest({ name, email, client_id }),
+        bcc: subscribedBccEmails,
         attachments,
       };
 
@@ -822,6 +908,99 @@ const mailer = {
       );
     }
   },
+  afterClientActivation: async (
+    {
+      name = "",
+      email = "",
+      tenant = "airqo",
+      client_id,
+      action = "activate",
+    } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
+      const subject =
+        action === "activate"
+          ? "AirQo API Client Successfully Activated!"
+          : "AirQo API Client Successfully Deactivated!";
+      const htmlContent =
+        action === "activate"
+          ? msgs.afterClientActivation({ name, email, client_id })
+          : msgs.afterClientDeactivation({ name, email, client_id });
+
+      let mailOptions = {};
+      mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject,
+        html: htmlContent,
+        bcc: subscribedBccEmails,
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   afterAcceptingInvitation: async (
     { firstName, username, email, entity_title, tenant = "airqo", user_id } = {},
     next
@@ -906,7 +1085,10 @@ const mailer = {
       );
     }
   },
-  forgot: async ({ email, token, tenant = "airqo", user_id } = {}, next) => {
+  forgot: async (
+    { email, token, tenant = "airqo", user_id, version = 2 } = {},
+    next
+  ) => {
     try {
       const mailOptions = {
         from: {
@@ -915,7 +1097,7 @@ const mailer = {
         },
         to: email,
         subject: `Link To Reset Password`,
-        html: msgs.recovery_email(token, tenant, email, user_id),
+        html: msgs.recovery_email({ token, tenant, email, user_id, version }),
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1495,10 +1677,22 @@ const mailer = {
     }
   },
   sendReport: async (
-    { senderEmail, recepientEmails, pdfFile, csvFile, tenant = "airqo" } = {},
+    {
+      senderEmail,
+      normalizedRecepientEmails,
+      pdfFile,
+      csvFile,
+      tenant = "airqo",
+    } = {},
     next
   ) => {
     try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: senderEmail, type: "email", product: "analytics_notifications" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
       let formart;
       let reportAttachments = [...attachments];
 
@@ -1525,7 +1719,7 @@ const mailer = {
       }
       const emailResults = [];
 
-      for (const recepientEmail of recepientEmails) {
+      for (const recepientEmail of normalizedRecepientEmails) {
         if (recepientEmail === "automated-tests@airqo.net") {
           return {
             success: true,

@@ -1062,10 +1062,6 @@ const createSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            {
-              latitude1, longitude1, latitude2, longitude2;
-            }
-
             const distanceBetweenTwoPoints = distanceUtil.distanceBtnTwoPoints(
               {
                 latitude1: latitude,

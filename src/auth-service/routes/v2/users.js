@@ -762,6 +762,14 @@ router.post(
         .isEmail()
         .withMessage("this is not a valid email address")
         .trim(),
+      body("version")
+        .optional()
+        .notEmpty()
+        .withMessage("version should not be empty IF provided")
+        .trim()
+        .bail()
+        .isNumeric()
+        .withMessage("the provided version should be a number"),
     ],
   ]),
   createUserController.forgot

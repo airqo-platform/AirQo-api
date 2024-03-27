@@ -244,6 +244,59 @@ ReadingsSchema.statics.latest = async function(
     return;
   }
 };
+ReadingsSchema.statics.recent = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
+  try {
+    let threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    logObject("The recent filter inside Readings Model....", filter);
+
+    const pipeline = this.aggregate()
+      .match({
+        ...filter,
+        time: {
+          $gte: threeDaysAgo,
+        },
+      })
+      .sort({ time: -1 })
+      .group({
+        _id: "$site_id",
+        doc: { $first: "$$ROOT" },
+      })
+      .replaceRoot("$doc")
+      .skip(skip)
+      .limit(limit)
+      .allowDiskUse(true);
+
+    const data = await pipeline;
+    if (!isEmpty(data)) {
+      return {
+        success: true,
+        message: "Successfull Operation",
+        data,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message: "There are no records for this search",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
 
 const ReadingModel = (tenant) => {
   try {
