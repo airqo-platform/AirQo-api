@@ -34,14 +34,11 @@ const emailTemplates = {
     style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
     If you'd rather not receive this kind of email, you can </span>
 <a href=${unSubsciptionUrl} target="_blank" <span
-    style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+    style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe!</span>
 </a>
 <span
-    style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
-    or </span>
-<span
-    style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
-    your email preferences.</span><br /><br />
+    style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;"></span>
+<br /><br />
     `;
         }
 

@@ -451,7 +451,7 @@ module.exports = {
                                     <br />
                                     <a href=${subsciptionUrl} target="_blank">
                                         <div
-                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            style="width: 15%; height: 100%; padding-left: 32px; padding-right: 2px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
                                                 Subscribe </div>

@@ -2442,7 +2442,14 @@ const createUserModule = {
 
       switch (product) {
         case "mobile":
-          const userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          let userRef
+          if (firebase_user_id) {
+            userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          }
+          else {
+            const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
+            userRef = querySnapshot.docs[0].ref;
+          } 
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
           let updateField = {};
@@ -2498,9 +2505,9 @@ const createUserModule = {
             mongo_result = updatedSubscription ? true : false;
           }
           if (firebase_result || mongo_result) {
-            let userEmail = email || userDoc.data().emailAddress;
+            email = email || userDoc.data().emailAddress;
 
-            if (userEmail) {
+            if (email) {
               let name = userDoc.data().firstName;
               if (name == null) {
                 name = "";
@@ -2512,8 +2519,8 @@ const createUserModule = {
                 queryParams.firebase_user_id = firebase_user_id;
               }
 
-              if (userEmail) {
-                queryParams.email = userEmail;
+              if (email) {
+                queryParams.email = email;
               }
 
               if (mongo_user_id) {
@@ -2523,7 +2530,7 @@ const createUserModule = {
               const paramString = Object.keys(queryParams)
                 .map(key => `${key}=${queryParams[key]}`)
                 .join('&');
-              await mailer.sendUnsubscriptionEmail({ product, type, userEmail, name, paramString }, next);
+              await mailer.sendUnsubscriptionEmail({ product, type, email, name, paramString }, next);
             }
             return {
               success: true,
@@ -2563,6 +2570,8 @@ const createUserModule = {
             };
           }
           email = user.email;
+          firstName = user.firstName;
+
 
           const updatedSubscription = await SubscriptionModel(
             tenant
@@ -2573,6 +2582,19 @@ const createUserModule = {
           );
 
           if (updatedSubscription) {
+            if (firstName == null) {
+              firstName = "";
+            }
+
+            let queryParams = {};
+            queryParams.email = email;
+            queryParams.mongo_user_id = mongo_user_id;
+            const paramString = Object.keys(queryParams)
+              .map(key => `${key}=${queryParams[key]}`)
+              .join('&');
+
+            await mailer.sendUnsubscriptionEmail({ product, type, email, firstName, paramString }, next);
+
             return {
               success: true,
               message: `Successfully Unsubscribed from ${type} notifications`,
