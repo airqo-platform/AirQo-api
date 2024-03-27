@@ -184,7 +184,7 @@ def evening_notifications():
 
 @dag(
     "Push-Notifications",
-    schedule="0 5 * * *",
+    schedule="0 2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["app", "notifications", "push"],
