@@ -728,7 +728,7 @@ class MlUtils:
             records = merged_df.to_dict("records")
             bulk_ops = [
                 pm.UpdateOne(
-                    {"device_name": record["device_id"]},
+                    {"device_id": record["device_id"]},
                     {"$set": record},
                     upsert=True,
                 )
