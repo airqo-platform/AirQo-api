@@ -7,7 +7,7 @@ images:
     predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
     predictPlaces: eu.gcr.io/airqo-250220/stage-airqo-predict-places-air-quality
-  tag: stage-58b994c8-1711431364
+  tag: stage-1df2dc55-1711613494
 api:
   name: airqo-stage-prediction-api
   label: prediction-api
