@@ -25,3 +25,7 @@ volumes:
   - name: config-volume
     configMap:
       name: gp-model-job-config-files
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true

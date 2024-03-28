@@ -18,3 +18,7 @@ volumes:
   - name: config-volume
     configMap:
       name: device-uptime-v2-files
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true

@@ -39,3 +39,7 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 80
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
