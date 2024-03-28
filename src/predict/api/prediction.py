@@ -23,7 +23,6 @@ from helpers import (
     read_predictions_from_db,
     heatmap_cache_key,
     read_faulty_devices,
-    validate_param_values,
     get_faults_cache_key,
     add_forecast_health_tips,
 )
@@ -33,49 +32,41 @@ load_dotenv()
 ml_app = Blueprint("ml_app", __name__)
 
 
-@ml_app.route(routes.route["fetch_faulty_devices"], methods=["GET"])
+@ml_app.get(routes.route["fetch_faulty_devices"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
-        query = {}
-        params = {
-            "airqloud_name": request.args.get("airqloud_name", default=None),
-            "correlation_fault": request.args.get(
-                "correlation_fault", default=1, type=int
+        result = read_faulty_devices()
+        if len(result) == 0:
+            return (
+                jsonify(
+                    {
+                        "message": "Error fetching faulty devices",
+                        "success": True,
+                        "data": None,
+                    }
+                ),
+                200,
+            )
+        return (
+            jsonify(
+                {
+                    "message": "Faulty devices found",
+                    "success": True,
+                    "data": result,
+                    "total": len(result),
+                }
             ),
-            "missing_data_fault": request.args.get(
-                "missing_data_fault", default=None, type=int
-            ),
-        }
-        if any(params.values()):
-            valid, error = validate_param_values(params)
-            if valid is False:
-                return (
-                    jsonify(
-                        {"error": "Please enter a valid value for the parameter"}
-                    ),
-                    400,
-                )
-            for param, value in params.items():
-                if param == "airqloud_name":
-                    query[param] = {"$in": [value]}
-                else:
-                    if value is not None:
-                        query[param] = {
-                            "$eq": (
-                                int(value)
-                                if param in ["correlation_fault", "missing_data_fault"]
-                                else value
-                            )
-                        }
-
-        result = read_faulty_devices(query)
-        return jsonify(result), 200
-    except Exception as e:
-        current_app.logger.error(
-            f"Failed to retrieve faulty devices: {e}", exc_info=True
+            200,
         )
-        return jsonify({"error": "Failed to retrieve faulty devices"}), 500
+    except Exception as e:
+        current_app.logger.error("Error: ", str(e))
+        return (
+            jsonify(
+                {"message": "Internal server error", "success": False, "data": None}
+            ),
+            500,
+        )
 
 
 @ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])

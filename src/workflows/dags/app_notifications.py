@@ -7,7 +7,6 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.config import configuration
 
 
-
 # Runs at 5, 6, 7 and 8 (Monday) to send
 # good morning greetings to users
 # in timezones +3, +2, +1, 0 from UTC going to work

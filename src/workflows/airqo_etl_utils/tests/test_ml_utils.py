@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from airqo_etl_utils.ml_utils import ForecastUtils as FUtils
+from airqo_etl_utils.ml_utils import MlUtils as FUtils
 from airqo_etl_utils.tests.conftest import ForecastFixtures
 
 
