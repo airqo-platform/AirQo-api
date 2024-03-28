@@ -568,6 +568,7 @@ const dbProjections = {
     visibility: 1,
     admin_level: 1,
     grid_codes: 1,
+    country_code: 1,
     centers: 1,
     shape: 1,
     createdAt: 1,
