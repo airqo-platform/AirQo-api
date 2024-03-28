@@ -20,14 +20,24 @@ def get_airqlouds() -> list:
     airqlouds = list(
         map(lambda airqloud: {**airqloud, "id": airqloud["_id"]}, airqlouds)
     )
-    return list(
-        filter(
-            lambda airqloud: str(airqloud["admin_level"]).lower() == "country"
-            and str(airqloud["name"]).lower() == "uganda",
-            airqlouds,
-        )
-    )
+    desired_locations = [
+        {"admin_level": "country", "name": "uganda"},
+        {"admin_level": "country", "name": "kenya"},
+        {"admin_level": "country", "name": "nigeria"},
+        {"admin_level": "city", "name": "kisumu"},
+        {"admin_level": "city", "name": "nairobi"},
+        {"admin_level": "city", "name": "lagos"},
+     ]
 
+    return list(
+      filter(
+        lambda airqloud: {
+            "admin_level": str(airqloud["admin_level"]).lower(),
+            "name": str(airqloud["name"]).lower()
+        } in desired_locations,
+        airqlouds,
+    )
+    )
 
 def get_data_from_bigquery(
     airqloud_ids: list,
