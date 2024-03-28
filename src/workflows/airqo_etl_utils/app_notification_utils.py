@@ -172,13 +172,16 @@ def send_push_notifications(grouped_users):
                 if user_doc.exists:
                     registration_token = user_doc.to_dict().get("device")
                     name = user_doc.to_dict().get("firstName")
+                    if name is None:
+                        name = "there"
                     pm_value = target_place["pmValue"]
                     category = map_pm_values(pm_value)
+                    message = map_notification_message(pm_value)
 
                     message = messaging.Message(
                         notification=messaging.Notification(
                             title=f"Concentration level: {pm_value:.2f} µg/m3!",
-                            body=f"Good morning {name}, {target_place['name']}'s air quality is {category}. Enjoy the outdoors and have a great day!",
+                            body=f"Hey {name}, {target_place['name']}'s air quality is {category}. {message}",
                         ),
                         data={
                             "subject": "daily_air_quality",
@@ -213,6 +216,19 @@ def map_pm_values(pm_value):
     else:
         return "Hazardous"
 
+def map_notification_message(pm_value):
+    if pm_value <= 12:
+        return "Enjoy the outdoors and have a great day!"
+    elif pm_value > 12 and pm_value <= 35.4:
+        return "Today is a great day for outdoor activity."
+    elif pm_value > 35.4 and pm_value <= 55.4:
+        return "People with respiratory issues may experience discomfort due to air quality. Minimize time spent outdoors."
+    elif pm_value > 55.4 and pm_value <= 150.4:
+        return "Avoid activities that make you breathe more rapidly. Today is the perfect day to spend indoors reading."
+    elif pm_value > 150.4 and pm_value <= 250.4:
+        return "Reduce the intensity of your outdoor activities. Try to stay indoors until the air quality improves."
+    else:
+        return "If you have to spend a lot of time outside, disposable masks like the N95 are helpful."
 
 def get_valid_name(name):
     try:
