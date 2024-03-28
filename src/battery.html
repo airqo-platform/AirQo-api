@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery Performance Evaluation Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #87ceeb; /* Sky blue background color */
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            position: relative; /* Add position relative to container */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #plotly-chart {
+            display: inline-block;
+            position: relative; /* Add position relative to chart */
+        }
+        #performance-info {
+            position: absolute; /* Position absolute to make it relative to the container */
+            bottom: 0; /* Align to the bottom */
+            right: 0; /* Align to the right */
+            margin: 20px; /* Adjust margin as needed */
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 200px;
+        }
+        #container h1 {
+            margin-top: 60px; /* Adjust the margin-top value to lower the header */
+            text-align: center; /* Center-align the header text */
+        }
+        /* Style for the "please wait" message */
+        #loading-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none; /* Hide the message by default */
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <div id="plotly-chart">
+        <!-- Plotly chart goes here -->
+    </div>
+    <div id="performance-info">
+        <p><strong>Average Charge Rate:</strong> <span id="avg-charge-rate"></span> Volts/hour</p>
+        <p><strong>Average Discharge Rate:</strong> <span id="avg-discharge-rate"></span> Volts/hour</p>
+        <p>Peak charge-rate:</p>
+        <p>Peak discharge-rate:</p>
+        <p><strong>Battery health:</strong> <span id="avg-charge-duration"></span></p>
+        <p><strong>____________________</strong> <span id="avg-discharge-duration"></span></p>
+    </div>
+    <!-- Loading message -->
+    <div id="loading-message">Please wait, loading chart...</div>
+</div>
+<script>
+    // Function to fetch data from ThingSpeak API
+    async function fetchData() {
+        const CHANNEL_ID = '2026685';
+        const READ_API_KEY = 'ONB2BAY33QO2YUAU';
+        const num_entries = 10000;
+        const api_url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=${num_entries}`;
+        const response = await fetch(api_url);
+        if (response.ok) {
+            const data = await response.json();
+            return data.feeds;
+        } else {
+            console.error(`Error: ${response.status} - ${response.statusText}`);
+            return null;
+        }
+    }
+
+    // Function to create and display the Plotly chart
+    async function createChart() {
+        // Show the loading message
+        document.getElementById('loading-message').style.display = 'block';
+        
+        const data = await fetchData();
+        if (data) {
+            const time = data.map(entry => new Date(entry.created_at));
+            const voltage = data.map(entry => parseFloat(entry.field7));
+            const windowSize = 10;
+            const voltageSmoothed = movingAverage(voltage, windowSize);
+            const timeSeconds = time.map(t => (t - time[0]) / 1000);
+            const dv_dtSmoothed = numericGradient(voltageSmoothed, timeSeconds);
+            const voltsPerHour = numericRound(numericMultiply(dv_dtSmoothed, 3600), 3);
+            const finalGradient = voltsPerHour[voltsPerHour.length - 1];
+            
+            // Calculate average charge and discharge rates
+            const avgChargeRate = calculateAverageChargeRate(voltsPerHour);
+            const avgDischargeRate = calculateAverageDischargeRate(voltsPerHour);
+
+            // Calculate average charging and discharging durations
+            const avgChargeDuration = calculateAverageDuration(voltsPerHour, 'charge');
+            const avgDischargeDuration = calculateAverageDuration(voltsPerHour, 'discharge');
+
+            // Display performance information
+            document.getElementById('avg-charge-rate').textContent = avgChargeRate.toFixed(3);
+            document.getElementById('avg-discharge-rate').textContent = avgDischargeRate.toFixed(3);
+
+            const trace1 = {
+                x: time,
+                y: voltageSmoothed,
+                mode: 'lines',
+                name: 'Smoothed Voltage'
+            };
+
+            const trace2 = {
+                x: time,
+                y: voltsPerHour,
+                mode: 'lines',
+                name: 'Smoothed Gradient (Volts per Hour)',
+                yaxis: 'y2'
+            };
+
+            const layout = {
+                title: 'Smoothed Voltage and Gradient (Volts per Hour)',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Smoothed Voltage' },
+                yaxis2: { title: 'Volts per Hour', overlaying: 'y', side: 'right' },
+                hovermode: 'x unified',
+                height: 800,
+                width: 1200,
+                font: { size: 16 }
+            };
+
+            const annotation = {
+                x: time[time.length - 1],
+                y: Math.min(...voltsPerHour),
+                text: `Final Gradient: ${finalGradient.toFixed(3)} Volts/hour`,
+                showarrow: true,
+                arrowhead: 7,
+                ax: 0,
+                ay: 40,
+                xref: 'x',
+                yref: 'y',
+                xshift: 10,
+                yshift: 0
+            };
+
+            Plotly.newPlot('plotly-chart', [trace1, trace2], layout);
+            Plotly.addTraces('plotly-chart', [annotation]);
+
+            // Hide the loading message after the chart is loaded
+            document.getElementById('loading-message').style.display = 'none';
+        }
+    }
+
+    // Function to calculate moving average
+    function movingAverage(values, windowSize) {
+        const movingAverageArray = [];
+        for (let i = 0; i < values.length - windowSize + 1; i++) {
+            const window = values.slice(i, i + windowSize);
+            const average = window.reduce((sum, value) => sum
+            + value, 0) / windowSize;
+            movingAverageArray.push(average);
+        }
+        return movingAverageArray;
+    }
+
+    // Function to calculate numeric gradient
+    function numericGradient(y, x) {
+        const gradientArray = [];
+        for (let i = 0; i < y.length - 1; i++) {
+            const gradient = (y[i + 1] - y[i]) / (x[i + 1] - x[i]);
+            gradientArray.push(gradient);
+        }
+        return gradientArray;
+    }
+
+    // Function to perform numeric rounding
+    function numericRound(array, decimals) {
+        return array.map(value => parseFloat(value.toFixed(decimals)));
+    }
+
+    // Function to perform numeric multiplication
+    function numericMultiply(array, factor) {
+        return array.map(value => value * factor);
+    }
+
+    // Calculate average charge rate
+    function calculateAverageChargeRate(voltsPerHour) {
+        const positiveRates = voltsPerHour.filter(rate => rate > 0);
+        return positiveRates.reduce((sum, rate) => sum + rate, 0) / positiveRates.length;
+    }
+
+    // Calculate average discharge rate
+    function calculateAverageDischargeRate(voltsPerHour) {
+        const negativeRates = voltsPerHour.filter(rate => rate < 0);
+        return negativeRates.reduce((sum, rate) => sum + rate, 0) / negativeRates.length;
+    }
+
+    // Calculate average charging or discharging duration
+    function calculateAverageDuration(voltsPerHour, type) {
+        let durationSum = 0;
+        let count = 0;
+        let start = null;
+        for (let i = 0; i < voltsPerHour.length; i++) {
+            if (type === 'charge' && voltsPerHour[i] > 0) {
+                if (start === null) {
+                    start = i;
+                }
+            } else if (type === 'discharge' && voltsPerHour[i] < 0) {
+                if (start === null) {
+                    start = i;
+                }
+            } else {
+                if (start !== null) {
+                    durationSum += i - start;
+                    count++;
+                    start = null;
+                }
+            }
+        }
+        if (start !== null) {
+            // If the last period is still ongoing
+            durationSum += voltsPerHour.length - start;
+            count++;
+        }
+        return count > 0 ? durationSum / count / 3600 : 0; // Convert seconds to hours
+    }
+
+    // Create the chart when the page loads
+    document.addEventListener('DOMContentLoaded', createChart);
+</script>
+</body>
+</html>
