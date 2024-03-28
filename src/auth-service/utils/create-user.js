@@ -172,15 +172,11 @@ const generateCacheID = (request, next) => {
   } = { ...request.body, ...request.query, ...request.params };
   const currentTime = new Date().toISOString();
   const day = generateDateFormatWithoutHrs(currentTime, next);
-  return `list_users_${privilege ? privilege : "no_privilege"}_${
-    id ? id : "no_id"
-  }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${
-    email_address ? email_address : "no_email_address"
-  }_${role_id ? role_id : "no_role_id"}_${email ? email : "no_email"}_${
-    resetPasswordToken ? resetPasswordToken : "no_resetPasswordToken"
-  }_${user ? user : "no_user"}_${user_id ? user_id : "no_user_id"}_${
-    day ? day : "noDay"
-  }`;
+  return `list_users_${privilege ? privilege : "no_privilege"}_${id ? id : "no_id"
+    }_${userName ? userName : "no_userName"}_${active ? active : "no_active"}_${email_address ? email_address : "no_email_address"
+    }_${role_id ? role_id : "no_role_id"}_${email ? email : "no_email"}_${resetPasswordToken ? resetPasswordToken : "no_resetPasswordToken"
+    }_${user ? user : "no_user"}_${user_id ? user_id : "no_user_id"}_${day ? day : "noDay"
+    }`;
 };
 const setCache = async ({ data, request } = {}, next) => {
   try {
@@ -519,8 +515,8 @@ const createUserModule = {
           message: !isEmpty(missingDataMessage)
             ? missingDataMessage
             : isEmpty(data[0].data)
-            ? "no users for this search"
-            : responseFromListUser.message,
+              ? "no users for this search"
+              : responseFromListUser.message,
           data,
           status: responseFromListUser.status || "",
           isCache: false,
@@ -634,7 +630,7 @@ const createUserModule = {
           const lastName = user[0].lastName;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            { email, firstName, lastName, updatedUserDetails, user_id: _id },
             next
           );
 
@@ -875,6 +871,7 @@ const createUserModule = {
               password,
               tenant,
               type: "user",
+              user_id: createdUser._id,
             },
             next
           );
@@ -1729,6 +1726,7 @@ const createUserModule = {
             password,
             tenant,
             type: "user",
+            user_id: createdUser._id,
           },
           next
         );
@@ -1796,16 +1794,25 @@ const createUserModule = {
           },
           next
         );
+
         if (responseFromModifyUser.success === true) {
           /**
            * Based on the version number, return something different
            */
+          const responseFromListUser = await UserModel(tenant).list(
+            {
+              filter,
+            },
+            next
+          );
+          const user_id = responseFromListUser.data[0]._id;
           const responseFromSendEmail = await mailer.forgot(
             {
               email: filter.email,
               token,
               tenant,
               version,
+              user_id,
             },
             next
           );
@@ -1888,6 +1895,7 @@ const createUserModule = {
               email,
               firstName,
               lastName,
+              user_id: userDetails._id,
             },
             next
           );
@@ -1984,6 +1992,7 @@ const createUserModule = {
             email,
             firstName,
             lastName,
+            user_id: user[0]._id,
           },
           next
         );
@@ -2282,54 +2291,153 @@ const createUserModule = {
     }
   },
   subscribeToNotifications: async (request, next) => {
+
     try {
-      let { email, type, tenant, user_id } = {
-        ...request.body,
+      let { product, email, type, tenant, mongo_user_id, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
 
-      if (!isEmpty(user_id)) {
-        const user = await UserModel(tenant)
-          .findOne({ _id: user_id })
-          .select("email")
-          .lean();
-        if (isEmpty(user)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Provided user_id ${user_id} does not exist` },
-          };
-        }
-        logObject("the email", user.email);
-        email = user.email;
+
+      switch (product) {
+        case "mobile":
+
+          let userRef;
+          if (!isEmpty(firebase_user_id)) {
+            userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          }
+          else {
+            const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
+            userRef = querySnapshot.docs[0].ref;
+          }
+
+          const userDoc = await userRef.get();
+          let firebase_result, mongo_result;
+          let updateField = {};
+
+          switch (type) {
+            case "email":
+              updateField.email = true;
+              break;
+            case "push":
+              updateField.push = true;
+              break;
+            default:
+              updateField.email = true;
+              break;
+          }
+
+          if (userDoc.exists) {
+            const existingData = userDoc.data();
+            const updatedIsSubscribed = {
+              ...existingData.isSubscribedtoNotifs,
+              ...updateField
+            };
+            result = await userRef.update({
+              isSubscribedtoNotifs: updatedIsSubscribed
+            });
+          }
+
+          firebase_result = result.writeTime ? true : false;
+
+          if (!isEmpty(userDoc.data().analyticsMongoID)) {
+            const user = await UserModel(tenant)
+              .findOne({ _id: mongo_user_id })
+              .select("email")
+              .lean();
+            if (isEmpty(user)) {
+              return {
+                success: false,
+                message: "Bad Request Error",
+                status: httpStatus.BAD_REQUEST,
+                errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+              };
+            }
+            logObject("the email", user.email);
+            email = user.email;
+
+
+            const updatedSubscription = await SubscriptionModel(
+              tenant
+            ).findOneAndUpdate(
+              { email },
+              { $set: { [`mobile_notifications.${type}`]: true } },
+              { new: true, upsert: true }
+            );
+
+            mongo_result = updatedSubscription ? true : false;
+          }
+          if (firebase_result || mongo_result) {
+            return {
+              success: true,
+              message: `Successfully Subscribed to ${type} notifications`,
+              status: httpStatus.OK,
+            };
+          } else {
+            return {
+              success: false,
+              message: `Internal Server Error`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to subscribe users to ${type} notifications`,
+              },
+            };
+          }
+
+          break;
+
+        case "analytics":
+          if (isEmpty(mongo_user_id)) {
+            return {
+              success: false,
+              message: `Please provide the mongo_user_id`,
+              status: httpStatus.BAD_REQUEST,
+            };
+          }
+          const user = await UserModel(tenant)
+            .findOne({ _id: mongo_user_id })
+            .select("email")
+            .lean();
+          if (isEmpty(user)) {
+            return {
+              success: false,
+              message: "Bad Request Error",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+            };
+          }
+          logObject("the email", user.email);
+          email = user.email;
+
+
+          const updatedSubscription = await SubscriptionModel(
+            tenant
+          ).findOneAndUpdate(
+            { email },
+            { $set: { [`analytics_notifications.${type}`]: true } },
+            { new: true, upsert: true }
+          );
+
+          if (updatedSubscription) {
+            return {
+              success: true,
+              message: `Successfully Subscribed to ${type} notifications`,
+              status: httpStatus.OK,
+            };
+          } else {
+            return {
+              success: false,
+              message: `Internal Server Error`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to subscribe users to ${type} notifications`,
+              },
+            };
+          }
+          break;
       }
 
-      const updatedSubscription = await SubscriptionModel(
-        tenant
-      ).findOneAndUpdate(
-        { email },
-        { $set: { [`notifications.${type}`]: true } },
-        { new: true, upsert: true }
-      );
 
-      if (updatedSubscription) {
-        return {
-          success: true,
-          message: `Successfully Subscribed to ${type} notifications`,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: `Internal Server Error`,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message: `Failed to subscribe users to ${type} notifications`,
-          },
-        };
-      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2344,50 +2452,184 @@ const createUserModule = {
   },
   unSubscribeFromNotifications: async (request, next) => {
     try {
-      let { email, type, tenant, user_id } = {
-        ...request.body,
+      let { product, email, type, tenant, mongo_user_id, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
-      if (!isEmpty(user_id)) {
-        const user = await UserModel(tenant)
-          .findOne({ _id: user_id })
-          .select("email")
-          .lean();
-        if (isEmpty(user)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Provided user_id ${user_id} does not exist` },
-          };
-        }
-        email = user.email;
-      }
 
-      const updatedSubscription = await SubscriptionModel(
-        tenant
-      ).findOneAndUpdate(
-        { email },
-        { $set: { [`notifications.${type}`]: false } },
-        { new: true, upsert: true }
-      );
+      let result;
 
-      if (updatedSubscription) {
-        return {
-          success: true,
-          message: `Successfully UnSubscribed user from ${type} notifications`,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: `Internal Server Error`,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message: `Failed to UnSubscribe the user from ${type} notifications`,
-          },
-        };
+      switch (product) {
+        case "mobile":
+          let userRef
+          if (firebase_user_id) {
+            userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
+          }
+          else {
+            const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
+            userRef = querySnapshot.docs[0].ref;
+          }
+          const userDoc = await userRef.get();
+          let firebase_result, mongo_result;
+          let updateField = {};
+
+          switch (type) {
+            case "email":
+              updateField.email = false;
+              break;
+            case "push":
+              updateField.push = false;
+              break;
+            default:
+              updateField.email = false;
+              break;
+          }
+
+          if (userDoc.exists) {
+            const existingData = userDoc.data();
+            const updatedIsSubscribed = {
+              ...existingData.isSubscribedtoNotifs,
+              ...updateField
+            };
+            result = await userRef.update({
+              isSubscribedtoNotifs: updatedIsSubscribed
+            });
+          }
+
+          firebase_result = result.writeTime ? true : false;
+
+          if (!isEmpty(userDoc.data().analyticsMongoID)) {
+            const user = await UserModel(tenant)
+              .findOne({ _id: mongo_user_id })
+              .select("email")
+              .lean();
+            if (isEmpty(user)) {
+              return {
+                success: false,
+                message: "Bad Request Error",
+                status: httpStatus.BAD_REQUEST,
+                errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+              };
+            }
+            email = user.email;
+
+            const updatedSubscription = await SubscriptionModel(
+              tenant
+            ).findOneAndUpdate(
+              { email },
+              { $set: { [`mobile_notifications.${type}`]: false } },
+              { new: true, upsert: true }
+            );
+
+            mongo_result = updatedSubscription ? true : false;
+          }
+          if (firebase_result || mongo_result) {
+            email = email || userDoc.data().emailAddress;
+
+            if (email) {
+              let name = userDoc.data().firstName;
+              if (name == null) {
+                name = "";
+              }
+
+              let queryParams = {};
+
+              if (firebase_user_id) {
+                queryParams.firebase_user_id = firebase_user_id;
+              }
+
+              if (email) {
+                queryParams.email = email;
+              }
+
+              if (mongo_user_id) {
+                queryParams.mongo_user_id = mongo_user_id;
+              }
+
+              const paramString = Object.keys(queryParams)
+                .map(key => `${key}=${queryParams[key]}`)
+                .join('&');
+              await mailer.sendUnsubscriptionEmail({ product, type, email, name, paramString }, next);
+            }
+            return {
+              success: true,
+              message: `Successfully Unsubscribed from ${type} notifications`,
+              status: httpStatus.OK,
+            };
+          } else {
+            return {
+              success: false,
+              message: `Internal Server Error`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to unsubscribe users from ${type} notifications`,
+              },
+            };
+          }
+          break;
+
+        case "analytics":
+          if (isEmpty(mongo_user_id)) {
+            return {
+              success: false,
+              message: `Please provide the mongo_user_id`,
+              status: httpStatus.BAD_REQUEST,
+            };
+          }
+          const user = await UserModel(tenant)
+            .findOne({ _id: mongo_user_id })
+            .select("email")
+            .lean();
+          if (isEmpty(user)) {
+            return {
+              success: false,
+              message: "Bad Request Error",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+            };
+          }
+          email = user.email;
+          firstName = user.firstName;
+
+
+          const updatedSubscription = await SubscriptionModel(
+            tenant
+          ).findOneAndUpdate(
+            { email },
+            { $set: { [`analytics_notifications.${type}`]: false } },
+            { new: true, upsert: true }
+          );
+
+          if (updatedSubscription) {
+            if (firstName == null) {
+              firstName = "";
+            }
+
+            let queryParams = {};
+            queryParams.email = email;
+            queryParams.mongo_user_id = mongo_user_id;
+            const paramString = Object.keys(queryParams)
+              .map(key => `${key}=${queryParams[key]}`)
+              .join('&');
+
+            await mailer.sendUnsubscriptionEmail({ product, type, email, firstName, paramString }, next);
+
+            return {
+              success: true,
+              message: `Successfully Unsubscribed from ${type} notifications`,
+              status: httpStatus.OK,
+            };
+          } else {
+            return {
+              success: false,
+              message: `Internal Server Error`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                message: `Failed to unsubscribe users from ${type} notifications`,
+              },
+            };
+          }
+          break;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

@@ -13,7 +13,7 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: ({ token, email, version }) => {
+  recovery_email: ({ token, email, version, user_id }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     if (version && parseInt(version) === 3) {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
@@ -33,9 +33,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  joinRequest: (firstName, lastName, email) => {
+  joinRequest: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -51,16 +51,17 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  joinEntityRequest: (email, entity_title) => {
+
+  joinEntityRequest: (email, entity_title, user_id) => {
     const name = "";
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to access ${processString(
-                                      entity_title
-                                    )} has been received, we shall get back to you as soon as possible.
+      entity_title
+    )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
@@ -71,9 +72,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  inquiry: (fullName, email, category) => {
+  inquiry: (fullName, email, category, user_id) => {
     let content;
     switch (category) {
       case "policy":
@@ -158,7 +159,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY(email, content, fullName);
+    return constants.EMAIL_BODY(email, content, fullName, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
     const content = ` <tr>
@@ -201,7 +202,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
-  welcome_kcca: (firstName, lastName, password, email) => {
+  welcome_kcca: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -232,9 +233,9 @@ module.exports = {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  welcome_general: (firstName, lastName, password, email) => {
+  welcome_general: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                          <td
@@ -256,7 +257,7 @@ module.exports = {
                              <p>Best regards, AirQo Data Team</p>
                          </td>
                     </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
   user_updated: ({
@@ -264,6 +265,7 @@ module.exports = {
     lastName = "",
     updatedUserDetails = {},
     email = "",
+    user_id
   } = {}) => {
     let updatedFields = "<ol>\n";
     Object.keys(updatedUserDetails).forEach((field) => {
@@ -290,7 +292,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   site_activity: ({
     firstName = "",
@@ -329,6 +331,7 @@ module.exports = {
     lastName = "",
     ip = "",
     email = "",
+    user_id
   } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
@@ -342,9 +345,9 @@ module.exports = {
     </tr>
    `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
+  existing_user: ({ firstName = "", lastName = "", email = "", user_id = "" } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
     <tr>
@@ -355,7 +358,7 @@ module.exports = {
     </tr>
     `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
@@ -377,7 +380,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
   },
-  forgotten_password_updated: (firstName, lastName, email) => {
+  forgotten_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -394,9 +397,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
-  known_password_updated: (firstName, lastName, email) => {
+  known_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                                 <td
@@ -413,7 +416,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   join_by_email: (email, token) => {
     const content = `<tr>
@@ -430,7 +433,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
   authenticate_email: (token, email) => {
     const content = ` <tr>
@@ -447,7 +450,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
   report: (senderEmail, recepientEmail, formart) => {
     const content = `
@@ -470,5 +473,34 @@ module.exports = {
                             </tr>
   `;
     return constants.EMAIL_BODY(recepientEmail, content);
+  },
+
+  emailNotificationUnsubscibe: (product, type, email, name, paramString) => {
+
+    const subsciptionUrl = `${constants.PLATFORM_BASE_URL}/api/v2/users/subscribe/${product}/${type}?${paramString}`;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We're sorry to see you go, but we've successfully unsubscribed you from our email notifications. You will no longer receive updates and notifications from your favorite locations. 
+                                    <br />
+                                    <br />
+                                    You will no longer receive updates and notifications from your favorite locations. If you ever change your mind and want to rejoin us, feel free to subscribe again at any time.
+                                    <br />
+                                    <br />
+                                    <a href=${subsciptionUrl} target="_blank">
+                                        <div
+                                            style="width: 15%; height: 100%; padding-left: 32px; padding-right: 2px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Subscribe </div>
+                                        </div>
+                                    </a>
+                                    <br />
+                                    If you have any questions or require further assistance, please feel free to reach out to our support team.<br />
+                                    <br />Thank you for being a part of the AirQo community. We hope to see you back in the future!
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name, product, type, paramString);
   },
 };

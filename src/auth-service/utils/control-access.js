@@ -345,6 +345,7 @@ const isIPBlacklistedHelper = async (
       token = "",
       name = "",
       client_id = "",
+      user_id = "",
     } = (accessToken && accessToken._doc) || {};
 
     const BLOCKED_IP_PREFIXES =
@@ -400,6 +401,7 @@ const isIPBlacklistedHelper = async (
                 firstName,
                 lastName,
                 ip,
+                user_id
               },
               next
             );
@@ -589,6 +591,7 @@ const controlAccess = {
                   firstName: userDetails[0].firstName,
                   username: userDetails[0].userName,
                   email: userDetails[0].email,
+                  user_id: userDetails[0]._id,
                 },
                 next
               );
@@ -1100,6 +1103,7 @@ const controlAccess = {
                   username: user.userName,
                   password,
                   email: user.email,
+                  user_id: user._id,
                 },
                 next
               );

@@ -19,31 +19,17 @@ const SubscriptionSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    subscribed: {
-      type: Boolean,
-      default: true,
+    mobile_notifications: {
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+      text: { type: Boolean, default: true },
+      phone: { type: Boolean, default: true },
     },
-    isSystemUser: {
-      type: Boolean,
-      required: true,
-    },
-    notifications: {
-      twitter: {
-        type: Boolean,
-        default: true,
-      },
-      email: {
-        type: Boolean,
-        default: true,
-      },
-      phone: {
-        type: Boolean,
-        default: true,
-      },
-      sms: {
-        type: Boolean,
-        default: true,
-      },
+    analytics_notifications: {
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+      text: { type: Boolean, default: true },
+      phone: { type: Boolean, default: true },
     },
   },
   {
@@ -63,9 +49,9 @@ SubscriptionSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      email: this.subscribed,
-      isSystemUser: this.isSystemUser,
-      notifications: this.notifications,
+      email: this.email,
+      mobile_notifications: this.mobile_notifications,
+      analytics_notifications: this.analytics_notifications,
     };
   },
 };
@@ -250,12 +236,12 @@ SubscriptionSchema.statics.remove = async function (
   }
 };
 
-SubscriptionSchema.statics.unsubscribe = async function (email, type) {
-  await this.updateOne({ email }, { [`notifications.${type}`]: false });
+SubscriptionSchema.statics.unsubscribe = async function (email, product, type) {
+  await this.updateOne({ email }, { [`${product}_notifications.${type}`]: false });
 };
 
 SubscriptionSchema.statics.checkNotificationStatus = async function (
-  { email, type },
+  { email, type, product },
   next
 ) {
   try {
@@ -270,31 +256,44 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
           message: `No subscription found for email: ${email}`,
         },
       };
-    } else if (isEmpty(subscription.notifications[type])) {
-      return {
-        success: true,
-        message: `not subscribed to type`,
-        status: httpStatus.OK,
-        errors: {
-          message: `User is not subscribed to ${type} notifications`,
-        },
-      };
-    } else if (subscription.notifications[type] === false) {
+    }
+
+    let isSubscribed = false;
+
+    switch (product) {
+      case 'mobile_notifications':
+        isSubscribed = subscription.mobile_notifications[type];
+        break;
+      case 'analytics_notifications':
+        isSubscribed = subscription.analytics_notifications[type];
+        break;
+      default:
+        return {
+          success: false,
+          message: `Invalid category`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Invalid category: ${product}`,
+          },
+        };
+    }
+
+    if (!isSubscribed) {
       return {
         success: false,
         message: `Forbidden`,
         status: httpStatus.FORBIDDEN,
         errors: {
-          message: `User unsubscribed from ${type} notifications`,
+          message: `User not subscribed to ${type} notifications in category ${product}`,
         },
       };
-    } else {
-      return {
-        success: true,
-        message: `User is subscribed to ${type} notifications`,
-        status: httpStatus.OK,
-      };
     }
+
+    return {
+      success: true,
+      message: `User is subscribed to ${type} notifications in category ${product}`,
+      status: httpStatus.OK,
+    };
   } catch (error) {
     logger.error(`Data conflicts detected -- ${error.message}`);
     next(
