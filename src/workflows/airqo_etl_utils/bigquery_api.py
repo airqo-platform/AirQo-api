@@ -669,16 +669,24 @@ class BigQueryApi:
 
     def fetch_raw_readings(self) -> pd.DataFrame:
         query = f"""
-        SELECT DISTINCT raw_device_data_table.timestamp
-           AS
-           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5
+        SELECT DISTINCT 
+        raw_device_data_table.timestamp AS timestamp,
+         raw_device_data_table.device_id AS device_id, 
+         raw_device_data_table.latitude AS latitude,
+         raw_device_data_table.longitude AS longitude,
+-- review model performance with and without location
+         raw_device_data_table.s1_pm2_5 AS s1_pm2_5, 
+         raw_device_data_table.s2_pm2_5 AS s2_pm2_5,
+         raw_device_data_table.pm2_5 AS pm2_5,
+         raw_device_data_table.battery AS battery
            FROM
            `{self.raw_measurements_table}` AS raw_device_data_table
            WHERE
            DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL 7 DAY) 
+               CURRENT_DATE(), INTERVAL 21 DAY) 
             ORDER BY device_id, timestamp
            """
+        # TODO: May need to review frequency
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
@@ -689,7 +697,7 @@ class BigQueryApi:
                 raise Exception("No data found from bigquery")
             dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
             dataframe = (
-                dataframe.groupby("device_name").resample("H", on="timestamp").mean()
+                dataframe.groupby("device_id").resample("H", on="timestamp").mean()
             )
             dataframe.reset_index(inplace=True)
             return dataframe

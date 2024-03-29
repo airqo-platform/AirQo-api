@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 
 import gcsfs
@@ -7,6 +6,7 @@ import mlflow
 import numpy as np
 import optuna
 import pandas as pd
+import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
@@ -18,6 +18,8 @@ environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
+
+### This module contains utility functions for ML jobs.
 
 
 class GCSUtils:
@@ -49,24 +51,10 @@ class GCSUtils:
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
 
-    @staticmethod
-    def upload_mapping_to_gcs(
-        mapping_dict, project_name, bucket_name, source_blob_name
-    ):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        mapping_dict = json.dumps(mapping_dict)
-        with fs.open(bucket_name + "/" + source_blob_name, "w") as f:
-            f.write(mapping_dict)
 
-    @staticmethod
-    def get_mapping_from_gcs(project_name, bucket_name, source_blob_name):
-        fs = gcsfs.GCSFileSystem(project=project_name)
-        with fs.open(bucket_name + "/" + source_blob_name, "r") as f:
-            mapping_dict = json.load(f)
-        return mapping_dict
+class MlUtils:
+    """Utility class for ML related tasks"""
 
-
-class ForecastUtils:
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
         required_columns = {
@@ -615,3 +603,141 @@ class ForecastUtils:
                 print(
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
+
+    ###Fault Detection
+
+    @staticmethod
+    def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Flags rule-based faults such as correlation and missing data
+        Inputs:
+            df: pandas dataframe
+        Outputs:
+            pandas dataframe
+        """
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        required_columns = ["device_id", "s1_pm2_5", "s2_pm2_5"]
+        if not set(required_columns).issubset(set(df.columns.to_list())):
+            raise ValueError(
+                f"Input must have the following columns: {required_columns}"
+            )
+
+        result = pd.DataFrame(
+            columns=[
+                "device_id",
+                "correlation_fault",
+                "correlation_value",
+                "missing_data_fault",
+            ]
+        )
+        for device in df["device_id"].unique():
+            device_df = df[df["device_id"] == device]
+            corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
+            correlation_fault = 1 if corr < 0.9 else 0
+            missing_data_fault = 0
+            for col in ["s1_pm2_5", "s2_pm2_5"]:
+                null_series = device_df[col].isna()
+                if (null_series.rolling(window=60).sum() >= 60).any():
+                    missing_data_fault = 1
+                    break
+
+            temp = pd.DataFrame(
+                {
+                    "device_id": [device],
+                    "correlation_fault": [correlation_fault],
+                    "correlation_value": [corr],
+                    "missing_data_fault": [missing_data_fault],
+                }
+            )
+            result = pd.concat([result, temp], ignore_index=True)
+        result = result[
+            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
+        ]
+        return result
+
+    @staticmethod
+    def flag_pattern_based_faults(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Flags pattern-based faults such as high variance, constant values, etc"""
+        from sklearn.ensemble import IsolationForest
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        columns_to_ignore = ["device_id", "timestamp"]
+        df.dropna(inplace=True)
+
+        isolation_forest = IsolationForest(contamination=0.37)
+        isolation_forest.fit(df.drop(columns=columns_to_ignore))
+
+        df["anomaly_value"] = isolation_forest.predict(
+            df.drop(columns=columns_to_ignore)
+        )
+
+        return df
+
+    @staticmethod
+    def process_faulty_devices_percentage(df: pd.DataFrame):
+        """Process faulty devices dataframe and save to MongoDB"""
+
+        anomaly_percentage = pd.DataFrame(
+            (
+                df[df["anomaly_value"] == -1].groupby("device_id").size()
+                / df.groupby("device_id").size()
+            )
+            * 100,
+            columns=["anomaly_percentage"],
+        )
+
+        return anomaly_percentage[
+            anomaly_percentage["anomaly_percentage"] > 45
+        ].reset_index(level=0)
+
+    @staticmethod
+    def process_faulty_devices_fault_sequence(df: pd.DataFrame):
+        df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
+        df["anomaly_sequence_length"] = (
+            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+        )
+        df["anomaly_sequence_length"].fillna(0, inplace=True)
+        device_max_anomaly_sequence = (
+            df.groupby("device_id")["anomaly_sequence_length"].max().reset_index()
+        )
+        faulty_devices_df = device_max_anomaly_sequence[
+            device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
+        ]
+        faulty_devices_df.columns = ["device_id", "fault_count"]
+
+        return faulty_devices_df
+
+    @staticmethod
+    def save_faulty_devices(*dataframes):
+        """Save or update faulty devices to MongoDB"""
+        dataframes = list(dataframes)
+        merged_df = dataframes[0]
+        for df in dataframes[1:]:
+            merged_df = merged_df.merge(df, on="device_id", how="outer")
+        merged_df = merged_df.fillna(0)
+        merged_df["created_at"] = datetime.now().isoformat(timespec="seconds")
+        with pm.MongoClient(configuration.MONGO_URI) as client:
+            db = client[configuration.MONGO_DATABASE_NAME]
+            records = merged_df.to_dict("records")
+            bulk_ops = [
+                pm.UpdateOne(
+                    {"device_id": record["device_id"]},
+                    {"$set": record},
+                    upsert=True,
+                )
+                for record in records
+            ]
+
+            try:
+                db.faulty_devices_1.bulk_write(bulk_ops)
+            except Exception as e:
+                print(f"Error saving faulty devices to MongoDB: {e}")
+
+            print("Faulty devices saved/updated to MongoDB")

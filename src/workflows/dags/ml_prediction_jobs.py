@@ -3,7 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.ml_utils import ForecastUtils
+from airqo_etl_utils.ml_utils import MlUtils
 
 
 @dag(
@@ -31,23 +31,23 @@ def make_forecasts():
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
-        return ForecastUtils.preprocess_data(data, "hourly", job_type="prediction")
+        return MlUtils.preprocess_data(data, "hourly", job_type="prediction")
 
     @task
     def generate_lag_and_rolling_features_hourly_forecast(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+        return MlUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
 
     @task()
     def get_time_and_cyclic_features_hourly_forecast(data):
-        return ForecastUtils.get_time_and_cyclic_features(data, "hourly")
+        return MlUtils.get_time_and_cyclic_features(data, "hourly")
 
     @task()
     def get_location_features_hourly_forecast(data):
-        return ForecastUtils.get_location_features(data)
+        return MlUtils.get_location_features(data)
 
     @task()
     def make_hourly_forecasts(data):
-        return ForecastUtils.generate_forecasts(
+        return MlUtils.generate_forecasts(
             data=data, project_name=project_id, bucket_name=bucket, frequency="hourly"
         )
 
@@ -59,7 +59,7 @@ def make_forecasts():
 
     @task()
     def save_hourly_forecasts_to_mongo(data):
-        ForecastUtils.save_forecasts_to_mongo(data, "hourly")
+        MlUtils.save_forecasts_to_mongo(data, "hourly")
 
     # Daily forecast tasks
     @task()
@@ -75,23 +75,23 @@ def make_forecasts():
 
     @task()
     def preprocess_historical_data_daily_forecast(data):
-        return ForecastUtils.preprocess_data(data, "daily", job_type="prediction")
+        return MlUtils.preprocess_data(data, "daily", job_type="prediction")
 
     @task()
     def generate_lag_and_rolling_features_daily_forecast(data):
-        return ForecastUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+        return MlUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
 
     @task()
     def get_time_and_cyclic_features_daily_forecast(data):
-        return ForecastUtils.get_time_and_cyclic_features(data, "daily")
+        return MlUtils.get_time_and_cyclic_features(data, "daily")
 
     @task()
     def get_location_features_daily_forecast(data):
-        return ForecastUtils.get_location_features(data)
+        return MlUtils.get_location_features(data)
 
     @task()
     def make_daily_forecasts(data):
-        return ForecastUtils.generate_forecasts(
+        return MlUtils.generate_forecasts(
             data=data, project_name=project_id, bucket_name=bucket, frequency="daily"
         )
 
@@ -103,7 +103,7 @@ def make_forecasts():
 
     @task()
     def save_daily_forecasts_to_mongo(data):
-        ForecastUtils.save_forecasts_to_mongo(data, "daily")
+        MlUtils.save_forecasts_to_mongo(data, "daily")
 
     # Hourly forecast pipeline
     hourly_data = get_historical_data_for_hourly_forecasts()

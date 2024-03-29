@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import current_app
 from flask import request
 from google.cloud import bigquery
+from pymongo import errors
 from sqlalchemy import func
 
 from app import cache
@@ -384,14 +385,19 @@ def validate_param_values(params):
     return True, None
 
 
-def read_faulty_devices(query):
-    collection = db["faulty_devices_1"]
-    docs = collection.find(query).sort("created_at", -1)
-    result = []
-    for doc in docs:
-        doc.pop("_id")
-        result.append(doc)
-    return result
+def read_faulty_devices():
+    devices = []
+    try:
+        collection = db["faulty_devices_1"]
+        devices = list(collection.find({}, {"_id": 0}))
+    except errors.ServerSelectionTimeoutError:
+        current_app.logger.error("Error with database connection", exc_info=False)
+    except errors.PyMongoError as e:
+        current_app.logger.error("Error", str(e), exc_info=False)
+    except Exception as e:
+        current_app.logger.error("Error: ", str(e), exc_info=False)
+    finally:
+        return devices
 
 
 def add_forecast_health_tips(results: dict, language: str = ""):
