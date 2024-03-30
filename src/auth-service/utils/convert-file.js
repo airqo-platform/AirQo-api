@@ -7,24 +7,32 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- convert-file-util`
 );
 const { HttpError } = require("@utils/errors");
-const officegen = require("pdf-officegen");
+const mammoth = require("mammoth");
+const fs = require("fs");
+const path = require("path");
 
 const convertFile = {
-  convertPdfToDocx: async (request, next) => {
+  converPdfToDocx: async (request, next) => {
     try {
-      logText("convertPdfToDocx...");
-      const { file } = {
-        ...request,
-      };
-      // Convert PDF to DOCX
-      const pdfBuffer = Buffer.from(file.buffer);
-      const docxStream = officegen("docx").convert(pdfBuffer);
-      logObject("docxStream", docxStream);
+      logText(" V3 convertPdfToDocx...");
+
+      // Assuming the Blob contains text that you want to convert to DOCX
+      const blobText = request.file.buffer.toString("utf8");
+
+      // Convert the text to DOCX using mammoth
+      const docxBuffer = await mammoth.convertToBuffer(blobText, {
+        outputFormat: "docx",
+      });
+
+      // Save the DOCX file to the server
+      const docxPath = path.join(__dirname, "output.docx");
+      fs.writeFileSync(docxPath, docxBuffer);
+
       return {
         success: true,
-        message: "Conversion Successful",
-        data: docxStream,
+        message: "Blob successfully converted to docx",
         status: httpStatus.OK,
+        data: docxPath,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

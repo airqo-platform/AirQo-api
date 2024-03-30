@@ -26,22 +26,19 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(validatePagination);
 
-const validatePdfUpload = [
-  upload.single("pdf"),
-  check("pdf").custom((value, { req }) => {
+const validateBlobUpload = [
+  upload.single("blob"),
+  check("blob").custom((value, { req }) => {
     if (!req.file) {
-      throw new Error("No file uploaded.");
-    }
-    if (req.file.mimetype !== "application/pdf") {
-      throw new Error("Please only submit pdf documents.");
+      throw new Error("No blob uploaded.");
     }
     return true;
   }),
 ];
 
 router.post(
-  "/convert-pdf-to-docx",
-  validatePdfUpload,
+  "/convert-blob-to-docx",
+  validateBlobUpload,
   convertFileController.convertPdfToDocx
 );
 

@@ -26,30 +26,24 @@ const convertFile = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await convertFileUtil.convertPdfToDocx(request, next);
+      const result = await convertFileUtil.converPdfToDocx(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
       if (result.success === true) {
-        res.setHeader(
-          "Content-Type",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        );
-        res.setHeader(
-          "Content-Disposition",
-          "attachment; filename=converted.docx"
-        );
-        const docxStream = result.data;
-
-        // return res.status(httpStatus.OK).json({
-        //   success: true,
-        //   message: result.message,
-        //   docxStream,
-        // });
-
-        docxStream.pipe(res);
+        const docxPath = result.data;
+        res.download(docxPath, "converted.docx", (err) => {
+          if (err) {
+            res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+              message: "Internal Server Error",
+              errors: {
+                message: `Failed to download file -- ${JSON.stringify(err)}`,
+              },
+            });
+          }
+        });
       } else if (result.success === false) {
         const status = result.status
           ? result.status

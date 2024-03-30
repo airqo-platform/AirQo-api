@@ -68,6 +68,7 @@
         "jsonwebtoken": "^8.5.1",
         "kafkajs": "^2.2.3",
         "log4js": "^6.7.0",
+        "mammoth": "^1.7.1",
         "md5": "^2.3.0",
         "module-alias": "^2.2.2",
         "moment-timezone": "^0.5.41",
