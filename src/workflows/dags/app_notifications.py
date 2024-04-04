@@ -213,6 +213,7 @@ def send_push_notification():
 
     
     if "staging" in configuration.AIRQO_BASE_URL_V2:
+        print("Not sending push notifications in staging")
         return
     
     users = extract_users()

@@ -70,6 +70,9 @@ def check_subscription(userId):
 
 def get_all_users():
     try:
+        if "staging" in configuration.AIRQO_BASE_URL_V2:
+            print("Not sending push notifications in staging")
+            return []
         all_users = []
         users_snapshot = firestore_db.collection(
             configuration.FIREBASE_USERS_COLLECTION
