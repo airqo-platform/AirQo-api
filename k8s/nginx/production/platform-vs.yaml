@@ -55,6 +55,23 @@ spec:
 
 ---
 apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: reports
+  namespace: production
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: reports
+      service: airqo-reports-svc
+      port: 7000
+  subroutes:
+    - path: /reports
+      action:
+        pass: reports  
+
+---
+apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: platform-virtual-server
@@ -122,7 +139,9 @@ spec:
     - path: /argocd
       route: cicd/argocd
     - path: /inventory
-      route: production/inventory    
+      route: production/inventory 
+    - path: /reports
+      route: production/reports   
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
