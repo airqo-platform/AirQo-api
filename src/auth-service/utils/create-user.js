@@ -2361,7 +2361,7 @@ const createUserModule = {
               tenant
             ).findOneAndUpdate(
               { email },
-              { $set: { [`mobile_notifications.${type}`]: true } },
+              { $set: { [`notifications.mobile.${type}`]: true } },
               { new: true, upsert: true }
             );
 
@@ -2414,7 +2414,7 @@ const createUserModule = {
             tenant
           ).findOneAndUpdate(
             { email },
-            { $set: { [`analytics_notifications.${type}`]: true } },
+            { $set: { [`notifications.analytics.${type}`]: true } },
             { new: true, upsert: true }
           );
 
@@ -2517,7 +2517,7 @@ const createUserModule = {
               tenant
             ).findOneAndUpdate(
               { email },
-              { $set: { [`mobile_notifications.${type}`]: false } },
+              { $set: { [`notifications.mobile.${type}`]: false } },
               { new: true, upsert: true }
             );
 
@@ -2596,7 +2596,7 @@ const createUserModule = {
             tenant
           ).findOneAndUpdate(
             { email },
-            { $set: { [`analytics_notifications.${type}`]: false } },
+            { $set: { [`notifications.analytics.${type}`]: false } },
             { new: true, upsert: true }
           );
 
@@ -2645,7 +2645,7 @@ const createUserModule = {
   },
   checkNotificationStatus: async (request, next) => {
     try {
-      let { email, type, tenant, user_id } = {
+      let { email, type, product, tenant, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -2667,23 +2667,13 @@ const createUserModule = {
         email = user.email;
       }
 
-      const subscription = await SubscriptionModel(tenant).findOne({ email });
-      if (!subscription.notifications[type]) {
-        return {
-          success: false,
-          message: `Forbidden`,
-          status: httpStatus.FORBIDDEN,
-          errors: {
-            message: `User is not subscribed to ${type} notifications`,
-          },
-        };
-      } else {
-        return {
-          success: true,
-          message: `User is subscribed to ${type} notifications`,
-          status: httpStatus.OK,
-        };
-      }
+      const result = await SubscriptionModel(tenant).checkNotificationStatus({
+        email,
+        type,
+        product,
+      }, next);
+
+      return result; 
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

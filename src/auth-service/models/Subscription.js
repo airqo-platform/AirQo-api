@@ -19,18 +19,20 @@ const SubscriptionSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    mobile_notifications: {
-      email: { type: Boolean, default: true },
-      push: { type: Boolean, default: true },
-      text: { type: Boolean, default: true },
-      phone: { type: Boolean, default: true },
-    },
-    analytics_notifications: {
-      email: { type: Boolean, default: true },
-      push: { type: Boolean, default: true },
-      text: { type: Boolean, default: true },
-      phone: { type: Boolean, default: true },
-    },
+    notifications: {
+      mobile: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+        text: { type: Boolean, default: true },
+        phone: { type: Boolean, default: true },
+      },
+      analytics: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+        text: { type: Boolean, default: true },
+        phone: { type: Boolean, default: true },
+      },
+    }
   },
   {
     timestamps: true,
@@ -50,8 +52,7 @@ SubscriptionSchema.methods = {
     return {
       _id: this._id,
       email: this.email,
-      mobile_notifications: this.mobile_notifications,
-      analytics_notifications: this.analytics_notifications,
+      notifications: this.notifications,
     };
   },
 };
@@ -237,7 +238,7 @@ SubscriptionSchema.statics.remove = async function (
 };
 
 SubscriptionSchema.statics.unsubscribe = async function (email, product, type) {
-  await this.updateOne({ email }, { [`${product}_notifications.${type}`]: false });
+  await this.updateOne({ email }, { [`notifications.${product}.${type}`]: false });
 };
 
 SubscriptionSchema.statics.checkNotificationStatus = async function (
@@ -258,25 +259,8 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
       };
     }
 
-    let isSubscribed = false;
+    let isSubscribed = subscription.notifications[product][type];
 
-    switch (product) {
-      case 'mobile_notifications':
-        isSubscribed = subscription.mobile_notifications[type];
-        break;
-      case 'analytics_notifications':
-        isSubscribed = subscription.analytics_notifications[type];
-        break;
-      default:
-        return {
-          success: false,
-          message: `Invalid category`,
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: `Invalid category: ${product}`,
-          },
-        };
-    }
 
     if (!isSubscribed) {
       return {
