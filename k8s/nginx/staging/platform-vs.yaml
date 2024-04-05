@@ -63,7 +63,24 @@ spec:
   subroutes:
     - path: /inventory
       action:
-        pass: inventory        
+        pass: inventory
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: reports
+  namespace: staging
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: reports
+      service: airqo-stage-reports-svc
+      port: 8000
+  subroutes:
+    - path: /reports
+      action:
+        pass: reports      
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -136,7 +153,9 @@ spec:
     - path: /grafana
       route: monitoring/grafana
     - path: /inventory
-      route: staging/inventory     
+      route: staging/inventory  
+    - path: /reports
+      route: staging/reports  
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

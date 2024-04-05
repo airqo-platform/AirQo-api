@@ -605,12 +605,16 @@ const filter = {
   clients: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
+      const { id, user_id } = query;
       const { client_id, client_name, network_id, client_secret } = params;
       let filter = {};
 
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
       }
 
       if (client_id) {
