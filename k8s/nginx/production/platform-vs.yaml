@@ -64,7 +64,7 @@ spec:
   upstreams:
     - name: reports
       service: airqo-reports-svc
-      port: 7000
+      port: 8000
   subroutes:
     - path: /reports
       action:
