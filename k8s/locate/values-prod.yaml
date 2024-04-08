@@ -27,5 +27,5 @@ service:
   nodePort: 30004
 autoscaling:
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   targetMemoryUtilizationPercentage: 70

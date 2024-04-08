@@ -35,5 +35,5 @@ service:
   targetPort: 4001
 autoscaling:
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   targetCPUUtilizationPercentage: 70
