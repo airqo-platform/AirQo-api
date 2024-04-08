@@ -20,17 +20,14 @@ const SubscriptionSchema = new mongoose.Schema(
       unique: true,
     },
     notifications: {
-      mobile: {
-        email: { type: Boolean, default: true },
-        push: { type: Boolean, default: true },
-        text: { type: Boolean, default: true },
-        phone: { type: Boolean, default: true },
+      email: {
+        type: Boolean,
+        default: true,
       },
-      analytics: {
-        email: { type: Boolean, default: true },
-        push: { type: Boolean, default: true },
-        text: { type: Boolean, default: true },
-        phone: { type: Boolean, default: true },
+
+      mobile_push: {
+        type: Boolean,
+        default: true,
       },
     }
   },
@@ -237,12 +234,28 @@ SubscriptionSchema.statics.remove = async function (
   }
 };
 
-SubscriptionSchema.statics.unsubscribe = async function (email, product, type) {
-  await this.updateOne({ email }, { [`notifications.${product}.${type}`]: false });
+SubscriptionSchema.statics.subscribe = async function (email, type) {
+  const updatedSubscription = await this.findOneAndUpdate(
+    { email },
+    { $set: { [`notifications.${type}`]: true } },
+    { new: true, upsert: true }
+  );
+
+  return updatedSubscription;
+};
+
+SubscriptionSchema.statics.unsubscribe = async function (email, type) {
+  const updatedSubscription = await this.findOneAndUpdate(
+    { email },
+    { $set: { [`notifications.${type}`]: false } },
+    { new: true, upsert: true }
+  );
+
+  return updatedSubscription;
 };
 
 SubscriptionSchema.statics.checkNotificationStatus = async function (
-  { email, type, product },
+  { email, type },
   next
 ) {
   try {
@@ -259,7 +272,7 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
       };
     }
 
-    let isSubscribed = subscription.notifications[product][type];
+    let isSubscribed = subscription.notifications[type];
 
 
     if (!isSubscribed) {
@@ -268,14 +281,14 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
         message: `Forbidden`,
         status: httpStatus.FORBIDDEN,
         errors: {
-          message: `User not subscribed to ${type} notifications in category ${product}`,
+          message: `User not subscribed to ${type} notifications.`,
         },
       };
     }
 
     return {
       success: true,
-      message: `User is subscribed to ${type} notifications in category ${product}`,
+      message: `User is subscribed to ${type} notifications.`,
       status: httpStatus.OK,
     };
   } catch (error) {

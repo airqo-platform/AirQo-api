@@ -33,7 +33,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, "", "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   joinRequest: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
@@ -51,7 +51,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
   joinEntityRequest: (email, entity_title, user_id) => {
@@ -72,7 +72,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   inquiry: (fullName, email, category, user_id) => {
     let content;
@@ -159,7 +159,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY(email, content, fullName, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, fullName, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
     const content = ` <tr>
@@ -172,7 +172,7 @@ module.exports = {
         <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
     </td>
 </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
     const content = `<tr>
@@ -185,7 +185,7 @@ module.exports = {
                               <p>The AirQo Data Team </p>
                           </td>
                       </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   afterClientDeactivation: ({ name = "", email, client_id = "" } = {}) => {
     const content = `
@@ -200,7 +200,7 @@ module.exports = {
        </td>
   </tr>`;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   welcome_kcca: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
@@ -233,7 +233,7 @@ module.exports = {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   welcome_general: (firstName, lastName, password, email, user_id) => {
     const name = firstName + " " + lastName;
@@ -257,7 +257,7 @@ module.exports = {
                              <p>Best regards, AirQo Data Team</p>
                          </td>
                     </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
 
   user_updated: ({
@@ -292,7 +292,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   site_activity: ({
     firstName = "",
@@ -324,7 +324,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   token_compromised: ({
     firstName = "",
@@ -345,7 +345,7 @@ module.exports = {
     </tr>
    `;
 
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   existing_user: ({ firstName = "", lastName = "", email = "", user_id = "" } = {}) => {
     const name = firstName + " " + lastName;
@@ -358,7 +358,7 @@ module.exports = {
     </tr>
     `;
 
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
@@ -378,7 +378,7 @@ module.exports = {
                                 </td>
                             </tr>`;
 
-    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
+    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`, "email", `email=${email}`);
   },
   forgotten_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
@@ -397,7 +397,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   known_password_updated: (firstName, lastName, email, user_id) => {
     const name = firstName + " " + lastName;
@@ -416,7 +416,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
   },
   join_by_email: (email, token) => {
     const content = `<tr>
@@ -433,7 +433,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
   authenticate_email: (token, email) => {
     const content = ` <tr>
@@ -450,7 +450,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
   report: (senderEmail, recepientEmail, formart) => {
     const content = `
@@ -472,12 +472,12 @@ module.exports = {
                                 </td>
                             </tr>
   `;
-    return constants.EMAIL_BODY(recepientEmail, content);
+    return constants.EMAIL_BODY(recepientEmail, content, "", "email", `email=${email}`);
   },
 
-  emailNotificationUnsubscibe: (product, type, email, name, paramString) => {
+  emailNotificationUnsubscibe: (type, email, name, paramString) => {
 
-    const subsciptionUrl = `${constants.PLATFORM_BASE_URL}/api/v2/users/subscribe/${product}/${type}?${paramString}`;
+    const subsciptionUrl = `${constants.PLATFORM_BASE_URL}/api/v2/users/subscribe/${type}?${paramString}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -501,6 +501,6 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, product, type, paramString);
+    return constants.EMAIL_BODY(email, content, name, type, paramString);
   },
 };

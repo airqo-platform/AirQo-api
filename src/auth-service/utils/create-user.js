@@ -2293,15 +2293,13 @@ const createUserModule = {
   subscribeToNotifications: async (request, next) => {
 
     try {
-      let { product, email, type, tenant, mongo_user_id, firebase_user_id } = {
+      let { email, type, tenant, mongo_user_id, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
 
-
-      switch (product) {
-        case "mobile":
-
+      switch (type) {
+        case "mobile_push":
           let userRef;
           if (!isEmpty(firebase_user_id)) {
             userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
@@ -2313,19 +2311,10 @@ const createUserModule = {
 
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
-          let updateField = {};
+          let updateField = {
+            push: true
+          };
 
-          switch (type) {
-            case "email":
-              updateField.email = true;
-              break;
-            case "push":
-              updateField.push = true;
-              break;
-            default:
-              updateField.email = true;
-              break;
-          }
 
           if (userDoc.exists) {
             const existingData = userDoc.data();
@@ -2340,9 +2329,10 @@ const createUserModule = {
 
           firebase_result = result.writeTime ? true : false;
 
+
           if (!isEmpty(userDoc.data().analyticsMongoID)) {
             const user = await UserModel(tenant)
-              .findOne({ _id: mongo_user_id })
+              .findOne({ _id: userDoc.data().analyticsMongoID })
               .select("email")
               .lean();
             if (isEmpty(user)) {
@@ -2350,7 +2340,7 @@ const createUserModule = {
                 success: false,
                 message: "Bad Request Error",
                 status: httpStatus.BAD_REQUEST,
-                errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+                errors: { message: `Provided mongo_user_id ${userDoc.data().analyticsMongoID} does not exist` },
               };
             }
             logObject("the email", user.email);
@@ -2359,11 +2349,7 @@ const createUserModule = {
 
             const updatedSubscription = await SubscriptionModel(
               tenant
-            ).findOneAndUpdate(
-              { email },
-              { $set: { [`notifications.mobile.${type}`]: true } },
-              { new: true, upsert: true }
-            );
+            ).subscribe(email, type);
 
             mongo_result = updatedSubscription ? true : false;
           }
@@ -2383,40 +2369,13 @@ const createUserModule = {
               },
             };
           }
-
           break;
 
-        case "analytics":
-          if (isEmpty(mongo_user_id)) {
-            return {
-              success: false,
-              message: `Please provide the mongo_user_id`,
-              status: httpStatus.BAD_REQUEST,
-            };
-          }
-          const user = await UserModel(tenant)
-            .findOne({ _id: mongo_user_id })
-            .select("email")
-            .lean();
-          if (isEmpty(user)) {
-            return {
-              success: false,
-              message: "Bad Request Error",
-              status: httpStatus.BAD_REQUEST,
-              errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
-            };
-          }
-          logObject("the email", user.email);
-          email = user.email;
-
+        case "email":
 
           const updatedSubscription = await SubscriptionModel(
             tenant
-          ).findOneAndUpdate(
-            { email },
-            { $set: { [`notifications.analytics.${type}`]: true } },
-            { new: true, upsert: true }
-          );
+          ).subscribe(email, type);
 
           if (updatedSubscription) {
             return {
@@ -2452,38 +2411,30 @@ const createUserModule = {
   },
   unSubscribeFromNotifications: async (request, next) => {
     try {
-      let { product, email, type, tenant, mongo_user_id, firebase_user_id } = {
+      let { email, type, tenant, mongo_user_id, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
 
       let result;
 
-      switch (product) {
-        case "mobile":
-          let userRef
-          if (firebase_user_id) {
+      switch (type) {
+        case "mobile_push":
+          let userRef;
+          if (!isEmpty(firebase_user_id)) {
             userRef = db.collection(constants.FIREBASE_COLLECTION_USERS).doc(firebase_user_id);
           }
           else {
             const querySnapshot = await db.collection(constants.FIREBASE_COLLECTION_USERS).where("emailAddress", "==", email).get();
             userRef = querySnapshot.docs[0].ref;
           }
+
           const userDoc = await userRef.get();
           let firebase_result, mongo_result;
-          let updateField = {};
+          let updateField = {
+            push: false
+          };
 
-          switch (type) {
-            case "email":
-              updateField.email = false;
-              break;
-            case "push":
-              updateField.push = false;
-              break;
-            default:
-              updateField.email = false;
-              break;
-          }
 
           if (userDoc.exists) {
             const existingData = userDoc.data();
@@ -2498,9 +2449,10 @@ const createUserModule = {
 
           firebase_result = result.writeTime ? true : false;
 
+
           if (!isEmpty(userDoc.data().analyticsMongoID)) {
             const user = await UserModel(tenant)
-              .findOne({ _id: mongo_user_id })
+              .findOne({ _id: userDoc.data().analyticsMongoID })
               .select("email")
               .lean();
             if (isEmpty(user)) {
@@ -2508,18 +2460,16 @@ const createUserModule = {
                 success: false,
                 message: "Bad Request Error",
                 status: httpStatus.BAD_REQUEST,
-                errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
+                errors: { message: `Provided mongo_user_id ${userDoc.data().analyticsMongoID} does not exist` },
               };
             }
+            logObject("the email", user.email);
             email = user.email;
+
 
             const updatedSubscription = await SubscriptionModel(
               tenant
-            ).findOneAndUpdate(
-              { email },
-              { $set: { [`notifications.mobile.${type}`]: false } },
-              { new: true, upsert: true }
-            );
+            ).unsubscribe(email, type);
 
             mongo_result = updatedSubscription ? true : false;
           }
@@ -2549,7 +2499,7 @@ const createUserModule = {
               const paramString = Object.keys(queryParams)
                 .map(key => `${key}=${queryParams[key]}`)
                 .join('&');
-              await mailer.sendUnsubscriptionEmail({ product, type, email, name, paramString }, next);
+              await mailer.sendUnsubscriptionEmail({ type, email, name, paramString }, next);
             }
             return {
               success: true,
@@ -2568,51 +2518,23 @@ const createUserModule = {
           }
           break;
 
-        case "analytics":
-          if (isEmpty(mongo_user_id)) {
-            return {
-              success: false,
-              message: `Please provide the mongo_user_id`,
-              status: httpStatus.BAD_REQUEST,
-            };
-          }
-          const user = await UserModel(tenant)
-            .findOne({ _id: mongo_user_id })
-            .select("email")
-            .lean();
-          if (isEmpty(user)) {
-            return {
-              success: false,
-              message: "Bad Request Error",
-              status: httpStatus.BAD_REQUEST,
-              errors: { message: `Provided mongo_user_id ${mongo_user_id} does not exist` },
-            };
-          }
-          email = user.email;
-          firstName = user.firstName;
-
+        case "email":
 
           const updatedSubscription = await SubscriptionModel(
             tenant
-          ).findOneAndUpdate(
-            { email },
-            { $set: { [`notifications.analytics.${type}`]: false } },
-            { new: true, upsert: true }
-          );
+          ).unsubscribe(email, type);
 
           if (updatedSubscription) {
-            if (firstName == null) {
-              firstName = "";
-            }
 
+            let firstName = email;
             let queryParams = {};
+
             queryParams.email = email;
-            queryParams.mongo_user_id = mongo_user_id;
             const paramString = Object.keys(queryParams)
               .map(key => `${key}=${queryParams[key]}`)
               .join('&');
 
-            await mailer.sendUnsubscriptionEmail({ product, type, email, firstName, paramString }, next);
+            await mailer.sendUnsubscriptionEmail({ type, email, firstName, paramString }, next);
 
             return {
               success: true,
@@ -2645,7 +2567,7 @@ const createUserModule = {
   },
   checkNotificationStatus: async (request, next) => {
     try {
-      let { email, type, product, tenant, user_id } = {
+      let { email, type, tenant, user_id } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -2670,7 +2592,6 @@ const createUserModule = {
       const result = await SubscriptionModel(tenant).checkNotificationStatus({
         email,
         type,
-        product,
       }, next);
 
       return result; 

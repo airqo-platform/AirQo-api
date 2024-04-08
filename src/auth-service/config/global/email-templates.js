@@ -25,10 +25,10 @@ const emailTemplates = {
                             </table>
                             `;
   },
-    EMAIL_FOOTER_TEMPLATE: function (email, product, type, paramString) {
+    EMAIL_FOOTER_TEMPLATE: function (email, type, paramString) {
         let subscriptionBlock = ``;
-        if (product && type && paramString) {
-            const unSubsciptionUrl = `${baseUrl}/api/v2/users/unsubscribe/${product}/${type}?${paramString}`;
+        if (type && paramString) {
+            const unSubsciptionUrl = `${baseUrl}/api/v2/users/unsubscribe/${type}?${paramString}`;
             subscriptionBlock = `
             <span
     style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
@@ -84,8 +84,8 @@ const emailTemplates = {
     `;
   },
 
-    EMAIL_BODY: function (email, content, name, product, type, paramString) {
-        const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email, product, type, paramString);
+    EMAIL_BODY: function (email, content, name, type, paramString) {
+        const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email, type, paramString);
     const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
     let greetings = this.EMAIL_GREETINGS(name);
         if (!name || name === "") {

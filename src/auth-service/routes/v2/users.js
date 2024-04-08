@@ -1050,7 +1050,7 @@ router.get(
 
 /*********************************** user notifications **********************/
 router.get(
-  "/subscribe/:product/:type",
+  "/subscribe/:type",
   oneOf([
     [
       query("tenant")
@@ -1092,19 +1092,6 @@ router.get(
   ]),
   oneOf([
     [
-      param("product")
-        .exists()
-        .withMessage("the product must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the product should not be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["analytics", "mobile", "website"])
-        .withMessage(
-          "the product value is not among the expected ones: analytics, mobile and website"
-        ),
       param("type")
         .exists()
         .withMessage("the type must be provided")
@@ -1113,17 +1100,13 @@ router.get(
         .withMessage("the type should not be empty if provided")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(["email", "phone", "push", "text"])
-        .withMessage(
-          "the type value is not among the expected ones: email, phone, push and text"
-        ),
+        .toLowerCase(),
     ],
   ]),
   createUserController.subscribeToNotifications
 );
 router.get(
-  "/unsubscribe/:product/:type",
+  "/unsubscribe/:type",
   oneOf([
     [
       query("tenant")
@@ -1165,19 +1148,6 @@ router.get(
   ]),
   oneOf([
     [
-      param("product")
-        .exists()
-        .withMessage("the product must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the product should not be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["analytics", "mobile", "website"])
-        .withMessage(
-          "the product value is not among the expected ones: analytics, mobile and website"
-        ),
       param("type")
         .exists()
         .withMessage("the type must be provided")
@@ -1186,11 +1156,7 @@ router.get(
         .withMessage("the type should not be empty if provided")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(["email", "phone", "push", "text"])
-        .withMessage(
-          "the type value is not among the expected ones: email, phone, push and text"
-        ),
+        .toLowerCase(),
     ],
   ]),
   createUserController.unSubscribeFromNotifications
