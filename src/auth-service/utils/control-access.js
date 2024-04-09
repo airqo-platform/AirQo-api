@@ -1234,7 +1234,13 @@ const controlAccess = {
         .select("firstName lastName email");
 
       if (responseFromUpdateClient.success === true) {
-        const name = userDetails.firstName || userDetails.lastName;
+        const name =
+          userDetails.firstName === "Unknown"
+            ? "User"
+            : userDetails.lastName === "Unknown"
+            ? "User"
+            : userDetails.firstName || userDetails.lastName;
+
         const email = userDetails.email;
         const responseFromSendEmail = await mailer.afterClientActivation(
           {
