@@ -991,8 +991,8 @@ const mailer = {
 
       const subject =
         action === "activate"
-          ? "AirQo API Client Successfully Activated!"
-          : "AirQo API Client Successfully Deactivated!";
+          ? "AirQo API Client Activated!"
+          : "AirQo API Client Deactivated!";
       const htmlContent =
         action === "activate"
           ? msgs.afterClientActivation({ name, email, client_id })
