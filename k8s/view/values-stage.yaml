@@ -4,7 +4,7 @@ namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
-  tag: stage-58b994c8-1711431364
+  tag: stage-4145c4c2-1712587195
 api:
   name: airqo-stage-view-api
   label: view-api

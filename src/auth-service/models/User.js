@@ -26,6 +26,23 @@ function oneMonthFromNow() {
   }
   return d;
 }
+
+function validateProfilePicture(profilePicture) {
+  const urlRegex =
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+  if (!urlRegex.test(profilePicture)) {
+    logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
+    return false;
+  }
+  if (profilePicture.length > 200) {
+    logText("longer than 200 chars");
+    logger.error(
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+    );
+    return false;
+  }
+  return true;
+}
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
 const UserSchema = new Schema(
   {
@@ -203,6 +220,16 @@ const UserSchema = new Schema(
     },
     profilePicture: {
       type: String,
+      maxLength: 200,
+      validate: {
+        validator: function (v) {
+          const urlRegex =
+            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+          return urlRegex.test(v);
+        },
+        message:
+          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+      },
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
@@ -654,6 +681,16 @@ UserSchema.statics = {
 
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
+      }
+
+      if (modifiedUpdate.profilePicture) {
+        if (!validateProfilePicture(modifiedUpdate.profilePicture)) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
       }
 
       if (modifiedUpdate.network_roles) {
