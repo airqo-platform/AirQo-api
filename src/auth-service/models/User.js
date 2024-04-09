@@ -31,12 +31,12 @@ function validateProfilePicture(profilePicture) {
   const urlRegex =
     /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
   if (!urlRegex.test(profilePicture)) {
-    logger.error(`🐛🐛 Bad Request Error -- Not a valid URL`);
+    logger.error(`🙅🙅 Bad Request Error -- Not a valid URL`);
     return false;
   }
   if (profilePicture.length > 200) {
     logText("longer than 200 chars");
-    logger.error(`🐛🐛 Bad Request Error -- URL exceeds 200 characters`);
+    logger.error(`🙅🙅 Bad Request Error -- URL exceeds 200 characters`);
     return false;
   }
   return true;
