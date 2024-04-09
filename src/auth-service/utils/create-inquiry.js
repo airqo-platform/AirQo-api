@@ -1,8 +1,6 @@
-const UserModel = require("@models/User");
 const InquiryModel = require("@models/Inquiry");
 const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
-const CreateUserUtil = require("@utils/create-user");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generatFilter = require("@utils/generate-filter");
@@ -34,8 +32,6 @@ const inquiry = {
       );
 
       if (responseFromCreateInquiry.success === true) {
-        const responseFromListUser = await CreateUserUtil.list(request, next);
-        const user_id = responseFromListUser.data[0]._id;
         const createdInquiry = await responseFromCreateInquiry.data;
         const responseFromSendEmail = await mailer.inquiry(
           {
@@ -44,7 +40,6 @@ const inquiry = {
             category,
             message,
             tenant,
-            user_id
           },
           next
         );

@@ -1070,18 +1070,6 @@ router.get(
         .isEmail()
         .withMessage("this is not a valid email address")
         .trim(),
-      query("mongo_user_id")
-        .optional()
-        .notEmpty()
-        .withMessage("the mongo_user_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the mongo_user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       query("firebase_user_id")
         .optional()
         .notEmpty()
@@ -1126,18 +1114,6 @@ router.get(
         .isEmail()
         .withMessage("this is not a valid email address")
         .trim(),
-      query("mongo_user_id")
-        .optional()
-        .notEmpty()
-        .withMessage("the mongo_user_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the mongo_user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       query("firebase_user_id")
         .optional()
         .notEmpty()
@@ -1189,22 +1165,6 @@ router.post(
       .isEmail()
       .withMessage("this is not a valid email address")
       .trim(),
-    body("user_id")
-      .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using the user_id"
-      )
-      .bail()
-      .notEmpty()
-      .withMessage("the user_id must not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the user_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
   ]),
   oneOf([
     [

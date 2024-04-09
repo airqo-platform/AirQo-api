@@ -51,7 +51,7 @@ let attachments = [
 
 const mailer = {
   candidate: async (
-    { firstName, lastName, email, tenant = "airqo", user_id } = {},
+    { firstName, lastName, email, tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -88,7 +88,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics JOIN request",
-        html: msgs.joinRequest(firstName, lastName, email, user_id),
+        html: msgs.joinRequest(firstName, lastName, email),
         bcc,
         attachments: attachments,
       };
@@ -126,7 +126,7 @@ const mailer = {
     }
   },
   request: async (
-    { email, targetId, tenant = "airqo", entity_title = "", user_id } = {},
+    { email, targetId, tenant = "airqo", entity_title = "" } = {},
     next
   ) => {
     try {
@@ -166,7 +166,7 @@ const mailer = {
         subject: `AirQo Analytics Request to Access ${processString(
           entity_title
         )} Team`,
-        html: msgs.joinEntityRequest(email, entity_title, user_id),
+        html: msgs.joinEntityRequest(email, entity_title),
         bcc,
         attachments: attachments,
       };
@@ -303,7 +303,7 @@ const mailer = {
     }
   },
   inquiry: async (
-    { fullName, email, category, message, tenant = "airqo", user_id } = {},
+    { fullName, email, category, message, tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -364,7 +364,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         subject: `Welcome to AirQo`,
-        html: msgs.inquiry(fullName, email, category, user_id),
+        html: msgs.inquiry(fullName, email, category),
         bcc: subscribedBccEmails,
         attachments,
       };
@@ -494,7 +494,7 @@ const mailer = {
     }
   },
   user: async (
-    { firstName, lastName, email, password, tenant = "airqo", type, user_id } = {},
+    { firstName, lastName, email, password, tenant = "airqo", type } = {},
     next
   ) => {
     try {
@@ -534,7 +534,7 @@ const mailer = {
           },
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
-          html: msgs.welcome_kcca(firstName, lastName, password, email, user_id),
+          html: msgs.welcome_kcca(firstName, lastName, password, email),
           bcc,
           attachments,
         };
@@ -546,7 +546,7 @@ const mailer = {
           },
           to: `${email}`,
           subject: "Welcome to AirQo Analytics",
-          html: msgs.welcome_general(firstName, lastName, password, email, user_id),
+          html: msgs.welcome_general(firstName, lastName, password, email),
           bcc,
           attachments,
         };
@@ -837,7 +837,7 @@ const mailer = {
     }
   },
   afterEmailVerification: async (
-    { firstName = "", username = "", email = "", tenant = "airqo", user_id } = {},
+    { firstName = "", username = "", email = "", tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -871,7 +871,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Welcome to AirQo!",
-        html: msgTemplates.afterEmailVerification(firstName, username, email, user_id),
+        html: msgTemplates.afterEmailVerification(firstName, username, email),
         bcc: subscribedBccEmails,
         attachments: attachments,
       };
@@ -1002,7 +1002,7 @@ const mailer = {
     }
   },
   afterAcceptingInvitation: async (
-    { firstName, username, email, entity_title, tenant = "airqo", user_id } = {},
+    { firstName, username, email, entity_title, tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -1047,7 +1047,6 @@ const mailer = {
           username,
           email,
           entity_title,
-          user_id
         }),
         bcc: subscribedBccEmails,
         attachments: attachments,
@@ -1086,7 +1085,7 @@ const mailer = {
     }
   },
   forgot: async (
-    { email, token, tenant = "airqo", user_id, version = 2 } = {},
+    { email, token, tenant = "airqo", version = 2 } = {},
     next
   ) => {
     try {
@@ -1097,7 +1096,7 @@ const mailer = {
         },
         to: email,
         subject: `Link To Reset Password`,
-        html: msgs.recovery_email({ token, tenant, email, user_id, version }),
+        html: msgs.recovery_email({ token, tenant, email, version }),
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1311,7 +1310,6 @@ const mailer = {
       lastName = "",
       updatedUserDetails = {},
       tenant = "airqo",
-      user_id
     } = {},
     next
   ) => {
@@ -1328,7 +1326,6 @@ const mailer = {
           lastName,
           updatedUserDetails,
           email,
-          user_id
         })}`,
         attachments: attachments,
       };
@@ -1420,7 +1417,7 @@ const mailer = {
     }
   },
   updateForgottenPassword: async (
-    { email, firstName, lastName, tenant = "airqo", user_id } = {},
+    { email, firstName, lastName, tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -1437,7 +1434,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics Password Reset Successful",
-        html: `${msgs.forgotten_password_updated(firstName, lastName, email, user_id)}`,
+        html: `${msgs.forgotten_password_updated(firstName, lastName, email)}`,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1474,7 +1471,7 @@ const mailer = {
     }
   },
   updateKnownPassword: async (
-    { email, firstName, lastName, tenant = "airqo", user_id } = {},
+    { email, firstName, lastName, tenant = "airqo" } = {},
     next
   ) => {
     try {
@@ -1491,7 +1488,7 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics Password Update Successful",
-        html: `${msgs.known_password_updated(firstName, lastName, email, user_id)}`,
+        html: `${msgs.known_password_updated(firstName, lastName, email)}`,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
@@ -1895,7 +1892,6 @@ const mailer = {
       lastName = "",
       ip = "",
       tenant = "airqo",
-      user_id
     } = {},
     next
   ) => {
@@ -1941,7 +1937,6 @@ const mailer = {
           lastName,
           ip,
           email,
-          user_id
         })}`,
         bcc: subscribedBccEmails,
         attachments: attachments,
@@ -1982,7 +1977,7 @@ const mailer = {
     }
   },
   existingUserAccessRequest: async (
-    { email = "", firstName = "", lastName = "", tenant = "airqo", user_id = "" } = {},
+    { email = "", firstName = "", lastName = "", tenant = "airqo" = "" } = {},
     next
   ) => {
     try {
@@ -2019,7 +2014,6 @@ const mailer = {
           firstName,
           lastName,
           email,
-          user_id
         })}`,
         bcc: subscribedBccEmails,
         attachments: attachments,

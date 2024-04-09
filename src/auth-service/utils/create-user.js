@@ -630,7 +630,7 @@ const createUserModule = {
           const lastName = user[0].lastName;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails, user_id: _id },
+            { email, firstName, lastName, updatedUserDetails, },
             next
           );
 
@@ -871,7 +871,6 @@ const createUserModule = {
               password,
               tenant,
               type: "user",
-              user_id: createdUser._id,
             },
             next
           );
@@ -1726,7 +1725,6 @@ const createUserModule = {
             password,
             tenant,
             type: "user",
-            user_id: createdUser._id,
           },
           next
         );
@@ -1799,20 +1797,12 @@ const createUserModule = {
           /**
            * Based on the version number, return something different
            */
-          const responseFromListUser = await UserModel(tenant).list(
-            {
-              filter,
-            },
-            next
-          );
-          const user_id = responseFromListUser.data[0]._id;
           const responseFromSendEmail = await mailer.forgot(
             {
               email: filter.email,
               token,
               tenant,
               version,
-              user_id,
             },
             next
           );
@@ -1895,7 +1885,6 @@ const createUserModule = {
               email,
               firstName,
               lastName,
-              user_id: userDetails._id,
             },
             next
           );
@@ -1992,7 +1981,6 @@ const createUserModule = {
             email,
             firstName,
             lastName,
-            user_id: user[0]._id,
           },
           next
         );
@@ -2293,7 +2281,7 @@ const createUserModule = {
   subscribeToNotifications: async (request, next) => {
 
     try {
-      let { email, type, tenant, mongo_user_id, firebase_user_id } = {
+      let { email, type, tenant, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
@@ -2411,7 +2399,7 @@ const createUserModule = {
   },
   unSubscribeFromNotifications: async (request, next) => {
     try {
-      let { email, type, tenant, mongo_user_id, firebase_user_id } = {
+      let { email, type, tenant, firebase_user_id } = {
         ...request.query,
         ...request.params,
       };
@@ -2492,10 +2480,6 @@ const createUserModule = {
                 queryParams.email = email;
               }
 
-              if (mongo_user_id) {
-                queryParams.mongo_user_id = mongo_user_id;
-              }
-
               const paramString = Object.keys(queryParams)
                 .map(key => `${key}=${queryParams[key]}`)
                 .join('&');
@@ -2567,27 +2551,11 @@ const createUserModule = {
   },
   checkNotificationStatus: async (request, next) => {
     try {
-      let { email, type, tenant, user_id } = {
+      let { email, type, tenant, } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-
-      if (!isEmpty(user_id)) {
-        const user = await UserModel(tenant)
-          .findOne({ _id: user_id })
-          .select("email")
-          .lean();
-        if (isEmpty(user)) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `Provided user_id ${user_id} does not exist` },
-          };
-        }
-        email = user.email;
-      }
 
       const result = await SubscriptionModel(tenant).checkNotificationStatus({
         email,

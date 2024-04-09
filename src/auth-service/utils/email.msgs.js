@@ -13,7 +13,7 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: ({ token, email, version, user_id }) => {
+  recovery_email: ({ token, email, version }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     if (version && parseInt(version) === 3) {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
@@ -33,9 +33,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
-  joinRequest: (firstName, lastName, email, user_id) => {
+  joinRequest: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -51,10 +51,10 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
 
-  joinEntityRequest: (email, entity_title, user_id) => {
+  joinEntityRequest: (email, entity_title) => {
     const name = "";
     const content = ` <tr>
                                 <td
@@ -72,9 +72,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  inquiry: (fullName, email, category, user_id) => {
+  inquiry: (fullName, email, category) => {
     let content;
     switch (category) {
       case "policy":
@@ -159,7 +159,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY(email, content, fullName, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, fullName, "email", `email=${email}`);
   },
   clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
     const content = ` <tr>
@@ -202,7 +202,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  welcome_kcca: (firstName, lastName, password, email, user_id) => {
+  welcome_kcca: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -233,9 +233,9 @@ module.exports = {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  welcome_general: (firstName, lastName, password, email, user_id) => {
+  welcome_general: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                          <td
@@ -257,7 +257,7 @@ module.exports = {
                              <p>Best regards, AirQo Data Team</p>
                          </td>
                     </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
 
   user_updated: ({
@@ -265,7 +265,6 @@ module.exports = {
     lastName = "",
     updatedUserDetails = {},
     email = "",
-    user_id
   } = {}) => {
     let updatedFields = "<ol>\n";
     Object.keys(updatedUserDetails).forEach((field) => {
@@ -292,7 +291,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   site_activity: ({
     firstName = "",
@@ -331,7 +330,6 @@ module.exports = {
     lastName = "",
     ip = "",
     email = "",
-    user_id
   } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
@@ -345,9 +343,9 @@ module.exports = {
     </tr>
    `;
 
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  existing_user: ({ firstName = "", lastName = "", email = "", user_id = "" } = {}) => {
+  existing_user: ({ firstName = "", lastName = "", email = "" = "" } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
     <tr>
@@ -358,7 +356,7 @@ module.exports = {
     </tr>
     `;
 
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
@@ -380,7 +378,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`, "email", `email=${email}`);
   },
-  forgotten_password_updated: (firstName, lastName, email, user_id) => {
+  forgotten_password_updated: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
                                 <td
@@ -397,9 +395,9 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  known_password_updated: (firstName, lastName, email, user_id) => {
+  known_password_updated: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = `<tr>
                                 <td
@@ -416,7 +414,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}&mongo_user_id=${user_id}`);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   join_by_email: (email, token) => {
     const content = `<tr>

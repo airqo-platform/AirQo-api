@@ -63,7 +63,6 @@ const createCandidate = {
             email,
             firstName,
             lastName,
-            user_id: userExists._id,
           },
           next
         );
@@ -87,14 +86,12 @@ const createCandidate = {
 
         if (responseFromCreateCandidate.success === true) {
           const createdCandidate = await responseFromCreateCandidate.data;
-          const user_id = createdCandidate._id;
           const responseFromSendEmail = await mailer.candidate(
             {
               firstName,
               lastName,
               email,
               tenant,
-              user_id
             },
             next
           );

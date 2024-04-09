@@ -86,7 +86,6 @@ const createAccessRequest = {
             email: user.email,
             tenant,
             entity_title: group.grp_title,
-            user_id: user._id,
           },
           next
         );
@@ -384,7 +383,6 @@ const createAccessRequest = {
                 username: email,
                 email,
                 entity_title,
-                user_id: newUser._id,
               },
               next
             );
@@ -488,7 +486,6 @@ const createAccessRequest = {
             email: user.email,
             tenant,
             entity_title: network.net_name,
-            user_id: user._id,
           },
           next
         );
