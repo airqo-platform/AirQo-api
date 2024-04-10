@@ -35,6 +35,9 @@ setup(
         "pymongo~=4.5.0",
         "optuna",
         "tweepy",
+        "ee",
+        "gunicorn"
+
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

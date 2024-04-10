@@ -28,3 +28,5 @@ pytest-cov
 firebase-admin
 db_dtypes
 tweepy
+ee
+google-cloud-bigquery[pandas] 

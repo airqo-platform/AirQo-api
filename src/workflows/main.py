@@ -29,6 +29,8 @@ from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+from workflows.airqo_etl_utils.satellite_data_utils import DataHandler
+
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -58,6 +60,11 @@ class MainClass:
     def export_dataframe(self, file_name, dataframe):
         if self.dataframe_export_format == "csv":
             dataframe.to_csv(f"{file_name}.csv", index=False)
+    #satellite
+    def satellite_data(self):
+        from airqo_etl_utils.satellite_data_utils import DataHandler
+        data_handler = DataHandler()
+        data_handler.get_satellite_data()
 
     def calibrate_historical_airqo_data(self):
         hourly_uncalibrated_data = AirQoDataUtils.extract_uncalibrated_data(
