@@ -165,7 +165,16 @@ router.put(
         .exists()
         .withMessage("the client_id param is missing in the request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the client_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   oneOf([
@@ -230,7 +239,16 @@ router.post(
         .exists()
         .withMessage("the client_id param is missing in the request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the client_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   oneOf([
@@ -273,7 +291,16 @@ router.get(
         .exists()
         .withMessage("the client_id param is missing in the request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the client_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -302,7 +329,16 @@ router.delete(
         .exists()
         .withMessage("the client_id param is missing in the request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the client_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -331,7 +367,16 @@ router.get(
         .exists()
         .withMessage("the client_id param is missing in the request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the client_id cannot be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
