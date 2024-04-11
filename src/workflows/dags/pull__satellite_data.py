@@ -1,28 +1,22 @@
 from airflow.decorators import dag, task
-from airflow import DAG
-from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pytz
 from workflows.airqo_etl_utils.satellite_data_utils import DataHandler
+from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import datetime, timedelta
 import time
 import pytz
 
-default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 4, 10, tzinfo=pytz.UTC),
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-}
 
-dag = DAG(
-    'satellite_data_processing',
-    default_args=default_args,
-    description='DAG for processing satellite data every 2 weeks',
-    schedule_interval='0 0 */2 * *',
+@dag(
+    "satellite_data_processing",
+    schedule='0 0 */2 * *',
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["airqo", "satellite"],
 )
-def main():
+@task()
+def satellite_data_processing():
     # Create an instance of DataHandler
     data_handler = DataHandler()
 
@@ -76,12 +70,4 @@ def main():
         start_time = last_timestamp
 
 if __name__ == "__main__":
-    main()
-
-run_etl_task = PythonOperator(
-    task_id='run_etl_task',
-    python_callable=main,
-    dag=dag,
-)
-
-run_etl_task
+    satellite_data_processing()

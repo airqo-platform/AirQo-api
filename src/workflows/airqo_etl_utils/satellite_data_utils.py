@@ -24,7 +24,7 @@ class DataHandler:
     def __init__(self):
         self.client = bigquery.Client()
         self.data_path = None
-        ee.Initialize(credentials, project=Config.GOOGLE_PROJECT_ID)
+        ee.Initialize(credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID)
         self.mongo_client = MongoClient(Config.MONGODB_URI)
         self.db = self.mongo_client[Config.MONGODB_DATABASE]
         self.collection = self.db[Config.MONGODB_COLLECTION]
@@ -49,7 +49,7 @@ class DataHandler:
             SELECT 
                 site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5,
                 pm10, country
-            FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
+            FROM {Config.BIGQUERY_ANALYTICS_TABLE}
             WHERE timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
                 AND TIMESTAMP('{end_time.isoformat()}')
                 AND pm2_5 IS NOT NULL
