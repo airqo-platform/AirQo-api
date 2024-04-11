@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 import time
 import pytz
 
-
 @dag(
     "satellite_data_processing",
     schedule='0 0 */2 * *',
