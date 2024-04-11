@@ -29,8 +29,6 @@ from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-from workflows.airqo_etl_utils.satellite_data_utils import DataHandler
-
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
