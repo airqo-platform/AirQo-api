@@ -1406,7 +1406,9 @@ const controlAccess = {
             tenant
           ).register({ ip }, next);
           if (newWhitelistResponse.success === false) {
-            return newWhitelistResponse;
+            logger.error(
+              `Unable to whitelist the IP ${ip} during CLIENT creation`
+            );
           } else {
             return responseFromCreateClient;
           }
