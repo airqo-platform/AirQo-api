@@ -60,11 +60,6 @@ class MainClass:
     def export_dataframe(self, file_name, dataframe):
         if self.dataframe_export_format == "csv":
             dataframe.to_csv(f"{file_name}.csv", index=False)
-    #satellite
-    def satellite_data(self):
-        from airqo_etl_utils.satellite_data_utils import DataHandler
-        data_handler = DataHandler()
-        data_handler.get_satellite_data()
 
     def calibrate_historical_airqo_data(self):
         hourly_uncalibrated_data = AirQoDataUtils.extract_uncalibrated_data(
