@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, make_response
 from models import calibrate_tool as calibration_tool
 from models import regression as rg
 from models import train_calibrate_tool as training_tool
-from routes import api
+import api
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 

@@ -1,4 +1,4 @@
-from controllers.calibrate import calibrate_bp
+from calibrate import calibrate_bp
 from flask import Flask
 import logging
 import os
