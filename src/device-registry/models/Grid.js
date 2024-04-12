@@ -78,7 +78,7 @@ const gridSchema = new Schema(
     visibility: {
       type: Boolean,
       trim: true,
-      default: false,
+      default: true,
     },
     grid_codes: [
       {
