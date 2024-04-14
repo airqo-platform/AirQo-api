@@ -13,3 +13,10 @@ google-cloud-storage
 google-cloud-bigquery[pandas] 
 gunicorn
 flask-cors
+
+gunicorn
+flask-cors
+ee
+geemap
+pymongo
+schedule
