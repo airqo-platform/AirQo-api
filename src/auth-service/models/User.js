@@ -374,7 +374,7 @@ UserSchema.statics = {
   async listStatistics(next) {
     try {
       const response = await this.aggregate()
-        .match({ email: { $ne: null } })
+        .match({ email: { $nin: [null, ""] } })
         .sort({ createdAt: -1 })
         .lookup({
           from: "clients",
