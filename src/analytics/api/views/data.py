@@ -54,7 +54,7 @@ class DataExportResource(Resource):
         "airqlouds|optional:list",
     )
     def post(self):
-        valid_pollutants = ["pm2_5", "pm10", "no2"]
+        valid_pollutants = ["pm2_5", "pm10", "no2","voc"]
         valid_download_types = ["csv", "json"]
         valid_output_formats = ["airqo-standard", "aqcsv"]
         valid_frequencies = ["hourly", "daily", "raw"]
@@ -199,7 +199,7 @@ class DataExportV2Resource(Resource):
         "meta_data|optional:dict",
     )
     def post(self):
-        valid_pollutants = ["pm2_5", "pm10", "no2"]
+        valid_pollutants = ["pm2_5", "pm10", "no2","voc"]
         valid_export_formats = ["csv", "json"]
         valid_output_formats = ["airqo-standard", "aqcsv"]
         valid_frequencies = ["hourly", "daily", "raw"]

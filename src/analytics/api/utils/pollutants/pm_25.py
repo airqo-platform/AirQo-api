@@ -59,6 +59,7 @@ BIGQUERY_FREQUENCY_MAPPER = {
         "pm2_5": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
         "pm10": ["pm10", "s1_pm10", "s2_pm10"],
         "no2": ["no2"],
+        "voc": ["voc"],
     },
     "daily": {
         "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
