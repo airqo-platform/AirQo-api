@@ -109,7 +109,15 @@ class DataHandler:
     
     def satellite_image(self):
         images = {
-            'CLOUD': 'COPERNICUS/S5P/OFFL/L3_CLOUD' 
+           
+            'UV_Aerosol_Index' :'COPERNICUS/S5P/OFFL/L3_AER_AI',
+            'Carbon_Monoxide':'COPERNICUS/S5P/OFFL/L3_CO',
+            'Formaldehyde':'COPERNICUS/S5P/OFFL/L3_HCHO',
+            'Nitrogen_Dioxide':'COPERNICUS/S5P/OFFL/L3_NO2',
+            'Ozone':'COPERNICUS/S5P/OFFL/L3_O3',
+            'Sulphur_Dioxide':'COPERNICUS/S5P/OFFL/L3_SO2',
+            'Methane':'COPERNICUS/S5P/OFFL/L3_CH4',
+            'Clouds':'COPERNICUS/S5P/OFFL/L3_CLOUD',
         }
         return images
     
@@ -215,4 +223,15 @@ class DataHandler:
         except Exception as e:
             print(f"Error saving data to MongoDB: {e}")
 
-                
+    def save_data_to_bigquery(data: pd.DataFrame, table: str):
+        """saves the dataframes to the bigquery tables"""
+        credentials = service_account.Credentials.from_service_account_file(
+            Config.CREDENTIALS
+        )
+        data.to_gbq(
+            destination_table=f"Config.IG_QUERY_DAVE_DATASET.{table}",
+            project_id=Config.GOOGLE_PROJECT_ID,
+            if_exists="append",
+            credentials=credentials,
+        )
+        print("Hourly data saved to bigquery")

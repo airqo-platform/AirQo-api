@@ -21,6 +21,8 @@ class Config:
     MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION")
     REDIS_BROKER_URL = os.getenv("REDIS_BROKER_URL")
 
+    BIG_QUERY_DAVE_DATASET  = os.getenv("BIG_QUERY_DAVE_DATASET")
+
 
 class ProductionConfig(Config):
     DEBUG = False
