@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from firebase_admin import credentials, messaging
 from firebase_admin import firestore
+from firebase_admin.exceptions import NotFoundError
 
 from .airqo_api import AirQoApi
 from .constants import Tenant
@@ -189,7 +190,7 @@ def send_push_notifications(grouped_users):
                         },
                         token=registration_token,
                     )
-
+                    
                     response = messaging.send(message)
                     print(f"Successfully sent message to User {userId}: {response}")
                 else:
@@ -197,6 +198,11 @@ def send_push_notifications(grouped_users):
 
             else:
                 print(f"No PM value while sending push notifications to User {userId}")
+
+        except NotFoundError as e:
+            user_ref.update({"device": ""})
+            print(f"Token for User {userId} is invalid and has been deleted.")
+
         except Exception as error:
             print(f"Error sending push notifications to User {userId}", error)
             traceback.print_exc()
