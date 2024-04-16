@@ -36,7 +36,7 @@ class EventsModel(BasePyMongoModel):
     DEVICES_SUMMARY_TABLE = CONFIGURATIONS.DEVICES_SUMMARY_TABLE
 
     def __init__(self, tenant):
-        self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
+        self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049, "co": 50.5 ,"nh3":2500}
         super().__init__(tenant, collection_name="events")
 
     @classmethod
@@ -94,6 +94,14 @@ class EventsModel(BasePyMongoModel):
             elif pollutant == "no2":
                 bam_pollutant_columns.extend(
                     ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
+                )
+            elif pollutant == "co":
+                bam_pollutant_columns.extend(
+                    ["co as co_raw_value", "co as co_calibrated_value"]
+                )
+            elif pollutant == "nh3":
+                bam_pollutant_columns.extend(
+                    ["nh3 as co_raw_value", "nh3 as co_calibrated_value"]
                 )
 
         pollutants_query = (
@@ -315,7 +323,14 @@ class EventsModel(BasePyMongoModel):
                 bam_pollutant_columns.extend(
                     ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
                 )
-
+            elif pollutant == "co":
+                bam_pollutant_columns.extend(
+                    ["co as co_raw_value", "co as co_calibrated_value"]
+                )
+            elif pollutant == "nh3":
+                bam_pollutant_columns.extend(
+                    ["nh3 as nh3_raw_value", "nh3 as nh3_calibrated_value"]
+                )
         pollutants_query = (
             f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
@@ -748,6 +763,8 @@ class EventsModel(BasePyMongoModel):
                 pm2_5="$pm2_5.value",
                 pm10="$pm10.value",
                 no2="$no2.value",
+                co="$co.value",
+                nh3="$nh3.value",
                 frequency=1,
                 site_id={"$toString": "$site_id"},
             )
@@ -759,7 +776,7 @@ class EventsModel(BasePyMongoModel):
                 site_id={"$first": "$site_id"},
             )
             .project(
-                site_id={"$toObjectId": "$site_id"}, time=1, pm2_5=1, pm10=1, no2=1
+                site_id={"$toObjectId": "$site_id"}, time=1, pm2_5=1, pm10=1, no2=1, co=1, nh3=1
             )
             .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
             .unwind("site")
@@ -802,7 +819,7 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
-        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1","co",'nh3']:
             raise Exception("Invalid pollutant")
 
         query = f"""
@@ -824,7 +841,7 @@ class EventsModel(BasePyMongoModel):
     def get_device_averages_from_bigquery(
         self, start_date, end_date, pollutant, devices
     ):
-        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1","co","nh3"]:
             raise Exception("Invalid pollutant")
 
         query = f"""
@@ -847,7 +864,7 @@ class EventsModel(BasePyMongoModel):
     def get_device_readings_from_bigquery(
         self, start_date, end_date, pollutant, devices
     ):
-        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1","co","nh3"]:
             raise Exception("Invalid pollutant")
 
         query = f"""
@@ -996,7 +1013,7 @@ class EventsModel(BasePyMongoModel):
     def get_d3_chart_events_v2(
         self, sites, start_date, end_date, pollutant, frequency, tenant
     ):
-        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1","co","nh3"]:
             raise Exception("Invalid pollutant")
 
         columns = [
@@ -1078,6 +1095,8 @@ class EventsModel(BasePyMongoModel):
                 **{"pm2_5.value": 1},
                 **{"pm10.value": 1},
                 **{"no2.value": 1},
+                **{"co.value": 1},
+                **{"nh3.value": 1},
                 frequency=1,
                 site_id={"$toString": "$site_id"},
                 sites={"name": 1, "description": 1, "generated_name": 1},
@@ -1089,6 +1108,8 @@ class EventsModel(BasePyMongoModel):
                 pm2_5={"$avg": "$pm2_5.value"},
                 pm10={"$avg": "$pm10.value"},
                 no2={"$avg": "$no2.value"},
+                co={"$avg": "$co.value"},
+                nh3={"$avg": "$nh3.value"},
                 sites={"$first": "$sites"},
             )
             .sort(**{"_id.time": 1})

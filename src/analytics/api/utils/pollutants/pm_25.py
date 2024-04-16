@@ -14,6 +14,9 @@ AQCSV_PARAMETER_MAPPER = {
     "pm2_5": 88500,
     "pm10": 85101,
     "no2": 42602,
+    "co":42602,
+    "nh3": 42602,
+
 }
 
 # TODO: Verify that these are the right units
@@ -21,16 +24,24 @@ AQCSV_UNIT_MAPPER = {
     "pm2_5": "001",
     "pm10": "001",
     "no2": "008",
+    "co": "009",
+    "nh3": "009",
 }
 
 AQCSV_DATA_STATUS_MAPPER = {
     "pm2_5_calibrated_value": 1,
     "pm10_calibrated_value": 1,
     "no2_calibrated_value": 1,
+    "co_calibrated_value": 1,
+    "nh3_calibrated_value": 1,
     "pm2_5_raw_value": 0,
     "pm10_raw_value": 0,
     "no2_raw_value": 0,
+    "co_raw_value": 0,
+    "nh3_raw_value": 0,
+    
     # only used when frequency is raw
+    
     "no2": 0,
     "pm2_5": 0,
     "s1_pm2_5": 0,
@@ -38,6 +49,8 @@ AQCSV_DATA_STATUS_MAPPER = {
     "s1_pm10": 0,
     "s2_pm2_5": 0,
     "s2_pm10": 0,
+    "co": 0,
+    "nh3": 0,
 }
 
 
@@ -52,6 +65,8 @@ POLLUTANT_BIGQUERY_MAPPER = {
     "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
     "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
     "no2": ["no2_calibrated_value", "no2_raw_value"],
+    "co": ["co_calibrated_value", "co_raw_value"],
+    "nh3": ["nh3_calibrated_value", "nh3_raw_value"],
 }
 
 BIGQUERY_FREQUENCY_MAPPER = {
@@ -59,17 +74,22 @@ BIGQUERY_FREQUENCY_MAPPER = {
         "pm2_5": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
         "pm10": ["pm10", "s1_pm10", "s2_pm10"],
         "no2": ["no2"],
-        "voc": ["voc"],
+        "co": ["co"],
+        "nh3": ["nh3"],
     },
     "daily": {
         "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
         "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
         "no2": ["no2_calibrated_value", "no2_raw_value"],
+        "co": ["co_calibrated_value", "co_raw_value"],
+        "nh3": ["nh3_calibrated_value", "nh3_raw_value"],
     },
     "hourly": {
         "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
         "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
         "no2": ["no2_calibrated_value", "no2_raw_value"],
+        "co": ["co_calibrated_value", "co_raw_value"],
+        "nh3": ["nh3_calibrated_value", "nh3_raw_value"],
     },
 }
 
@@ -113,7 +133,25 @@ NO2_CATEGORY = {
     "All": [0, 2049],
 }
 
+CO_CATEGORY = {
+    "Good": [0, 4.4],
+    "Moderate": [4.5, 9.4],
+    "UHFSG": [9.5, 12.4],
+    "Unhealthy": [12.5, 15.4],
+    "VeryUnhealthy": [15.5,30.4],
+    "Hazardous": [30.5,50.4],
+    "All": [0, 50.4],
+}
 
+NH3_CATEGORY = {
+    "Good": [0, 200],
+    "Moderate": [201,400],
+    "UHFSG": [401, 800],
+    "Unhealthy": [801, 1200],
+    "VeryUnhealthy": [1201,1800],
+    "Hazardous": [1801,2500],
+    "All": [0, 2500],
+}
 def set_pm25_category_background(pm25_value):
     keys = sorted(PM_25_COLOR_MAPPER.keys(), reverse=True)
 
@@ -150,7 +188,7 @@ def get_pollutant_category(value, pollutant):
     Returns: a string representing the category og the value
     """
 
-    mapper = {"pm2_5": PM_25_CATEGORY, "pm10": PM_10_CATEGORY, "no2": NO2_CATEGORY}
+    mapper = {"pm2_5": PM_25_CATEGORY, "pm10": PM_10_CATEGORY, "no2": NO2_CATEGORY, "co": CO_CATEGORY,"nh3": NH3_CATEGORY}
 
     try:
         category_mapper = dict(mapper[pollutant])
