@@ -889,18 +889,43 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const currentDate = new Date();
 
       try {
-        await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
-          user._id,
-          {
-            lastLogin: currentDate,
-            isActive: true,
-            $inc: { loginCount: 1 },
-            ...(user.analyticsVersion !== 3 && user.verified === false
-              ? { $set: { verified: true } }
-              : {}),
-          },
-          { new: true }
-        );
+        // await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+        //   user._id,
+        //   {
+        //     lastLogin: currentDate,
+        //     isActive: true,
+        //     $inc: { loginCount: 1 },
+        //     ...(user.analyticsVersion !== 3 && user.verified === false
+        //       ? { $set: { verified: true } }
+        //       : {}),
+        //   },
+        //   { new: true }
+        // );
+
+        await UserModel(tenant.toLowerCase())
+          .findOneAndUpdate(
+            { _id: user._id },
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(user.analyticsVersion !== 3 && user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            {
+              new: true,
+              upsert: false,
+              runValidators: true,
+            }
+          )
+          .then(() => {})
+          .catch((error) => {
+            logger.error(
+              `🐛🐛 Failed to increment login count for user ${
+                user._id
+              }: ${stringify(error)}`
+            );
+          });
       } catch (error) {
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
       }
