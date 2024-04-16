@@ -32,6 +32,7 @@ const filter = {
         resetPasswordToken,
         user,
         user_id,
+        login_count
       } = { ...req.body, ...req.query, ...req.params };
 
       let filter = {};
@@ -71,6 +72,10 @@ const filter = {
       }
       if (username) {
         filter["userName"] = username;
+      }
+
+      if (login_count) {
+        filter["login_count"] = parseInt(login_count);
       }
 
       return filter;
