@@ -3,6 +3,7 @@ import datetime as dt
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import pandas as pd
+import pandas_gbq
 import numpy as np
 import os
 import random
@@ -27,8 +28,8 @@ class DataHandler:
         ee.Initialize(credentials, project=Config.GOOGLE_PROJECT_ID)
         self.mongo_client = MongoClient(Config.MONGODB_URI)
         self.db = self.mongo_client[Config.MONGODB_DATABASE]
-        self.collection = self.db[Config.MONGODB_COLLECTION]
-    
+        self.collection = self.db[Config.MONGODB_COLLECTION] 
+        
     def query_bigquery_batch(self, start_time=None, end_time=None, batch_size=None):
         query = f"""
             SELECT 
@@ -110,13 +111,7 @@ class DataHandler:
     def satellite_image(self):
         images = {
            
-            'UV_Aerosol_Index' :'COPERNICUS/S5P/OFFL/L3_AER_AI',
-            'Carbon_Monoxide':'COPERNICUS/S5P/OFFL/L3_CO',
-            'Formaldehyde':'COPERNICUS/S5P/OFFL/L3_HCHO',
-            'Nitrogen_Dioxide':'COPERNICUS/S5P/OFFL/L3_NO2',
-            'Ozone':'COPERNICUS/S5P/OFFL/L3_O3',
-            'Sulphur_Dioxide':'COPERNICUS/S5P/OFFL/L3_SO2',
-            'Methane':'COPERNICUS/S5P/OFFL/L3_CH4',
+
             'Clouds':'COPERNICUS/S5P/OFFL/L3_CLOUD',
         }
         return images
@@ -192,7 +187,7 @@ class DataHandler:
       merged_df_ = df1.merge(result_df, how='right', on=['site_id', 'date', 'month', 'hour'])
       merged_df_= merged_df_[~merged_df_['country'].isna()].reset_index(drop = True)
       merged_df_ = merged_df_.drop(columns=[col for col in merged_df_.columns if '_datetime' in col])
-      merged_df_.to_csv('output.csv', index=False)
+      #merged_df_.to_csv('output.csv', index=False)
 
       return merged_df_
     
@@ -223,15 +218,16 @@ class DataHandler:
         except Exception as e:
             print(f"Error saving data to MongoDB: {e}")
 
-    def save_data_to_bigquery(data: pd.DataFrame, table: str):
+    def save_to_bigquery(self, merged_df):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             Config.CREDENTIALS
         )
-        data.to_gbq(
-            destination_table=f"Config.IG_QUERY_DAVE_DATASET.{table}",
+        pandas_gbq.to_gbq(merged_df,
+            destination_table=f"Config.BIGQUERY_SAT_TABLE_ID",
             project_id=Config.GOOGLE_PROJECT_ID,
             if_exists="append",
             credentials=credentials,
         )
-        print("Hourly data saved to bigquery")
+        print("Data saved to bigquery")
+

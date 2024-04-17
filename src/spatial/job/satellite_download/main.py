@@ -1,4 +1,4 @@
-from models.pull_satellite_data import DataHandler
+from utils import DataHandler
 from datetime import datetime, timedelta
 import time
 import pytz
@@ -11,10 +11,10 @@ def run_data_processing_job():
     data_handler = DataHandler()
 
     # Example usage of query_bigquery_batch
- #   start_time = datetime.now(tz=pytz.UTC) - timedelta(days=5)
+ #   start_time = datetime.now(tz=pytz.UTC) - timedelta(days=18)
  #   end_time = datetime.now(tz=pytz.UTC)
-    start_time = datetime(2019, 12, 1, 0, 0, 0, tzinfo=pytz.UTC)
-    end_time  =datetime(2020, 3, 30, 23, 59, 59, tzinfo=pytz.UTC)
+    start_time = datetime(2023, 3, 28, 0, 0, 0, tzinfo=pytz.UTC)
+    end_time  =datetime(2024, 3, 30, 23, 59, 59, tzinfo=pytz.UTC)
     batch_size = 5000
     total_rows = 0
     last_timestamp = None
@@ -37,14 +37,12 @@ def run_data_processing_job():
                 schedule.every(WAIT_TIME).minutes.do(run_data_processing_job)
                 return
         print("Querying BigQuery complete.")
-        print (data.shape)
- 
 
         print("Processing geolocation data...")
         geo_data = data_handler.site_geolocation_data(data)
         site_names = data_handler.get_site_names(data)
         site_df = data_handler.get_site_df(data)
-        print("Site dataframe created.") 
+        
         print("Getting image data for sites...")
         dfs = data_handler.get_image_data(site_df)
         print("Image data retrieved.")
@@ -65,8 +63,10 @@ def run_data_processing_job():
             schedule.every(WAIT_TIME).minutes.do(run_data_processing_job)
             return
         else:
-            data_handler.save_to_mongodb(merged_df_)
+            data_handler.save_to_mongodb(merged_df_)            #MongoDb
             print("Merged data saved to MongoDB.")
+            data_handler.save_to_bigquery(merged_df_)       #Big Query
+            print("Merged data saved to BigQuery.")
         print("Data extraction and merging complete.")
         #data_handler.save_to_mongodb(merged_df_)
         print("Merged data saved to MongoDB.")
@@ -80,7 +80,7 @@ def run_data_processing_job():
         print(f"Pause for 1/2 minutes before next 5000 batch....")
         # Pause for 2 minutes before next batch
         time.sleep(50)
-        
+
 if __name__ == "__main__":
     run_data_processing_job()
     # Schedule the job to run every 2 weeks
