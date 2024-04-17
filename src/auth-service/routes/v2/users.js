@@ -1177,9 +1177,9 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["email", "phone", "push", "text"])
+        .isIn(["email", "twitter", "mobile_push"])
         .withMessage(
-          "the type value is not among the expected ones: email, phone, push and text"
+          "the type value is not among the expected ones: email, mobile_push and twitter"
         ),
     ],
   ]),

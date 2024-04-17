@@ -2317,29 +2317,18 @@ const createUserModule = {
 
           firebase_result = result.writeTime ? true : false;
 
+          email = userDoc.data().emailAddress;
+          if (email !== "") {
+            const user = await UserModel(tenant).findOne({ email });
 
-          if (!isEmpty(userDoc.data().analyticsMongoID)) {
-            const user = await UserModel(tenant)
-              .findOne({ _id: userDoc.data().analyticsMongoID })
-              .select("email")
-              .lean();
-            if (isEmpty(user)) {
-              return {
-                success: false,
-                message: "Bad Request Error",
-                status: httpStatus.BAD_REQUEST,
-                errors: { message: `Provided mongo_user_id ${userDoc.data().analyticsMongoID} does not exist` },
-              };
+            if (!isEmpty(user)) {
+
+              const updatedSubscription = await SubscriptionModel(
+                tenant
+              ).subscribe(email, type);
+
+              mongo_result = updatedSubscription ? true : false;
             }
-            logObject("the email", user.email);
-            email = user.email;
-
-
-            const updatedSubscription = await SubscriptionModel(
-              tenant
-            ).subscribe(email, type);
-
-            mongo_result = updatedSubscription ? true : false;
           }
           if (firebase_result || mongo_result) {
             return {

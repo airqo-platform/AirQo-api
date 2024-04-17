@@ -20,6 +20,11 @@ const SubscriptionSchema = new mongoose.Schema(
       unique: true,
     },
     notifications: {
+      twitter: {
+        type: Boolean,
+        default: true,
+      },
+
       email: {
         type: Boolean,
         default: true,
