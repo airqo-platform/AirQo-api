@@ -294,10 +294,7 @@ class AirQoDataUtils:
         )
 
         if device_numbers:
-            devices = list(
-                filter(lambda x: int(x["device_number"]) in device_numbers, devices)
-            )
-
+            devices = [x for x in devices if x["device_number"] in device_numbers]
         if device_category == DeviceCategory.BAM:
             other_fields_cols = []
             field_8_cols = [x for x in configuration.AIRQO_BAM_CONFIG.values()]

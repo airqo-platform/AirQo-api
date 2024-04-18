@@ -109,47 +109,34 @@ class AirQoApi:
             params["network"] = str(tenant)
 
         response = self.__request("devices", params)
-
         devices = [
             {
                 **device,
-                **{
-                    "device_number": device.get("device_number", None),
-                    "approximate_latitude": device.get(
-                        "approximate_latitude", device.get("latitude", None)
-                    ),
-                    "approximate_longitude": device.get(
-                        "approximate_longitude", device.get("longitude", None)
-                    ),
-                    "device_id": device.get("name", None),
-                    "device_codes": [
-                        str(code) for code in device.get("device_codes", [])
-                    ],
-                    "mongo_id": device.get("_id", None),
-                    "site_id": device.get("site", {}).get("_id", None),
-                    "site_latitude": device.get("site", {}).get("latitude", None),
-                    "site_generated_name": device.get("site", {}).get(
-                        "generated_name", None
-                    ),
-                    "site_longitude": device.get("site", {}).get("longitude", None),
-                    "device_category": str(
-                        DeviceCategory.from_str(device.get("category", ""))
-                    ),
-                    "tenant": device.get("network"),
-                    "device_manufacturer": device.get(
-                        "device_manufacturer",
-                        Tenant.from_str(device.get("network")).device_manufacturer(),
-                    ),
-                },
+                "device_number": device.get("device_number"),
+                "approximate_latitude": device.get("approximate_latitude")
+                or device.get("latitude"),
+                "approximate_longitude": device.get("approximate_longitude")
+                or device.get("longitude"),
+                "device_id": device.get("name"),
+                "device_codes": [str(code) for code in device.get("device_codes", [])],
+                "mongo_id": device.get("_id"),
+                "site_id": device.get("site", {}).get("_id"),
+                "site_latitude": device.get("site", {}).get("latitude"),
+                "site_longitude": device.get("site", {}).get("longitude"),
+                "site_generated_name": device.get("site", {}).get("generated_name"),
+                "site_location": device.get("site", {}).get("location_name"),
+                "device_category": str(
+                    DeviceCategory.from_str(device.get("category", ""))
+                ),
+                "tenant": device.get("network"),
+                "device_manufacturer": device.get("device_manufacturer")
+                or Tenant.from_str(device.get("network")).device_manufacturer(),
             }
             for device in response.get("devices", [])
         ]
 
         if device_category != DeviceCategory.NONE:
-            devices = list(
-                filter(lambda y: y["device_category"] == str(device_category), devices)
-            )
-
+            devices = [device for device in devices if device["device_category"] == str(device_category)]
         return devices
 
     def get_thingspeak_read_keys(self, devices: list) -> dict:
