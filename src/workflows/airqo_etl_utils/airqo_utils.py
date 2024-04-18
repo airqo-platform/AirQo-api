@@ -401,7 +401,7 @@ class AirQoDataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         aggregated_data = pd.DataFrame()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         for _, device_group in data.groupby("device_number"):
             site_id = device_group.iloc[0]["site_id"]
@@ -446,7 +446,7 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
-        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
@@ -633,10 +633,9 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        weather_data.loc[:, "timestamp"] = weather_data["timestamp"].apply(
-            pd.to_datetime
-        )
-        airqo_data.loc[:, "timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
+        airqo_data["timestamp"] = pd.to_datetime(airqo_data["timestamp"])
+        weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
+
 
         airqo_api = AirQoApi()
         sites = []
