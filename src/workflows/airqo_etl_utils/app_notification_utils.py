@@ -1,7 +1,6 @@
 import datetime
 import random
 import traceback
-import os
 
 import firebase_admin
 import numpy as np
@@ -247,8 +246,7 @@ def send_email_notifications(grouped_users):
                     "name": "AirQo Data Team",
                     "address": configuration.MAIL_USER,
                 },
-                # "to": user_email,
-                "to": "benssempal1445@gmail.com",
+                "to": user_email,
                 "subject": "Air quality of {} is expected to be {} with a concentration level of {:.2f}µg/m3!".format(place.get("name"), map_pm_values(pm_value), pm_value),
                 "html": forecast_email(target_places, user_id, user_email),
                 "attachments": attachments,
