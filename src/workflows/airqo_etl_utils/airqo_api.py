@@ -113,17 +113,12 @@ class AirQoApi:
             {
                 **device,
                 "device_number": device.get("device_number"),
-                "approximate_latitude": device.get("approximate_latitude")
-                or device.get("latitude"),
-                "approximate_longitude": device.get("approximate_longitude")
-                or device.get("longitude"),
+                "latitude": device.get("latitude") or device.get('approximate_latitude'),
+                "longitude": device.get("longitude") or device.get('approximate_longitude'),
                 "device_id": device.get("name"),
                 "device_codes": [str(code) for code in device.get("device_codes", [])],
                 "mongo_id": device.get("_id"),
                 "site_id": device.get("site", {}).get("_id"),
-                "site_latitude": device.get("site", {}).get("latitude"),
-                "site_longitude": device.get("site", {}).get("longitude"),
-                "site_generated_name": device.get("site", {}).get("generated_name"),
                 "site_location": device.get("site", {}).get("location_name"),
                 "device_category": str(
                     DeviceCategory.from_str(device.get("category", ""))
@@ -134,6 +129,7 @@ class AirQoApi:
             }
             for device in response.get("devices", [])
         ]
+#TODO: For cases where lat & lon, look into checking bigquery metadata
 
         if device_category != DeviceCategory.NONE:
             devices = [device for device in devices if device["device_category"] == str(device_category)]
