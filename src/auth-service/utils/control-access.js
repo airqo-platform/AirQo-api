@@ -1174,14 +1174,31 @@ const controlAccess = {
       if (responseFromUpdateClient.success === true) {
         const ip = update.ip_address || "";
         if (!isEmpty(ip)) {
-          const newWhitelistResponse = await WhitelistedIPModel(
-            tenant
-          ).register({ ip }, next);
-          if (newWhitelistResponse.success === false) {
-            return newWhitelistResponse;
-          } else {
-            return responseFromUpdateClient;
+          try {
+            const res = await WhitelistedIPModel("airqo").updateOne(
+              { ip },
+              { ip },
+              {
+                upsert: true,
+              }
+            );
+            if (res.ok === 1) {
+              logText(`Whitelisting CLIENT IP ${ip} successful`);
+            } else {
+              logger.error(`Whitelisting CLIENT's IP ${ip} was NOT successful`);
+            }
+          } catch (error) {
+            if (error.name === "MongoError" && error.code !== 11000) {
+              logger.error(
+                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
+              );
+            } else if (error.code === 11000) {
+              logger.error(
+                `Duplicate key error for IP ${ip} when updating a CLIENT`
+              );
+            }
           }
+          return responseFromUpdateClient;
         } else {
           return responseFromUpdateClient;
         }
@@ -1371,15 +1388,6 @@ const controlAccess = {
   },
   createClient: async (request, next) => {
     try {
-      // next(
-      //   new HttpError(
-      //     "Service Temporarily Disabled",
-      //     httpStatus.SERVICE_UNAVAILABLE,
-      //     {
-      //       message: "Service Temporarily Disabled",
-      //     }
-      //   )
-      // );
       const { body, query } = request;
       const { tenant, user_id } = { ...body, ...query };
       const client_secret = generateClientSecret(100);
@@ -1402,16 +1410,32 @@ const controlAccess = {
       if (responseFromCreateClient.success === true) {
         const ip = modifiedBody.ip_address || "";
         if (!isEmpty(ip)) {
-          const newWhitelistResponse = await WhitelistedIPModel(
-            tenant
-          ).register({ ip }, next);
-          if (newWhitelistResponse.success === false) {
-            logger.error(
-              `Unable to whitelist the IP ${ip} during CLIENT creation`
+          try {
+            const res = await WhitelistedIPModel("airqo").updateOne(
+              { ip },
+              { ip },
+              {
+                upsert: true,
+              }
             );
-          } else {
-            return responseFromCreateClient;
+
+            if (res.ok === 1) {
+              logText(`Whitelisting CLIENT IP ${ip} successful`);
+            } else {
+              logger.error(`Whitelisting CLIENT's IP ${ip} was NOT successful`);
+            }
+          } catch (error) {
+            if (error.name === "MongoError" && error.code !== 11000) {
+              logger.error(
+                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
+              );
+            } else if (error.code === 11000) {
+              logger.error(
+                `Duplicate key error for IP ${ip} when creating a new CLIENT`
+              );
+            }
           }
+          return responseFromCreateClient;
         } else {
           return responseFromCreateClient;
         }

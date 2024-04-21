@@ -205,6 +205,15 @@ class Config:
     TWITTER_BOT_ACCESS_TOKEN = os.getenv("TWITTER_BOT_ACCESS_TOKEN")
     TWITTER_BOT_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_BOT_ACCESS_TOKEN_SECRET")
 
+    # Email
+    MAIL_USER = os.getenv("MAIL_USER")
+    MAIL_PASS = os.getenv("MAIL_PASS")
+    
+    def unsubscribe_url(self, email, user_id):
+        print(os.getenv("UNSUBSCRIBE_URL"))
+        return f"{os.getenv('UNSUBSCRIBE_URL')}?email={email}&user_id={user_id}"
+    
+
 
 configuration = Config()
 
