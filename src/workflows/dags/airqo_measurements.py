@@ -381,6 +381,7 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
+    #TODO : Needs reviwew. If properly executed could ease identification of data issues
     def save_test_data(data: pd.DataFrame):
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.config import Config
@@ -413,29 +414,12 @@ def airqo_realtime_measurements():
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
 
-    # @task.virtualenv(
-    #     task_id="calibrate",
-    #     requirements=[
-    #         "numpy==1.21.2",
-    #         "pandas==1.3.3",
-    #         "protobuf==3.15.8",
-    #         "pyarrow==3.0.0",
-    #         "google-cloud-storage==1.41.1",
-    #         "scikit_learn==0.24.1",
-    #         "apache-airflow",
-    #         "airqo_etl_utils",
-    #         "pyarrow==3.0.0"
-    #     ],
-    #     system_site_packages=True,
-    #     multiple_outputs=True,
-    #     python_version="3.7",
-    # )
     @task()
     def calibrate(data: pd.DataFrame):
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
 
-        return CalibrationUtils.calibrate_airqo_data(data=data)
 
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        return AirQoDataUtils.calibrate_data(data=data)
     @task()
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
@@ -493,7 +477,8 @@ def airqo_realtime_measurements():
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
-    test_data = save_test_data(clean_data)
+    save_test_data(clean_data)
+
     averaged_airqo_data = aggregate(clean_data)
     send_raw_measurements_to_bigquery(clean_data)
     extracted_weather_data = extract_hourly_weather_data()

@@ -226,3 +226,10 @@ class DataType(Enum):
     UNCLEAN_LOW_COST_DATA = 2
     CLEAN_LOW_COST_DATA = 3
     AGGREGATED_LOW_COST_DATA = 3
+
+class CityModel(Enum):
+    NAIROBI = "nairobi"
+    KAMPALA = "kampala"
+    MOMBASA = "mombasa"
+    DEFAULT = "default"
+

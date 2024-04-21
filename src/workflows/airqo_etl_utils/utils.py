@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 from requests import Response
+from google.cloud import storage
+import joblib
 
 from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
@@ -253,3 +255,19 @@ class Utils:
                 destination_file, len(data), bucket_name
             )
         )
+
+    @staticmethod
+    def get_calibration_model_path(city, pollutant):
+        model_type = "_rf.pkl" if pollutant == "pm2_5" else "_lasso.pkl"
+        return f"{city.value}{model_type}"
+
+    # Load model from GCS bucket
+    @staticmethod
+    def load_model_from_gcs(model_path):
+        #TODO: Still needs revew
+        client = storage.Client()
+        bucket = client.bucket()
+        blob = bucket.blob(model_path)
+        model_file = blob.download_as_bytes()
+        model = joblib.load(model_file)
+        return model
