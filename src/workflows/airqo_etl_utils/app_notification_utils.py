@@ -5,15 +5,23 @@ import traceback
 import firebase_admin
 import numpy as np
 import pandas as pd
+
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import smtplib
+
 from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 from firebase_admin.exceptions import NotFoundError
 
 from .airqo_api import AirQoApi
-from .constants import Tenant
+from .constants import Tenant 
+from .constants import Attachments
 
 from .config import configuration
 from .date import get_utc_offset_for_hour
+from .email_templates import forecast_email
 
 cred = credentials.Certificate(
     {
@@ -49,7 +57,7 @@ NOTIFICATION_TEMPLATE_MAPPER = {
 }
 
 
-def check_subscription(userId):
+def check_subscription(userId, notifications_type):
     try:
         user_ref = firestore_db.collection(
             configuration.FIREBASE_USERS_COLLECTION
@@ -57,11 +65,11 @@ def check_subscription(userId):
         user_doc = user_ref.get()
 
         if user_doc.exists:
-            is_subscribed_to_email_notifs = user_doc.to_dict().get(
-                "isSubscribedToEmailNotifs", True
-            )
+           user_data = user_doc.to_dict()
+           is_subscribed_to_notifs = user_data.get("isSubscribedtoNotifs", {})
+           is_subscribed_to_notifs = is_subscribed_to_notifs.get(notifications_type, True)
 
-            return is_subscribed_to_email_notifs
+           return is_subscribed_to_notifs
         else:
             return False
     except Exception as error:
@@ -69,20 +77,24 @@ def check_subscription(userId):
         return False
 
 
-def get_all_users():
+def get_all_users(notifications_type):
     try:
-        if "staging" in configuration.AIRQO_BASE_URL_V2:
-            print("Not sending push notifications in staging")
-            return []
         all_users = []
         users_snapshot = firestore_db.collection(
             configuration.FIREBASE_USERS_COLLECTION
         ).get()
         for doc in users_snapshot:
+            if (len(all_users)>20):
+                break
+
             user_data = doc.to_dict()
             userId = user_data.get("userId")
+            userEmail = user_data.get("emailAddress")
+            if (notifications_type == "email"):
+                if(userEmail == ""):
+                    continue
             if userId is not None:
-                is_subscribed = check_subscription(userId)
+                is_subscribed = check_subscription(userId, notifications_type)
                 if is_subscribed:
                     all_users.append(user_data)
 
@@ -114,13 +126,13 @@ def get_random_measurement():
         return None, None, None, None
 
 
-def group_users(users):
+def group_users(users, reading_type):
     grouped_users = {}
     place_groupings = []
     try:
         for user in users:
             user_id = user.get("userId")
-            name, location, pm_value, place_id = None, None, None, None
+            name, location, pm_value, place_id, forecast_air_quality_levels = None, None, None, None , None
             place_groupings = AirQoApi().get_favorites(user_id)
             if len(place_groupings) == 0:
                 place_groupings = AirQoApi().get_location_history(user_id)
@@ -140,6 +152,16 @@ def group_users(users):
                 pm_value = target_place.get("pm_value")
                 place_id = target_place.get("place_id")
 
+            if (reading_type =="forecast"):
+               forecasts = AirQoApi().get_forecast( frequency="daily", site_id=place_id)
+               if(len(forecasts) == 0):
+                   continue
+               pm_values = [forecast["pm2_5"] for forecast in forecasts]
+               forecast_air_quality_levels = [map_pm_values(pm_value) for pm_value in pm_values]
+               pm_value= pm_values[0]
+
+
+                
             if user["userId"] not in grouped_users:
                 grouped_users[user["userId"]] = []
 
@@ -149,12 +171,13 @@ def group_users(users):
                     "location": location,
                     "pmValue": pm_value,
                     "placeId": place_id,
+                    "forecast_air_quality_levels": forecast_air_quality_levels,
+                    "email": user.get("emailAddress"),
                 }
             )
-
         return grouped_users
     except Exception as error:
-        print("Error grouping Users for Push notifications", error)
+        print("Error grouping Users", error)
         traceback.print_exc()
         return {"success": False, "error": error}
 
@@ -206,6 +229,61 @@ def send_push_notifications(grouped_users):
         except Exception as error:
             print(f"Error sending push notifications to User {userId}", error)
             traceback.print_exc()
+
+
+def send_email_notifications(grouped_users):
+    try:
+        for user_id, target_places in grouped_users.items():
+           
+            place = target_places[0]
+            pm_value = place.get("pmValue")
+            attachments = Attachments.EMOJI_ATTACHMENTS.value + Attachments.EMAIL_ATTACHMENTS.value
+
+            user_email = place.get("email")
+
+            mail_options = {
+                "from": {
+                    "name": "AirQo Data Team",
+                    "address": configuration.MAIL_USER,
+                },
+                "to": user_email,
+                "subject": "Air quality of {} is expected to be {} with a concentration level of {:.2f}µg/m3!".format(place.get("name"), map_pm_values(pm_value), pm_value),
+                "html": forecast_email(target_places, user_id, user_email),
+                "attachments": attachments,
+            }
+
+            try:
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(configuration.MAIL_USER, configuration.MAIL_PASS)
+
+                msg = MIMEMultipart()
+                msg['From'] = mail_options["from"]["address"]
+                msg['To'] = mail_options["to"]
+                msg['Subject'] = mail_options["subject"]
+
+                msg.attach(MIMEText(mail_options["html"], 'html'))
+
+                for attachment in mail_options["attachments"]:
+                    with open(attachment["path"], 'rb') as f:
+                        image = MIMEImage(f.read())
+                    image.add_header('Content-Disposition', f'attachment; filename="{attachment["filename"]}"')
+                    image.add_header('Content-ID', f'<{attachment["cid"]}>')
+                    msg.attach(image)
+
+                server.sendmail(mail_options["from"]["address"], mail_options["to"], msg.as_string())
+                server.quit()
+                print("New Email notification sent to ", user_email)
+            except Exception as error:
+                print("Transporter failed to send email", error)
+    except Exception as error:
+        print("Forecast Favorites Email sending failed", error)
+
+
+def add_attachment(attachments_list, filename, path, cid):
+    attachment_dict = {"filename": filename, "path": path, "cid": cid}
+    if attachment_dict not in attachments_list:
+        attachments_list.append(attachment_dict)
 
 
 def map_pm_values(pm_value):
