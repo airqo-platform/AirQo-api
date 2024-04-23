@@ -19,6 +19,14 @@ const SubscriptionSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    subscribed: {
+      type: Boolean,
+      default: true,
+    },
+    isSystemUser: {
+      type: Boolean,
+      required: true,
+    },
     notifications: {
       twitter: {
         type: Boolean,
@@ -31,6 +39,14 @@ const SubscriptionSchema = new mongoose.Schema(
       },
 
       mobile_push: {
+        type: Boolean,
+        default: true,
+      },
+      phone: {
+        type: Boolean,
+        default: true,
+      },
+      sms: {
         type: Boolean,
         default: true,
       },
@@ -55,6 +71,8 @@ SubscriptionSchema.methods = {
       _id: this._id,
       email: this.email,
       notifications: this.notifications,
+      subscribed: this.subscribed,
+      isSystemUser: this.isSystemUser,
     };
   },
 };
