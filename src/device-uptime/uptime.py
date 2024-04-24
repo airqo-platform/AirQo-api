@@ -6,10 +6,8 @@ from google.cloud import bigquery
 from config import Config
 from models import UptimeData
 
-
 def date_to_str(date, str_format="%Y-%m-%dT%H:%M:%S.%fZ"):
     return datetime.strftime(date, str_format)
-
 
 class UptimeModel:
     def __init__(
@@ -20,7 +18,6 @@ class UptimeModel:
         self.__client = bigquery.Client()
         self.__raw_data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
         self.__uptime_data_table = Config.BIGQUERY_DEVICE_UPTIME_TABLE
-
         self.__hourly_threshold = int(hourly_threshold)
         self.__date_time = date_time
 
@@ -95,31 +92,37 @@ class UptimeModel:
         job.result()
 
     def get_raw_data(self) -> pd.DataFrame:
-        query = (
-            f" SELECT timestamp, site_id, device_id as device, battery "
-            f" FROM {self.__raw_data_table} "
-            f" WHERE {self.__raw_data_table}.timestamp >= '{date_to_str(self.__date_time, str_format='%Y-%m-%dT00:00:00Z')}' "
-            f" AND {self.__raw_data_table}.timestamp <= '{date_to_str(self.__date_time, str_format='%Y-%m-%dT11:59:59Z')}' "
-            f" AND ( {self.__raw_data_table}.s1_pm2_5 is not null  "
-            f" OR {self.__raw_data_table}.s2_pm2_5 is not null ) "
-        )
+        try:
+            query = (
+                f" SELECT timestamp, site_id, device_id as device, battery "
+                f" FROM {self.__raw_data_table} "
+                f" WHERE {self.__raw_data_table}.timestamp >= '{date_to_str(self.__date_time, str_format='%Y-%m-%dT00:00:00Z')}' "
+                f" AND {self.__raw_data_table}.timestamp <= '{date_to_str(self.__date_time, str_format='%Y-%m-%dT11:59:59Z')}' "
+                f" AND ( {self.__raw_data_table}.s1_pm2_5 is not null  "
+                f" OR {self.__raw_data_table}.s2_pm2_5 is not null ) "
+            )
 
-        dataframe = (
-            self.__client.query(f"select distinct * from ({query})")
-            .result()
-            .to_dataframe()
-        )
+            dataframe = (
+                self.__client.query(f"select distinct * from ({query})")
+                .result()
+                .to_dataframe()
+            )
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+            dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 
-        return dataframe
-
+            return dataframe
+        except Exception as e:
+            print(f"Error occurred while getting raw data: {str(e)}")
+            return pd.DataFrame()
 
 if __name__ == "__main__":
-    uptime_model = UptimeModel(
-        hourly_threshold=Config.UPTIME_HOURLY_THRESHOLD,
-        date_time=datetime.utcnow() - timedelta(days=1),
-    )
-    raw_data = uptime_model.get_raw_data()
-    uptime_data = uptime_model.compute_uptime(raw_data)
-    uptime_model.save_uptime(uptime_data)
+    try:
+        uptime_model = UptimeModel(
+            hourly_threshold=Config.UPTIME_HOURLY_THRESHOLD,
+            date_time=datetime.utcnow() - timedelta(days=1),
+        )
+        raw_data = uptime_model.get_raw_data()
+        uptime_data = uptime_model.compute_uptime(raw_data)
+        uptime_model.save_uptime(uptime_data)
+    except Exception as e:
+        print(f"Error occurred: {str(e)}")
