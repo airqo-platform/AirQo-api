@@ -381,7 +381,7 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
-    #TODO : Needs reviwew. If properly executed could ease identification of data issues
+    #TODO : Needs review. If properly executed could ease identification of data issues
     def save_test_data(data: pd.DataFrame):
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.config import Config

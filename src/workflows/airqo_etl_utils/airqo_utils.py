@@ -823,6 +823,10 @@ class AirQoDataUtils:
         project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
+        sites = AirQoApi().get_sites()
+        sites_df = pd.DataFrame(sites, columns= ["_id","city"]).rename(columns={"_id":"site_id"})
+        data = pd.merge(data, sites_df, on="site_id", how="left")
+
         data = data.dropna(
             subset=[
                 "s1_pm2_5",
@@ -855,42 +859,72 @@ class AirQoDataUtils:
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
         ]
-        rf_model = lasso_model = None
-        for city in CityModel:
-            city_data = data[data["location"].str.lower() == city.value]
-            try:
-                rf_model = GCSUtils.get_trained_model_from_gcs(
+
+        grouped_df = data.groupby("city")
+
+        rf_model = GCSUtils.get_trained_model_from_gcs(
+            project_name=project_id,
+            bucket_name=bucket,
+            source_blob_name=Utils.get_calibration_model_path(
+                CityModel.DEFAULT, "pm2_5"
+            ),
+        )
+        lasso_model = GCSUtils.get_trained_model_from_gcs(
+            project_name=project_id,
+            bucket_name=bucket,
+            source_blob_name=Utils.get_calibration_model_path(
+                CityModel.DEFAULT, "pm10"
+            ),
+        )
+        for city, group in grouped_df:
+            if city.lower() in [c.value.lower() for c in CityModel]:
+                try:
+                    rf_model = GCSUtils.get_trained_model_from_gcs(
                     project_name=project_id,
                     bucket_name=bucket,
                     source_blob_name=Utils.get_calibration_model_path(city, "pm2_5"),
                 )
-                lasso_model = GCSUtils.get_trained_model_from_gcs(
+                    lasso_model = GCSUtils.get_trained_model_from_gcs(
                     project_name=project_id,
                     bucket_name=bucket,
                     source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                 )
+                except Exception as e:
+                    print(e)
+            group["pm2_5_calibrated_value"] = rf_model.predict(
+                group[input_variables]
+            )
+            group["pm10_calibrated_value"] = lasso_model.predict(
+                group[input_variables]
+            )
 
-            except FileNotFoundError as ex:
-                print("Calibration model not found for city:", city.value, ex)
-                rf_model = GCSUtils.get_trained_model_from_gcs(
-                    project_name=project_id,
-                    bucket_name=bucket,
-                    source_blob_name=Utils.get_calibration_model_path(
-                        CityModel.DEFAULT, "pm2_5"
-                    ),
-                )
-                lasso_model = GCSUtils.get_trained_model_from_gcs(
-                    project_name=project_id,
-                    bucket_name=bucket,
-                    source_blob_name=Utils.get_calibration_model_path(
-                        CityModel.DEFAULT, "pm10"
-                    ),
-                )
-            data.loc[city.index, "pm2_5_calibrated_value"] = rf_model.predict(
-                city_data[input_variables]
-            )
-            data.loc[city.index, "pm10_calibrated_value"] = lasso_model.predict(
-                city_data[input_variables]
-            )
+            data.loc[group.index, "pm2_5_calibrated_value"] = group[
+                "pm2_5_calibrated_value"
+            ]
+            data.loc[group.index, "pm10_calibrated_value"] = group[
+                "pm10_calibrated_value"
+            ]
+
+        return data
+
+    @staticmethod
+    def format_calibrated_data(data: pd.DataFrame) -> pd.DataFrame:
+        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+        if "pm2_5_calibrated_value" in data.columns:
+            data["pm2_5"] = data["pm2_5_calibrated_value"]
+        else:
+            data["pm2_5_calibrated_value"] = None
+            data["pm2_5"] = None
+
+        if "pm10_calibrated_value" in data.columns:
+            data["pm10"] = data["pm10_calibrated_value"]
+        else:
+            data["pm10_calibrated_value"] = None
+            data["pm10"] = None
+
+        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
+        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
 
         return data

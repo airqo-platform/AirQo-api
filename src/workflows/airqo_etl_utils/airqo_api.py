@@ -377,7 +377,6 @@ class AirQoApi:
         return [
             {
                 **site,
-                **{
                     "site_id": site.get("_id", None),
                     "tenant": site.get("network", site.get("tenant", None)),
                     "location": site.get("location", None),
@@ -391,7 +390,6 @@ class AirQoApi:
                     "location_name": site.get(
                         "location_name", site.get("location", None)
                     ),
-                },
             }
             for site in response.get("sites", [])
         ]
