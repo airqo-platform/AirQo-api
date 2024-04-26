@@ -35,6 +35,7 @@ setup(
         "pymongo~=4.5.0",
         "optuna",
         "tweepy",
+        "scikit-learn==1.2.2",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

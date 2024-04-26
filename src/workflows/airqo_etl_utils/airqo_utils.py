@@ -847,6 +847,7 @@ class AirQoDataUtils:
         data["error_pm10"] = np.abs(data["s1_pm10"] - data["s2_pm10"])
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
+        data['hour'] = data['timestamp'].dt.__getattribute__('hour')
 
         input_variables = [
             "avg_pm2_5",
@@ -905,7 +906,7 @@ class AirQoDataUtils:
                 "pm10_calibrated_value"
             ]
 
-        return data
+        return data.drop(columns= ["avg_pm2_5", "avg_pm10", "error_pm2_5", "error_pm10", "pm2_5_pm10", "pm2_5_pm10_mod", "hour", "city"])
 
     @staticmethod
     def format_calibrated_data(data: pd.DataFrame) -> pd.DataFrame:
