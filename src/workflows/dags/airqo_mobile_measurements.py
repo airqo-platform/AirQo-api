@@ -2,7 +2,8 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
-#TODO: Look into these unscheduled dags and see what's required and what's not
+
+# TODO: Look into these unscheduled dags and see what's required and what's not
 @dag(
     "AirQo-Mobile-Devices-Measurements",
     schedule=None,

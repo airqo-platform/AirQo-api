@@ -824,7 +824,9 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         sites = AirQoApi().get_sites()
-        sites_df = pd.DataFrame(sites, columns= ["_id","city"]).rename(columns={"_id":"site_id"})
+        sites_df = pd.DataFrame(sites, columns=["_id", "city"]).rename(
+            columns={"_id": "site_id"}
+        )
         data = pd.merge(data, sites_df, on="site_id", how="left")
 
         data = data.dropna(
@@ -847,7 +849,7 @@ class AirQoDataUtils:
         data["error_pm10"] = np.abs(data["s1_pm10"] - data["s2_pm10"])
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
-        data['hour'] = data['timestamp'].dt.__getattribute__('hour')
+        data["hour"] = data["timestamp"].dt.__getattribute__("hour")
 
         input_variables = [
             "avg_pm2_5",
@@ -881,23 +883,21 @@ class AirQoDataUtils:
             if city.lower() in [c.value.lower() for c in CityModel]:
                 try:
                     rf_model = GCSUtils.get_trained_model_from_gcs(
-                    project_name=project_id,
-                    bucket_name=bucket,
-                    source_blob_name=Utils.get_calibration_model_path(city, "pm2_5"),
-                )
+                        project_name=project_id,
+                        bucket_name=bucket,
+                        source_blob_name=Utils.get_calibration_model_path(
+                            city, "pm2_5"
+                        ),
+                    )
                     lasso_model = GCSUtils.get_trained_model_from_gcs(
-                    project_name=project_id,
-                    bucket_name=bucket,
-                    source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
-                )
+                        project_name=project_id,
+                        bucket_name=bucket,
+                        source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
+                    )
                 except Exception as e:
                     print(e)
-            group["pm2_5_calibrated_value"] = rf_model.predict(
-                group[input_variables]
-            )
-            group["pm10_calibrated_value"] = lasso_model.predict(
-                group[input_variables]
-            )
+            group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
+            group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 
             data.loc[group.index, "pm2_5_calibrated_value"] = group[
                 "pm2_5_calibrated_value"
@@ -906,7 +906,18 @@ class AirQoDataUtils:
                 "pm10_calibrated_value"
             ]
 
-        return data.drop(columns= ["avg_pm2_5", "avg_pm10", "error_pm2_5", "error_pm10", "pm2_5_pm10", "pm2_5_pm10_mod", "hour", "city"])
+        return data.drop(
+            columns=[
+                "avg_pm2_5",
+                "avg_pm10",
+                "error_pm2_5",
+                "error_pm10",
+                "pm2_5_pm10",
+                "pm2_5_pm10_mod",
+                "hour",
+                "city",
+            ]
+        )
 
     @staticmethod
     def format_calibrated_data(data: pd.DataFrame) -> pd.DataFrame:

@@ -5,6 +5,7 @@ from .config import configuration
 
 image_dir = os.path.join(os.path.dirname(__file__), "../config/images")
 
+
 def forecast_email(places, userID, userEmail):
     unSubscriptionUrl = configuration.unsubscribe_url(userEmail, userID)
     footerTemplate = email_footer_template(userEmail, unSubscriptionUrl)
@@ -12,15 +13,16 @@ def forecast_email(places, userID, userEmail):
 
     for place in places:
         forecast_air_quality_levels = place.get("forecast_air_quality_levels", [])
-        forecast_air_quality_levels = [level.lower() for level in forecast_air_quality_levels]
+        forecast_air_quality_levels = [
+            level.lower() for level in forecast_air_quality_levels
+        ]
         for level in forecast_air_quality_levels:
-            if level =="unhealthy for sensitive groups":
+            if level == "unhealthy for sensitive groups":
                 level = "uhfsg"
             if level == "very unhealthy":
                 level = "veryUnhealthy"
-            
-        
-        days = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+        days = ["M", "T", "W", "T", "F", "S", "S"]
 
         favoritesContent += f"""
             <!-- Location Content -->
@@ -48,21 +50,19 @@ def forecast_email(places, userID, userEmail):
         """
 
     scale = [
-    {"emoji": "goodEmoji", "level_name": "Good"},
-    {"emoji": "moderateEmoji", "level_name": "Moderate"},
-    {"emoji": "uhfsgEmoji", "level_name": "Unhealthy for Sensitive Groups"},
-    {"emoji": "unhealthyEmoji", "level_name": "Unhealthy"},
-    {"emoji": "veryUnhealthyEmoji", "level_name": "Very Unhealthy"},
-    {"emoji": "hazardousEmoji", "level_name": "Hazardous"}
-            ]
+        {"emoji": "goodEmoji", "level_name": "Good"},
+        {"emoji": "moderateEmoji", "level_name": "Moderate"},
+        {"emoji": "uhfsgEmoji", "level_name": "Unhealthy for Sensitive Groups"},
+        {"emoji": "unhealthyEmoji", "level_name": "Unhealthy"},
+        {"emoji": "veryUnhealthyEmoji", "level_name": "Very Unhealthy"},
+        {"emoji": "hazardousEmoji", "level_name": "Hazardous"},
+    ]
 
     scaleContent = '<div style="margin-left: 50px; text-align: start; width: 200px; color: black; font-size: 16px; font-family: Inter; font-weight: 700; line-height: 20px; word-wrap: break-word">Air Quality Scale</div>'
     scaleContent += "<ul style='list-style-type: none;'>"
     for item in scale:
         scaleContent += f"<li><img src='cid:{item['emoji']}' style='height: 24px; width: 24px;'> -{item['level_name']}</li>"
     scaleContent += "</ul>"
-
-
 
     return f"""<!DOCTYPE html>
     <html>
@@ -147,12 +147,16 @@ def email_header_template():
 
 
 def email_footer_template(email, unSubscriptionUrl=None):
-    unsubscribeSection = f"""<span
+    unsubscribeSection = (
+        f"""<span
         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
         <a href="{unSubscriptionUrl}" style="color: #135DFF; text-decoration: none;">unsubscribe</a>
-    </span>""" if unSubscriptionUrl else """<span
+    </span>"""
+        if unSubscriptionUrl
+        else """<span
         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
         unsubscribe</span>"""
+    )
 
     return f"""
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
@@ -209,7 +213,7 @@ def email_body(email, content, name=None):
     footerTemplate = email_footer_template(email)
     headerTemplate = email_header_template()
     greetings = email_greetings(name) if name else ""
-    
+
     return f"""<!DOCTYPE html>
 <html>
 

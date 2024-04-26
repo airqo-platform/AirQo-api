@@ -9,6 +9,8 @@ from task_docs import (
     clean_data_raw_data_doc,
     send_raw_measurements_to_bigquery_doc,
 )
+
+
 @dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule="0 0 * * *",
@@ -57,6 +59,7 @@ def airqo_historical_hourly_measurements():
     @task()
     def calibrate_data(measurements: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
         return AirQoDataUtils.calibrate_data(data=measurements)
 
     @task()
@@ -292,7 +295,7 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
-    #TODO : Needs review. If properly executed could ease identification of data issues
+    # TODO : Needs review. If properly executed could ease identification of data issues
     def save_test_data(data: pd.DataFrame):
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.config import Config
@@ -328,9 +331,10 @@ def airqo_realtime_measurements():
     @task()
     def calibrate(data: pd.DataFrame):
 
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
         return AirQoDataUtils.calibrate_data(data=data)
+
     @task()
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi

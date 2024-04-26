@@ -46,11 +46,11 @@ class Frequency(Enum):
             return "daily"
         else:
             return ""
-        
+
 
 class Attachments(Enum):
     IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
-    
+
     EMAIL_ATTACHMENTS = [
         {
             "filename": "favoriteIcon.png",
@@ -87,7 +87,7 @@ class Attachments(Enum):
             "path": os.path.join(IMAGE_DIR, "linkedInLogo.png"),
             "cid": "LinkedInLogo",
             "contentDisposition": "inline",
-        }
+        },
     ]
 
     EMOJI_ATTACHMENTS = [
@@ -121,7 +121,6 @@ class Attachments(Enum):
             "path": os.path.join(IMAGE_DIR, "hazardousEmoji.png"),
             "cid": "hazardousEmoji",
         },
-
     ]
 
 
@@ -305,9 +304,9 @@ class DataType(Enum):
     CLEAN_LOW_COST_DATA = 3
     AGGREGATED_LOW_COST_DATA = 3
 
+
 class CityModel(Enum):
     NAIROBI = "nairobi"
     KAMPALA = "kampala"
     MOMBASA = "mombasa"
     DEFAULT = "default"
-

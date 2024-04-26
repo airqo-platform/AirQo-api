@@ -196,7 +196,7 @@ def send_push_notification():
 
         users = get_all_users("push")
         return users
-    
+
     @task()
     def group_and_send_push_notifications(users):
         from airqo_etl_utils.app_notification_utils import group_users
@@ -211,11 +211,10 @@ def send_push_notification():
             send_push_notifications(grouped_users)
             start_index += BATCH_SIZE
 
-    
     if "staging" in configuration.AIRQO_BASE_URL_V2:
         print("Not sending push notifications in staging")
         return
-    
+
     users = extract_users()
     group_and_send_push_notifications(users)
 
@@ -251,6 +250,7 @@ def send_email_notifications():
 
     users = extract_users()
     group_and_send_email_notifications(users)
+
 
 send_push_notification()
 send_email_notifications()

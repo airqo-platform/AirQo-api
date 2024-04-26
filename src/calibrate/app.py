@@ -5,6 +5,7 @@ import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # import blue prints
