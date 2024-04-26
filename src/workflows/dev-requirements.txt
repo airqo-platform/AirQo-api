@@ -1,3 +1,4 @@
+#TODO: Remove and only use the toml script??
 apache-airflow
 apache-airflow-providers-slack
 confluent-avro
