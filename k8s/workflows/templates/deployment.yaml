@@ -56,20 +56,6 @@ spec:
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-        - name: '{{ .Values.app.name }}-dbchecker'
-          image: python:3.10.14-slim-bullseye
-          imagePullPolicy: IfNotPresent
-          command: ["/bin/bash", "-c"]
-          args:
-            - >
-              pip install -U pip psycopg2-binary && pip install apache-airflow==2.9.0 && airflow db upgrade
-          env:
-            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ .Values.app.configmap }}
-                  key: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-
       containers:
         - name: '{{ .Values.app.name }}-scheduler'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
