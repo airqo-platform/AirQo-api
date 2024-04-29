@@ -93,7 +93,7 @@ spec:
   upstreams:
     - name: platform-ui
       service: airqo-stage-platform-frontend-svc
-      port: 80
+      port: 80 
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -141,11 +141,11 @@ spec:
       port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000      
+      port: 5000           
   subroutes:
     - path: /netmanager
       action:
-        pass: platform-ui 
+        pass: platform-ui  
     - path: ~ /netmanager/api\/v[1-2]\/users
       action:
         proxy:
@@ -273,7 +273,7 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json    
+                value: application/json
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -350,7 +350,7 @@ spec:
     - path: /reports
       route: staging/reports
     - path: /netmanager
-      route: /staging/netmanager
+      route: staging/netmanager
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
