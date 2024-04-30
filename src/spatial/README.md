@@ -1,5 +1,5 @@
 # REPORT
-## 1. Create venv file
+## 1. Create venv file.
 ```python -m venv venv```
 #### Linux and MacOS
 ```source venv/bin/activate```
