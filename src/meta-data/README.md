@@ -11,7 +11,7 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 ```
-## To run the API
+## To run the API.
 ```bash
 flask run
 ```

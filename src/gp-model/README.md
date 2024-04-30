@@ -23,7 +23,7 @@ For team members, this can be accessed from GCP secret manager(`sta-env-gp-model
 ### Install the necessary dependencies
 ```pip install -r requirements.txt```
 
-### Running the model
+### Running the model.
 
 ```python main.py```
 

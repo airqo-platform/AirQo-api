@@ -21,7 +21,7 @@ windows
 linux/mac
 - source `[local_env_name]/bin/activate`
 
-Install dependencies using the requirements.txt
+Install dependencies using the requirements.txt.
 - `pip install -r requirements.txt`
 
 set environment variables in the `.env file`
