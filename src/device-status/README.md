@@ -34,5 +34,5 @@
     * `python main.py`. tenant here defaults to `airqo`
     * or explicitly state the tenant `python main.py --tenant=airqo`
     
-#### Local Setup using docker
+#### Local Setup using docker.
 * Coming soon....
