@@ -57,23 +57,14 @@ NOTIFICATION_TEMPLATE_MAPPER = {
 }
 
 
-def check_subscription(userId, notifications_type):
+def check_subscription(user_doc, notifications_type):
     try:
-        user_ref = firestore_db.collection(
-            configuration.FIREBASE_USERS_COLLECTION
-        ).document(userId)
-        user_doc = user_ref.get()
+        user_data = user_doc.to_dict()
+        is_subscribed_to_notifs = user_data.get("isSubscribedtoNotifs", {})
+        is_subscribed_to_notifs = is_subscribed_to_notifs.get(notifications_type, True)
 
-        if user_doc.exists:
-            user_data = user_doc.to_dict()
-            is_subscribed_to_notifs = user_data.get("isSubscribedtoNotifs", {})
-            is_subscribed_to_notifs = is_subscribed_to_notifs.get(
-                notifications_type, True
-            )
-
-            return is_subscribed_to_notifs
-        else:
-            return False
+        return is_subscribed_to_notifs
+        
     except Exception as error:
         print("Error checking subscription", error)
         return False
@@ -85,19 +76,19 @@ def get_all_users(notifications_type):
         users_snapshot = firestore_db.collection(
             configuration.FIREBASE_USERS_COLLECTION
         ).get()
-        for doc in users_snapshot:
-            if len(all_users) > 20:
-                break
+        for user_doc in users_snapshot:
 
-            user_data = doc.to_dict()
+            user_data = user_doc.to_dict()
             userId = user_data.get("userId")
             userEmail = user_data.get("emailAddress")
-            if notifications_type == "email":
-                if userEmail == "":
+            user_token = user_data.get("device")
+            if (notifications_type == "email"):
+                if(userEmail == ""):
                     continue
             if userId is not None:
-                is_subscribed = check_subscription(userId, notifications_type)
-                if is_subscribed:
+                is_subscribed = check_subscription(user_doc, notifications_type)
+                has_token = user_token is not None and user_token.strip() != ""
+                if is_subscribed and has_token:
                     all_users.append(user_data)
 
         print(f"Number of users: : {len(all_users)}")
@@ -181,8 +172,11 @@ def group_users(users, reading_type):
                     "placeId": place_id,
                     "forecast_air_quality_levels": forecast_air_quality_levels,
                     "email": user.get("emailAddress"),
+                    "userToken": user.get("device"),
+                    "userName": user.get("firstName") or "there",
                 }
             )
+        print("Grouped Users: ", grouped_users)
         return grouped_users
     except Exception as error:
         print("Error grouping Users", error)
@@ -196,41 +190,35 @@ def send_push_notifications(grouped_users):
             target_place = user_locations[0]
 
             if target_place["pmValue"] is not None:
-                user_ref = firestore_db.collection(
-                    configuration.FIREBASE_USERS_COLLECTION
-                ).document(userId)
-                user_doc = user_ref.get()
+                
+                user_token = target_place["userToken"]
+                name = target_place["userName"]
+                pm_value = target_place["pmValue"]
+                category = map_pm_values(pm_value)
+                message = map_notification_message(pm_value)
 
-                if user_doc.exists:
-                    registration_token = user_doc.to_dict().get("device")
-                    name = user_doc.to_dict().get("firstName")
-                    if name is None:
-                        name = "there"
-                    pm_value = target_place["pmValue"]
-                    category = map_pm_values(pm_value)
-                    message = map_notification_message(pm_value)
-
-                    message = messaging.Message(
-                        notification=messaging.Notification(
-                            title=f"Concentration level: {pm_value:.2f} µg/m3!",
-                            body=f"Hey {name}, {target_place['name']}'s air quality is {category}. {message}",
-                        ),
-                        data={
-                            "subject": "daily_air_quality",
-                            "site": target_place["placeId"],
-                        },
-                        token=registration_token,
-                    )
-
-                    response = messaging.send(message)
-                    print(f"Successfully sent message to User {userId}: {response}")
-                else:
-                    print(f"User {userId} document does not exist")
+                message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=f"Concentration level: {pm_value:.2f} µg/m3!",
+                        body=f"Hey {name}, {target_place['name']}'s air quality is {category}. {message}",
+                    ),
+                    data={
+                        "subject": "daily_air_quality",
+                        "site": target_place["placeId"],
+                    },
+                    token=user_token,
+                )
+                
+                response = messaging.send(message)
+                print(f"Successfully sent message to User {userId}: {response}")
 
             else:
                 print(f"No PM value while sending push notifications to User {userId}")
 
         except NotFoundError as e:
+            user_ref = firestore_db.collection(
+                    configuration.FIREBASE_USERS_COLLECTION
+                ).document(userId)
             user_ref.update({"device": ""})
             print(f"Token for User {userId} is invalid and has been deleted.")
 

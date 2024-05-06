@@ -1,7 +1,7 @@
 [//]: #TODO (Need to update ASAP. after models also developed)
 # Calibrate microservice
 
-## To run in a virtual environment
+## To run in a virtual environment.
 
 1. Add file `airqo-250220-5149c2aac8f2.json` to `jobs/`. Obtain from a team member or GCP.
 1. Create a virtual environment
