@@ -64,7 +64,7 @@ def check_subscription(user_doc, notifications_type):
         is_subscribed_to_notifs = is_subscribed_to_notifs.get(notifications_type, True)
 
         return is_subscribed_to_notifs
-        
+
     except Exception as error:
         print("Error checking subscription", error)
         return False
@@ -82,8 +82,8 @@ def get_all_users(notifications_type):
             userId = user_data.get("userId")
             userEmail = user_data.get("emailAddress")
             user_token = user_data.get("device")
-            if (notifications_type == "email"):
-                if(userEmail == ""):
+            if notifications_type == "email":
+                if userEmail == "":
                     continue
             if userId is not None:
                 is_subscribed = check_subscription(user_doc, notifications_type)
@@ -190,7 +190,7 @@ def send_push_notifications(grouped_users):
             target_place = user_locations[0]
 
             if target_place["pmValue"] is not None:
-                
+
                 user_token = target_place["userToken"]
                 name = target_place["userName"]
                 pm_value = target_place["pmValue"]
@@ -208,7 +208,7 @@ def send_push_notifications(grouped_users):
                     },
                     token=user_token,
                 )
-                
+
                 response = messaging.send(message)
                 print(f"Successfully sent message to User {userId}: {response}")
 
@@ -217,8 +217,8 @@ def send_push_notifications(grouped_users):
 
         except NotFoundError as e:
             user_ref = firestore_db.collection(
-                    configuration.FIREBASE_USERS_COLLECTION
-                ).document(userId)
+                configuration.FIREBASE_USERS_COLLECTION
+            ).document(userId)
             user_ref.update({"device": ""})
             print(f"Token for User {userId} is invalid and has been deleted.")
 
