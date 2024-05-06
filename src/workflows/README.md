@@ -41,8 +41,7 @@ pip install -r dev-requirements.txt
 ### Prerequisites
 
 - Docker
-- Docker compose (>= v1.29.2)
-- Docker compose (>= 1.29.2)
+- Docker compose (>= v2.26.1)
 - You have set up your environment following the [Environment Setup](#environment-setup)  instructions.
 
 ### Starting all containers

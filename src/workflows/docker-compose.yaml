@@ -1,5 +1,5 @@
 # Only for local development, not used in production setting only Dockerfile
-version: "3.4"
+version: "3.8"
 
 x-common-data: &common-data
   restart: on-failure
@@ -59,23 +59,23 @@ services:
       context: .
       target: xcom-setup
 
-#  message-broker:
-#    container_name: message-broker
-#    image: noahnsimbe/kafka-docker
-#    ports:
-#      - "9093:9092"
-#
-#  message-broker-setup:
-#    <<: *common-data
-#    container_name: message-broker-setup
-#    build:
-#      context: .
-#      target: kafka-setup
-#    restart: on-failure
-#    healthcheck:
-#      test: "exit 0"
-#    depends_on:
-#      - message-broker
+  message-broker:
+    container_name: message-broker
+    image: noahnsimbe/kafka-docker
+    ports:
+      - "9093:9092"
+
+  message-broker-setup:
+    <<: *common-data
+    container_name: message-broker-setup
+    build:
+      context: .
+      target: kafka-setup
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - message-broker
 
   scheduler:
     <<: *common-data
