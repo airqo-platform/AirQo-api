@@ -1,13 +1,12 @@
 from api.models.base.base_model import BasePyMongoModel
 
-from main import cache
 
 
 class SiteModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="sites")
 
-    @cache.memoize()
+    # @cache.memoize()
     def get_sites(self, sites=None):
         if sites:
             return self.get_specific_sites(sites, id_key="site_id")
@@ -32,7 +31,7 @@ class SiteModel(BasePyMongoModel):
             .exec()
         )
 
-    @cache.memoize()
+    # @cache.memoize()
     def get_all_sites(self):
         return (
             self.lookup(

@@ -10,7 +10,8 @@ from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
 )
-from main import cache, CONFIGURATIONS
+from config import CONFIGURATIONS
+# from app import cache
 
 
 class EventsModel(BasePyMongoModel):
@@ -40,7 +41,7 @@ class EventsModel(BasePyMongoModel):
         super().__init__(tenant, collection_name="events")
 
     @classmethod
-    @cache.memoize()
+    #@cache.memoize()
     def download_from_bigquery(
         cls,
         devices,
@@ -514,7 +515,7 @@ class EventsModel(BasePyMongoModel):
         job.result()
 
     @classmethod
-    @cache.memoize()
+    # #@cache.memoize()
     def get_devices_summary(
         cls, airqloud, start_date_time, end_date_time, grid: str, cohort: str
     ) -> list:
@@ -659,7 +660,7 @@ class EventsModel(BasePyMongoModel):
         return dataframe.to_dict("records")
 
     @classmethod
-    @cache.memoize()
+    #@cache.memoize()
     def bigquery_mobile_device_measurements(
         cls, tenant, device_numbers: list, start_date_time, end_date_time
     ):
@@ -714,7 +715,7 @@ class EventsModel(BasePyMongoModel):
 
         return filtered
 
-    @cache.memoize()
+    #@cache.memoize()
     def get_downloadable_events(
         self, sites, start_date, end_date, frequency, pollutants
     ):
@@ -778,7 +779,7 @@ class EventsModel(BasePyMongoModel):
             .exec()
         )
 
-    @cache.memoize()
+    #@cache.memoize()
     def get_averages_by_pollutant(self, start_date, end_date, pollutant):
         return (
             self.date_range("values.time", start_date=start_date, end_date=end_date)
@@ -800,7 +801,7 @@ class EventsModel(BasePyMongoModel):
             .exec()
         )
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
@@ -820,7 +821,7 @@ class EventsModel(BasePyMongoModel):
         dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
         return dataframe.to_dict("records")
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_device_averages_from_bigquery(
         self, start_date, end_date, pollutant, devices
     ):
@@ -843,7 +844,7 @@ class EventsModel(BasePyMongoModel):
         dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
         return dataframe.to_dict("records")
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_device_readings_from_bigquery(
         self, start_date, end_date, pollutant, devices
     ):
@@ -873,7 +874,7 @@ class EventsModel(BasePyMongoModel):
 
         return dataframe
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         time_format_mapper = {
             "raw": "%Y-%m-%dT%H:%M:%S%z",
@@ -931,7 +932,7 @@ class EventsModel(BasePyMongoModel):
             .exec()
         )
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         diurnal_end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
             tzinfo=pytz.utc
@@ -992,7 +993,7 @@ class EventsModel(BasePyMongoModel):
             .exec()
         )
 
-    @cache.memoize()
+    ##@cache.memoize()
     def get_d3_chart_events_v2(
         self, sites, start_date, end_date, pollutant, frequency, tenant
     ):
