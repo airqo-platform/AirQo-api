@@ -4,6 +4,7 @@ import math
 
 from flasgger import swag_from
 from flask import request
+from flask_restx import Namespace
 from flask_restx import Resource
 
 from api.models import (
@@ -12,7 +13,6 @@ from api.models import (
     ExceedanceModel,
 )
 from api.utils.data_formatters import filter_non_private_entities, Entity
-
 # Middlewares
 from api.utils.http import create_response, Status
 from api.utils.pollutants import (
@@ -22,10 +22,11 @@ from api.utils.pollutants import (
     set_pm25_category_background,
 )
 from api.utils.request_validators import validate_request_json
-from main import rest_api_v2
+
+dashboard_api = Namespace("dashboard", description="Dashboard APIs")
 
 
-@rest_api_v2.route("/dashboard/chart/data")
+@dashboard_api.route("/chart/data")
 class ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/customised_chart_post.yml")
     @validate_request_json(
@@ -131,7 +132,7 @@ class ChartDataResource(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/chart/d3/data")
+@dashboard_api.route("/chart/d3/data")
 class D3ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/d3_chart_data_post.yml")
     @validate_request_json(
@@ -170,7 +171,7 @@ class D3ChartDataResource(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/sites")
+@dashboard_api.route("/sites")
 class MonitoringSiteResource(Resource):
     @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
     def get(self):
@@ -186,7 +187,7 @@ class MonitoringSiteResource(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/historical/daily-averages")
+@dashboard_api.route("/historical/daily-averages")
 class DailyAveragesResource(Resource):
     @swag_from("/api/docs/dashboard/device_daily_measurements_get.yml")
     @validate_request_json(
@@ -250,7 +251,7 @@ class DailyAveragesResource(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/historical/daily-averages-devices")
+@dashboard_api.route("/historical/daily-averages-devices")
 class DailyAveragesResource2(Resource):
     @swag_from("/api/docs/dashboard/device_daily_measurements_get.yml")
     @validate_request_json(
@@ -301,7 +302,7 @@ class DailyAveragesResource2(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/exceedances")
+@dashboard_api.route("/exceedances")
 class ExceedancesResource(Resource):
     @swag_from("/api/docs/dashboard/exceedances_post.yml")
     @validate_request_json(
@@ -337,7 +338,7 @@ class ExceedancesResource(Resource):
         )
 
 
-@rest_api_v2.route("/dashboard/exceedances-devices")
+@dashboard_api.route("/exceedances-devices")
 class ExceedancesResource2(Resource):
     @swag_from("/api/docs/dashboard/exceedances_post.yml")
     @validate_request_json(

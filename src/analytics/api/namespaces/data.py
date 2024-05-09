@@ -1,11 +1,10 @@
 import datetime
 import traceback
 
-import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
 from flask import request
-from flask_restx import Resource
+from flask_restx import Resource, Namespace
 
 from api.models import (
     EventsModel,
@@ -18,28 +17,24 @@ from api.models.data_export import (
     Frequency,
 )
 from api.utils.data_formatters import filter_non_private_entities, Entity
-
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
     compute_airqloud_summary,
 )
 from api.utils.dates import str_to_date, date_to_str
-from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json, validate_request_params
-from main import rest_api_v2
 
+# # @data_export_api.errorhandler(ExportRequestNotFound)
+# # def batch_not_found_exception(error):
+#     return (
+#         create_response(error.message, data={}, success=False),
+#         Status.HTTP_400_BAD_REQUEST,
+#     )
 
-@rest_api_v2.errorhandler(ExportRequestNotFound)
-def batch_not_found_exception(error):
-    return (
-        create_response(error.message, data={}, success=False),
-        Status.HTTP_400_BAD_REQUEST,
-    )
-
-
-@rest_api_v2.route("/data-download")
+data_export_api = Namespace("data", description="Data export APIs", path="/") #TODO: update path one that matches ns
+@data_export_api.route("/data-download")
 class DataExportResource(Resource):
     @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
     @validate_request_json(
@@ -183,7 +178,7 @@ class DataExportResource(Resource):
             )
 
 
-@rest_api_v2.route("/data-export")
+@data_export_api.route("/data-export")
 class DataExportV2Resource(Resource):
     @validate_request_json(
         "startDateTime|required:datetime",
@@ -381,7 +376,7 @@ class DataExportV2Resource(Resource):
             )
 
 
-@rest_api_v2.route("/data/summary")
+@data_export_api.route("/data/summary")
 class DataSummaryResource(Resource):
     @validate_request_json(
         "startDateTime|required:datetime",
