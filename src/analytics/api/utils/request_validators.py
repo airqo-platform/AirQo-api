@@ -26,7 +26,7 @@ class DataExportSchema(Schema):
 
         if count != 1:
             raise ValidationError(
-                "You cannot specify 'sites', 'devices', or 'airqlouds' at the same time"
+                "Ensure to specify either a list of airqlouds, sites or devices only."
             )
 
         # Usage example
