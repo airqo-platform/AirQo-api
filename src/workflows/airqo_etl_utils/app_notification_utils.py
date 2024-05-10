@@ -16,7 +16,7 @@ from firebase_admin import firestore
 from firebase_admin.exceptions import NotFoundError
 
 from .airqo_api import AirQoApi
-from .constants import Tenant 
+from .constants import Tenant
 from .constants import Attachments
 
 from .config import configuration
@@ -64,7 +64,7 @@ def check_subscription(user_doc, notifications_type):
         is_subscribed_to_notifs = is_subscribed_to_notifs.get(notifications_type, True)
 
         return is_subscribed_to_notifs
-        
+
     except Exception as error:
         print("Error checking subscription", error)
         return False
@@ -77,13 +77,12 @@ def get_all_users(notifications_type):
             configuration.FIREBASE_USERS_COLLECTION
         ).get()
         for user_doc in users_snapshot:
-
             user_data = user_doc.to_dict()
             userId = user_data.get("userId")
             userEmail = user_data.get("emailAddress")
             user_token = user_data.get("device")
-            if (notifications_type == "email"):
-                if(userEmail == ""):
+            if notifications_type == "email":
+                if userEmail == "":
                     continue
             if userId is not None:
                 is_subscribed = check_subscription(user_doc, notifications_type)
@@ -125,7 +124,13 @@ def group_users(users, reading_type):
     try:
         for user in users:
             user_id = user.get("userId")
-            name, location, pm_value, place_id, forecast_air_quality_levels = None, None, None, None , None
+            name, location, pm_value, place_id, forecast_air_quality_levels = (
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             place_groupings = AirQoApi().get_favorites(user_id)
             if len(place_groupings) == 0:
                 place_groupings = AirQoApi().get_location_history(user_id)
@@ -145,16 +150,16 @@ def group_users(users, reading_type):
                 pm_value = target_place.get("pm_value")
                 place_id = target_place.get("place_id")
 
-            if (reading_type =="forecast"):
-               forecasts = AirQoApi().get_forecast( frequency="daily", site_id=place_id)
-               if(len(forecasts) == 0):
-                   continue
-               pm_values = [forecast["pm2_5"] for forecast in forecasts]
-               forecast_air_quality_levels = [map_pm_values(pm_value) for pm_value in pm_values]
-               pm_value= pm_values[0]
+            if reading_type == "forecast":
+                forecasts = AirQoApi().get_forecast(frequency="daily", site_id=place_id)
+                if len(forecasts) == 0:
+                    continue
+                pm_values = [forecast["pm2_5"] for forecast in forecasts]
+                forecast_air_quality_levels = [
+                    map_pm_values(pm_value) for pm_value in pm_values
+                ]
+                pm_value = pm_values[0]
 
-
-                
             if user["userId"] not in grouped_users:
                 grouped_users[user["userId"]] = []
 
@@ -184,7 +189,6 @@ def send_push_notifications(grouped_users):
             target_place = user_locations[0]
 
             if target_place["pmValue"] is not None:
-                
                 user_token = target_place["userToken"]
                 name = target_place["userName"]
                 pm_value = target_place["pmValue"]
@@ -202,7 +206,7 @@ def send_push_notifications(grouped_users):
                     },
                     token=user_token,
                 )
-                
+
                 response = messaging.send(message)
                 print(f"Successfully sent message to User {userId}: {response}")
 
@@ -211,8 +215,8 @@ def send_push_notifications(grouped_users):
 
         except NotFoundError as e:
             user_ref = firestore_db.collection(
-                    configuration.FIREBASE_USERS_COLLECTION
-                ).document(userId)
+                configuration.FIREBASE_USERS_COLLECTION
+            ).document(userId)
             user_ref.update({"device": ""})
             print(f"Token for User {userId} is invalid and has been deleted.")
 
@@ -224,10 +228,12 @@ def send_push_notifications(grouped_users):
 def send_email_notifications(grouped_users):
     try:
         for user_id, target_places in grouped_users.items():
-           
             place = target_places[0]
             pm_value = place.get("pmValue")
-            attachments = Attachments.EMOJI_ATTACHMENTS.value + Attachments.EMAIL_ATTACHMENTS.value
+            attachments = (
+                Attachments.EMOJI_ATTACHMENTS.value
+                + Attachments.EMAIL_ATTACHMENTS.value
+            )
 
             user_email = place.get("email")
 
@@ -237,31 +243,38 @@ def send_email_notifications(grouped_users):
                     "address": configuration.MAIL_USER,
                 },
                 "to": user_email,
-                "subject": "Air quality of {} is expected to be {} with a concentration level of {:.2f}µg/m3!".format(place.get("name"), map_pm_values(pm_value), pm_value),
+                "subject": "Air quality of {} is expected to be {} with a concentration level of {:.2f}µg/m3!".format(
+                    place.get("name"), map_pm_values(pm_value), pm_value
+                ),
                 "html": forecast_email(target_places, user_id, user_email),
                 "attachments": attachments,
             }
 
             try:
-                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server = smtplib.SMTP("smtp.gmail.com", 587)
                 server.starttls()
                 server.login(configuration.MAIL_USER, configuration.MAIL_PASS)
 
                 msg = MIMEMultipart()
-                msg['From'] = mail_options["from"]["address"]
-                msg['To'] = mail_options["to"]
-                msg['Subject'] = mail_options["subject"]
+                msg["From"] = mail_options["from"]["address"]
+                msg["To"] = mail_options["to"]
+                msg["Subject"] = mail_options["subject"]
 
-                msg.attach(MIMEText(mail_options["html"], 'html'))
+                msg.attach(MIMEText(mail_options["html"], "html"))
 
                 for attachment in mail_options["attachments"]:
-                    with open(attachment["path"], 'rb') as f:
+                    with open(attachment["path"], "rb") as f:
                         image = MIMEImage(f.read())
-                    image.add_header('Content-Disposition', f'attachment; filename="{attachment["filename"]}"')
-                    image.add_header('Content-ID', f'<{attachment["cid"]}>')
+                    image.add_header(
+                        "Content-Disposition",
+                        f'attachment; filename="{attachment["filename"]}"',
+                    )
+                    image.add_header("Content-ID", f'<{attachment["cid"]}>')
                     msg.attach(image)
 
-                server.sendmail(mail_options["from"]["address"], mail_options["to"], msg.as_string())
+                server.sendmail(
+                    mail_options["from"]["address"], mail_options["to"], msg.as_string()
+                )
                 server.quit()
                 print("New Email notification sent to ", user_email)
             except Exception as error:
@@ -290,6 +303,7 @@ def map_pm_values(pm_value):
     else:
         return "Hazardous"
 
+
 def map_notification_message(pm_value):
     if pm_value <= 12:
         return "Enjoy the outdoors and have a great day!"
@@ -303,6 +317,7 @@ def map_notification_message(pm_value):
         return "Reduce the intensity of your outdoor activities. Try to stay indoors until the air quality improves."
     else:
         return "If you have to spend a lot of time outside, disposable masks like the N95 are helpful."
+
 
 def get_valid_name(name):
     try:

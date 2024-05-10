@@ -109,47 +109,36 @@ class AirQoApi:
             params["network"] = str(tenant)
 
         response = self.__request("devices", params)
-
         devices = [
             {
                 **device,
-                **{
-                    "device_number": device.get("device_number", None),
-                    "approximate_latitude": device.get(
-                        "approximate_latitude", device.get("latitude", None)
-                    ),
-                    "approximate_longitude": device.get(
-                        "approximate_longitude", device.get("longitude", None)
-                    ),
-                    "device_id": device.get("name", None),
-                    "device_codes": [
-                        str(code) for code in device.get("device_codes", [])
-                    ],
-                    "mongo_id": device.get("_id", None),
-                    "site_id": device.get("site", {}).get("_id", None),
-                    "site_latitude": device.get("site", {}).get("latitude", None),
-                    "site_generated_name": device.get("site", {}).get(
-                        "generated_name", None
-                    ),
-                    "site_longitude": device.get("site", {}).get("longitude", None),
-                    "device_category": str(
-                        DeviceCategory.from_str(device.get("category", ""))
-                    ),
-                    "tenant": device.get("network"),
-                    "device_manufacturer": device.get(
-                        "device_manufacturer",
-                        Tenant.from_str(device.get("network")).device_manufacturer(),
-                    ),
-                },
+                "device_number": device.get("device_number"),
+                "latitude": device.get("latitude")
+                or device.get("approximate_latitude"),
+                "longitude": device.get("longitude")
+                or device.get("approximate_longitude"),
+                "device_id": device.get("name"),
+                "device_codes": [str(code) for code in device.get("device_codes", [])],
+                "mongo_id": device.get("_id"),
+                "site_id": device.get("site", {}).get("_id"),
+                "site_location": device.get("site", {}).get("location_name"),
+                "device_category": str(
+                    DeviceCategory.from_str(device.get("category", ""))
+                ),
+                "tenant": device.get("network"),
+                "device_manufacturer": device.get("device_manufacturer")
+                or Tenant.from_str(device.get("network")).device_manufacturer(),
             }
             for device in response.get("devices", [])
         ]
+        # TODO: For cases where lat & lon, look into checking bigquery metadata
 
         if device_category != DeviceCategory.NONE:
-            devices = list(
-                filter(lambda y: y["device_category"] == str(device_category), devices)
-            )
-
+            devices = [
+                device
+                for device in devices
+                if device["device_category"] == str(device_category)
+            ]
         return devices
 
     def get_thingspeak_read_keys(self, devices: list) -> dict:
@@ -394,21 +383,17 @@ class AirQoApi:
         return [
             {
                 **site,
-                **{
-                    "site_id": site.get("_id", None),
-                    "tenant": site.get("network", site.get("tenant", None)),
-                    "location": site.get("location", None),
-                    "approximate_latitude": site.get(
-                        "approximate_latitude", site.get("latitude", None)
-                    ),
-                    "approximate_longitude": site.get(
-                        "approximate_longitude", site.get("longitude", None)
-                    ),
-                    "search_name": site.get("search_name", site.get("name", None)),
-                    "location_name": site.get(
-                        "location_name", site.get("location", None)
-                    ),
-                },
+                "site_id": site.get("_id", None),
+                "tenant": site.get("network", site.get("tenant", None)),
+                "location": site.get("location", None),
+                "approximate_latitude": site.get(
+                    "approximate_latitude", site.get("latitude", None)
+                ),
+                "approximate_longitude": site.get(
+                    "approximate_longitude", site.get("longitude", None)
+                ),
+                "search_name": site.get("search_name", site.get("name", None)),
+                "location_name": site.get("location_name", site.get("location", None)),
             }
             for site in response.get("sites", [])
         ]
