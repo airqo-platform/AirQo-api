@@ -12,92 +12,6 @@ from task_docs import (
 
 
 @dag(
-    "Calibrate-AirQo-Measurements",
-    schedule="0 0 * * 6",
-    default_args=AirflowUtils.dag_default_configs(),
-    catchup=False,
-    tags=["airqo", "calibrate"],
-)
-def airqo_calibrate_measurements():
-    import pandas as pd
-
-    @task()
-    def extract_uncalibrated_data(**kwargs):
-        from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, **kwargs
-        )
-        return AirQoDataUtils.extract_uncalibrated_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-
-    @task()
-    def extract_weather_data(**kwargs):
-        from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
-        return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-
-    @task()
-    def merge_data(
-        device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
-    ):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=device_measurements,
-            weather_data=hourly_weather_data,
-        )
-
-    @task()
-    def calibrate_data(measurements: pd.DataFrame):
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
-
-        return CalibrationUtils.calibrate_airqo_data(data=measurements)
-
-    @task()
-    def load(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.constants import Tenant
-
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
-        bigquery_api = BigQueryApi()
-        data["tenant"] = str(Tenant.AIRQO)
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=bigquery_api.hourly_measurements_table,
-        )
-
-        bigquery_api.reload_data(
-            tenant=Tenant.AIRQO,
-            table=bigquery_api.hourly_measurements_table,
-            null_cols=["pm2_5_calibrated_value"],
-            dataframe=data,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-        )
-
-    uncalibrated_data = extract_uncalibrated_data()
-    weather_data = extract_weather_data()
-    merged_data = merge_data(
-        device_measurements=uncalibrated_data,
-        hourly_weather_data=weather_data,
-    )
-    calibrated_data = calibrate_data(merged_data)
-    load(calibrated_data)
-
-
-@dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
@@ -144,9 +58,9 @@ def airqo_historical_hourly_measurements():
 
     @task()
     def calibrate_data(measurements: pd.DataFrame):
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return CalibrationUtils.calibrate_airqo_data(data=measurements)
+        return AirQoDataUtils.calibrate_data(data=measurements)
 
     @task()
     def load(data: pd.DataFrame):
@@ -381,6 +295,7 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
+    # TODO : Needs review. If properly executed could ease identification of data issues
     def save_test_data(data: pd.DataFrame):
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.config import Config
@@ -413,28 +328,11 @@ def airqo_realtime_measurements():
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
 
-    # @task.virtualenv(
-    #     task_id="calibrate",
-    #     requirements=[
-    #         "numpy==1.21.2",
-    #         "pandas==1.3.3",
-    #         "protobuf==3.15.8",
-    #         "pyarrow==3.0.0",
-    #         "google-cloud-storage==1.41.1",
-    #         "scikit_learn==0.24.1",
-    #         "apache-airflow",
-    #         "airqo_etl_utils",
-    #         "pyarrow==3.0.0"
-    #     ],
-    #     system_site_packages=True,
-    #     multiple_outputs=True,
-    #     python_version="3.7",
-    # )
     @task()
     def calibrate(data: pd.DataFrame):
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return CalibrationUtils.calibrate_airqo_data(data=data)
+        return AirQoDataUtils.calibrate_data(data=data)
 
     @task()
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
@@ -493,7 +391,8 @@ def airqo_realtime_measurements():
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
-    test_data = save_test_data(clean_data)
+    save_test_data(clean_data)
+
     averaged_airqo_data = aggregate(clean_data)
     send_raw_measurements_to_bigquery(clean_data)
     extracted_weather_data = extract_hourly_weather_data()
@@ -559,6 +458,5 @@ def airqo_raw_data_measurements():
 airqo_historical_hourly_measurements()
 airqo_realtime_measurements()
 airqo_historical_raw_measurements()
-airqo_calibrate_measurements()
 airqo_cleanup_measurements()
 airqo_raw_data_measurements()
