@@ -896,7 +896,7 @@ UserSchema.methods.createToken = async function () {
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
           lastLogin: user.lastLogin,
-          exp: oneHourExpiry,
+          // exp: oneHourExpiry,
         },
         constants.JWT_SECRET
       );

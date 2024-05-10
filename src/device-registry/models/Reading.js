@@ -199,13 +199,13 @@ ReadingsSchema.statics.latest = async function(
   next
 ) {
   try {
-    let twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    let sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const pipeline = this.aggregate()
       .match({
         time: {
-          $gte: twoDaysAgo,
+          $gte: sevenDaysAgo,
         },
       })
       .sort({ time: -1 })
