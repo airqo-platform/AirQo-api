@@ -330,7 +330,6 @@ def airqo_realtime_measurements():
 
     @task()
     def calibrate(data: pd.DataFrame):
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.calibrate_data(data=data)

@@ -77,7 +77,6 @@ def get_all_users(notifications_type):
             configuration.FIREBASE_USERS_COLLECTION
         ).get()
         for user_doc in users_snapshot:
-
             user_data = user_doc.to_dict()
             userId = user_data.get("userId")
             userEmail = user_data.get("emailAddress")
@@ -190,7 +189,6 @@ def send_push_notifications(grouped_users):
             target_place = user_locations[0]
 
             if target_place["pmValue"] is not None:
-
                 user_token = target_place["userToken"]
                 name = target_place["userName"]
                 pm_value = target_place["pmValue"]
@@ -230,7 +228,6 @@ def send_push_notifications(grouped_users):
 def send_email_notifications(grouped_users):
     try:
         for user_id, target_places in grouped_users.items():
-
             place = target_places[0]
             pm_value = place.get("pmValue")
             attachments = (
