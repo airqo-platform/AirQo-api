@@ -840,7 +840,7 @@ class AirQoDataUtils:
         ]
 
         data[columns_to_fill] = data[columns_to_fill].fillna(0)
-        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour.
+        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
         # May have to rewrite entire pipeline flow
 
         # additional input columns for calibration
