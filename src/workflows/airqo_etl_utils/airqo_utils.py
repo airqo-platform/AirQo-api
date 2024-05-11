@@ -828,19 +828,20 @@ class AirQoDataUtils:
             columns={"_id": "site_id"}
         )
         data = pd.merge(data, sites_df, on="site_id", how="left")
+        data.dropna(subset=["device_number", "timestamp"], inplace=True)
 
-        data = data.dropna(
-            subset=[
-                "s1_pm2_5",
-                "s1_pm10",
-                "s2_pm2_5",
-                "s2_pm10",
-                "temperature",
-                "humidity",
-                "device_number",
-                "timestamp",
-            ]
-        )
+        columns_to_fill = [
+            "s1_pm2_5",
+            "s1_pm10",
+            "s2_pm2_5",
+            "s2_pm10",
+            "temperature",
+            "humidity",
+        ]
+
+        data[columns_to_fill] = data[columns_to_fill].fillna(0)
+        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
+        # May have to rewrite entire pipeline flow
 
         # additional input columns for calibration
         data["avg_pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
@@ -863,7 +864,7 @@ class AirQoDataUtils:
             "pm2_5_pm10_mod",
         ]
 
-        grouped_df = data.groupby("city")
+        grouped_df = data.groupby("city", dropna=False)
 
         rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
@@ -880,7 +881,7 @@ class AirQoDataUtils:
             ),
         )
         for city, group in grouped_df:
-            if city.lower() in [c.value.lower() for c in CityModel]:
+            if str(city).lower() in [c.value.lower() for c in CityModel]:
                 try:
                     rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
@@ -895,7 +896,7 @@ class AirQoDataUtils:
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
                 except Exception as e:
-                    print(e)
+                    print(f"Error getting model: {e}")
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 
@@ -905,6 +906,21 @@ class AirQoDataUtils:
             data.loc[group.index, "pm10_calibrated_value"] = group[
                 "pm10_calibrated_value"
             ]
+
+        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+        if "pm2_5_calibrated_value" in data.columns:
+            data["pm2_5"] = data["pm2_5_calibrated_value"]
+        else:
+            data["pm2_5_calibrated_value"] = None
+            data["pm2_5"] = None
+        if "pm10_calibrated_value" in data.columns:
+            data["pm10"] = data["pm10_calibrated_value"]
+        else:
+            data["pm10_calibrated_value"] = None
+            data["pm10"] = None
+        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
+        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
 
         return data.drop(
             columns=[
@@ -918,25 +934,3 @@ class AirQoDataUtils:
                 "city",
             ]
         )
-
-    @staticmethod
-    def format_calibrated_data(data: pd.DataFrame) -> pd.DataFrame:
-        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-        if "pm2_5_calibrated_value" in data.columns:
-            data["pm2_5"] = data["pm2_5_calibrated_value"]
-        else:
-            data["pm2_5_calibrated_value"] = None
-            data["pm2_5"] = None
-
-        if "pm10_calibrated_value" in data.columns:
-            data["pm10"] = data["pm10_calibrated_value"]
-        else:
-            data["pm10_calibrated_value"] = None
-            data["pm10"] = None
-
-        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
-        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
-
-        return data
