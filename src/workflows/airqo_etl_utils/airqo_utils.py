@@ -863,6 +863,7 @@ class AirQoDataUtils:
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
         ]
+        data.dropna(subset=input_variables, inplace=True)
 
         grouped_df = data.groupby("city", dropna=False)
 
