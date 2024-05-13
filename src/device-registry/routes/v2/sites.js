@@ -754,9 +754,9 @@ router.get(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 1) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 1 or more characters"
             );
           }
           return Promise.resolve("longitude validation test has passed");
@@ -786,9 +786,9 @@ router.get(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 1) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 1 or more characters"
             );
           }
           return Promise.resolve("latitude validation test has passed");
