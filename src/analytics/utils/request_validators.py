@@ -29,4 +29,12 @@ class DataExportSchema(Schema):
                 "Ensure to specify either a list of airqlouds, sites or devices only."
             )
 
-        # Usage example
+
+class BulkDataExportSchema(DataExportSchema):
+    userId = fields.String(required=True)
+    metadata = fields.Dict()
+    exportFormat = fields.String()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.exportFormat = self.outputFormat
