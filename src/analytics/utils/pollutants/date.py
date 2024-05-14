@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from api.utils.dates import str_to_date
+from utils.dates import str_to_date
 
 FREQUENCY_FORMAT_MAPPER = {
     "monthly": "%B %Y",

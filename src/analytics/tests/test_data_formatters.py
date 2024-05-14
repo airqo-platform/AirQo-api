@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from api.utils.data_formatters import format_to_aqcsv
+from utils.data_formatters import format_to_aqcsv
 from conftest import mock_dataframe, mock_aqcsv_globals
 
 

@@ -1,4 +1,4 @@
-from api.models.base.base_model import BasePyMongoModel
+from models.base.base_model import BasePyMongoModel
 
 class ExceedanceModel(BasePyMongoModel):
     standards_mapping = {

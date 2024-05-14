@@ -5,9 +5,9 @@ import pandas as pd
 import pytz
 from google.cloud import bigquery
 
-from api.models.base.base_model import BasePyMongoModel
-from api.utils.dates import date_to_str
-from api.utils.pollutants.pm_25 import (
+from models.base.base_model import BasePyMongoModel
+from utils.dates import date_to_str
+from utils.pollutants import (
     BIGQUERY_FREQUENCY_MAPPER,
 )
 from config import CONFIGURATIONS

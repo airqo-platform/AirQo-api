@@ -10,9 +10,9 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from google.cloud import bigquery, storage
 
-from api.models.base.base_model import BasePyMongoModel
-from api.utils.dates import date_to_str
-from api.utils.exceptions import ExportRequestNotFound
+from models.base.base_model import BasePyMongoModel
+from utils.dates import date_to_str
+from utils.exceptions import ExportRequestNotFound
 from config import Config
 
 

@@ -1,8 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 from datetime import datetime
 import numpy as np
 import logging
-from api.utils.pollutants.report import (
+from utils.pollutants.report import (
     fetch_air_quality_data, query_bigquery,
     results_to_dataframe, PManalysis)
 # Configure logging

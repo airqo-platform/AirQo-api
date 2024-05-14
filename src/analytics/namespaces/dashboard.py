@@ -1,25 +1,19 @@
 # Third-party libraries
 
-import math
-
 from flasgger import swag_from
 from flask import request
 from flask_restx import Namespace
 from flask_restx import Resource
 
-from api.models import (
+from models import (
     EventsModel,
-    SiteModel,
-    ExceedanceModel,
 )
-from api.utils.data_formatters import filter_non_private_entities, Entity
+from utils.data_formatters import filter_non_private_entities, Entity
 # Middlewares
-from api.utils.http import create_response, Status
-from api.utils.pollutants import (
+from utils.http import create_response, Status
+from utils.pollutants import (
     generate_pie_chart_data,
-    d3_generate_pie_chart_data,
     PM_COLOR_CATEGORY,
-    set_pm25_category_background,
 )
 
 dashboard_api = Namespace("dashboard", description="Dashboard APIs")

@@ -5,15 +5,15 @@ from flasgger import swag_from
 from flask_restx import Resource, Namespace
 from marshmallow import ValidationError
 
-from api.models import (
+from models import (
     EventsModel,
 )
-from api.utils.data_formatters import filter_non_private_entities, Entity
-from api.utils.data_formatters import (
+from utils.data_formatters import filter_non_private_entities, Entity
+from utils.data_formatters import (
     format_to_aqcsv,
 )
-from api.utils.http import create_response, Status
-from api.utils.request_validators import DataExportSchema
+from utils.http import create_response, Status
+from utils.request_validators import DataExportSchema
 
 data_export_api = Namespace("data", description="Data export APIs", path="/")
 

@@ -6,13 +6,13 @@ from flask import request
 from flask_restx import Resource
 
 # models
-from api.models import ReportTemplateModel
-from api.models.base.data_processing import air_quality_data
+from models import ReportTemplateModel
+from models.base.data_processing import air_quality_data
 from api.utils.case_converters import camel_to_snake
-from api.utils.http import create_response, Status
+from utils.http import create_response, Status
 
 # Utils
-from api.utils.request_validators import validate_request_params, validate_request_json
+from utils.request_validators import validate_request_params, validate_request_json
 
 # Middlewares
 from main import rest_api_v2
