@@ -156,7 +156,6 @@ const preferences = {
       ];
 
       const filterResponse = generateFilter.preferences(request, next);
-      logObject("filterResponse", filterResponse);
 
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         return {
@@ -170,11 +169,6 @@ const preferences = {
         };
       }
 
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
-
       const update = body;
 
       fieldsToAddToSet.forEach((field) => {
@@ -182,7 +176,6 @@ const preferences = {
           update["$addToSet"] = {
             [field]: { $each: update[field] },
           };
-
           delete update[field];
         }
       });
@@ -193,20 +186,17 @@ const preferences = {
             ...item,
             createdAt: item.createdAt || new Date(),
           }));
-
           update["$addToSet"] = {
             [field]: { $each: update[field] },
           };
-
           delete update[field];
         }
       });
-      const filter = PreferenceDetails;
-      logObject("filter", filter);
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
-        filter,
+        filterResponse,
         update,
         options
       );
@@ -248,7 +238,6 @@ const preferences = {
       logText("Replace the existing selected_ids....");
 
       const filterResponse = generateFilter.preferences(request, next);
-      logObject("filterResponse", filterResponse);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         return {
           success: false,
@@ -261,21 +250,14 @@ const preferences = {
         };
       }
 
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
-
       const update = body;
-      const filter = PreferenceDetails;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
-        filter,
+        filterResponse,
         update,
         options
       );
-      logObject("modifyResponse", modifyResponse);
 
       if (!isEmpty(modifyResponse)) {
         return {
