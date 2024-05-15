@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 
 from utils.dates import str_to_aqcsv_date_format
-from utils.pollutants import (
+from utils.pollutants.pm_25 import (
     AQCSV_PARAMETER_MAPPER,
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
@@ -256,7 +256,7 @@ def format_to_aqcsv(
         inplace=True,
     )
 
-    return dataframe.to_dict("records")
+    return dataframe
 
 
 def tenant_to_str(tenant: str) -> str:

@@ -104,9 +104,7 @@ class DataExportResource(Resource):
 
 
 @data_export_api.route("/bulk-data-download")
-class BulkDataExportResource(
-    Resource, doc="Endpoint for bulk data export using celery"
-):
+class BulkDataExportResource(Resource):
     def post(self):
         try:
             json_data = BulkDataExportSchema().load(data_export_api.payload)
@@ -137,17 +135,17 @@ class BulkDataExportResource(
         try:
             tasks.export_data.apply_async(
                 args=[
-                    user_id,
+                    devices,
+                    sites,
+                    airqlouds,
                     start_date,
                     end_date,
-                    sites,
-                    devices,
-                    airqlouds,
                     frequency,
-                    export_format,
-                    output_format,
-                    meta_data,
                     pollutants,
+                    output_format,
+                    export_format,
+                    meta_data,
+                    user_id,
                 ],
                 countdown=3,
                 task_id=user_id,
@@ -168,14 +166,17 @@ class BulkDataExportResource(
             )
 
     @data_export_api.param("userId", "User ID", "string", required=True)
-    def get(self, userId):
+    def get(self):
         try:
-            result = AsyncResult(task_id=userId)
+            result = tasks.export_data.AsyncResult("abcx")
+            print(result.result)
+            print(result.get())
+            print(result.successful())
             if result.ready():
                 return (
                     create_response(
                         "request successfully received",
-                        data=result.get(),
+                        data=str(result.result),
                     ),
                     Status.HTTP_200_OK,
                 )

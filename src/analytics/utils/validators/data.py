@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError
+from marshmallow import Schema, fields, validate, validates_schema, ValidationError, post_load
 
 
 class DataExportSchema(Schema):
@@ -35,9 +35,10 @@ class BulkDataExportSchema(DataExportSchema):
     metadata = fields.Dict()
     exportFormat = fields.String()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.exportFormat = self.outputFormat
+    @post_load
+    def set_export_format(self, data, **kwargs):
+        data["exportFormat"] = data.get("outputFormat", None)
+        return data
 
 
 class DataSummarySchema(Schema):

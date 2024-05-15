@@ -2,18 +2,15 @@ from datetime import datetime
 
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from google.auth import service_account
 from google.cloud import storage
 
-from config import config
 from models import EventsModel
 from utils.data_formatters import format_to_aqcsv
 
 celery_logger = get_task_logger(__name__)
-
-
-@shared_task(bind=True, name="data_export_periodic_task")
+@shared_task(bind=True, name="Data Export", ignore_result=False)
 def export_data(
+    self,
     devices,
     sites,
     airqlouds,
@@ -22,6 +19,8 @@ def export_data(
     frequency,
     pollutants,
     output_format,
+    export_format,
+    meta_data,
     user_id,
 ):
     try:
@@ -42,11 +41,8 @@ def export_data(
             )
 
         filename = f'{user_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}.csv'
-        client = storage.Client(
-            project=config.DATA_EXPORT_GCP_PROJECT, credentials=service_account.Credentials.from_service_account_file(
-            config.DATA_EXPORT_GCP_CREDENTIALS,
-        ))
-        bucket = client.bucket(config.DATA_EXPORT_BUCKET)
+        client = storage.Client()
+        bucket = client.bucket(bucket_name="data_export_datasets")
         blob = bucket.blob(filename)
         blob.upload_from_string(dataframe.to_csv(index=False), "text/csv")
 
@@ -55,4 +51,4 @@ def export_data(
         return file_url
 
     except Exception as e:
-        return e
+        celery_logger.error(f"Error while exporting data: {e}")

@@ -38,14 +38,6 @@ def create_app():
     app.config["CELERY"] = {
         "broker_url": f"{Config.CACHE_REDIS_URL}/0",
         "result_backend": f"{Config.CACHE_REDIS_URL}/0",
-        "task_default_queue": "analytics",
-        "beat_schedule": {
-            "data_export_periodic_task": {
-                "task": "data_export_periodic_task",
-                "schedule": timedelta(seconds=5),
-            }
-        },
-        "app_name": "data_export",
     }
 
     cache.init_app(app)

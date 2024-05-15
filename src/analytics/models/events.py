@@ -7,7 +7,7 @@ from google.cloud import bigquery
 
 from models.base.base_model import BasePyMongoModel
 from utils.dates import date_to_str
-from utils.pollutants import (
+from utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
 )
 from config import CONFIGURATIONS
