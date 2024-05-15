@@ -16,7 +16,7 @@ from utils.data_formatters import (
 )
 from utils.dates import str_to_date, date_to_str
 from utils.http import create_response, Status
-from utils.validators.request_validators import DataExportSchema, BulkDataExportSchema, DataSummarySchema
+from utils.validators.data import DataExportSchema, DataSummarySchema, BulkDataExportSchema
 
 data_export_api = Namespace("data", description="Data export APIs", path="/")
 
@@ -191,7 +191,10 @@ class DataSummaryResource(Resource):
     def post(self):
         try:
             json_data = DataSummarySchema().load(data_export_api.payload)
-
+        except ValidationError as err:
+            return (
+                create_response(f" {err.messages}", success=False),
+            )
             start_date_time = str_to_date(json_data["startDateTime"])
             end_date_time = str_to_date(json_data["endDateTime"])
             airqloud = str(json_data.get("airqloud", ""))
