@@ -38,3 +38,11 @@ class BulkDataExportSchema(DataExportSchema):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.exportFormat = self.outputFormat
+
+
+class DataSummarySchema(Schema):
+    startDateTime = fields.DateTime(required=True)
+    endDateTime = fields.DateTime(required=True)
+    airqloud = fields.String()
+    cohort = fields.String()
+    grid = fields.String()

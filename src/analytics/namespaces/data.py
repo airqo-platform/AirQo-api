@@ -1,6 +1,8 @@
 import traceback
+import pandas as pd
 
 import flask_excel as excel
+from celery.result import AsyncResult
 from flasgger import swag_from
 from flask_restx import Resource, Namespace
 from marshmallow import ValidationError
@@ -8,12 +10,13 @@ from marshmallow import ValidationError
 import tasks
 from models import (
     EventsModel, )
-from utils.data_formatters import filter_non_private_entities, Entity
+from utils.data_formatters import filter_non_private_entities, Entity, compute_airqloud_summary
 from utils.data_formatters import (
     format_to_aqcsv,
 )
+from utils.dates import str_to_date, date_to_str
 from utils.http import create_response, Status
-from utils.request_validators import DataExportSchema, BulkDataExportSchema
+from utils.validators.request_validators import DataExportSchema, BulkDataExportSchema, DataSummarySchema
 
 data_export_api = Namespace("data", description="Data export APIs", path="/")
 
@@ -150,21 +153,26 @@ class BulkDataExportResource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def get(self):
-        user_id = request.args.get("userId")
+    @data_export_api.param("userId", "User ID", "string", required=True)
+    def get(self, user_id):
         try:
-            data_export_model = DataExportModel()
-            requests = data_export_model.get_user_requests(user_id)
-
-            data = [x.to_api_format() for x in requests]
-
-            return (
+            result = AsyncResult(task_id=user_id)
+            if result.ready():
+                return (
                 create_response(
                     "request successfully received",
-                    data=data,
+                    data=result.get(),
                 ),
                 Status.HTTP_200_OK,
-            )
+                )
+            else:
+                return (
+                create_response(
+                    "Data export is still in progress",
+                    data=None
+                ),
+                Status.HTTP_200_OK
+                )
 
         except Exception as ex:
             print(ex)
@@ -176,93 +184,59 @@ class BulkDataExportResource(Resource):
                 ),
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-    #
-    # @validate_request_params(
-    #     "requestId|required:str",
-    # )
-    # def patch(self):
-    #     request_id = request.args.get("requestId")
-    #     data_export_model = DataExportModel()
-    #     export_request = data_export_model.get_request_by_id(request_id)
-    #     export_request.status = DataExportStatus.SCHEDULED
-    #     export_request.retries = 3
-    #     success = data_export_model.update_request_status_and_retries(export_request)
-    #     if success:
-    #         return (
-    #             create_response(
-    #                 "request successfully updated",
-    #                 data=export_request.to_api_format(),
-    #             ),
-    #             Status.HTTP_200_OK,
-    #         )
-    #     else:
-    #         return (
-    #             create_response(
-    #                 f"An Error occurred while processing your request. Please contact support",
-    #                 success=False,
-    #             ),
-    #             Status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         )
-#
-#
-# @data_export_api.route("/data/summary")
-# class DataSummaryResource(Resource):
-#     @validate_request_json(
-#         "startDateTime|required:datetime",
-#         "endDateTime|required:datetime",
-#         "airqloud|optional:str",
-#         "cohort|optional:str",
-#         "grid|optional:str",
-#     )
-#     def post(self):
-#         try:
-#             json_data = request.get_json()
-#
-#             start_date_time = str_to_date(json_data["startDateTime"])
-#             end_date_time = str_to_date(json_data["endDateTime"])
-#             airqloud = str(json_data.get("airqloud", ""))
-#             cohort = str(json_data.get("cohort", ""))
-#             grid = str(json_data.get("grid", ""))
-#
-#             start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
-#             end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
-#             data = EventsModel.get_devices_summary(
-#                 airqloud=airqloud,
-#                 start_date_time=start_date_time,
-#                 end_date_time=end_date_time,
-#                 grid=grid,
-#                 cohort=cohort,
-#             )
-#
-#             summary = compute_airqloud_summary(
-#                 data=pd.DataFrame(data),
-#                 start_date_time=start_date_time,
-#                 end_date_time=end_date_time,
-#             )
-#
-#             if len(summary) == 0:
-#                 return (
-#                     create_response(
-#                         f"No data found for grid {grid} from {start_date_time} to {end_date_time}",
-#                         data={},
-#                         success=False,
-#                     ),
-#                     Status.HTTP_200_OK,
-#                 )
-#
-#             return (
-#                 create_response("successful", data=summary),
-#                 Status.HTTP_200_OK,
-#             )
-#
-#         except Exception as ex:
-#             print(ex)
-#             traceback.print_exc()
-#             return (
-#                 create_response(
-#                     "An Error occurred while processing your request. Please contact support",
-#                     data={},
-#                     success=False,
-#                 ),
-#                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             )
+
+@data_export_api.route("/data/summary")
+class DataSummaryResource(Resource):
+
+    def post(self):
+        try:
+            json_data = DataSummarySchema().load(data_export_api.payload)
+
+            start_date_time = str_to_date(json_data["startDateTime"])
+            end_date_time = str_to_date(json_data["endDateTime"])
+            airqloud = str(json_data.get("airqloud", ""))
+            cohort = str(json_data.get("cohort", ""))
+            grid = str(json_data.get("grid", ""))
+
+            start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
+            end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
+            data = EventsModel.get_devices_summary(
+                airqloud=airqloud,
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+                grid=grid,
+                cohort=cohort,
+            )
+
+            summary = compute_airqloud_summary(
+                data=pd.DataFrame(data),
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+            )
+
+            if len(summary) == 0:
+                return (
+                    create_response(
+                        f"No data found for grid {grid} from {start_date_time} to {end_date_time}",
+                        data={},
+                        success=False,
+                    ),
+                    Status.HTTP_200_OK,
+                )
+
+            return (
+                create_response("successful", data=summary),
+                Status.HTTP_200_OK,
+            )
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+            return (
+                create_response(
+                    "An Error occurred while processing your request. Please contact support",
+                    data={},
+                    success=False,
+                ),
+                Status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
