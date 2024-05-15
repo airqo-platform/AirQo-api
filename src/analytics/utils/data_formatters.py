@@ -194,14 +194,13 @@ def compute_airqloud_summary(
 
 
 def format_to_aqcsv(
-    data: list, pollutants: list, frequency: str
+    data: pd.DataFrame, pollutants: list, frequency: str
 ) -> list[Any] | list[dict]:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
     pollutant_mappers = BIGQUERY_FREQUENCY_MAPPER.get(frequency)
-
-    dataframe = pd.DataFrame(data)
+    dataframe = data.copy()
     if dataframe.empty:
         return []
     dataframe.rename(
@@ -299,7 +298,7 @@ def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
         response = requests.post(
             url=f"{Config.AIRQO_API_BASE_URL}/devices/{source}/filterNonPrivate{entity_type.value.capitalize()}",
             json={entity_type.value: entities},
-            params={"token": Config.AIRQO_API_TOKEN}
+            params={"token": Config.AIRQO_API_TOKEN},
         )
         data = response.json()
         if data.get("success"):

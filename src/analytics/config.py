@@ -18,7 +18,7 @@ APP_ENV = env_var("FLASK_ENV", "production")
 
 class Config:
     SECRET_KEY = env_var("SECRET_KEY")
-    AIRQO_API_BASE_URL=env_var("AIRQO_API_BASE_URL")
+    AIRQO_API_BASE_URL = env_var("AIRQO_API_BASE_URL")
     GRID_URL = os.getenv("GRID_URL_ID")
 
     CACHE_TYPE = "RedisCache"
@@ -54,6 +54,7 @@ class Config:
     DATA_EXPORT_DATASET = env_var("DATA_EXPORT_DATASET")
     DATA_EXPORT_GCP_PROJECT = env_var("DATA_EXPORT_GCP_PROJECT")
     DATA_EXPORT_COLLECTION = env_var("DATA_EXPORT_COLLECTION", "data_export")
+    DATA_EXPORT_GCP_CREDENTIALS = env_var("DATA_EXPORT_GCP_CREDENTIALS")
 
     SWAGGER = {
         "swagger": "2.0",
@@ -76,6 +77,7 @@ class Config:
         "url_prefix": f"{API_BASE_URL}",
     }
 
+
 class ProductionConfig(Config):
     DEBUG = False
     MONGO_URI = env_var("MONGO_GCE_URI")
@@ -91,6 +93,7 @@ class DevelopmentConfig(Config):
     DB_NAME = env_var("MONGO_DEV")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
+
 
 class TestingConfig(Config):
     DEBUG = True

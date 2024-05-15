@@ -1,7 +1,6 @@
 from models.base.base_model import BasePyMongoModel
 
 
-
 class SiteModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="sites")

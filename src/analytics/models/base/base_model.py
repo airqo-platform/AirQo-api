@@ -9,6 +9,7 @@ APP_CONFIG = config.get(env_var("FLASK_ENV"))
 
 class BasePyMongoModel(ModelOperations):
     """base model for all database models"""
+
     __abstract__ = True
 
     def __init__(self, tenant, collection_name):

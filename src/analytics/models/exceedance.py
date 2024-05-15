@@ -1,5 +1,6 @@
 from models.base.base_model import BasePyMongoModel
 
+
 class ExceedanceModel(BasePyMongoModel):
     standards_mapping = {
         "aqi": {

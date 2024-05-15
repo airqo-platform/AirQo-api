@@ -20,5 +20,6 @@ class ExceedancesSchema(DailyAveragesSchema):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+
 class DeviceExceedancesSchema(ExceedancesSchema):
     devices = fields.List(fields.String(), required=True)

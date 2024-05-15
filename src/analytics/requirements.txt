@@ -20,3 +20,4 @@ pytest~=8.2.0
 numpy~=1.26.4
 timezonefinder~=6.5.0
 db-dtypes~=1.2.0
+google-auth~=2.29.0

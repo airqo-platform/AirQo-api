@@ -7,12 +7,14 @@ from flask_caching import Cache
 from flask_cors import CORS
 from flask_restx import Api
 from werkzeug.middleware.proxy_fix import ProxyFix
-from config import Config
 
-from namespaces import dashboard_api, data_export_api
 from config import CONFIGURATIONS, API_BASE_URL
+from config import Config
+from namespaces import dashboard_api, data_export_api
 
-api = Api(title= "AirQo API", version="1.0", description="AirQo API", prefix=API_BASE_URL)
+api = Api(
+    title="AirQo API", version="1.0", description="AirQo API", prefix=API_BASE_URL
+)
 cache = Cache()
 
 
@@ -33,7 +35,7 @@ def create_app():
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app)
     app.config.from_object(CONFIGURATIONS)
-    app.config["CELERY"]= {
+    app.config["CELERY"] = {
         "broker_url": f"{Config.CACHE_REDIS_URL}/0",
         "result_backend": f"{Config.CACHE_REDIS_URL}/0",
         "task_default_queue": "analytics",
@@ -54,15 +56,17 @@ def create_app():
     api.add_namespace(ns=data_export_api)
 
     celery = celery_init_app(app)
+
     @app.route("/health")
     def health():
         return jsonify(dict(message="App status - OK."))
 
     @app.route("/docs")
     def docs():
-        return send_from_directory(directory='api/docs', path='status.yml')
+        return send_from_directory(directory="docs/", path="status.yml")
 
     return app
 
+
 flask_app = create_app()
-celery_app  = flask_app.extensions["celery"]
+celery_app = flask_app.extensions["celery"]

@@ -11,6 +11,7 @@ from utils.pollutants import (
     BIGQUERY_FREQUENCY_MAPPER,
 )
 from config import CONFIGURATIONS
+
 # from app import cache
 
 
@@ -41,7 +42,7 @@ class EventsModel(BasePyMongoModel):
         super().__init__(tenant, collection_name="events")
 
     @classmethod
-    #@cache.memoize()
+    # @cache.memoize()
     def download_from_bigquery(
         cls,
         devices,
@@ -660,7 +661,7 @@ class EventsModel(BasePyMongoModel):
         return dataframe.to_dict("records")
 
     @classmethod
-    #@cache.memoize()
+    # @cache.memoize()
     def bigquery_mobile_device_measurements(
         cls, tenant, device_numbers: list, start_date_time, end_date_time
     ):
@@ -715,7 +716,7 @@ class EventsModel(BasePyMongoModel):
 
         return filtered
 
-    #@cache.memoize()
+    # @cache.memoize()
     def get_downloadable_events(
         self, sites, start_date, end_date, frequency, pollutants
     ):
@@ -779,7 +780,7 @@ class EventsModel(BasePyMongoModel):
             .exec()
         )
 
-    #@cache.memoize()
+    # @cache.memoize()
     def get_averages_by_pollutant(self, start_date, end_date, pollutant):
         return (
             self.date_range("values.time", start_date=start_date, end_date=end_date)

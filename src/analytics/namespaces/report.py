@@ -12,7 +12,10 @@ from api.utils.case_converters import camel_to_snake
 from utils.http import create_response, Status
 
 # Utils
-from utils.request_validators import validate_request_params, validate_request_json
+from utils.validators.request_validators import (
+    validate_request_params,
+    validate_request_json,
+)
 
 # Middlewares
 from main import rest_api_v2

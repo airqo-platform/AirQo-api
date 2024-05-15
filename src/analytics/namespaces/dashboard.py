@@ -8,16 +8,24 @@ from flask_restx import Resource
 from marshmallow import ValidationError
 
 from models import (
-    EventsModel, SiteModel, ExceedanceModel,
+    EventsModel,
+    SiteModel,
+    ExceedanceModel,
 )
 from utils.data_formatters import filter_non_private_entities, Entity
+
 # Middlewares
 from utils.http import create_response, Status
 from utils.pollutants import (
     generate_pie_chart_data,
-    PM_COLOR_CATEGORY, set_pm25_category_background,
+    PM_COLOR_CATEGORY,
+    set_pm25_category_background,
 )
-from utils.validators.dashboard import DailyAveragesSchema, DeviceDailyAveragesSchema, ExceedancesSchema
+from utils.validators.dashboard import (
+    DailyAveragesSchema,
+    DeviceDailyAveragesSchema,
+    ExceedancesSchema,
+)
 
 dashboard_api = Namespace("dashboard", description="Dashboard API endpoints")
 
@@ -49,14 +57,14 @@ class ChartDataResource(Resource):
         chart_labels = []
 
         for record in data:
-            site = record.get("site", {})
+            site = record.get("site")
 
             site_name = f"{site.get('name') or site.get('description') or site.get('generated_name')}"
 
             dataset = {}
 
             sorted_values = sorted(
-                record.get("values", []), key=lambda item: item.get("time")
+                record.get("values"), key=lambda item: item.get("time")
             )
             if chart_type.lower() == "pie":
                 category_count = generate_pie_chart_data(
@@ -68,9 +76,7 @@ class ChartDataResource(Resource):
                 except ValueError:
                     values = []
                     labels = []
-                background_colors = [
-                    PM_COLOR_CATEGORY.get(label, "#808080") for label in labels
-                ]
+                background_colors = [PM_COLOR_CATEGORY.get(label) for label in labels]
                 color = background_colors
 
                 dataset.update(
@@ -166,6 +172,7 @@ class MonitoringSiteResource(Resource):
             Status.HTTP_200_OK,
         )
 
+
 @dashboard_api.route("/historical/daily-averages")
 class DailyAveragesResource(Resource):
     @swag_from("/api/docs/dashboard/device_daily_measurements_get.yml")
@@ -176,7 +183,7 @@ class DailyAveragesResource(Resource):
         except ValidationError as err:
             return (
                 create_response(f" {err.messages}", success=False),
-                Status.HTTP_400_BAD_REQUEST
+                Status.HTTP_400_BAD_REQUEST,
             )
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
@@ -197,7 +204,7 @@ class DailyAveragesResource(Resource):
         background_colors = []
 
         for v in data:
-            value = v.get("value", None)
+            value = v.get("value")
             site_id = v.get("site_id", None)
 
             if not site_id or not value or math.isnan(value):
@@ -240,7 +247,7 @@ class DeviceDailyAveragesResource(Resource):
         except ValidationError as err:
             return (
                 create_response(f" {err.messages}", success=False),
-                Status.HTTP_400_BAD_REQUEST
+                Status.HTTP_400_BAD_REQUEST,
             )
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
@@ -291,7 +298,7 @@ class ExceedancesResource(Resource):
         except ValidationError as err:
             return (
                 create_response(f" {err.messages}", success=False),
-                Status.HTTP_400_BAD_REQUEST
+                Status.HTTP_400_BAD_REQUEST,
             )
         pollutant = json_data["pollutant"]
         standard = json_data["standard"]

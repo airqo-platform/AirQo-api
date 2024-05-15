@@ -1,7 +1,7 @@
 import traceback
-import pandas as pd
 
 import flask_excel as excel
+import pandas as pd
 from celery.result import AsyncResult
 from flasgger import swag_from
 from flask_restx import Resource, Namespace
@@ -9,14 +9,23 @@ from marshmallow import ValidationError
 
 import tasks
 from models import (
-    EventsModel, )
-from utils.data_formatters import filter_non_private_entities, Entity, compute_airqloud_summary
+    EventsModel,
+)
+from utils.data_formatters import (
+    filter_non_private_entities,
+    Entity,
+    compute_airqloud_summary,
+)
 from utils.data_formatters import (
     format_to_aqcsv,
 )
 from utils.dates import str_to_date, date_to_str
 from utils.http import create_response, Status
-from utils.validators.data import DataExportSchema, DataSummarySchema, BulkDataExportSchema
+from utils.validators.data import (
+    DataExportSchema,
+    DataSummarySchema,
+    BulkDataExportSchema,
+)
 
 data_export_api = Namespace("data", description="Data export APIs", path="/")
 
@@ -30,7 +39,7 @@ class DataExportResource(Resource):
         except ValidationError as err:
             return (
                 create_response(f" {err.messages}", success=False),
-                Status.HTTP_400_BAD_REQUEST
+                Status.HTTP_400_BAD_REQUEST,
             )
 
         start_date = json_data["startDateTime"]
@@ -44,12 +53,8 @@ class DataExportResource(Resource):
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", [])
         frequency = f"{json_data.get('frequency', [])}".lower()
-        download_type = (
-            f"{json_data.get('downloadType', [])}".lower()
-        )
-        output_format = (
-            f"{json_data.get('outputFormat', [])}".lower()
-        )
+        download_type = f"{json_data.get('downloadType', [])}".lower()
+        output_format = f"{json_data.get('outputFormat', [])}".lower()
 
         postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
 
@@ -70,11 +75,9 @@ class DataExportResource(Resource):
                     Status.HTTP_404_NOT_FOUND,
                 )
 
-            records = data_frame.to_dict("records")
-
             if output_format == "aqcsv":
                 records = format_to_aqcsv(
-                    data=records, frequency=frequency, pollutants=pollutants
+                    data=data_frame, frequency=frequency, pollutants=pollutants
                 )
 
             if download_type == "json":
@@ -101,16 +104,20 @@ class DataExportResource(Resource):
 
 
 @data_export_api.route("/bulk-data-download")
-class BulkDataExportResource(Resource):
+class BulkDataExportResource(
+    Resource, doc="Endpoint for bulk data export using celery"
+):
     def post(self):
         try:
             json_data = BulkDataExportSchema().load(data_export_api.payload)
         except ValidationError as err:
             return (
                 create_response(f" {err.messages}", success=False),
-                Status.HTTP_400_BAD_REQUEST
+                Status.HTTP_400_BAD_REQUEST,
             )
-        user_id = json_data.get("userId")
+        user_id = json_data.get(
+            "userId",
+        )
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
         meta_data = json_data.get("meta_data", [])
@@ -122,25 +129,32 @@ class BulkDataExportResource(Resource):
         )
         airqlouds = json_data.get("airqlouds", [])
         frequency = f"{json_data.get('frequency', [])}".lower()
-        export_format = (
-            f"{json_data.get('exportFormat','csv')}".lower()
+        export_format = f"{json_data.get('exportFormat', 'csv')}".lower()
+        pollutants = json_data.get(
+            "pollutants",
         )
-        pollutants = json_data.get("pollutants")
-        output_format = (
-            f"{json_data.get('outputFormat', 'airqo-standard')}".lower()
-        )
+        output_format = f"{json_data.get('outputFormat', 'airqo-standard')}".lower()
         try:
             tasks.export_data.apply_async(
-                args=[user_id, end_date, sites, devices, airqlouds, frequency, export_format, output_format, meta_data, pollutants],
-                countdown=10,
-                task_id=user_id
+                args=[
+                    user_id,
+                    start_date,
+                    end_date,
+                    sites,
+                    devices,
+                    airqlouds,
+                    frequency,
+                    export_format,
+                    output_format,
+                    meta_data,
+                    pollutants,
+                ],
+                countdown=3,
+                task_id=user_id,
             )
             return (
-            create_response(
-                "request successfully received",
-                data=None
-            ),
-            Status.HTTP_200_OK
+                create_response("Data request successfully received", data=None),
+                Status.HTTP_200_OK,
             )
         except Exception as ex:
             print(ex)
@@ -154,24 +168,21 @@ class BulkDataExportResource(Resource):
             )
 
     @data_export_api.param("userId", "User ID", "string", required=True)
-    def get(self, user_id):
+    def get(self, userId):
         try:
-            result = AsyncResult(task_id=user_id)
+            result = AsyncResult(task_id=userId)
             if result.ready():
                 return (
-                create_response(
-                    "request successfully received",
-                    data=result.get(),
-                ),
-                Status.HTTP_200_OK,
+                    create_response(
+                        "request successfully received",
+                        data=result.get(),
+                    ),
+                    Status.HTTP_200_OK,
                 )
             else:
                 return (
-                create_response(
-                    "Data export is still in progress",
-                    data=None
-                ),
-                Status.HTTP_200_OK
+                    create_response("Data export is still in progress", data=None),
+                    Status.HTTP_200_OK,
                 )
 
         except Exception as ex:
@@ -185,21 +196,19 @@ class BulkDataExportResource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+
 @data_export_api.route("/data/summary")
 class DataSummaryResource(Resource):
-
     def post(self):
         try:
             json_data = DataSummarySchema().load(data_export_api.payload)
         except ValidationError as err:
-            return (
-                create_response(f" {err.messages}", success=False),
-            )
+            return (create_response(f" {err.messages}", success=False),)
             start_date_time = str_to_date(json_data["startDateTime"])
             end_date_time = str_to_date(json_data["endDateTime"])
-            airqloud = str(json_data.get("airqloud", ""))
-            cohort = str(json_data.get("cohort", ""))
-            grid = str(json_data.get("grid", ""))
+            airqloud = str(json_data.get("airqloud"))
+            cohort = str(json_data.get("cohort"))
+            grid = str(json_data.get("grid"))
 
             start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
             end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
