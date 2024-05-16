@@ -1,3 +1,4 @@
+# TODO: Migrate to airflow
 apiVersion: batch/v1
 kind: CronJob
 metadata:

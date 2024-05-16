@@ -772,20 +772,12 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:latest
 
-      - name: Build and push Celery beat Docker Image
+      - name: Build and push Celery worker Image
         uses: docker/build-push-action@v4.1.1
         with:
           push: true
           context: src/analytics/
-          target: celery-beat
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-beat:latest
-
-      - name: Build and push Celery worker Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: celery-worker
+          target: celery
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:latest
 
       - name: Build and push device summary job Docker Image
@@ -795,14 +787,6 @@ jobs:
           context: src/analytics/
           target: devices-summary-job
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:latest
-
-      - name: Build and push reports job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/jobs/reports
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail

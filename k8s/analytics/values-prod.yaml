@@ -4,9 +4,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+    celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
   tag: prod-d02063d6-1715359227
 api:
@@ -23,9 +21,6 @@ api:
       cpu: 10m
       memory: 250Mi
 jobs:
-  reports:
-    name: prod-analytics-report
-    configmap: env-analytics-report-production
   devicesSummaryJob:
     name: analytics-devices-summary
     configmap: env-analytics-production
