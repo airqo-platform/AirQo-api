@@ -27,7 +27,7 @@ Install dependencies using the requirements.txt
 set environment variables
 
 windows
-- `set FLASK_APP=manage.py`
+- `set FLASK_APP=app.py`
 - `set FLASK_ENV=development`
 
 linux/mac

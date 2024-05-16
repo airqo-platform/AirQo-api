@@ -2,7 +2,6 @@ import traceback
 
 import flask_excel as excel
 import pandas as pd
-from celery.result import AsyncResult
 from flasgger import swag_from
 from flask_restx import Resource, Namespace
 from marshmallow import ValidationError
@@ -169,14 +168,13 @@ class BulkDataExportResource(Resource):
     def get(self):
         try:
             result = tasks.export_data.AsyncResult("abcx")
-            print(result.result)
-            print(result.get())
-            print(result.successful())
             if result.ready():
+                data = str(result.result)
+                result.forget()
                 return (
                     create_response(
                         "request successfully received",
-                        data=str(result.result),
+                        data=data
                     ),
                     Status.HTTP_200_OK,
                 )
@@ -198,7 +196,7 @@ class BulkDataExportResource(Resource):
             )
 
 
-@data_export_api.route("/data/summary")
+@data_export_api.route("/summary")
 class DataSummaryResource(Resource):
     def post(self):
         try:
