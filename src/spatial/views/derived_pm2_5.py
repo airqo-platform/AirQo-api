@@ -76,7 +76,7 @@ class PM25_aod_Model_daily:
 
             # Prepare the response data
             response_data = {
-                'Title': 'Daily AOD Data',
+                'Title': 'Daily MODIS AOD Data',
                 'columns': columns,
                 'rows': rows
             }
