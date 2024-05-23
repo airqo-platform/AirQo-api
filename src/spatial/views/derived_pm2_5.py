@@ -1,6 +1,5 @@
 from flask import request, jsonify
-from models.pull_satellite_model import PM25Model
-
+from models.pull_satellite_model import PM25Model , PM25Model_daily
 class PM25View:
     @staticmethod
     def get_pm25():
@@ -44,3 +43,47 @@ class PM25View:
 # pm_view = PM25View()
 # pm_data, status_code, headers = pm_view.get_pm25()
 # return pm_data, status_code, headers
+class PM25_aod_Model_daily:
+    @staticmethod
+    def get_aod_for_dates():
+        # Check if request has JSON content type
+        if not request.is_json:
+            return jsonify({'error': 'Request content type must be application/json'}), 400
+
+        # Get JSON data from request
+        data = request.get_json()
+
+        # Check if all required parameters are present in the JSON data
+        required_params = ['longitude', 'latitude', 'start_date', 'end_date']
+        for param in required_params:
+            if param not in data:
+                return jsonify({'error': f'Missing parameter: {param}'}), 400
+
+        # Retrieve parameters from the JSON data
+        try:
+            longitude = float(data['longitude'])
+            latitude = float(data['latitude'])
+            start_date = data['start_date']
+            end_date = data['end_date']
+
+            # Call the model to get AOD data
+            model = PM25Model_daily()
+            result_data = model.get_aod_for_dates(longitude, latitude, start_date, end_date)
+
+            # Convert the DataFrame to a dictionary format
+            columns = list(result_data.columns)
+            rows = result_data.to_dict(orient='records')
+
+            # Prepare the response data
+            response_data = {
+                'Title': 'Daily AOD Data',
+                'columns': columns,
+                'rows': rows
+            }
+
+            # Return the response with appropriate JSON format and headers
+            return jsonify(response_data), 200, {'Content-Type': 'application/json'}
+
+        except Exception as e:
+            print(f"Internal error: {e}")
+            return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}

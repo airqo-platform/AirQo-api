@@ -1,9 +1,10 @@
 import ee
 import pandas as pd
 from configure import Config  # Assuming this is a configuration file or object
+from datetime import datetime, timedelta
 
-class PM25Model:
 
+class BasePM25Model:
     def __init__(self):
         self.data_path = None
         self.credentials = ee.ServiceAccountCredentials(
@@ -15,7 +16,7 @@ class PM25Model:
     def initialize_earth_engine(self):
         """Initialize Earth Engine with provided credentials."""
         ee.Initialize(credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID)
-
+class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
         Fetch PM2.5 data from the MODIS satellite for a given location and time period.
@@ -66,4 +67,66 @@ class PM25Model:
         df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
         return df
 
+class PM25Model_daily(BasePM25Model):
+    def get_aod_for_dates(self, longitude, latitude, start_date, end_date):
+        """
+        Fetches AOD data from the MODIS satellite for each day in a given time period.
 
+        Args:
+            longitude (float): Longitude of the location.
+            latitude (float): Latitude of the location.
+            start_date (str): Start date in the format 'YYYY-MM-DD'.
+            end_date (str): End date in the format 'YYYY-MM-DD'.
+
+        Returns:
+            pandas.DataFrame: A dataframe containing the daily AOD data.
+        """
+
+        # Define the geometry of the point
+        point = ee.Geometry.Point(longitude, latitude)
+
+        # Define the date range
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+
+        # Load the MODIS data (e.g., MODIS/061/MCD19A2_GRANULES)
+        dataset = ee.ImageCollection('MODIS/061/MCD19A2_GRANULES') \
+            .filterBounds(point) \
+            .select('Optical_Depth_047')
+
+        # Initialize an empty list to store the data
+        data = []
+
+        # Loop through each day in the date range
+        current_date = start
+        while current_date <= end:
+            # Filter the dataset for the current date
+            daily_dataset = dataset.filterDate(current_date.strftime('%Y-%m-%d'), (current_date + timedelta(days=1)).strftime('%Y-%m-%d'))
+
+            # Calculate the mean AOD value for the day
+            daily_aod = daily_dataset.mean()
+
+            # Sample the mean AOD value at the point
+            try:
+                aod_value = daily_aod.sample(point, 500).first().get('Optical_Depth_047').getInfo()
+            except Exception as e:
+    #            print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
+                aod_value = None
+
+            # Append the result to the data list
+            data.append({
+                'date': current_date.strftime('%Y-%m-%d'),
+                'longitude': longitude,
+                'latitude': latitude,
+                'aod': aod_value
+            })
+
+            # Move to the next day
+            current_date += timedelta(days=1)
+
+        # Create a pandas DataFrame with the results
+        df = pd.DataFrame(data)
+        # Drop rows with NaN values in the 'aod' column
+        df.dropna(subset=['aod'], inplace=True) 
+
+        return df
