@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
-from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily
+from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily 
 
 
 controller_bp = Blueprint('controller', __name__)

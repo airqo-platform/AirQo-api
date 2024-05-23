@@ -67,7 +67,7 @@ class PM25Model(BasePM25Model):
         df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
         return df
 
-class PM25Model_daily(BasePM25Model):
+class PM25ModelDaily(BasePM25Model):
     def get_aod_for_dates(self, longitude, latitude, start_date, end_date):
         """
         Fetches AOD data from the MODIS satellite for each day in a given time period.
@@ -79,9 +79,8 @@ class PM25Model_daily(BasePM25Model):
             end_date (str): End date in the format 'YYYY-MM-DD'.
 
         Returns:
-            pandas.DataFrame: A dataframe containing the daily AOD data.
+            pandas.DataFrame: A DataFrame containing the daily AOD data and derived PM2.5 data.
         """
-
         # Define the geometry of the point
         point = ee.Geometry.Point(longitude, latitude)
 
@@ -89,7 +88,7 @@ class PM25Model_daily(BasePM25Model):
         start = datetime.strptime(start_date, '%Y-%m-%d')
         end = datetime.strptime(end_date, '%Y-%m-%d')
 
-        # Load the MODIS data (e.g., MODIS/061/MCD19A2_GRANULES)
+        # Load the MODIS data
         dataset = ee.ImageCollection('MODIS/061/MCD19A2_GRANULES') \
             .filterBounds(point) \
             .select('Optical_Depth_047')
@@ -110,7 +109,7 @@ class PM25Model_daily(BasePM25Model):
             try:
                 aod_value = daily_aod.sample(point, 500).first().get('Optical_Depth_047').getInfo()
             except Exception as e:
-    #            print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
+                print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
                 aod_value = None
 
             # Append the result to the data list
@@ -126,7 +125,11 @@ class PM25Model_daily(BasePM25Model):
 
         # Create a pandas DataFrame with the results
         df = pd.DataFrame(data)
+
         # Drop rows with NaN values in the 'aod' column
-        df.dropna(subset=['aod'], inplace=True) 
+        df.dropna(subset=['aod'], inplace=True)
+
+        # Calculate derived PM2.5
+        df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
 
         return df

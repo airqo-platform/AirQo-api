@@ -1,5 +1,5 @@
 from flask import request, jsonify
-from models.pull_satellite_model import PM25Model , PM25Model_daily
+from models.pull_satellite_model import PM25Model , PM25ModelDaily
 class PM25View:
     @staticmethod
     def get_pm25():
@@ -43,7 +43,7 @@ class PM25View:
 # pm_view = PM25View()
 # pm_data, status_code, headers = pm_view.get_pm25()
 # return pm_data, status_code, headers
-class PM25_aod_Model_daily:
+class PM25_aod_Model_daily: 
     @staticmethod
     def get_aod_for_dates():
         # Check if request has JSON content type
@@ -67,7 +67,7 @@ class PM25_aod_Model_daily:
             end_date = data['end_date']
 
             # Call the model to get AOD data
-            model = PM25Model_daily()
+            model = PM25ModelDaily()
             result_data = model.get_aod_for_dates(longitude, latitude, start_date, end_date)
 
             # Convert the DataFrame to a dictionary format
