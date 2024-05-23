@@ -109,7 +109,7 @@ class PM25ModelDaily(BasePM25Model):
             try:
                 aod_value = daily_aod.sample(point, 500).first().get('Optical_Depth_047').getInfo()
             except Exception as e:
-                print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
+#                print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
                 aod_value = None
 
             # Append the result to the data list
