@@ -36,7 +36,8 @@ class PM25View:
 #            return jsonify(data.to_dict(orient='records')[0]), 200, {'Content-Type': 'application/json'}
             
         except Exception as e:
-            return jsonify({'error': str(e)}), 500, {'Content-Type': 'application/json'}
+#            return jsonify({'error': str(e)}), 500, {'Content-Type': 'application/json'}
+            return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
 
 # Example usage
 # This part should be handled in your Flask application's route handler
