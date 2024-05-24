@@ -116,11 +116,11 @@ class Sentinel5PView:
             # Call the model to get pollutant data
             model = Sentinel5PModel()
             result_data = model.get_pollutant_data(longitude, latitude, start_date, end_date, pollutants)
-            result_data = result_data.where(pd.notnull(result_data), None)
+
+
             # Convert the DataFrame to a dictionary format
             columns = list(result_data.columns)
             rows = result_data.to_dict(orient='records')
-            
 
             # Prepare the response data
             response_data = {
