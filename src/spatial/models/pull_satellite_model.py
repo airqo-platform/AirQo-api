@@ -343,5 +343,5 @@ class SatelliteData(BasePM25Model):
 
         # Reorder columns to ensure the format [date, latitude, longitude, SO2, HCHO, CO, NO2, O3]
         merged_df = merged_df[['date', 'latitude', 'longitude'] + pollutants]
-        print (merged_df)
+      
         return merged_df
