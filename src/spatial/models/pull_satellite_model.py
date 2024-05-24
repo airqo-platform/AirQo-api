@@ -3,7 +3,6 @@ import pandas as pd
 from configure import Config  # Assuming this is a configuration file or object
 from datetime import datetime, timedelta
 
-
 class BasePM25Model:
     def __init__(self):
         self.data_path = None
@@ -15,7 +14,11 @@ class BasePM25Model:
 
     def initialize_earth_engine(self):
         """Initialize Earth Engine with provided credentials."""
-        ee.Initialize(credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID)
+        try:
+            ee.Initialize(credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID)
+        except Exception as e:
+            print(f"Failed to initialize Earth Engine: ")
+
 class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
@@ -49,7 +52,11 @@ class PM25Model(BasePM25Model):
         mean_aod = aod.mean()
 
         # Sample the mean AOD value at the point
-        aod_value = mean_aod.sample(point, 30).first().get('Optical_Depth_047').getInfo()
+        try:
+            aod_value = mean_aod.sample(point, 30).first().get('Optical_Depth_047').getInfo()
+        except Exception as e:
+            print(f"Error sampling AOD value:")
+            aod_value = None
 
         # Create a pandas DataFrame with the results
         data = {
@@ -59,12 +66,15 @@ class PM25Model(BasePM25Model):
             'end_date': [end_date],
             'aod': [aod_value]
         }
-
         
         df = pd.DataFrame(data)
 
         # Derive PM2.5 from AOD using a linear regression model
-        df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
+        if aod_value is not None:
+            df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
+        else:
+            df['derived_pm2_5'] = None
+
         return df
 
 class PM25ModelDaily(BasePM25Model):
@@ -109,7 +119,7 @@ class PM25ModelDaily(BasePM25Model):
             try:
                 aod_value = daily_aod.sample(point, 500).first().get('Optical_Depth_047').getInfo()
             except Exception as e:
-#                print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
+                print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
                 aod_value = None
 
             # Append the result to the data list
@@ -133,7 +143,7 @@ class PM25ModelDaily(BasePM25Model):
         df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
 
         return df
-    
+
 class Sentinel5PModel(BasePM25Model):
     def get_pollutant_data(self, longitude, latitude, start_date, end_date, pollutants):
         """
@@ -177,6 +187,7 @@ class Sentinel5PModel(BasePM25Model):
                 try:
                     value = daily_mean.sample(point, 500).first().get(self.get_band_name_for_pollutant(pollutant)).getInfo()
                 except Exception as e:
+  #                  print(f"Error on {current_date.strftime('%Y-%m-%d')} for {pollutant}: {e}")
                     value = None
 
                 # Append the result to the data list
@@ -192,6 +203,7 @@ class Sentinel5PModel(BasePM25Model):
 
         # Create a pandas DataFrame with the results
         df = pd.DataFrame(data)
+
         # Drop rows with NaN values
 #        df.dropna(inplace=True)
 
@@ -223,7 +235,7 @@ class Sentinel5PModel(BasePM25Model):
         Returns the Earth Engine band name for the given pollutant.
 
         Args:
-            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3','AOD','CH4').
+            pollutant (str): Name of the pollutant (e.g.,'SO2','HCHO','CO','NO2','O3','AOD','CH4').
 
         Returns:
             str: Band name for the pollutant.
