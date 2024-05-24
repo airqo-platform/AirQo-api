@@ -86,7 +86,7 @@ class PM25_aod_Model_daily:
             return jsonify(response_data), 200, {'Content-Type': 'application/json'}
 
         except Exception as e:
-            print(f"Internal error: {e}")
+            print(f"Internal error")
             return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
         
  

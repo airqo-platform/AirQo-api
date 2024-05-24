@@ -192,8 +192,6 @@ class Sentinel5PModel(BasePM25Model):
 
         # Create a pandas DataFrame with the results
         df = pd.DataFrame(data)
-                    # Replace NaN values with None in the DataFrame
-        df = df.where(pd.notnull(df), None)
         # Drop rows with NaN values
 #        df.dropna(inplace=True)
 
