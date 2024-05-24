@@ -1,5 +1,6 @@
 from flask import request, jsonify
-from models.pull_satellite_model import PM25Model , PM25ModelDaily
+from models.pull_satellite_model import PM25Model , PM25ModelDaily, Sentinel5PModel
+import pandas as pd
 class PM25View:
     @staticmethod
     def get_pm25():
@@ -77,6 +78,53 @@ class PM25_aod_Model_daily:
             # Prepare the response data
             response_data = {
                 'Title': 'Daily MODIS AOD Data',
+                'columns': columns,
+                'rows': rows
+            }
+
+            # Return the response with appropriate JSON format and headers
+            return jsonify(response_data), 200, {'Content-Type': 'application/json'}
+
+        except Exception as e:
+            print(f"Internal error: {e}")
+            return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
+        
+class Sentinel5PView:
+    @staticmethod
+    def get_pollutants_data():
+        # Check if request has JSON content type
+        if not request.is_json:
+            return jsonify({'error': 'Request content type must be application/json'}), 400
+
+        # Get JSON data from request
+        data = request.get_json()
+
+        # Check if all required parameters are present in the JSON data
+        required_params = ['longitude', 'latitude', 'start_date', 'end_date', 'pollutants']
+        for param in required_params:
+            if param not in data:
+                return jsonify({'error': f'Missing parameter: {param}'}), 400
+
+        # Retrieve parameters from the JSON data
+        try:
+            longitude = float(data['longitude'])
+            latitude = float(data['latitude'])
+            start_date = data['start_date']
+            end_date = data['end_date']
+            pollutants = data['pollutants']
+
+            # Call the model to get pollutant data
+            model = Sentinel5PModel()
+            result_data = model.get_pollutant_data(longitude, latitude, start_date, end_date, pollutants)
+            result_data = result_data.where(pd.notnull(result_data), None)
+            # Convert the DataFrame to a dictionary format
+            columns = list(result_data.columns)
+            rows = result_data.to_dict(orient='records')
+            
+
+            # Prepare the response data
+            response_data = {
+                'Title': 'Daily Sentinel-5P Pollutant Data',
                 'columns': columns,
                 'rows': rows
             }

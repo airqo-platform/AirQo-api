@@ -133,3 +133,108 @@ class PM25ModelDaily(BasePM25Model):
         df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
 
         return df
+    
+class Sentinel5PModel(BasePM25Model):
+    def get_pollutant_data(self, longitude, latitude, start_date, end_date, pollutants):
+        """
+        Fetches pollutant data from the Sentinel-5P satellite for each day in a given time period.
+
+        Args:
+            longitude (float): Longitude of the location.
+            latitude (float): Latitude of the location.
+            start_date (str): Start date in the format 'YYYY-MM-DD'.
+            end_date (str): End date in the format 'YYYY-MM-DD'.
+            pollutants (list): List of pollutant names (e.g., ['SO2', 'HCHO', 'CO', 'NO2', 'O3']).
+
+        Returns:
+            pandas.DataFrame: A dataframe containing the daily pollutant data for all pollutants.
+        """
+        # Define the geometry of the point
+        point = ee.Geometry.Point(longitude, latitude)
+
+        # Define the date range
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+
+        # Initialize an empty list to store the data
+        data = []
+
+        # Loop through each pollutant
+        for pollutant in pollutants:
+            # Load the Sentinel-5P data for the current pollutant
+            dataset = self.get_dataset_for_pollutant(pollutant)
+
+            # Loop through each day in the date range
+            current_date = start
+            while current_date <= end:
+                # Filter the dataset for the current date
+                daily_dataset = dataset.filterDate(current_date.strftime('%Y-%m-%d'), (current_date + timedelta(days=1)).strftime('%Y-%m-%d'))
+
+                # Calculate the mean value for the day
+                daily_mean = daily_dataset.mean()
+
+                # Sample the mean value at the point
+                try:
+                    value = daily_mean.sample(point, 500).first().get(self.get_band_name_for_pollutant(pollutant)).getInfo()
+                except Exception as e:
+                    value = None
+
+                # Append the result to the data list
+                data.append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    'longitude': longitude,
+                    'latitude': latitude,
+                    pollutant: value
+                })
+
+                # Move to the next day
+                current_date += timedelta(days=1)
+
+        # Create a pandas DataFrame with the results
+        df = pd.DataFrame(data)
+                    # Replace NaN values with None in the DataFrame
+        df = df.where(pd.notnull(df), None)
+        # Drop rows with NaN values
+#        df.dropna(inplace=True)
+
+        return df
+
+    def get_dataset_for_pollutant(self, pollutant):
+        """
+        Returns the Earth Engine dataset ID for the given pollutant.
+
+        Args:
+            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3').
+
+        Returns:
+            str: Dataset ID for the pollutant.
+        """
+        datasets = {
+            'SO2': 'COPERNICUS/S5P/NRTI/L3_SO2',
+            'HCHO': 'COPERNICUS/S5P/NRTI/L3_HCHO',
+            'CO': 'COPERNICUS/S5P/NRTI/L3_CO',
+            'NO2': 'COPERNICUS/S5P/NRTI/L3_NO2',
+            'O3': 'COPERNICUS/S5P/NRTI/L3_O3'
+        }
+        return ee.ImageCollection(datasets[pollutant])
+
+    def get_band_name_for_pollutant(self, pollutant):
+        """
+        Returns the Earth Engine band name for the given pollutant.
+
+        Args:
+            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3').
+
+        Returns:
+            str: Band name for the pollutant.
+        """
+        band_names = {
+            'SO2': 'SO2_column_number_density',
+            'HCHO': 'tropospheric_HCHO_column_number_density',
+            'CO': 'CO_column_number_density',
+            'NO2': 'NO2_column_number_density',
+            'O3': 'O3_column_number_density'
+        }
+        return band_names[pollutant]
+
+ 
