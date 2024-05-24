@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
-from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily ,Sentinel5PView
+from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily ,Sentinel5PView,Satellite_data
 
 
 controller_bp = Blueprint('controller', __name__)
@@ -31,3 +31,7 @@ def get_derived_pm2_5_daily():
 @controller_bp.route('/sentinel5p', methods=['GET'])
 def get_sentinel5p():
     return Sentinel5PView.get_pollutants_data()
+
+@controller_bp.route('/satellite_data', methods=['GET'])
+def get_satellite_data():
+    return Satellite_data.get_pollutants_data()

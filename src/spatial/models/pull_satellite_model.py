@@ -209,12 +209,13 @@ class Sentinel5PModel(BasePM25Model):
         """
         datasets = {
             'SO2': 'COPERNICUS/S5P/NRTI/L3_SO2',
-            'HCHO': 'COPERNICUS/S5P/NRTI/L3_HCHO',
+            'HCHO': 'COPERNICUS/S5P/NRTI/L3_HCHO', # Formaldehyde
             'CO': 'COPERNICUS/S5P/NRTI/L3_CO',
             'NO2': 'COPERNICUS/S5P/NRTI/L3_NO2',
             'O3': 'COPERNICUS/S5P/NRTI/L3_O3',
             'AOD':'COPERNICUS/S5P/OFFL/L3_AER_AI',
-            'CH4':'COPERNICUS/S5P/OFFL/L3_CH4'
+            'CH4':'COPERNICUS/S5P/OFFL/L3_CH4',  # Methane
+            'TEMP':'MODIS/061/MOD21A1D' # Land Surface Temperature
         }
         return ee.ImageCollection(datasets[pollutant])
 
@@ -223,21 +224,124 @@ class Sentinel5PModel(BasePM25Model):
         Returns the Earth Engine band name for the given pollutant.
 
         Args:
-            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3','AOD','CH4').
+            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3','AOD','CH4','TEMP').
 
         Returns:
             str: Band name for the pollutant.
         """
         band_names = {
-            'SO2': 'SO2_column_number_density',
-            'HCHO': 'tropospheric_HCHO_column_number_density',
+            'SO2': 'SO2_column_number_density', 
+            'HCHO': 'CH4_column_volume_mixing_ratio_dry_air',  
             'CO': 'CO_column_number_density',
-            'NO2': 'NO2_column_number_density',
+            'NO2': 'NO2_column_number_density', 
             'O3': 'O3_column_number_density',
             'AOD':'absorbing_aerosol_index',
-            'CH4':'CH4_column_volume_mixing_ratio_dry_air'
+            'CH4':'CH4_column_volume_mixing_ratio_dry_air',
+            'TEMP':'LST_1KM',
         }
 
         return band_names[pollutant]
 
  
+class SatelliteData(BasePM25Model):
+    def get_sate_pollutant_data(longitude, latitude, start_date, end_date, pollutant):
+
+    # Define the geometry of the point
+        point = ee.Geometry.Point(longitude, latitude)
+
+        # Define the date range
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+
+        # Load the Sentinel-5P data for the specified pollutant
+        if pollutant == 'SO2':
+            collection_id = 'COPERNICUS/S5P/NRTI/L3_SO2'
+            band_name = 'SO2_column_number_density'
+        elif pollutant == 'HCHO':
+            collection_id = 'COPERNICUS/S5P/NRTI/L3_HCHO'
+            band_name = 'tropospheric_HCHO_column_number_density'
+        elif pollutant == 'CO':
+            collection_id = 'COPERNICUS/S5P/NRTI/L3_CO'
+            band_name = 'CO_column_number_density'
+        elif pollutant == 'NO2':
+            collection_id = 'COPERNICUS/S5P/NRTI/L3_NO2'
+            band_name = 'NO2_column_number_density'
+        elif pollutant == 'O3':
+            collection_id = 'COPERNICUS/S5P/NRTI/L3_O3'
+            band_name = 'O3_column_number_density'
+        else:
+            raise ValueError("Invalid pollutant name")
+
+        # Load the Sentinel-5P data
+        dataset = ee.ImageCollection(collection_id) \
+            .filterBounds(point) \
+            .select(band_name)
+
+        # Initialize an empty list to store the data
+        data = []
+
+        # Loop through each day in the date range
+        current_date = start
+        while current_date <= end:
+            # Filter the dataset for the current date
+            daily_dataset = dataset.filterDate(current_date.strftime('%Y-%m-%d'), (current_date + timedelta(days=1)).strftime('%Y-%m-%d'))
+
+            # Calculate the mean value for the day
+            daily_mean = daily_dataset.mean()
+
+            # Sample the mean value at the point
+            try:
+                value = daily_mean.sample(point, 500).first().get(band_name).getInfo()
+            except Exception as e:
+    #           print(f"Error on {current_date.strftime('%Y-%m-%d')}: {e}")
+                value = None
+
+            # Append the result to the data list
+            data.append({
+                'date': current_date.strftime('%Y-%m-%d'),
+                'longitude': longitude,
+                'latitude': latitude,
+                pollutant: value
+            })
+
+            # Move to the next day
+            current_date += timedelta(days=1)
+
+        # Create a pandas DataFrame with the results
+        df = pd.DataFrame(data)
+        # Drop rows with NaN values
+        df.dropna(subset=[pollutant], inplace=True)
+
+        return df
+    def get_merged_pollutant_data(self, longitude, latitude, start_date, end_date):
+        """
+        Fetches and merges pollutant data from the Sentinel-5P satellite for a given time period.
+
+        Args:
+            longitude (float): Longitude of the location.
+            latitude (float): Latitude of the location.
+            start_date (str): Start date in the format 'YYYY-MM-DD'.
+            end_date (str): End date in the format 'YYYY-MM-DD'.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the merged pollutant data.
+        """
+        pollutants = ['SO2', 'HCHO', 'CO', 'NO2', 'O3']
+        data_frames = {}
+
+        for pollutant in pollutants:
+            df = self.get_sate_pollutant_data(longitude, latitude, start_date, end_date, pollutant)
+            data_frames[pollutant] = df
+
+        # Start merging with the first pollutant data frame
+        merged_df = data_frames[pollutants[0]]
+        for pollutant in pollutants[1:]:
+            merged_df = pd.merge(merged_df, data_frames[pollutant], on='date', how='outer')
+
+        merged_df['latitude'] = latitude
+        merged_df['longitude'] = longitude
+
+        # Reorder columns to ensure the format [date, latitude, longitude, SO2, HCHO, CO, NO2, O3]
+        merged_df = merged_df[['date', 'latitude', 'longitude'] + pollutants]
+        print (merged_df)
+        return merged_df
