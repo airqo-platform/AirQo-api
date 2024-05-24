@@ -239,5 +239,3 @@ class Sentinel5PModel(BasePM25Model):
         }
 
         return band_names[pollutant]
-
- 
