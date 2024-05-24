@@ -1,6 +1,6 @@
 from flask import request, jsonify
-from models.pull_satellite_model import PM25Model , PM25ModelDaily, Sentinel5PModel
-import pandas as pd
+from models.pull_satellite_model import PM25Model , PM25ModelDaily, Sentinel5PModel 
+import numpy as np
 class PM25View:
     @staticmethod
     def get_pm25():
@@ -89,6 +89,9 @@ class PM25_aod_Model_daily:
             print(f"Internal error: {e}")
             return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
         
+ 
+
+
 class Sentinel5PView:
     @staticmethod
     def get_pollutants_data():
@@ -117,7 +120,6 @@ class Sentinel5PView:
             model = Sentinel5PModel()
             result_data = model.get_pollutant_data(longitude, latitude, start_date, end_date, pollutants)
 
-
             # Convert the DataFrame to a dictionary format
             columns = list(result_data.columns)
             rows = result_data.to_dict(orient='records')
@@ -128,6 +130,19 @@ class Sentinel5PView:
                 'columns': columns,
                 'rows': rows
             }
+
+            # Replace NaN values with null
+            def replace_nan_with_null(obj):
+                if isinstance(obj, list):
+                    return [replace_nan_with_null(item) for item in obj]
+                elif isinstance(obj, dict):
+                    return {key: replace_nan_with_null(value) for key, value in obj.items()}
+                elif isinstance(obj, float) and np.isnan(obj):
+                    return None
+                else:
+                    return obj
+            
+            response_data = replace_nan_with_null(response_data)
 
             # Return the response with appropriate JSON format and headers
             return jsonify(response_data), 200, {'Content-Type': 'application/json'}
