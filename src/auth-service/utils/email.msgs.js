@@ -344,6 +344,22 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
+  tokenExpiringSoon: ({ firstName = "", lastName = "", email = "" }) => {
+    const name = firstName + " " + lastName;
+    let content = "";
+    content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>Your AIRQO API token is set to expire soon, in less than 2 months from today.</p>
+          <p>Please generate a new token to continue accessing our services.</p>
+          <p>If you have already done so, please ignore this message.</p>
+        </td>
+      </tr>
+    `;
+
+    return EMAIL_BODY(email, content, name);
+  },
+
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
