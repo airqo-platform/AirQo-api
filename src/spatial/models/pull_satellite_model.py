@@ -214,7 +214,9 @@ class Sentinel5PModel(BasePM25Model):
             'HCHO': 'COPERNICUS/S5P/NRTI/L3_HCHO',
             'CO': 'COPERNICUS/S5P/NRTI/L3_CO',
             'NO2': 'COPERNICUS/S5P/NRTI/L3_NO2',
-            'O3': 'COPERNICUS/S5P/NRTI/L3_O3'
+            'O3': 'COPERNICUS/S5P/NRTI/L3_O3',
+            'AOD':'COPERNICUS/S5P/OFFL/L3_AER_AI',
+            'CH4':'COPERNICUS/S5P/OFFL/L3_CH4'
         }
         return ee.ImageCollection(datasets[pollutant])
 
@@ -223,7 +225,7 @@ class Sentinel5PModel(BasePM25Model):
         Returns the Earth Engine band name for the given pollutant.
 
         Args:
-            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3').
+            pollutant (str): Name of the pollutant (e.g., 'SO2', 'HCHO', 'CO', 'NO2', 'O3','AOD','CH4').
 
         Returns:
             str: Band name for the pollutant.
@@ -233,8 +235,11 @@ class Sentinel5PModel(BasePM25Model):
             'HCHO': 'tropospheric_HCHO_column_number_density',
             'CO': 'CO_column_number_density',
             'NO2': 'NO2_column_number_density',
-            'O3': 'O3_column_number_density'
+            'O3': 'O3_column_number_density',
+            'AOD':'absorbing_aerosol_index',
+            'CH4':'CH4_column_volume_mixing_ratio_dry_air'
         }
+
         return band_names[pollutant]
 
  
