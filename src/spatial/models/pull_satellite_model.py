@@ -7,15 +7,30 @@ from datetime import datetime, timedelta
 class BasePM25Model:
     def __init__(self):
         self.data_path = None
-        self.credentials = ee.ServiceAccountCredentials(
-            key_file=Config.CREDENTIALS,
-            email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL
-        )
+        self.credentials = None
+        self.initialize_credentials()
         self.initialize_earth_engine()
 
+    def initialize_credentials(self):
+        try:
+            self.credentials = ee.ServiceAccountCredentials(
+                email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
+                key_file=Config.CREDENTIALS
+            )
+          
+        except Exception as e:
+#            print(f"An unexpected error occurred during credential initialization: {e}")
+            raise
     def initialize_earth_engine(self):
-        """Initialize Earth Engine with provided credentials."""
-        ee.Initialize(credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID)
+        try:
+            ee.Initialize(self.credentials) 
+        except ee.EEException as e: 
+#            print(f"Failed to initialize Earth Engine credentials: {e}")
+            raise
+        except Exception as e: 
+#            print(f"An unexpected error occurred during Earth Engine initialization: {e}")
+            raise
+ 
 class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
