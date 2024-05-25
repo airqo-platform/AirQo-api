@@ -27,15 +27,17 @@ const checkStatus = async () => {
       if (users.length === 0) {
         break;
       }
-
       // Iterate over each user and send an email reminder
       for (const user of users) {
         try {
-          const responseFromSendEmail = await mailer.updateProfileReminder(
-            { email: user.email },
-            next
-          );
-          logger.info(`Email sent to ${user.email} for updating firstName.`);
+          const emailResponse = await mailer.updateProfileReminder({
+            email: user.email,
+          });
+          if (emailResponse && emailResponse.success === false) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+            );
+          }
         } catch (error) {
           logger.error(
             `Failed to send email to ${user.email} --- ${stringify(error)}`
