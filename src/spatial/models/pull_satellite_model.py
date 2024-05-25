@@ -14,8 +14,9 @@ class BasePM25Model:
     def _get_service_account_credentials(self):
         """Retrieve service account credentials for Google Earth Engine."""
         return ee.ServiceAccountCredentials(
-            key_file=Config.CREDENTIALS,
-            email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL
+            email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
+            key_file=Config.CREDENTIALS
+            
         )
 
     def initialize_earth_engine(self):
