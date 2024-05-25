@@ -3,13 +3,13 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
- `${constants.ENVIRONMENT} -- bin/active-status-job script`
+  `${constants.ENVIRONMENT} -- bin/incomplete-profile-job`
 );
 const stringify = require("@utils/stringify");
 const mailer = require("@utils/mailer");
 
 const checkStatus = async () => {
- try {
+  try {
     const batchSize = 100; // Process 100 users at a time
     let skip = 0;
 
@@ -37,19 +37,21 @@ const checkStatus = async () => {
           );
           logger.info(`Email sent to ${user.email} for updating firstName.`);
         } catch (error) {
-          logger.error(`Failed to send email to ${user.email} --- ${stringify(error)}`);
+          logger.error(
+            `Failed to send email to ${user.email} --- ${stringify(error)}`
+          );
         }
       }
 
       skip += batchSize;
     }
- } catch (error) {
+  } catch (error) {
     logger.error(`Internal Server Error --- ${stringify(error)}`);
- }
+  }
 };
 
 const schedule = "0 0 * * *"; // Schedule to run once every day at midnight
 cron.schedule(schedule, checkStatus, {
- scheduled: true,
- timezone: "Africa/Nairobi",
+  scheduled: true,
+  timezone: "Africa/Nairobi",
 });
