@@ -2200,7 +2200,7 @@ const mailer = {
           lastName,
           email,
         })}`,
-        bcc: subscribedBccEmails,
+        // bcc: subscribedBccEmails,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
