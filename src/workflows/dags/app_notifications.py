@@ -194,9 +194,9 @@ def send_push_notification():
     def extract_users():
         from airqo_etl_utils.app_notification_utils import get_all_users
 
-        users = get_all_users()
+        users = get_all_users("push")
         return users
-    
+
     @task()
     def group_and_send_push_notifications(users):
         from airqo_etl_utils.app_notification_utils import group_users
@@ -207,23 +207,50 @@ def send_push_notification():
         while start_index < len(users):
             end_index = min(start_index + BATCH_SIZE, len(users))
             batch = users[start_index:end_index]
-            grouped_users = group_users(batch)
+            grouped_users = group_users(batch, "current")
             send_push_notifications(grouped_users)
             start_index += BATCH_SIZE
 
-    
     if "staging" in configuration.AIRQO_BASE_URL_V2:
         print("Not sending push notifications in staging")
         return
-    
+
     users = extract_users()
     group_and_send_push_notifications(users)
 
 
+@dag(
+    "Send-Email-Notifications",
+    schedule="0 0 * * 1",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    tags=["app", "notifications", "email"],
+)
+def send_email_notifications():
+    @task()
+    def extract_users():
+        from airqo_etl_utils.app_notification_utils import get_all_users
 
-# monday_morning_notifications_dag = monday_morning_notifications()
-# friday_evening_notifications_dag = friday_evening_notifications()
-# morning_notifications_dag = morning_notifications()
-# evening_notifications_dag = evening_notifications()
+        users = get_all_users("email")
+        return users
+
+    @task()
+    def group_and_send_email_notifications(users):
+        from airqo_etl_utils.app_notification_utils import group_users
+        from airqo_etl_utils.app_notification_utils import send_email_notifications
+
+        BATCH_SIZE = 100
+        start_index = 0
+        while start_index < len(users):
+            end_index = min(start_index + BATCH_SIZE, len(users))
+            batch = users[start_index:end_index]
+            grouped_users = group_users(batch, "forecast")
+            send_email_notifications(grouped_users)
+            start_index += BATCH_SIZE
+
+    users = extract_users()
+    group_and_send_email_notifications(users)
+
 
 send_push_notification()
+send_email_notifications()

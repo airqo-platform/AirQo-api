@@ -156,25 +156,18 @@ const preferences = {
       ];
 
       const filterResponse = generateFilter.preferences(request, next);
-      logObject("filterResponse", filterResponse);
 
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
-
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
 
       const update = body;
 
@@ -183,7 +176,6 @@ const preferences = {
           update["$addToSet"] = {
             [field]: { $each: update[field] },
           };
-
           delete update[field];
         }
       });
@@ -194,20 +186,17 @@ const preferences = {
             ...item,
             createdAt: item.createdAt || new Date(),
           }));
-
           update["$addToSet"] = {
             [field]: { $each: update[field] },
           };
-
           delete update[field];
         }
       });
-      const filter = PreferenceDetails;
-      logObject("filter", filter);
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
-        filter,
+        filterResponse,
         update,
         options
       );
@@ -249,35 +238,26 @@ const preferences = {
       logText("Replace the existing selected_ids....");
 
       const filterResponse = generateFilter.preferences(request, next);
-      logObject("filterResponse", filterResponse);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
 
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
-
       const update = body;
-      const filter = PreferenceDetails;
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
-        filter,
+        filterResponse,
         update,
         options
       );
-      logObject("modifyResponse", modifyResponse);
 
       if (!isEmpty(modifyResponse)) {
         return {
@@ -308,6 +288,14 @@ const preferences = {
   },
   delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Unavailable",
+        errors: {
+          message: "Service Temporarily Unavailable",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
       const {
         query: { tenant },
         body,
@@ -315,16 +303,15 @@ const preferences = {
 
       const filterResponse = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
 
       const PreferenceDetails = await PreferenceModel(tenant)

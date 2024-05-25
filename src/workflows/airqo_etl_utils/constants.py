@@ -1,4 +1,5 @@
 from enum import Enum
+import os
 
 
 class DeviceCategory(Enum):
@@ -45,6 +46,82 @@ class Frequency(Enum):
             return "daily"
         else:
             return ""
+
+
+class Attachments(Enum):
+    IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
+
+    EMAIL_ATTACHMENTS = [
+        {
+            "filename": "favoriteIcon.png",
+            "path": os.path.join(IMAGE_DIR, "favoriteIcon.png"),
+            "cid": "FavoriteIcon",
+            "contentDisposition": "inline",
+        },
+        {
+            "filename": "airqoLogoAlternate.png",
+            "path": os.path.join(IMAGE_DIR, "airqoLogoAlternate.png"),
+            "cid": "AirQoEmailLogoAlternate",
+            "contentDisposition": "inline",
+        },
+        {
+            "filename": "faceBookLogo.png",
+            "path": os.path.join(IMAGE_DIR, "facebookLogo.png"),
+            "cid": "FacebookLogo",
+            "contentDisposition": "inline",
+        },
+        {
+            "filename": "youtubeLogo.png",
+            "path": os.path.join(IMAGE_DIR, "youtubeLogo.png"),
+            "cid": "YoutubeLogo",
+            "contentDisposition": "inline",
+        },
+        {
+            "filename": "twitterLogo.png",
+            "path": os.path.join(IMAGE_DIR, "Twitter.png"),
+            "cid": "Twitter",
+            "contentDisposition": "inline",
+        },
+        {
+            "filename": "linkedInLogo.png",
+            "path": os.path.join(IMAGE_DIR, "linkedInLogo.png"),
+            "cid": "LinkedInLogo",
+            "contentDisposition": "inline",
+        },
+    ]
+
+    EMOJI_ATTACHMENTS = [
+        {
+            "filename": "goodEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "goodEmoji.png"),
+            "cid": "goodEmoji",
+        },
+        {
+            "filename": "moderateEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "moderateEmoji.png"),
+            "cid": "moderateEmoji",
+        },
+        {
+            "filename": "uhfsgEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "uhfsgEmoji.png"),
+            "cid": "uhfsgEmoji",
+        },
+        {
+            "filename": "unhealthyEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "unhealthyEmoji.png"),
+            "cid": "unhealthyEmoji",
+        },
+        {
+            "filename": "veryUnhealthyEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "veryUnhealthyEmoji.png"),
+            "cid": "veryUnhealthyEmoji",
+        },
+        {
+            "filename": "hazardousEmoji.png",
+            "path": os.path.join(IMAGE_DIR, "hazardousEmoji.png"),
+            "cid": "hazardousEmoji",
+        },
+    ]
 
 
 class DataSource(Enum):
@@ -226,3 +303,10 @@ class DataType(Enum):
     UNCLEAN_LOW_COST_DATA = 2
     CLEAN_LOW_COST_DATA = 3
     AGGREGATED_LOW_COST_DATA = 3
+
+
+class CityModel(Enum):
+    NAIROBI = "nairobi"
+    KAMPALA = "kampala"
+    MOMBASA = "mombasa"
+    DEFAULT = "default"

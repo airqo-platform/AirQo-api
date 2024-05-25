@@ -1,18 +1,23 @@
-import pickle
 import traceback
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pymongo as pm
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import download_file_from_gcs
 from .config import configuration
-from .constants import DeviceCategory, Tenant, Frequency, DataSource, DataType
+from .constants import (
+    DeviceCategory,
+    Tenant,
+    Frequency,
+    DataSource,
+    DataType,
+    CityModel,
+)
 from .data_validator import DataValidationUtils
 from .date import date_to_str
+from .ml_utils import GCSUtils
 from .thingspeak_api import ThingspeakApi
 from .utils import Utils
 from .weather_data_utils import WeatherDataUtils
@@ -294,10 +299,7 @@ class AirQoDataUtils:
         )
 
         if device_numbers:
-            devices = list(
-                filter(lambda x: int(x["device_number"]) in device_numbers, devices)
-            )
-
+            devices = [x for x in devices if x["device_number"] in device_numbers]
         if device_category == DeviceCategory.BAM:
             other_fields_cols = []
             field_8_cols = [x for x in configuration.AIRQO_BAM_CONFIG.values()]
@@ -332,6 +334,7 @@ class AirQoDataUtils:
             data_source=DataSource.THINGSPEAK,
         )
 
+        # TODO: Need to review this entire data querying process. some metadata for some devices seems to be missing after the operation. Intend to look into in different pull request.
         for device in devices:
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
@@ -404,7 +407,7 @@ class AirQoDataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         aggregated_data = pd.DataFrame()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         for _, device_group in data.groupby("device_number"):
             site_id = device_group.iloc[0]["site_id"]
@@ -449,7 +452,7 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
-        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
@@ -636,10 +639,8 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        weather_data.loc[:, "timestamp"] = weather_data["timestamp"].apply(
-            pd.to_datetime
-        )
-        airqo_data.loc[:, "timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
+        airqo_data["timestamp"] = pd.to_datetime(airqo_data["timestamp"])
+        weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
 
         airqo_api = AirQoApi()
         sites = []
@@ -706,116 +707,6 @@ class AirQoDataUtils:
             del measurements[f"device_reading_{col}_col"]
 
         return measurements
-
-    @staticmethod
-    def calibrate_using_pickle_file(measurements: pd.DataFrame) -> list:
-        if measurements.empty:
-            return []
-
-        pm_2_5_model_file = download_file_from_gcs(
-            bucket_name="airqo_prediction_bucket",
-            source_file="PM2.5_calibrate_model.pkl",
-            destination_file="pm2_5_model.pkl",
-        )
-
-        pm_10_model_file = download_file_from_gcs(
-            bucket_name="airqo_prediction_bucket",
-            source_file="PM10_calibrate_model.pkl",
-            destination_file="pm10_model.pkl",
-        )
-
-        rf_regressor = pickle.load(open(pm_2_5_model_file, "rb"))
-        lasso_regressor = pickle.load(open(pm_10_model_file, "rb"))
-
-        calibrated_measurements = []
-
-        for _, row in measurements:
-            try:
-                calibrated_row = row
-                hour = pd.to_datetime(row["time"]).hour
-                s1_pm2_5 = row["s1_pm2_5"]
-                s2_pm2_5 = row["s2_pm2_5"]
-                s1_pm10 = row["s1_pm10"]
-                s2_pm10 = row["s2_pm10"]
-                temperature = row["temperature"]
-                humidity = row["humidity"]
-
-                input_variables = pd.DataFrame(
-                    [
-                        [
-                            s1_pm2_5,
-                            s2_pm2_5,
-                            s1_pm10,
-                            s2_pm10,
-                            temperature,
-                            humidity,
-                            hour,
-                        ]
-                    ],
-                    columns=[
-                        "s1_pm2_5",
-                        "s2_pm2_5",
-                        "s1_pm10",
-                        "s2_pm10",
-                        "temperature",
-                        "humidity",
-                        "hour",
-                    ],
-                    dtype="float",
-                    index=["input"],
-                )
-
-                input_variables["avg_pm2_5"] = (
-                    input_variables[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
-                )
-                input_variables["avg_pm10"] = (
-                    input_variables[["s1_pm10", "s2_pm10"]].mean(axis=1).round(2)
-                )
-                input_variables["error_pm10"] = np.abs(
-                    input_variables["s1_pm10"] - input_variables["s2_pm10"]
-                )
-                input_variables["error_pm2_5"] = np.abs(
-                    input_variables["s1_pm2_5"] - input_variables["s2_pm2_5"]
-                )
-                input_variables["pm2_5_pm10"] = (
-                    input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
-                )
-                input_variables["pm2_5_pm10_mod"] = (
-                    input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
-                )
-                input_variables = input_variables.drop(
-                    ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"], axis=1
-                )
-
-                # reorganise columns
-                input_variables = input_variables[
-                    [
-                        "avg_pm2_5",
-                        "avg_pm10",
-                        "temperature",
-                        "humidity",
-                        "hour",
-                        "error_pm2_5",
-                        "error_pm10",
-                        "pm2_5_pm10",
-                        "pm2_5_pm10_mod",
-                    ]
-                ]
-
-                calibrated_pm2_5 = rf_regressor.predict(input_variables)[0]
-                calibrated_pm10 = lasso_regressor.predict(input_variables)[0]
-
-                calibrated_row["calibrated_pm2_5"] = calibrated_pm2_5
-                calibrated_row["calibrated_pm10"] = calibrated_pm10
-
-                calibrated_measurements.append(calibrated_row.to_dict(orient="records"))
-
-            except Exception as ex:
-                traceback.print_exc()
-                print(ex)
-                continue
-
-        return calibrated_measurements
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
@@ -925,3 +816,123 @@ class AirQoDataUtils:
             data = non_device_data.append(device_data, ignore_index=True)
 
         return data
+
+    @staticmethod
+    def calibrate_data(data: pd.DataFrame) -> pd.DataFrame:
+        bucket = configuration.FORECAST_MODELS_BUCKET
+        project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        sites = AirQoApi().get_sites()
+        sites_df = pd.DataFrame(sites, columns=["_id", "city"]).rename(
+            columns={"_id": "site_id"}
+        )
+        data = pd.merge(data, sites_df, on="site_id", how="left")
+        data.dropna(subset=["device_number", "timestamp"], inplace=True)
+
+        columns_to_fill = [
+            "s1_pm2_5",
+            "s1_pm10",
+            "s2_pm2_5",
+            "s2_pm10",
+            "temperature",
+            "humidity",
+        ]
+
+        data[columns_to_fill] = data[columns_to_fill].fillna(0)
+        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
+        # May have to rewrite entire pipeline flow
+
+        # additional input columns for calibration
+        data["avg_pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
+        data["avg_pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1).round(2)
+        data["error_pm2_5"] = np.abs(data["s1_pm2_5"] - data["s2_pm2_5"])
+        data["error_pm10"] = np.abs(data["s1_pm10"] - data["s2_pm10"])
+        data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
+        data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
+        data["hour"] = data["timestamp"].dt.__getattribute__("hour")
+
+        input_variables = [
+            "avg_pm2_5",
+            "avg_pm10",
+            "temperature",
+            "humidity",
+            "hour",
+            "error_pm2_5",
+            "error_pm10",
+            "pm2_5_pm10",
+            "pm2_5_pm10_mod",
+        ]
+        data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
+        data.dropna(subset=input_variables, inplace=True)
+
+        grouped_df = data.groupby("city", dropna=False)
+
+        rf_model = GCSUtils.get_trained_model_from_gcs(
+            project_name=project_id,
+            bucket_name=bucket,
+            source_blob_name=Utils.get_calibration_model_path(
+                CityModel.DEFAULT, "pm2_5"
+            ),
+        )
+        lasso_model = GCSUtils.get_trained_model_from_gcs(
+            project_name=project_id,
+            bucket_name=bucket,
+            source_blob_name=Utils.get_calibration_model_path(
+                CityModel.DEFAULT, "pm10"
+            ),
+        )
+        for city, group in grouped_df:
+            if str(city).lower() in [c.value.lower() for c in CityModel]:
+                try:
+                    rf_model = GCSUtils.get_trained_model_from_gcs(
+                        project_name=project_id,
+                        bucket_name=bucket,
+                        source_blob_name=Utils.get_calibration_model_path(
+                            city, "pm2_5"
+                        ),
+                    )
+                    lasso_model = GCSUtils.get_trained_model_from_gcs(
+                        project_name=project_id,
+                        bucket_name=bucket,
+                        source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
+                    )
+                except Exception as e:
+                    print(f"Error getting model: {e}")
+            group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
+            group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
+
+            data.loc[group.index, "pm2_5_calibrated_value"] = group[
+                "pm2_5_calibrated_value"
+            ]
+            data.loc[group.index, "pm10_calibrated_value"] = group[
+                "pm10_calibrated_value"
+            ]
+
+        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+        if "pm2_5_calibrated_value" in data.columns:
+            data["pm2_5"] = data["pm2_5_calibrated_value"]
+        else:
+            data["pm2_5_calibrated_value"] = None
+            data["pm2_5"] = None
+        if "pm10_calibrated_value" in data.columns:
+            data["pm10"] = data["pm10_calibrated_value"]
+        else:
+            data["pm10_calibrated_value"] = None
+            data["pm10"] = None
+        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
+        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+
+        return data.drop(
+            columns=[
+                "avg_pm2_5",
+                "avg_pm10",
+                "error_pm2_5",
+                "error_pm10",
+                "pm2_5_pm10",
+                "pm2_5_pm10_mod",
+                "hour",
+                "city",
+            ]
+        )

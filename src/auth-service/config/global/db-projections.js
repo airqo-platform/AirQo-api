@@ -263,6 +263,7 @@ const dbProjections = {
     lastName: 1,
     lastLogin: 1,
     isActive: 1,
+    loginCount: 1,
     userName: 1,
     email: 1,
     verified: 1,

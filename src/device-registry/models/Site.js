@@ -594,6 +594,86 @@ siteSchema.statics = {
       );
     }
   },
+
+  async listAirQoActive({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+    try {
+      const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      if (!isEmpty(filter.dashboard)) {
+        delete filter.dashboard;
+      }
+      if (!isEmpty(filter.summary)) {
+        delete filter.summary;
+      }
+
+      const pipeline = await this.aggregate()
+        .match({ ...filter, network: "airqo" })
+        .lookup({
+          from: "devices",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "devices",
+        })
+        .unwind("$devices")
+        .match({ devices: { $exists: true, $ne: [] } })
+        .lookup({
+          from: "grids",
+          localField: "grids",
+          foreignField: "_id",
+          as: "grids",
+        })
+        .lookup({
+          from: "airqlouds",
+          localField: "airqlouds",
+          foreignField: "_id",
+          as: "airqlouds",
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .skip(skip ? skip : 0)
+        .limit(
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
+        )
+        .allowDiskUse(true);
+
+      const response = await pipeline;
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "successfully retrieved the site details",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(response)) {
+        return {
+          success: true,
+          message: "no sites match this search",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };

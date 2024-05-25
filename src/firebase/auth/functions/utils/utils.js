@@ -48,7 +48,8 @@ const utils = {
         const userRef = firestoreDb.collection(process.env.USERS_COLLECTION).doc(userID);
         const userDoc = await userRef.get();
         if (userDoc.exists) {
-            const isSubscribedToEmailNotifs = userDoc.data().isSubscribedToEmailNotifs !== false;
+            const isSubscribedToNotifs = userDoc.data().is_subscribed_to_notifs || {};
+            const isSubscribedToEmailNotifs = isSubscribedToNotifs.email !== false;
             return isSubscribedToEmailNotifs;
         }
         return false;

@@ -32,6 +32,7 @@ const filter = {
         resetPasswordToken,
         user,
         user_id,
+        login_count,
       } = { ...req.body, ...req.query, ...req.params };
 
       let filter = {};
@@ -71,6 +72,10 @@ const filter = {
       }
       if (username) {
         filter["userName"] = username;
+      }
+
+      if (login_count) {
+        filter["login_count"] = parseInt(login_count);
       }
 
       return filter;
@@ -307,49 +312,15 @@ const filter = {
   },
   preferences: (req, next) => {
     try {
-      let {
-        // id,
-        user_id,
-        // airqloud_id,
-        // grid_id,
-        // cohort_id,
-        // group_id,
-        // network_id,
-      } = {
+      let { user_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
       let filter = {};
-
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
-
-      // if (id) {
-      //   filter["_id"] = ObjectId(id);
-      // }
-
-      // if (grid_id) {
-      //   filter["grid_id"] = ObjectId(grid_id);
-      // }
-
-      // if (cohort_id) {
-      //   filter["cohort_id"] = ObjectId(cohort_id);
-      // }
-
-      // if (airqloud_id) {
-      //   filter["airqloud_id"] = ObjectId(airqloud_id);
-      // }
-
-      // if (group_id) {
-      //   filter["group_id"] = ObjectId(group_id);
-      // }
-
-      // if (network_id) {
-      //   filter["network_id"] = ObjectId(network_id);
-      // }
-
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

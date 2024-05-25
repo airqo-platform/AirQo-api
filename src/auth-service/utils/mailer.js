@@ -2072,6 +2072,89 @@ const mailer = {
       return;
     }
   },
+  expiringToken: async (
+    { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      let bccEmails = [];
+
+      if (constants.PLATFORM_AND_DS_EMAILS) {
+        bccEmails = constants.PLATFORM_AND_DS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo API Token Expiry: Create New Token Urgently",
+        html: `${msgs.tokenExpiringSoon({
+          firstName,
+          lastName,
+          email,
+        })}`,
+        bcc: subscribedBccEmails,
+        attachments: attachments,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+        return;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   existingUserAccessRequest: async (
     { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
     next

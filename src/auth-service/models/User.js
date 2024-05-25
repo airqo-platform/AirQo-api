@@ -113,6 +113,7 @@ const UserSchema = new Schema(
       default: "user",
     },
     isActive: { type: Boolean, default: false },
+    loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
     network_roles: {
       type: [
@@ -560,6 +561,7 @@ UserSchema.statics = {
           lastLogin: { $first: "$lastLogin" },
           timezone: { $first: "$timezone" },
           isActive: { $first: "$isActive" },
+          loginCount: { $first: "$loginCount" },
           userName: { $first: "$userName" },
           email: { $first: "$email" },
           verified: { $first: "$verified" },
@@ -844,6 +846,7 @@ UserSchema.methods = {
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
       isActive: this.isActive,
+      loginCount: this.loginCount,
       timezone: this.timezone,
     };
   },
@@ -893,7 +896,7 @@ UserSchema.methods.createToken = async function () {
           updatedAt: user.updatedAt,
           rateLimit: user.rateLimit,
           lastLogin: user.lastLogin,
-          exp: oneHourExpiry,
+          // exp: oneHourExpiry,
         },
         constants.JWT_SECRET
       );

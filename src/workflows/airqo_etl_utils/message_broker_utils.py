@@ -83,8 +83,6 @@ class MessageBrokerUtils:
                 "site_id",
                 "latitude",
                 "longitude",
-                "site_latitude",
-                "site_longitude",
             ]
         ]
         devices.rename(
