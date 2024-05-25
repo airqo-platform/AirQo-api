@@ -21,6 +21,7 @@ const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
 require("@bin/active-status-job");
 require("@bin/token-expiration-job");
+require("@bin/incomplete-profile-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
