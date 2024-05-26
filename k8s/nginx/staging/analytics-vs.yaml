@@ -60,7 +60,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: analytics
+        pass: analytics 
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -188,5 +188,7 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json                
+                value: application/json  
+
+               
 
