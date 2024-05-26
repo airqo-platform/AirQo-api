@@ -89,7 +89,7 @@ const createGroup = {
             "Your account is not registered",
             httpStatus.BAD_REQUEST,
             {
-              message: `Your account ${user_id} is not registered`,
+              message: `Your account is not registered`,
             }
           )
         );
