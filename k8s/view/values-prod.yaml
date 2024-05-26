@@ -5,7 +5,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-view-api
     messageBroker: eu.gcr.io/airqo-250220/airqo-view-message-broker
-  tag: prod-289439e8-1716675251
+  tag: prod-8de1548d-1716712173
 api:
   name: airqo-view-api
   label: view-api
