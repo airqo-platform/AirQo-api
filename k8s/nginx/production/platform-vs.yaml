@@ -79,9 +79,9 @@ metadata:
 spec:
   host: platform.airqo.net
   upstreams:
-    - name: platform-ui
-      service: airqo-platform-frontend-svc
-      port: 80
+    - name: analytics
+      service: airqo-next-platform-svc
+      port: 3000
     - name: auth-service
       service: airqo-auth-api-svc
       port: 3000
@@ -97,7 +97,7 @@ spec:
     - name: locate
       service: airqo-locate-api-svc
       port: 4001
-    - name: analytics
+    - name: analytics-api
       service: airqo-analytics-api-svc
       port: 5000
     - name: predict
@@ -133,7 +133,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui
+        pass: analytics
     - path: /workflows
       route: pipeline/workflows
     - path: /argocd
@@ -185,7 +185,7 @@ spec:
     - path: ~ /api\/v[1-2]\/analytics
       action:
         proxy:
-          upstream: analytics
+          upstream: analytics-api
           responseHeaders:
             add:
               - name: Content-Type
