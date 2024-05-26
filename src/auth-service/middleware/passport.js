@@ -1048,15 +1048,14 @@ function setGoogleAuth(req, res, next) {
 }
 function setJWTAuth(req, res, next) {
   try {
+    if (req.body && req.body.user_id) {
+      logText("Skipping setJWTAuth due to user_id in request body.");
+      next();
+      return;
+    }
     const errors = extractErrorsFromRequest(req);
     if (errors) {
-      next(
-        new HttpError(
-          "bad request errors",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          errors
-        )
-      );
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
     setJWTStrategy("airqo", req, res, next);
@@ -1104,9 +1103,15 @@ const authGuest = (req, res, next) => {
   }
 };
 
-const authJWT = passport.authenticate("jwt", {
-  session: false,
-});
+function authJWT(req, res, next) {
+  if (req.body && req.body.user_id) {
+    logText("Skipping authJWT due to user_id in request body.");
+    next();
+    return;
+  }
+  // If user_id is not present, proceed with JWT authentication
+  passport.authenticate("jwt", { session: false })(req, res, next);
+}
 
 module.exports = {
   setLocalAuth,

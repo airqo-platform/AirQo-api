@@ -263,6 +263,8 @@ router.post(
         .withMessage("the grp_website must be a valid URL"),
     ],
   ]),
+  setJWTAuth,
+  authJWT,
   createGroupController.create
 );
 
