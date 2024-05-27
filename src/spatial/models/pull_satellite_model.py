@@ -3,6 +3,7 @@ import pandas as pd
 from configure import Config  # Assuming this is a configuration file or objects
 from datetime import datetime, timedelta
 from google.oauth2 import service_account
+from io import StringIO  # Correct import for Python 3
 
 class BasePM25Model:
     def __init__(self):
