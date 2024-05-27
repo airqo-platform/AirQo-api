@@ -21,7 +21,7 @@ class Config:
     MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION")
     REDIS_BROKER_URL = os.getenv("REDIS_BROKER_URL")
 
-    BIG_QUERY_DAVE_DATASET  = os.getenv("BIG_QUERY_DAVE_DATASET")
+    BIGQUERY_SAT_TABLE_ID= os.getenv("BIGQUERY_SAT_TABLE_ID")
 
 
 class ProductionConfig(Config):
