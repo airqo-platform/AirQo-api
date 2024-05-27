@@ -14,4 +14,4 @@ google-cloud-bigquery[pandas]
 gunicorn
 flask-cors
 
-ee
+earthengine-api
