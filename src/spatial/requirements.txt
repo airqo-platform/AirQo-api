@@ -13,3 +13,4 @@ google-cloud-storage
 google-cloud-bigquery[pandas] 
 gunicorn
 flask-cors
+earthengine-api
