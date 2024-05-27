@@ -24,7 +24,6 @@ class BasePM25Model:
             credentials=self.credentials, 
             project=Config.GOOGLE_CLOUD_PROJECT_ID
         )
-
 class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
