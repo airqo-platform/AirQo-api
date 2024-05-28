@@ -7,8 +7,9 @@ from google.cloud import storage
 from models import EventsModel
 from utils.data_formatters import format_to_aqcsv
 
+#TODO: Look into using flower to monitor tasks
 celery_logger = get_task_logger(__name__)
-@shared_task(bind=True, name="Data Export", ignore_result=False)
+@shared_task(bind=True, name="tasks.export_data", ignore_result=False)
 def export_data(
     self,
     devices,
