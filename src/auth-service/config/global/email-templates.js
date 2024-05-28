@@ -1,9 +1,15 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const isEmpty = require("is-empty");
 
 const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
-    const greetingText = name.includes("Unknown") ? "Hello!" : `Dear ${name},`;
+    let greetingText;
+    if (isEmpty(name) || name.includes("Unknown")) {
+      greetingText = "Hello!";
+    } else {
+      greetingText = `Dear ${name},`;
+    }
 
     return `<tr>
                 <td
@@ -12,6 +18,7 @@ const emailTemplates = {
                 </td>
             </tr>`;
   },
+
   EMAIL_HEADER_TEMPLATE: function () {
     return `
     <table style="width: 100%; padding-bottom: 24px;">
