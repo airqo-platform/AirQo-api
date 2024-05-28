@@ -29,7 +29,7 @@ class PM25View:
             data = model.get_pm25_from_satellite(longitude, latitude, start_date, end_date)
 
             # Return the data with appropriate JSON format and headers
-            response_data = {'Title': 'PM2.5 Prediction', 'determined_pm2_5': data.to_dict(orient='records')[0]}
+            response_data = {'Title': 'Derived PM2.5 from satellite AOD', 'determined_pm2_5': data.to_dict(orient='records')[0]}
             # Return the response with appropriate JSON format and headers
             return jsonify(response_data), 200, {'Content-Type': 'application/json'}
 
