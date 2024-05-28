@@ -3,12 +3,14 @@ const ObjectId = mongoose.Types.ObjectId;
 
 const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
+    const greetingText = name.includes("Unknown") ? "Hello!" : `Dear ${name},`;
+
     return `<tr>
-                                    <td
-                                        style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
-                                        Dear ${name},
-                                    </td>
-                                </tr>`;
+                <td
+                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
+                    ${greetingText}
+                </td>
+            </tr>`;
   },
   EMAIL_HEADER_TEMPLATE: function () {
     return `
