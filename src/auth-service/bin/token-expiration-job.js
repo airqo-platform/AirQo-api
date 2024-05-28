@@ -9,35 +9,40 @@ const logger = log4js.getLogger(
 );
 const moment = require("moment-timezone");
 
+async function sendEmailsInBatches(tokens, batchSize = 100) {
+  for (let i = 0; i < tokens.length; i += batchSize) {
+    const batch = tokens.slice(i, i + batchSize);
+    const emailPromises = batch.map((token) => {
+      const email = token.email;
+      const firstName = token.firstName;
+      const lastName = token.lastName;
+      return mailer
+        .expiringToken({ email, firstName, lastName })
+        .then((response) => {
+          if (!response || response.success !== false) {
+            logger.error(
+              `Error sending email to ${email}: ${JSON.stringify(response)}`
+            );
+          }
+        });
+    });
+    await Promise.all(emailPromises);
+  }
+}
+
 cron.schedule(
   "0 0 1 * *",
   async () => {
     const timeZone = moment.tz.guess();
-    // Calculate the current date and time in the user's timezone
     const now = moment().tz(timeZone);
-    // Calculate two months from now in the user's timezone
     const twoMonthsFromNow = now.clone().add(2, "months");
     const filter = {
       expires: { $gte: now.toDate(), $lt: twoMonthsFromNow.toDate() },
     };
-    try {
-      const tokens = await AccessTokenModel.list({ filter });
-      tokens.forEach(async (token) => {
-        const email = token.email;
-        const firstName = token.firstName;
-        const lastName = token.lastName;
-        const emailResponse = await mailer.expiringToken({
-          email,
-          firstName,
-          lastName,
-        });
 
-        if (emailResponse && emailResponse.success === false) {
-          logger.error(
-            `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
-          );
-        }
-      });
+    try {
+      const tokens = await AccessTokenModel("airqo").list({ filter });
+      await sendEmailsInBatches(tokens);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
     }
