@@ -357,7 +357,7 @@ module.exports = {
       </tr>
     `;
 
-    return EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name);
   },
   updateProfilePrompt: ({ firstName = "", lastName = "", email = "" }) => {
     const name = `${firstName} ${lastName}`;
@@ -373,7 +373,7 @@ module.exports = {
       </tr>
     `;
 
-    return EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name);
   },
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;

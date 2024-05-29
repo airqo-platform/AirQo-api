@@ -2072,10 +2072,12 @@ const mailer = {
       return;
     }
   },
-  expiringToken: async (
-    { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
-    next
-  ) => {
+  expiringToken: async ({
+    email = "",
+    firstName = "",
+    lastName = "",
+    tenant = "airqo",
+  } = {}) => {
     try {
       const checkResult = await SubscriptionModel(
         tenant
@@ -2131,34 +2133,29 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "email not sent",
-              emailResults: data,
-            }
-          )
-        );
-        return;
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "email not sent", emailResults: data },
+        };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
-  updateProfileReminder: async (
-    { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
-    next
-  ) => {
+  updateProfileReminder: async ({
+    email = "",
+    firstName = "",
+    lastName = "",
+    tenant = "airqo",
+  } = {}) => {
     try {
       const checkResult = await SubscriptionModel(
         tenant
@@ -2187,7 +2184,7 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-
+      // bcc: subscribedBccEmails,
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -2200,9 +2197,9 @@ const mailer = {
           lastName,
           email,
         })}`,
-        // bcc: subscribedBccEmails,
         attachments: attachments,
       };
+
       let response = transporter.sendMail(mailOptions);
       let data = await response;
 
@@ -2214,28 +2211,21 @@ const mailer = {
           status: httpStatus.OK,
         };
       } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "email not sent",
-              emailResults: data,
-            }
-          )
-        );
-        return;
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "email not sent", emailResults: data },
+        };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   existingUserAccessRequest: async (
