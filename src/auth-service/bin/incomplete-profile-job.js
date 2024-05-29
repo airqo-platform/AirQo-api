@@ -10,24 +10,23 @@ const mailer = require("@utils/mailer");
 
 const checkStatus = async () => {
   try {
-    const batchSize = 100; // Process 100 users at a time
+    const batchSize = 100;
     let skip = 0;
 
     while (true) {
       const users = await UserModel("airqo")
         .find({
-          firstName: "Unknown", // Find users with firstName "Unknown"
-          isActive: { $ne: false }, // Exclude users where isActive is false
+          firstName: "Unknown",
+          isActive: { $ne: false },
         })
         .limit(batchSize)
         .skip(skip)
-        .select("_id email") // Select _id and email for sending the email
+        .select("_id email")
         .lean();
 
       if (users.length === 0) {
         break;
       }
-      // Iterate over each user and send an email reminder
       for (const user of users) {
         try {
           const emailResponse = await mailer.updateProfileReminder({
@@ -52,7 +51,7 @@ const checkStatus = async () => {
   }
 };
 
-const schedule = "0 0 * * *"; // Schedule to run once every day at midnight
+const schedule = "0 0 * * *"; // every day at midnight
 cron.schedule(schedule, checkStatus, {
   scheduled: true,
   timezone: "Africa/Nairobi",

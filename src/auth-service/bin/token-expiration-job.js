@@ -19,9 +19,9 @@ async function sendEmailsInBatches(tokens, batchSize = 100) {
       return mailer
         .expiringToken({ email, firstName, lastName })
         .then((response) => {
-          if (!response || response.success !== false) {
+          if (response && response.success === false) {
             logger.error(
-              `Error sending email to ${email}: ${JSON.stringify(response)}`
+              `Error sending email to ${email}: ${stringify(response)}`
             );
           }
         });
