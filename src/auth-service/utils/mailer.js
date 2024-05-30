@@ -2019,7 +2019,7 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-
+      // bcc: subscribedBccEmails,
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -2034,7 +2034,6 @@ const mailer = {
           ip,
           email,
         })}`,
-        bcc: subscribedBccEmails,
         attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
