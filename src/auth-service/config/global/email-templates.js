@@ -10,15 +10,19 @@ const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
     try {
       let greetingText;
-      const nameWords = name.split(" ");
-
-      if (
-        isEmpty(name) ||
-        nameWords.some((word) => word.toLowerCase() === "unknown".toLowerCase())
-      ) {
+      if (isEmpty(name) || typeof name !== "string") {
         greetingText = "Hello!";
       } else {
-        greetingText = `Dear ${name},`;
+        const nameWords = name.split(" ");
+        if (
+          nameWords.some(
+            (word) => word.toLowerCase() === "unknown".toLowerCase()
+          )
+        ) {
+          greetingText = "Hello!";
+        } else {
+          greetingText = `Dear ${name},`;
+        }
       }
 
       return `<tr>
