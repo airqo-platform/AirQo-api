@@ -365,7 +365,6 @@ module.exports = {
     content = `
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-          <p>Hello ${name || "there"},</p>
           <p>We noticed that your first name and last name are not yet set in your profile. Updating these details will enhance your experience with our service.</p>
           <p>To proceed, please visit AirQo Analytics and update your profile with your full name.</p>
           <p>If you have already updated your name, please ignore this message.</p>
