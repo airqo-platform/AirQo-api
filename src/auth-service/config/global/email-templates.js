@@ -1,22 +1,35 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${(
+    process.env.NODE_ENV || "production"
+  ).toUpperCase()} ENVIRONMENT -- config/global/email-template`
+);
 
 const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
-    let greetingText;
-    if (isEmpty(name) || name.includes("Unknown")) {
-      greetingText = "Hello!";
-    } else {
-      greetingText = `Dear ${name},`;
-    }
+    try {
+      let greetingText;
+      const nameWords = name.split(" ");
 
-    return `<tr>
+      if (
+        isEmpty(name) ||
+        nameWords.some((word) => word.toLowerCase() === "unknown".toLowerCase())
+      ) {
+        greetingText = "Hello!";
+      } else {
+        greetingText = `Dear ${name},`;
+      }
+
+      return `<tr>
                 <td
                     style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
                     ${greetingText}
                 </td>
             </tr>`;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    }
   },
 
   EMAIL_HEADER_TEMPLATE: function () {
