@@ -16,6 +16,7 @@ const logger = require("log4js").getLogger(
 );
 const validUserTypes = ["user", "guest"];
 const { HttpError } = require("@utils/errors");
+const mailer = require("@utils/mailer");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -353,7 +354,33 @@ UserSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
-      if (err.keyValue) {
+      if (err.code === 11000) {
+        logObject("the err.code again", err.code);
+        const duplicate_record = args.email ? args.email : args.userName;
+        response[duplicate_record] = `${duplicate_record} must be unique`;
+        response["message"] =
+          "the email and userName must be unique for every user";
+        try {
+          const email = args.email;
+          const firstName = args.firstName;
+          const lastName = args.lastName;
+          const emailResponse = await mailer.existingUserRegistrationRequest(
+            {
+              email,
+              firstName,
+              lastName,
+            },
+            next
+          );
+          if (emailResponse && emailResponse.success === false) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+            );
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+        }
+      } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
@@ -361,13 +388,7 @@ UserSchema.statics = {
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
-      } else if (err.code === 11000) {
-        const duplicate_record = args.email ? args.email : args.userName;
-        response[duplicate_record] = `${duplicate_record} must be unique`;
-        response["message"] =
-          "the email and userName must be unique for every user";
       }
-
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       next(new HttpError(message, status, response));
     }
