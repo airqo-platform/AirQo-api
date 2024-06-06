@@ -2151,8 +2151,8 @@ const mailer = {
   },
   updateProfileReminder: async ({
     email = "",
-    firstName = "",
-    lastName = "",
+    firstName = "Unknown",
+    lastName = "Unknown",
     tenant = "airqo",
   } = {}) => {
     try {
