@@ -6,9 +6,9 @@ engineering pipelines.
 ## Environment Setup
 
 - Add the `.env` file to directory. This can be obtained from secret manager (`workflows-env-file`)
-- Add the `google_application_credentials.json` (`workflows-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta_data` folder in this directory. Create the `meta_data folder` if it does not exist. 
+- Add the `google_application_credentials.json` (`workflows-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta-data` folder in this directory. Create the `meta-data folder` if it does not exist. 
 
-## Running the utility functions locally
+## 1. Running the utility functions locally
 Follow these steps if you wish to run the various scripts locally without entirely launching Airflow, otherwise we recommend running using Docker
 
 ### Create a virtual environment
@@ -36,7 +36,7 @@ source venv\bin\activate
 ```bash
 pip install -r dev-requirements.txt
 ```
-## Running using Docker
+## 2. Running using Docker
 
 ### Prerequisites
 
@@ -99,3 +99,23 @@ Ctrl + c
 ```bash
 sh clean.sh  
 ```
+
+
+## 3. Running on GCP Cloud Shell
+You can access the GCP cloud shell on your browser. Follow this guide <https://cloud.google.com/shell/docs/launching-cloud-shell>
+### Zip and Upload Workflows Folder
+- After making your changes, zip your workflows folder, and upload it onto the cloud shell terminal.
+- Unzip it using the command `unzip workflows.zip`.
+- cd into the workflows folder.
+### Running workflows only
+Run this command.
+
+```bash
+sh run-workflows-only.sh  
+```
+
+Note: You may need to run this command to initialize your Cloud shell if you haven't already or if you're facing authentication errors.  
+` export LD_LIBRARY_PATH=/usr/local/lib `
+
+### Access Preview.
+Access the web preview in your Browser by clicking on the web preview button and proceed to login.
