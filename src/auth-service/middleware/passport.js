@@ -852,13 +852,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
           userAction = route.action;
           logObject("Service", service);
 
-          if (
-            [
-              "device-deployment",
-              "device-maintenance",
-              "device-recall",
-            ].includes(service)
-          ) {
+          if (["device-deployment", "device-recall"].includes(service)) {
             try {
               const emailResponse = await mailer.siteActivity(
                 {
