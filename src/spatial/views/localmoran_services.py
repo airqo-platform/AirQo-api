@@ -38,7 +38,8 @@ class SpatialDataHandler_moran:
             results = analyzer.query_bigquery(site_ids, start_time, end_time)
 
             if results is None:
-                return jsonify({'error': 'Error querying BigQuery for air quality data.'}), 500
+#                return jsonify({'error': 'Error querying BigQuery for air quality data.'}), 500 
+                return jsonify({'error': 'Error querying BigQuery for air quality data.', 'details': str(e)}), 500
 
             df = analyzer.results_to_dataframe(results)
             gdf = analyzer.get_data_for_moran(df)
