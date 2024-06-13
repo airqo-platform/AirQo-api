@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class DateUtils:
@@ -14,7 +14,7 @@ class DateUtils:
     def get_dag_date_time_values(
         historical: bool = False,
         days: int = None,
-        hours: int = None,
+        hours: int = None,  
         **kwargs,
     ):
         try:
@@ -34,7 +34,7 @@ class DateUtils:
         except Exception as e:
             print("Exception in get_dag_date_time_values", repr(e))
             if hours is not None:
-                start_date_time = datetime.utcnow() - timedelta(hours=hours)
+                start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
                 end_date_time = start_date_time + timedelta(hours=hours)
                 start_date_time = DateUtils.date_to_str(
                     start_date_time, DateUtils.hour_date_time_format
@@ -43,7 +43,7 @@ class DateUtils:
                     end_date_time, DateUtils.hour_date_time_format
                 )
             elif days is not None:
-                start_date_time = datetime.utcnow() - timedelta(days=days)
+                start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
                 end_date_time = start_date_time + timedelta(days=days)
                 start_date_time = DateUtils.date_to_str(
                     start_date_time, DateUtils.day_start_date_time_format
@@ -52,9 +52,9 @@ class DateUtils:
                     end_date_time, DateUtils.day_end_date_time_format
                 )
             else:
-                start_date_time = datetime.utcnow() - timedelta(days=1)
-                end_date_time = datetime.utcnow()
-                start_date_time = DateUtils.date_to_str(
+                start_date_time = datetime.now(timezone.utc) - timedelta(days=1)
+                end_date_time = datetime.now(timezone.utc)
+                start_date_time = DateUtils.date_to_str(    
                     start_date_time, DateUtils.day_start_date_time_format
                 )
                 end_date_time = DateUtils.date_to_str(
@@ -67,18 +67,18 @@ class DateUtils:
 
     @staticmethod
     def get_query_date_time_values(hours=1, days=0):
-        start_date_time = datetime.utcnow() - timedelta(hours=hours)
+        start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         end_date_time = start_date_time + timedelta(hours=hours)
 
         if days != 0:
-            start_date_time = datetime.utcnow() - timedelta(days=days)
+            start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
             end_date_time = start_date_time + timedelta(days=days)
 
         return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
 
 
 def get_utc_offset_for_hour(subject_hour: int) -> int:
-    hour = datetime.utcnow().hour
+    hour = datetime.now(timezone.utc).hour
     if hour < subject_hour:
         return abs(hour - subject_hour)
     elif hour > subject_hour:
@@ -86,40 +86,40 @@ def get_utc_offset_for_hour(subject_hour: int) -> int:
     return hour
 
 
-def predict_str_to_date(st: str):
+def predict_str_to_date(st: str) -> datetime:
     """
     Converts a predict string to utc datetime
     """
 
     st = st.replace(" GMT", "")
     date_time = datetime.strptime(st, "%a, %d %b %Y %H:%M:%S")
-    date_time = date_time + timedelta(hours=3)
+    date_time = date_time.replace(tzinfo=timezone.utc) + timedelta(hours=3)
     return date_time
 
 
-def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ"):
+def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ") -> datetime:
     """
-    Converts a string to datetime
+    Converts a string to a timezone-aware datetime object set to UTC.
     """
 
     try:
-        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
-    except:
-        return datetime.strptime(st, date_format)
+        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return datetime.strptime(st, date_format).replace(tzinfo=timezone.utc)
 
 
-def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):
+def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ") -> str:
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, str_format)
+    return date.strftime(str_format)
 
 
-def date_to_str_hours(date: datetime):
+def date_to_str_hours(date: datetime) -> str:
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
+    return date.strftime("%Y-%m-%dT%H:00:00Z")
 
 
 def str_to_str_hours(dateStr: str) -> str:
@@ -147,6 +147,9 @@ def str_to_str_default(dateStr: str) -> str:
 
 
 def frequency_time(dateStr: str, frequency: str) -> str:
+    """
+    Converts string to a specific frequency time format.
+    """
     if frequency.lower() == "hourly":
         return str_to_str_hours(dateStr=dateStr)
     elif frequency.lower() == "daily":
@@ -156,39 +159,37 @@ def frequency_time(dateStr: str, frequency: str) -> str:
 
 
 def first_day_of_month(date_time: datetime) -> datetime:
-    return datetime(year=date_time.year, month=date_time.month, day=1)
+    """
+    Returns the first day of the month for the given datetime.
+    """
+    return date_time.replace(day=1)
 
 
 def last_day_of_month(date_time: datetime) -> datetime:
-    month = date_time.month
-    if month < 12:
-        month = month + 1
-        next_month = datetime(year=date_time.year, month=month, day=1)
-        return next_month - timedelta(days=1)
-    else:
-        year = date_time.year + 1
-        next_month = datetime(year=year, month=1, day=1)
-        return next_month - timedelta(days=1)
+    """
+    Returns the last day of the month for the given datetime.
+    """
+    next_month = date_time.replace(day=28) + timedelta(days=4)
+    return next_month - timedelta(days=next_month.day)
+
+def first_day_of_week(date_time: datetime) -> datetime:
+    """
+    Returns the first day of the week (Monday) for the given datetime.
+    """
+    start_of_week = date_time - timedelta(days=date_time.weekday())
+    return start_of_week
 
 
-def first_day_of_week(date_time: datetime):
-    if date_time.weekday() != 0:
-        offset = abs(0 - date_time.weekday())
-        return date_time - timedelta(days=offset)
-    else:
-        return date_time
-
-
-def last_day_of_week(date_time: datetime):
-    if date_time.weekday() != 6:
-        offset = 6 - date_time.weekday()
-        return date_time + timedelta(days=offset)
-    else:
-        return date_time
+def last_day_of_week(date_time: datetime) -> datetime:
+    """
+    Returns the last day of the week (Sunday) for the given datetime.
+    """
+    end_of_week = date_time + timedelta(days=(6 - date_time.weekday()))
+    return end_of_week
 
 
 def date_to_str_days(date: datetime):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, "%Y-%m-%dT00:00:00Z")
+    return date.strftime("%Y-%m-%dT00:00:00Z")
