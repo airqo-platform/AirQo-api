@@ -25,7 +25,7 @@ const emailTemplates = {
                             </table>
                             `;
   },
-    EMAIL_FOOTER_TEMPLATE: function (email, type, paramString) {
+    EMAIL_FOOTER_TEMPLATE: (email, type, paramString) => {
         let subscriptionBlock = ``;
         if (type && paramString) {
             const unSubsciptionUrl = `${baseUrl}/api/v2/users/unsubscribe/${type}?${paramString}`;
@@ -41,7 +41,6 @@ const emailTemplates = {
 <br /><br />
     `;
         }
-
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
