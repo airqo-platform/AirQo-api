@@ -345,7 +345,7 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
-  existing_user: ({ firstName = "", lastName = "", email = "" = "" } = {}) => {
+  existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
     <tr>
