@@ -36,9 +36,11 @@ def index():
 def air_quality_data_route():
     return air_quality_data()  # Call the air_quality_data function
 
-@app.route("/api/v2/analytics/grid/report/diurnal", methods=['POST'])
+
+@app.route("/api/v2/analytics/grid/report/diurnal", methods=["POST"])
 def air_quality_data_diurnal_route():
     return air_quality_data_diurnal()  # Call the air_quality_data_diurnal function
+
 
 if __name__ == "__main__":
     app.run()

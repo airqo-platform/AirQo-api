@@ -103,17 +103,17 @@ def query_bigquery(site_ids, start_time, end_time):
 def results_to_dataframe(results):
     df = (
         pd.DataFrame(results)
-        .assign(timestamp=lambda x: pd.to_datetime(x['timestamp']))
+        .assign(timestamp=lambda x: pd.to_datetime(x["timestamp"]))
         .assign(
-            dates=lambda x: x['timestamp'].dt.date.astype(str),
-            date=lambda x: pd.to_datetime(x['dates']),
-            day=lambda x: x['timestamp'].dt.day_name(),
-            hour=lambda x: x['timestamp'].dt.hour,
-            year=lambda x: x['timestamp'].dt.year,
-            month=lambda x: x['timestamp'].dt.month,
-            month_name=lambda x: x['timestamp'].dt.month_name()
+            dates=lambda x: x["timestamp"].dt.date.astype(str),
+            date=lambda x: pd.to_datetime(x["dates"]),
+            day=lambda x: x["timestamp"].dt.day_name(),
+            hour=lambda x: x["timestamp"].dt.hour,
+            year=lambda x: x["timestamp"].dt.year,
+            month=lambda x: x["timestamp"].dt.month,
+            month_name=lambda x: x["timestamp"].dt.month_name(),
         )
-        .dropna(subset=['site_latitude', 'site_longitude'])
+        .dropna(subset=["site_latitude", "site_longitude"])
     )
 
     return df
@@ -162,7 +162,13 @@ class PManalysis:
 
     @staticmethod
     def annual_mean_pm_site_name(dataframe):
-        return dataframe.groupby(['site_name','year'])[PM_COLUMNS_CORD].mean().round(4).reset_index() 
+        return (
+            dataframe.groupby(["site_name", "year"])[PM_COLUMNS_CORD]
+            .mean()
+            .round(4)
+            .reset_index()
+        )
+
     @staticmethod
     def mean_pm2_5_by_hour(dataframe):
         return dataframe.groupby("hour")[PM_COLUMNS].mean().round(4).reset_index()
@@ -213,9 +219,11 @@ class PManalysis:
 
     @staticmethod
     def pm_day_hour_name(dataframe):
-        return (dataframe.groupby(["day", "hour"])[PM_COLUMNS].mean().round(4).reset_index())
-    
+        return (
+            dataframe.groupby(["day", "hour"])[PM_COLUMNS].mean().round(4).reset_index()
+        )
+
     @staticmethod
     def gridname(dataframe):
-        unique_cities = dataframe['city'].unique().tolist()
+        unique_cities = dataframe["city"].unique().tolist()
         return unique_cities

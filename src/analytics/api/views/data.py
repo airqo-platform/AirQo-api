@@ -46,6 +46,7 @@ class DataExportResource(Resource):
         "startDateTime|required:datetime",
         "endDateTime|required:datetime",
         "frequency|optional:str",
+        "weatherFields|optional:list",
         "downloadType|optional:str",
         "outputFormat|optional:str",
         "pollutants|optional:list",
@@ -71,6 +72,7 @@ class DataExportResource(Resource):
         )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
+        weather_fields = json_data.get("weatherFields", None)
         frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
         download_type = (
             f"{json_data.get('downloadType', valid_download_types[0])}".lower()
@@ -145,6 +147,7 @@ class DataExportResource(Resource):
                 end_date=end_date,
                 frequency=frequency,
                 pollutants=pollutants,
+                weather_fields=weather_fields,
             )
 
             if data_frame.empty:

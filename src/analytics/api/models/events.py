@@ -9,6 +9,7 @@ from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
+    WEATHER_FIELDS_MAPPER,
 )
 from main import cache, CONFIGURATIONS
 
@@ -50,6 +51,7 @@ class EventsModel(BasePyMongoModel):
         end_date,
         frequency,
         pollutants,
+        weather_fields,
     ) -> pd.DataFrame:
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
@@ -72,6 +74,7 @@ class EventsModel(BasePyMongoModel):
 
         pollutant_columns = []
         bam_pollutant_columns = []
+        weather_columns = []
         for pollutant in pollutants:
             pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
                 pollutant, []
@@ -80,6 +83,14 @@ class EventsModel(BasePyMongoModel):
                 [
                     f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}"
                     for mapping in pollutant_mapping
+                ]
+            )
+
+        for field in weather_fields:
+            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
+            weather_columns.extend(
+                [
+                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
                 ]
             )
 
@@ -97,7 +108,7 @@ class EventsModel(BasePyMongoModel):
                 )
 
         pollutants_query = (
-            f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
+            f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
         bam_pollutants_query = (
