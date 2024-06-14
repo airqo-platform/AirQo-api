@@ -112,6 +112,12 @@ NO2_CATEGORY = {
     "All": [0, 2049],
 }
 
+WEATHER_FIELDS_MAPPER = {
+    "temperature": "device_temperature",
+    "humidity": "device_humidity",
+    "wind_speed": "wind_speed",
+}
+
 
 def set_pm25_category_background(pm25_value):
     keys = sorted(PM_25_COLOR_MAPPER.keys(), reverse=True)

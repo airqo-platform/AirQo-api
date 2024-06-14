@@ -21,7 +21,7 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
-    AIRQO_API_BASE_URL=env_var("AIRQO_API_BASE_URL")
+    AIRQO_API_BASE_URL = env_var("AIRQO_API_BASE_URL")
     GRID_URL = os.getenv("GRID_URL_ID")
 
     CACHE_TYPE = "RedisCache"
@@ -79,6 +79,7 @@ class Config:
         "url_prefix": f"{API_V2_BASE_URL}",
     }
 
+
 class ProductionConfig(Config):
     DEBUG = False
     MONGO_URI = env_var("MONGO_GCE_URI")
@@ -94,6 +95,7 @@ class DevelopmentConfig(Config):
     DB_NAME = env_var("MONGO_DEV")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
+
 
 class TestingConfig(Config):
     TESTING = True
@@ -114,4 +116,3 @@ config = {
 print(f"app running - {APP_ENV.upper()} mode")
 
 CONFIGURATIONS = config[APP_ENV]
-
