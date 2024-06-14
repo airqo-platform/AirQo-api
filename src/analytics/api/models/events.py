@@ -8,7 +8,8 @@ from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import (
-    BIGQUERY_FREQUENCY_MAPPER, WEATHER_FIELDS_MAPPER,
+    BIGQUERY_FREQUENCY_MAPPER,
+    WEATHER_FIELDS_MAPPER,
 )
 from main import cache, CONFIGURATIONS
 
@@ -87,9 +88,11 @@ class EventsModel(BasePyMongoModel):
 
         for field in weather_fields:
             weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
-            weather_columns.append(
-                    f"ROUND({data_table}.{field}, {decimal_places}) AS {field}" for field in weather_mapping
-                )
+            weather_columns.extend(
+                [
+                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
+                ]
+            )
 
             if pollutant == "pm2_5":
                 bam_pollutant_columns.extend(
