@@ -54,7 +54,9 @@ def realtime_daily_measurements():
         from datetime import datetime, timezone
 
         start_date_time = date_to_str_days(datetime.now(timezone.utc))
-        end_date_time = datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z")
+        end_date_time = datetime.strftime(
+            datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
+        )
 
         return DailyDataUtils.query_hourly_data(
             start_date_time=start_date_time,
