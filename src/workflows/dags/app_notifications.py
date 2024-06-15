@@ -162,7 +162,7 @@ def evening_notifications():
             NOTIFICATION_TEMPLATE_MAPPER,
         )
 
-        if datetime.now(timezone.utc).weekday in [5, 6]:
+        if datetime.now(timezone.utc).weekday() in [5, 6]:
             name = NOTIFICATION_TEMPLATE_MAPPER["weekend_evening"]
         else:
             name = NOTIFICATION_TEMPLATE_MAPPER["weekday_evening"]
