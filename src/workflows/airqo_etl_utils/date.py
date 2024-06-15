@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class DateUtils:
@@ -34,7 +34,7 @@ class DateUtils:
         except Exception as e:
             print("Exception in get_dag_date_time_values", repr(e))
             if hours is not None:
-                start_date_time = datetime.utcnow() - timedelta(hours=hours)
+                start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
                 end_date_time = start_date_time + timedelta(hours=hours)
                 start_date_time = DateUtils.date_to_str(
                     start_date_time, DateUtils.hour_date_time_format
@@ -43,7 +43,7 @@ class DateUtils:
                     end_date_time, DateUtils.hour_date_time_format
                 )
             elif days is not None:
-                start_date_time = datetime.utcnow() - timedelta(days=days)
+                start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
                 end_date_time = start_date_time + timedelta(days=days)
                 start_date_time = DateUtils.date_to_str(
                     start_date_time, DateUtils.day_start_date_time_format
@@ -52,8 +52,8 @@ class DateUtils:
                     end_date_time, DateUtils.day_end_date_time_format
                 )
             else:
-                start_date_time = datetime.utcnow() - timedelta(days=1)
-                end_date_time = datetime.utcnow()
+                start_date_time = datetime.now(timezone.utc) - timedelta(days=1)
+                end_date_time = datetime.now(timezone.utc)
                 start_date_time = DateUtils.date_to_str(
                     start_date_time, DateUtils.day_start_date_time_format
                 )
@@ -67,18 +67,18 @@ class DateUtils:
 
     @staticmethod
     def get_query_date_time_values(hours=1, days=0):
-        start_date_time = datetime.utcnow() - timedelta(hours=hours)
+        start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         end_date_time = start_date_time + timedelta(hours=hours)
 
         if days != 0:
-            start_date_time = datetime.utcnow() - timedelta(days=days)
+            start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
             end_date_time = start_date_time + timedelta(days=days)
 
         return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
 
 
 def get_utc_offset_for_hour(subject_hour: int) -> int:
-    hour = datetime.utcnow().hour
+    hour = datetime.now(timezone.utc).hour
     if hour < subject_hour:
         return abs(hour - subject_hour)
     elif hour > subject_hour:
