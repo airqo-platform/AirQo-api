@@ -67,7 +67,7 @@ class BigQueryApi:
             f" WHERE DATE(`{self.hourly_measurements_table}`.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
             f" AND `{self.hourly_measurements_table}`.pm2_5_raw_value IS NOT NULL "
         )
-        print(query)
+        
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
