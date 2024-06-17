@@ -1,8 +1,6 @@
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
-from airqo_etl_utils.airnow_api import AirNowApi
-from airqo_etl_utils.constants import DataSource
 
 
 # Historical Data DAG
