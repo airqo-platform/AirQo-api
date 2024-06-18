@@ -868,6 +868,42 @@ const createSite = {
       );
     }
   },
+
+  listAirQoActive: async (request, next) => {
+    try {
+      const { skip, limit, tenant } = request.query;
+      const filter = generateFilter.sites(request, next);
+      const responseFromListSite = await SiteModel(tenant).listAirQoActive(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+
+      if (responseFromListSite.success === false) {
+        return responseFromListSite;
+      }
+
+      const modifiedResponseFromListSite = {
+        ...responseFromListSite,
+        data: responseFromListSite.data.filter((obj) => obj.lat_long !== "4_4"),
+      };
+
+      return modifiedResponseFromListSite;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   formatSiteName: (name, next) => {
     try {
       let nameWithoutWhiteSpace = name.replace(/\s/g, "");
@@ -1052,7 +1088,10 @@ const createSite = {
         ...request.query,
         ...request.params,
       };
-      const responseFromListSites = await createSite.list(request, next);
+      const responseFromListSites = await createSite.listAirQoActive(
+        request,
+        next
+      );
 
       if (responseFromListSites.success === true) {
         let sites = responseFromListSites.data;
@@ -1078,6 +1117,9 @@ const createSite = {
             }
           }
         });
+
+        logObject("nearest_sites", nearest_sites);
+
         return {
           success: true,
           data: nearest_sites,

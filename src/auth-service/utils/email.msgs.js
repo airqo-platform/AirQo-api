@@ -258,7 +258,6 @@ module.exports = {
                     </tr>`;
     return constants.EMAIL_BODY(email, content, name);
   },
-
   user_updated: ({
     firstName = "",
     lastName = "",
@@ -344,13 +343,44 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
+  tokenExpiringSoon: ({ firstName = "", lastName = "", email = "" }) => {
+    const name = firstName + " " + lastName;
+    let content = "";
+    content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>Your AIRQO API token is set to expire soon, in less than 2 months from today.</p>
+          <p>Please generate a new token to continue accessing our services.</p>
+          <p>If you have already done so, please ignore this message.</p>
+        </td>
+      </tr>
+    `;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
+  updateProfilePrompt: ({ firstName = "", lastName = "", email = "" }) => {
+    const name = `${firstName} ${lastName}`;
+    let content = "";
+    content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>We noticed that your first name and last name are not yet set in your profile. Updating these details will enhance your experience with our service.</p>
+          <p>To proceed, please visit AirQo Analytics and update your profile with your full name.</p>
+          <p>If you have already updated your name, please ignore this message.</p>
+        </td>
+      </tr>
+    `;
+
+    return constants.EMAIL_BODY(email, content, name);
+  },
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
+    const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd`;
     const content = `
     <tr>
      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
        <p>You already exist as an AirQo User.</p>
-       <p>Please use the FORGOT PASSWORD feature by clicking <a href="${constants.FORGOT_PAGE}" style="color: blue; text-decoration: underline;">HERE</a>.</p>
+       <p>Please use the FORGOT PASSWORD feature by clicking <a href="${FORGOT_PAGE}" style="color: blue; text-decoration: underline;">HERE</a>.</p>
      </td>
     </tr>
     `;

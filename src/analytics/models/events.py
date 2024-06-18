@@ -52,7 +52,7 @@ class EventsModel(BasePyMongoModel):
         end_date,
         frequency,
         pollutants,
-        weather_fields
+        weather_fields,
     ) -> pd.DataFrame:
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
@@ -84,6 +84,14 @@ class EventsModel(BasePyMongoModel):
                 [
                     f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}"
                     for mapping in pollutant_mapping
+                ]
+            )
+
+        for field in weather_fields:
+            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
+            weather_columns.extend(
+                [
+                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
                 ]
             )
 

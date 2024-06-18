@@ -1,15 +1,41 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const isEmpty = require("is-empty");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${(
+    process.env.NODE_ENV || "production"
+  ).toUpperCase()} ENVIRONMENT -- config/global/email-template`
+);
 
 const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
-    return `<tr>
-                                    <td
-                                        style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
-                                        Dear ${name},
-                                    </td>
-                                </tr>`;
+    try {
+      let greetingText;
+      if (isEmpty(name) || typeof name !== "string") {
+        greetingText = "Hello!";
+      } else {
+        const nameWords = name.split(" ");
+        if (
+          nameWords.some(
+            (word) => word.toLowerCase() === "unknown".toLowerCase()
+          )
+        ) {
+          greetingText = "Hello!";
+        } else {
+          greetingText = `Dear ${name},`;
+        }
+      }
+
+      return `<tr>
+                <td
+                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
+                    ${greetingText}
+                </td>
+            </tr>`;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    }
   },
+
   EMAIL_HEADER_TEMPLATE: function () {
     return `
     <table style="width: 100%; padding-bottom: 24px;">
