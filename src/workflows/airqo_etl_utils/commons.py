@@ -1,5 +1,5 @@
 import math
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -127,7 +127,7 @@ def get_date_time_values(interval_in_days: int = 1, **kwargs):
         start_date_time = dag_run.conf["start_date_time"]
         end_date_time = dag_run.conf["end_date_time"]
     except KeyError:
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=interval_in_days)
         start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
         end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")

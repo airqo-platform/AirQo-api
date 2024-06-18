@@ -4,6 +4,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.constants import DataSource
 
+
 # Historical Data DAG
 @dag(
     dag_id="Airnow-Historical-Bam-Data",
@@ -73,6 +74,7 @@ def airnow_bam_historical_data():
     send_to_bigquery(processed_bam_data)
     send_to_api(processed_bam_data)
 
+
 # Real-Time Data DAG
 @dag(
     dag_id="Airnow-Realtime-Bam-Data",
@@ -135,6 +137,7 @@ def airnow_bam_realtime_data():
     send_to_message_broker(processed_bam_data)
     send_to_bigquery(processed_bam_data)
     send_to_api(processed_bam_data)
+
 
 airnow_bam_realtime_data()
 airnow_bam_historical_data()

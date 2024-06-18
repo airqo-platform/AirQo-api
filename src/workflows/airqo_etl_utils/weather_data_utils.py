@@ -1,6 +1,6 @@
 import concurrent.futures
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -257,8 +257,8 @@ class WeatherDataUtils:
                 )
             return [
                 {
-                    "timestamp": datetime.utcfromtimestamp(
-                        result.get("dt", 0)
+                    "timestamp": datetime.fromtimestamp(
+                        result.get("dt", 0), tz=timezone.utc
                     ).strftime("%Y-%m-%d %H:%M:%S"),
                     "latitude": result.get("coord", {}).get("lat", 0),
                     "longitude": result.get("coord", {}).get("lon", 0),
