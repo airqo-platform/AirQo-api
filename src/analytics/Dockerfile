@@ -26,6 +26,3 @@ CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:flask_app"]
 
 FROM base as celery
 CMD ["celery", "-A", "app", "worker", "--loglevel=info"]
-
-FROM base as devices-summary-job
-CMD ["python", "devices_summary.py"]
