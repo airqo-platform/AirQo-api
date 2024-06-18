@@ -1,4 +1,3 @@
-from datetime import timedelta
 
 from celery import Celery, Task
 from flasgger import Swagger
@@ -10,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import CONFIGURATIONS, API_BASE_URL
 from config import Config
-from namespaces import dashboard_api, data_export_api
+from namespaces import dashboard_api, data_export_api, auto_report_api
 
 api = Api(
     title="AirQo API", version="1.0", description="AirQo API", prefix=API_BASE_URL
@@ -46,6 +45,7 @@ def create_app():
     api.init_app(app)
     api.add_namespace(ns=dashboard_api)
     api.add_namespace(ns=data_export_api)
+    api.add_namespace(ns=auto_report_api)
 
     celery = celery_init_app(app)
 

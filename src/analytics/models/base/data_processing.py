@@ -9,12 +9,9 @@ from utils.pollutants.report import (
     PManalysis,
 )
 
-# Configure logging
-logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
 
-
-def air_quality_data():
-    data = request.get_json()
+def air_quality_data(json_data):
+    data = json_data
     grid_id = data.get("grid_id", "")
     start_time_str = data.get("start_time", "")
     end_time_str = data.get("end_time", "")

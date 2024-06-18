@@ -1,4 +1,11 @@
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError, post_load
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates_schema,
+    ValidationError,
+    post_load,
+)
 
 
 class DataExportSchema(Schema):

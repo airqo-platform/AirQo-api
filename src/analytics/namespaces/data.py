@@ -172,10 +172,7 @@ class BulkDataExportResource(Resource):
                 data = str(result.result)
                 result.forget()
                 return (
-                    create_response(
-                        "request successfully received",
-                        data=data
-                    ),
+                    create_response("request successfully received", data=data),
                     Status.HTTP_200_OK,
                 )
             else:
