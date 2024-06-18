@@ -4,8 +4,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-    celery: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
+    celery: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery
   tag: stage-96d94ce4-1715349509
 api:
   name: airqo-stage-analytics-api
@@ -20,14 +19,6 @@ api:
     requests:
       cpu: 10m
       memory: 250Mi
-jobs:
-  devicesSummaryJob:
-    name: stage-analytics-devices-summary
-    configmap: env-analytics-staging
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

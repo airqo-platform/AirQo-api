@@ -921,7 +921,6 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
 
-
       - name: Build and push Celery Docker Image
         uses: docker/build-push-action@v4.1.1
         with:
@@ -929,15 +928,6 @@ jobs:
           context: src/analytics/
           target: celery
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery:latest
-
-      - name: Build and push device summary job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/analytics/
-          target: devices-summary-job
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:latest
-
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
