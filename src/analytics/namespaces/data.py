@@ -51,6 +51,7 @@ class DataExportResource(Resource):
         )
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", [])
+        weather_fields = json_data.get("weatherFields", [])
         frequency = f"{json_data.get('frequency', [])}".lower()
         download_type = f"{json_data.get('downloadType', [])}".lower()
         output_format = f"{json_data.get('outputFormat', [])}".lower()
@@ -66,6 +67,7 @@ class DataExportResource(Resource):
                 end_date=end_date,
                 frequency=frequency,
                 pollutants=pollutants,
+                weather_fields=weather_fields,
             )
 
             if data_frame.empty:
@@ -128,8 +130,9 @@ class BulkDataExportResource(Resource):
         frequency = f"{json_data.get('frequency', [])}".lower()
         export_format = f"{json_data.get('exportFormat', 'csv')}".lower()
         pollutants = json_data.get(
-            "pollutants",
+            "pollutants", []
         )
+        weather_fields = json_data.get("weatherFields", [])
         output_format = f"{json_data.get('outputFormat', 'airqo-standard')}".lower()
         try:
             tasks.export_data.apply_async(
@@ -141,6 +144,7 @@ class BulkDataExportResource(Resource):
                     end_date,
                     frequency,
                     pollutants,
+                    weather_fields,
                     output_format,
                     export_format,
                     meta_data,

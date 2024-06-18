@@ -22,6 +22,7 @@ def export_data(
     frequency,
     pollutants,
     output_format,
+    weather_fields,
     export_format,
     meta_data,
     user_id,
@@ -35,6 +36,7 @@ def export_data(
             end_date=end_date,
             frequency=frequency,
             pollutants=pollutants,
+            weather_fields=weather_fields,
         )
         if output_format == "aqcsv":
             dataframe = format_to_aqcsv(

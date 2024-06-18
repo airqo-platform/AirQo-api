@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from models.base.base_model import BasePyMongoModel
 from utils.dates import date_to_str
 from utils.pollutants.pm_25 import (
-    BIGQUERY_FREQUENCY_MAPPER,
+    BIGQUERY_FREQUENCY_MAPPER, WEATHER_FIELDS_MAPPER,
 )
 from config import CONFIGURATIONS
 
@@ -52,6 +52,7 @@ class EventsModel(BasePyMongoModel):
         end_date,
         frequency,
         pollutants,
+        weather_fields
     ) -> pd.DataFrame:
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
@@ -74,6 +75,7 @@ class EventsModel(BasePyMongoModel):
 
         pollutant_columns = []
         bam_pollutant_columns = []
+        weather_columns = []
         for pollutant in pollutants:
             pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
                 pollutant, []
@@ -98,14 +100,22 @@ class EventsModel(BasePyMongoModel):
                     ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
                 )
 
+        for field in weather_fields:
+            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
+            weather_columns.extend(
+                [
+                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
+                ]
+            )
         pollutants_query = (
-            f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
+            f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
         bam_pollutants_query = (
             f" SELECT {', '.join(map(str, set(bam_pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
+
 
         if len(devices) != 0:
             # Adding device information, start and end times

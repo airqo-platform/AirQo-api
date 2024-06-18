@@ -18,6 +18,11 @@ class DataExportSchema(Schema):
         fields.String(validate=validate.OneOf(["pm2_5", "pm10", "no2"])),
         validate=validate.Length(min=1),
     )
+    weather_fields = fields.List(
+        fields.String(
+            validate=validate.OneOf(["temperature", "humidity", "wind_speed"])
+        ),
+    )
     sites = fields.List(fields.String())
     devices = fields.List(fields.String())
     airqlouds = fields.List(fields.String())
