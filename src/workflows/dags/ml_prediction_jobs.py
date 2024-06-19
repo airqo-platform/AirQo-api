@@ -19,9 +19,9 @@ def make_forecasts():
     ### Hourly forecast tasks
     @task()
     def get_historical_data_for_hourly_forecasts():
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        start_date = datetime.utcnow() - timedelta(
+        start_date = datetime.now(timezone.utc) - timedelta(
             hours=int(configuration.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         from airqo_etl_utils.date import date_to_str
@@ -64,10 +64,10 @@ def make_forecasts():
     # Daily forecast tasks
     @task()
     def get_historical_data_for_daily_forecasts():
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         from airqo_etl_utils.date import date_to_str
 
-        start_date = datetime.utcnow() - timedelta(
+        start_date = datetime.now(timezone.utc) - timedelta(
             days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")

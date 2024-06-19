@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 from airflow.decorators import dag, task
 
@@ -179,7 +179,7 @@ def weather_data_realtime():
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import date_to_str_hours
 
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 

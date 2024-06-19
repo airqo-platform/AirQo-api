@@ -17,10 +17,10 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
-    start_date=days_ago(1),  
+    start_date=days_ago(1),
 )
 def airqo_bam_historical_measurements():
-    
+
     @task()
     def extract_bam_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -62,6 +62,7 @@ def airqo_bam_historical_measurements():
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
+
 
 airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from airflow.decorators import dag, task
 
@@ -117,7 +117,7 @@ def morning_notifications():
             NOTIFICATION_TEMPLATE_MAPPER,
         )
 
-        if datetime.utcnow().weekday in [5, 6]:
+        if datetime.now(timezone.utc).weekday in [5, 6]:
             template = NOTIFICATION_TEMPLATE_MAPPER["weekend_morning"]
         else:
             template = NOTIFICATION_TEMPLATE_MAPPER["weekday_morning"]
@@ -162,7 +162,7 @@ def evening_notifications():
             NOTIFICATION_TEMPLATE_MAPPER,
         )
 
-        if datetime.utcnow().weekday in [5, 6]:
+        if datetime.now(timezone.utc).weekday() in [5, 6]:
             name = NOTIFICATION_TEMPLATE_MAPPER["weekend_evening"]
         else:
             name = NOTIFICATION_TEMPLATE_MAPPER["weekday_evening"]
