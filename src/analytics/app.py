@@ -47,7 +47,7 @@ def create_app():
     api.add_namespace(ns=data_export_api)
     api.add_namespace(ns=auto_report_api)
 
-    celery = celery_init_app(app)
+    celery_init_app(app)
 
     @app.route("/health")
     def health():

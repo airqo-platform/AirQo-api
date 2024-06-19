@@ -44,7 +44,7 @@ windows
 - `set FLASK_ENV=development`
 
 linux/mac
-- `export FLASK_APP=manage.py`
+- `export FLASK_APP=app.py`
 - `export FLASK_ENV=development`
 
 

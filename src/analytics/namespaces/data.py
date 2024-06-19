@@ -97,7 +97,7 @@ class DataExportResource(Resource):
             traceback.print_exc()
             return (
                 create_response(
-                    f"An Error occurred while processing your request. Please contact support",
+                    "An Error occurred while processing your request. Please contact support",
                     success=False,
                 ),
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -162,7 +162,7 @@ class BulkDataExportResource(Resource):
             traceback.print_exc()
             return (
                 create_response(
-                    f"An Error occurred while processing your request. Please contact support",
+                    "An Error occurred while processing your request. Please contact support",
                     success=False,
                 ),
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,

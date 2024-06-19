@@ -28,6 +28,7 @@ def export_data(
     user_id,
 ):
     try:
+        celery_logger.info("Exporting data")
         dataframe = EventsModel.download_from_bigquery(
             devices=devices,
             sites=sites,
@@ -53,6 +54,7 @@ def export_data(
 
         file_url = blob.public_url
 
+        celery_logger.info("Data export completed successfully")
         return file_url
 
     except Exception as e:

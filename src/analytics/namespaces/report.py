@@ -17,7 +17,7 @@ class GridReportResource(Resource):
             json_data = AutoReportSchema().load(auto_report_api.payload)
         except ValidationError as err:
             return (
-                create_response(f" {err.messages}", success=False),
+                create_response(f" {err.messages}", data=None, success=False),
                 Status.HTTP_400_BAD_REQUEST,
             )
         return air_quality_data(json_data)
