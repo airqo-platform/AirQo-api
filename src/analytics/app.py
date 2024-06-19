@@ -4,6 +4,7 @@ from flasgger import Swagger
 from flask import Flask, jsonify, send_from_directory
 from flask_caching import Cache
 from flask_cors import CORS
+from flask_excel import init_excel
 from flask_restx import Api
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -40,6 +41,7 @@ def create_app():
     }
 
     cache.init_app(app)
+    init_excel(app)
     Swagger(app)
     CORS(app)
     api.init_app(app)

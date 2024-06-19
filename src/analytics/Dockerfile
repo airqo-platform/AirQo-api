@@ -18,11 +18,11 @@ CMD ["flask", "run",  "--host=0.0.0.0"]
 
 FROM base as staging
 ENV FLASK_ENV=staging
-CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:create_app"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:flask_app"]
 
 FROM base as production
 ENV FLASK_ENV=production
-CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:create_app"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:flask_app"]
 
 FROM base as celery
 CMD ["celery", "-A", "app", "worker", "--loglevel=info"]

@@ -13,8 +13,8 @@ from utils.pollutants.report import (
 logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
 
 
-def air_quality_data_diurnal():
-    data = request.get_json()
+def air_quality_data_diurnal(json_data):
+    data = json_data
     grid_id = data.get("grid_id", "")
     start_time_str = data.get("start_time", "")
     end_time_str = data.get("end_time", "")
