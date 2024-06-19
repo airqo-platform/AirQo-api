@@ -269,16 +269,16 @@ def airqo_realtime_measurements():
     import pandas as pd
 
     from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
     start_date_time = date_to_str_hours(hour_of_day)
     end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     @task(
         doc_md=extract_raw_airqo_data_doc,
     )
-    def extract_raw_data():
+    def extract_raw_data() -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory
 
@@ -289,7 +289,7 @@ def airqo_realtime_measurements():
         )
 
     @task()
-    def clean_data_raw_data(data: pd.DataFrame):
+    def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
