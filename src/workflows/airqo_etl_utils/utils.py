@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -96,7 +96,7 @@ class Utils:
         from airqo_etl_utils.date import date_to_str_hours
         from datetime import datetime, timedelta
 
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
