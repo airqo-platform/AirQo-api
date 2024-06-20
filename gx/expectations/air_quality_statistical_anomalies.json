@@ -1,0 +1,51 @@
+{
+    "data_asset_type": "Dataset",
+    "expectation_suite_name": "air_quality_statistical_anomalies",
+    "meta": {
+        "great_expectations_version": "0.15.34"
+    },
+    "expectations": [
+        {
+            "expectation_type": "expect_column_mean_to_be_between",
+            "kwargs": {
+                "column": "pm2_5",
+                "min_value": 5,
+                "max_value": 50
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_median_to_be_between",
+            "kwargs": {
+                "column": "pm2_5",
+                "min_value": 5,
+                "max_value": 50
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_stdev_to_be_between",
+            "kwargs": {
+                "column": "pm2_5",
+                "min_value": 0,
+                "max_value": 10
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_most_common_value_to_be_in_set",
+            "kwargs": {
+                "column": "temperature",
+                "value_set": [
+                    20,
+                    21,
+                    22,
+                    23
+                ]
+            },
+            "meta": {}
+        }
+    ],
+    "ge_cloud_id": null,
+    "data_asset_name": null
+}
