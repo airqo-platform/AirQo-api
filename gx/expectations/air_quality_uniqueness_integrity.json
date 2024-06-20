@@ -1,0 +1,44 @@
+{
+    "data_asset_type": "Dataset",
+    "expectation_suite_name": "air_quality_uniqueness_integrity",
+    "meta": {
+        "great_expectations_version": "0.15.34"
+    },
+    "expectations": [
+        {
+            "expectation_type": "expect_column_values_to_be_unique",
+            "kwargs": {
+                "column": "sensor_id"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_compound_columns_to_be_unique",
+            "kwargs": {
+                "column_list": [
+                    "timestamp",
+                    "sensor_id"
+                ]
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_of_type",
+            "kwargs": {
+                "column": "timestamp",
+                "type_": "TIMESTAMP"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_of_type",
+            "kwargs": {
+                "column": "sensor_id",
+                "type_": "STRING"
+            },
+            "meta": {}
+        }
+    ],
+    "ge_cloud_id": null,
+    "data_asset_name": null
+}
