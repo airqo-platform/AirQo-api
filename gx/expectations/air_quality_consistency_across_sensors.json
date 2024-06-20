@@ -1,0 +1,30 @@
+{
+    "data_asset_type": "Dataset",
+    "expectation_suite_name": "air_quality_consistency_across_sensors",
+    "meta": {
+        "great_expectations_version": "0.15.34"
+    },
+    "expectations": [
+        {
+            "expectation_type": "expect_multicolumn_values_to_be_unique",
+            "kwargs": {
+                "column_list": [
+                    "timestamp",
+                    "sensor_id"
+                ]
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+            "kwargs": {
+                "column_A": "pm10",
+                "column_B": "pm2_5",
+                "or_equal": true
+            },
+            "meta": {}
+        }
+    ],
+    "ge_cloud_id": null,
+    "data_asset_name": null
+}
