@@ -1,0 +1,24 @@
+{
+    "data_asset_type": "Dataset",
+    "expectation_suite_name": "air_quality_referential_integrity",
+    "meta": {
+        "great_expectations_version": "0.15.34"
+    },
+    "expectations": [
+        {
+            "expectation_type": "expect_column_values_to_be_in_set",
+            "kwargs": {
+                "column": "sensor_id",
+                "value_set": [
+                    "sensor_1",
+                    "sensor_2",
+                    "sensor_3",
+                    "sensor_4"
+                ]
+            },
+            "meta": {}
+        }
+    ],
+    "ge_cloud_id": null,
+    "data_asset_name": null
+}
