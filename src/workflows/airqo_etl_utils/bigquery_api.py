@@ -58,14 +58,14 @@ class BigQueryApi:
         day: datetime,
     ) -> pd.DataFrame:
         query = (
-            f" SELECT {self.hourly_measurements_table}.pm2_5_calibrated_value , "
-            f" {self.hourly_measurements_table}.pm2_5_raw_value ,"
-            f" {self.hourly_measurements_table}.site_id ,"
-            f" {self.hourly_measurements_table}.device_id AS device ,"
-            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {self.hourly_measurements_table}.timestamp) AS timestamp ,"
-            f" FROM {self.hourly_measurements_table} "
-            f" WHERE DATE({self.hourly_measurements_table}.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
-            f" AND {self.hourly_measurements_table}.pm2_5_raw_value is not null "
+            f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
+            f" `{self.hourly_measurements_table}`.pm2_5_raw_value ,"
+            f" `{self.hourly_measurements_table}`.site_id ,"
+            f" `{self.hourly_measurements_table}`.device_id AS device ,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', `{self.hourly_measurements_table}`.timestamp) AS timestamp "
+            f" FROM `{self.hourly_measurements_table}` "
+            f" WHERE DATE(`{self.hourly_measurements_table}`.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
+            f" AND `{self.hourly_measurements_table}`.pm2_5_raw_value IS NOT NULL "
         )
 
         job_config = bigquery.QueryJobConfig()

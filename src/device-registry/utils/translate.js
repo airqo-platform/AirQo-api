@@ -376,6 +376,55 @@ async function tipsTranslations(index, target) {
         }
       ];
       break;
+    case "pcm":
+      translatedTips = [
+        {
+          "title": "For Everybody",
+          "description": "If you wan spend plenty time outside, face mask wey dem fit throway like N95 go help well well."
+        },
+        {
+          "title": "For Everybody",
+          "description": "Make you reduce how you dey waka outside. Try stay inside house until the air quality don better."
+        },
+        {
+          "title": "For Everybody",
+          "description": "No do activity wey go make you dey breathe fast. Today na correct day to stay inside house read book."
+        },
+        {
+          "title": "For Children",
+          "description": "Reduce how you dey waka outside."
+        },
+        {
+          "title": "For Old People",
+          "description": "Reduce how you dey waka outside."
+        },
+        {
+          "title": "For Pregnant Women",
+          "description": "Reduce how you dey waka outside to keep you and your baby healthy."
+        },
+        {
+          "title": "For People Wey Get Breathing Wahala",
+          "description": "No do exercise wey go stress you. Relax if you dey experience signs like cough."
+        },
+        {
+          "title": "For Old People",
+          "description": "Reduce how you dey waka outside."
+        },
+        {
+          "title": "For Pregnant Women",
+          "description": "Reduce how you dey waka outside to keep you and your baby healthy."
+        },
+        {
+          "title": "For Everybody",
+          "description": "Today na good day to do activity for outside."
+        },
+        {
+          "title": "For Everybody",
+          "description": "Today good to go outside do exercise. Remember to reduce how you dey use motor."
+        }
+      ]
+      break;
+
     default:
       translatedTips = [];
   }
@@ -563,6 +612,45 @@ async function lessonTranslations(index, target) {
         }
       ];
       break;
+    case "pcm":
+      translatedLessons = [
+        {
+          "title": "Things you fit do to reduce air pollution",
+          "completion_message": "You just finish your first Know Your Air Lesson",
+          "tasks": [
+            {
+              "title": "Use public transport",
+              "content": "Motor exhaust na big source of air pollution. Less motor for road go reduce emissions."
+            },
+            {
+              "title": "Service your car/boda boda regularly",
+              "content": "Regular checkup fit maximize fuel efficiency, wey go reduce motor emissions."
+            },
+            {
+              "title": "No idle your motor engine for traffic",
+              "content": "Motor dey produce bad exhaust. Off your engine when you dey traffic."
+            },
+            {
+              "title": "Waka or ride bicycle",
+              "content": "Waka or ride bicycle go reduce your carbon footprint and e go help your health too!"
+            },
+            {
+              "title": "No burn garbage",
+              "content": "To burn your house garbage dey dangerous for your health and the environment."
+            },
+            {
+              "title": "Reduce single-use plastic products",
+              "content": "No dey use plastic bags, dem dey take time to decay. Use paper bags or baskets for your shopping."
+            },
+            {
+              "title": "Become champion for clear air",
+              "content": "Join our air quality campaign and talk for clean air for your community."
+            }
+          ]
+        }
+      ];
+      break;
+
     default:
       translatedLessons = [];
   }
@@ -1362,6 +1450,201 @@ async function quizTranslations(index, target) {
         }
       ];
       break;
+
+    case "pcm":
+      translatedQuizzes = [
+        {
+          "title": "Find your own personalized air quality tips here!",
+          "description": "Answer this quiz about your area and daily waka to get customized tips wey fit you!",
+          "completion_message": "Well done! You don unlock personalized air quality tips wey go help you on your clean air journey.",
+          "questions": [
+            {
+              "title": "Which cooking method you dey use for house?",
+              "context": "Home environment",
+              "answers": [
+                {
+                  "title": "Firewood",
+                  "content": [
+                    "To cook with firewood fit release plenty air pollution.",
+                    "Cook for kitchen wey get good ventilation or set up outdoor kitchen if you fit.",
+                    "Use better stove wey fit burn firewood cleanly and with less smoke.",
+                    "Think about changing to improved cookstoves wey go reduce emissions and save fuel."
+                  ]
+                },
+                {
+                  "title": "Charcoal Stove",
+                  "content": [
+                    "To use charcoal stove fit release bad pollutants like particulate matter and carbon monoxide.",
+                    "Use charcoal stove for kitchen wey get good ventilation or near open window.",
+                    "When you dey cook, open doors and windows to reduce smoke.",
+                    "If you fit, try change to better cooking options wey go reduce indoor air pollution."
+                  ]
+                },
+                {
+                  "title": "Gas Cooker",
+                  "content": [
+                    "To use gas cooker clean pass to use solid fuel.",
+                    "Make sure say ventilation dey well to avoid gas buildup inside house.",
+                    "Check gas cooker and connections regularly to avoid leaks wey fit affect indoor air quality."
+                  ]
+                },
+                {
+                  "title": "Biogas",
+                  "content": [
+                    "Biogas na cleaner cooking option.",
+                    "Maintain biogas system well to make sure gas production and burning dey efficient.",
+                    "Even though biogas clean, make sure ventilation dey well to avoid small emissions.",
+                    "Follow manufacturer guidelines to use biogas safely and efficiently."
+                  ]
+                },
+                {
+                  "title": "Electric Cooker",
+                  "content": [
+                    "Electric cookers no dey produce air pollution inside house.",
+                    "Even without emissions, make sure ventilation dey to avoid other indoor pollutants.",
+                    "To use energy-efficient electric cookers fit reduce overall environmental impact."
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "How you dey dispose rubbish for house?",
+              "context": "Home environment",
+              "answers": [
+                {
+                  "title": "Burn am",
+                  "content": [
+                    "To burn rubbish fit release plenty pollutants like particulate matter and toxic substances.",
+                    "Use proper waste disposal methods like recycling, collect am for waste disposal site or use waste collection service companies."
+                  ]
+                },
+                {
+                  "title": "Collect for waste disposal site",
+                  "content": [
+                    "To do proper waste collection go reduce your exposure to air pollution.",
+                    "Central waste disposal sites fit serve as hubs for recycling and sorting."
+                  ]
+                },
+                {
+                  "title": "I wan sabi other forms of waste management",
+                  "content": [
+                    "Composting - Organic matter like food scraps and yard waste fit decay under soil to form plant manure.",
+                    "Salvaging - Materials like metal, paper, glass, rags, and some plastics fit be salvaged, recycled, and reused."
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Where your house dey?",
+              "context": "Home environment",
+              "answers": [
+                {
+                  "title": "Near busy road",
+                  "content": [
+                    "To live near busy road dey increase exposure to air pollution.",
+                    "Only open windows wey dey face road when traffic no too much.",
+                    "Plant trees or hedge around house as barrier against emissions."
+                  ]
+                },
+                {
+                  "title": "Street wey no get plenty traffic",
+                  "content": [
+                    "Your exposure to air pollution dey limited since no too much vehicle emissions dey."
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "How often you dey do outdoor activities?",
+              "context": "Outdoor activities",
+              "answers": [
+                {
+                  "title": "Regularly",
+                  "content": [
+                    "Check air quality and forecasts for your area with AirQo app to avoid outdoor activities for days wey get bad air quality.",
+                    "Plan your activities for low pollution hours like early morning or late evening.",
+                    "Do your activities around roads with less traffic and green spaces."
+                  ]
+                },
+                {
+                  "title": "Occasionally",
+                  "content": [
+                    "Check air quality and forecasts for your area with AirQo app to avoid outdoor activities for days wey get bad air quality.",
+                    "Limit outdoor activities for days wey get bad air quality."
+                  ]
+                },
+                {
+                  "title": "Rarely/Never",
+                  "content": [
+                    "For people wey no dey do outdoor activities, try indoor exercise options like treadmill or stationary bike.",
+                    "Use AirQo app to check air quality for your area to plan any outdoor activities.",
+                    "Make sure say you minimize your exposure to air pollution for house by avoiding open burning of waste and increase ventilation for house when you dey do activities wey dey generate pollutants."
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Which kind road you dey use pass?",
+              "context": "Transportation",
+              "answers": [
+                {
+                  "title": "Dusty/unpaved road",
+                  "content": [
+                    "Close windows and doors when e dey dusty, especially on windy days.",
+                    "Wear mask or cover your nose/mouth with cloth like handkerchief/scarf when e dey dusty.",
+                    "Remember to check air quality and forecasts for your area with AirQo app to plan for days wey get bad air quality."
+                  ]
+                },
+                {
+                  "title": "Tarmacked road/road with less dust",
+                  "content": [
+                    "To live near tarmacked roads go expose you to less dust, but vehicle emissions fit still affect air quality.",
+                    "Plant trees or shrubs around house to act as natural barriers to absorb pollutants."
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Which kind transport you dey use pass?",
+              "context": "Transportation",
+              "answers": [
+                {
+                  "title": "Car",
+                  "content": [
+                    "Service your car regularly to make sure engine dey good to reduce emissions.",
+                    "No dey wait for long time with car engine dey run.",
+                    "When you fit, carpool with others to reduce the number of cars for road."
+                  ]
+                },
+                {
+                  "title": "Taxi or bus",
+                  "content": [
+                    "To use public transport fit reduce the overall number of vehicles for road. This go reduce vehicle emissions and exposure to air pollution."
+                  ]
+                },
+                {
+                  "title": "Boda boda / motorbike",
+                  "content": [
+                    "When you dey use boda boda, wear mask to protect yourself from dust and pollutants.",
+                    "Boda boda riders suppose maintain their engine well."
+                  ]
+                },
+                {
+                  "title": "Walking",
+                  "content": [
+                    "Walk for sidewalk wey far from road to help reduce exposure to vehicle emissions.",
+                    "Before you go out, check the air quality for your area with AirQo app. Consider other transport or other routes if air quality bad.",
+                    "Wear mask if you dey walk during high pollution hours like early morning (7am to 10am) and late evening when traffic dey much.",
+                    "If you fit, choose routes wey avoid places wey get pollution sources like construction sites or industrial zones."
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ];
+      break;
+
     default:
       translatedQuizzes = [];
   }

@@ -185,7 +185,7 @@ class Satellite_data:
 
             # Prepare the response data
             response_data = {
-                'Title': 'Daily Sentinel-5P Pollutant Data',
+                'Title': 'Daily_Sentinel-5P_Pollutant_Data',
                 'columns': columns,
                 'rows': rows
             }

@@ -1,7 +1,7 @@
 import base64
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from airflow.hooks.base import BaseHook
@@ -12,9 +12,9 @@ from .utils import Utils
 
 class AirflowUtils:
     @staticmethod
-    def dag_default_configs():
+    def dag_default_configs() -> dict:
         return {
-            "start_date": datetime.utcnow() - timedelta(days=2),
+            "start_date": datetime.now(timezone.utc) - timedelta(days=2),
             "owner": "AirQo",
             "owner_links": {"AirQo": "https://airqo.africa"},
             "retries": 0,
@@ -132,7 +132,7 @@ class AirflowUtils:
         return dag_runs
 
     def remove_old_dag_runs(self, days: int):
-        execution_date_time = datetime.utcnow() - timedelta(days=days)
+        execution_date_time = datetime.now(timezone.utc) - timedelta(days=days)
 
         dags_response = requests.get(
             f"{self.base_url}/api/v1/dags",

@@ -15,7 +15,7 @@ def data_summary():
 
     def extract(**kwargs):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         from airqo_etl_utils.date import str_to_date
 
         try:
@@ -23,7 +23,7 @@ def data_summary():
             date_time = str_to_date(date_time)
         except Exception as ex:
             print(ex)
-            date_time = datetime.utcnow() - timedelta(days=2)
+            date_time = datetime.now(timezone.utc) - timedelta(days=2)
 
         bigquery_api = BigQueryApi()
         return bigquery_api.get_devices_hourly_data(day=date_time)
