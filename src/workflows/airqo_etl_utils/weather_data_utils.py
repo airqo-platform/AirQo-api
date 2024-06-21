@@ -179,28 +179,35 @@ class WeatherDataUtils:
             return data
 
         data = data.dropna(subset=["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         aggregated_data = pd.DataFrame()
 
         station_groups = data.groupby("station_code")
 
         for _, station_group in station_groups:
-            station_group.index = station_group["timestamp"]
-            station_group = station_group.sort_index(axis=0)
+            station_group = station_group.set_index("timestamp").sort_index()
 
-            averaging_data = station_group.copy()
-            del averaging_data["precipitation"]
-            averages = pd.DataFrame(averaging_data.resample("H").mean())
+            numeric_columns = station_group.select_dtypes(include=["number"]).columns
+            averaging_data = station_group[numeric_columns].drop(
+                columns=["precipitation"], errors="ignore"
+            )
+
+            averages = averaging_data.resample("H").mean()
             averages["timestamp"] = averages.index
             averages.reset_index(drop=True, inplace=True)
 
-            summing_data = station_group.copy()[["timestamp", "precipitation"]]
-            sums = pd.DataFrame(summing_data.resample("H").sum())
+            summing_data = station_group[["precipitation"]]
+            sums = summing_data.resample("H").sum(numeric_only=True)
             sums["timestamp"] = sums.index
             sums.reset_index(drop=True, inplace=True)
 
-            merged_data = pd.merge(left=averages, right=sums, on="timestamp")
-            merged_data["station_code"] = station_group.iloc[0]["station_code"]
+            sums.rename(columns={"precipitation": "total_precipitation"}, inplace=True)
+
+            merged_data = pd.merge(averages, sums, on="timestamp")
+            merged_data.rename(
+                columns={"total_precipitation": "precipitation"}, inplace=True
+            )
+            merged_data["station_code"] = station_group["station_code"].iloc[0]
 
             aggregated_data = pd.concat(
                 [aggregated_data, merged_data], ignore_index=True
