@@ -373,13 +373,16 @@ class AirQoDataUtils:
                         )
                     )
 
+                meta_data = data.attrs.get("meta_data", {})
+
                 data["device_number"] = device.get("device_number", None)
                 data["device_id"] = device.get("device_id", None)
                 data["site_id"] = device.get("site_id", None)
-                data["latitude"] = device.get("latitude", None)
-                data["longitude"] = device.get("longitude", None)
+                
 
                 if device_category == DeviceCategory.LOW_COST:
+                    data["latitude"] = device.get("latitude", None)
+                    data["longitude"] = device.get("longitude", None)
                     data.rename(
                         columns={
                             "field1": "s1_pm2_5",
@@ -391,6 +394,9 @@ class AirQoDataUtils:
                         },
                         inplace=True,
                     )
+                else:
+                    data["latitude"] = meta_data.get("latitude", None)
+                    data["longitude"] = meta_data.get("longitude", None)
 
                 devices_data = pd.concat(
                     [devices_data, data[data_columns]], ignore_index=True
