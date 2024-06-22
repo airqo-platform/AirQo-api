@@ -302,18 +302,34 @@ class AirQoDataUtils:
             tenant=Tenant.AIRQO, device_category=device_category
         )
 
-        devices = [x for x in devices if x["device_number"] in device_numbers] if device_numbers else devices
+        devices = (
+            [x for x in devices if x["device_number"] in device_numbers]
+            if device_numbers
+            else devices
+        )
 
         if device_category == DeviceCategory.BAM:
             field_8_cols = list(configuration.AIRQO_BAM_CONFIG.values())
             other_fields_cols = []
         else:
             field_8_cols = list(configuration.AIRQO_LOW_COST_CONFIG.values())
-            other_fields_cols = ["s1_pm2_5", "s1_pm10", "s2_pm2_5", "s2_pm10", "battery"]
+            other_fields_cols = [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ]
 
         data_columns = [
-            "device_number", "device_id", "site_id", "latitude", "longitude", "timestamp",
-            *field_8_cols, *other_fields_cols
+            "device_number",
+            "device_id",
+            "site_id",
+            "latitude",
+            "longitude",
+            "timestamp",
+            *field_8_cols,
+            *other_fields_cols,
         ]
         data_columns = list(set(data_columns))
 
@@ -342,7 +358,9 @@ class AirQoDataUtils:
                     read_key=read_key,
                 )
 
-                if data.empty: print(f"{device_number} does not have data between {start} and {end}"); continue
+                if data.empty:
+                    print(f"Device does not have data between {start} and {end}")
+                    continue
 
                 if "field8" not in data.columns.to_list():
                     data = DataValidationUtils.fill_missing_columns(
