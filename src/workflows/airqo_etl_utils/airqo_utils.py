@@ -378,7 +378,6 @@ class AirQoDataUtils:
                 data["device_number"] = device.get("device_number", None)
                 data["device_id"] = device.get("device_id", None)
                 data["site_id"] = device.get("site_id", None)
-                
 
                 if device_category == DeviceCategory.LOW_COST:
                     data["latitude"] = device.get("latitude", None)
