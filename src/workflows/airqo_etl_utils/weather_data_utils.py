@@ -12,6 +12,7 @@ from .data_validator import DataValidationUtils
 from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
+import numpy as np
 
 
 class WeatherDataUtils:
@@ -185,32 +186,25 @@ class WeatherDataUtils:
         station_groups = data.groupby("station_code")
 
         for _, station_group in station_groups:
-            station_group = station_group.set_index("timestamp").sort_index()
+            station_group.index = station_group["timestamp"]
+            station_group = station_group.sort_index(axis=0)
 
-            numeric_columns = station_group.select_dtypes(include=["number"]).columns
-            averaging_data = station_group[numeric_columns].drop(
-                columns=["precipitation"], errors="ignore"
-            )
-
-            averages = averaging_data.resample("H").mean()
-            averages["timestamp"] = averages.index
+            averaging_data = station_group.copy()
+            del averaging_data["precipitation"]
+            numeric_cols = averaging_data.select_dtypes(include=[np.number]).columns
+            averages = averaging_data.resample("H")[numeric_cols].mean()
             averages.reset_index(drop=True, inplace=True)
 
-            summing_data = station_group[["precipitation"]]
-            sums = summing_data.resample("H").sum(numeric_only=True)
+            summing_data = station_group.copy()[["precipitation"]]
+            sums = pd.DataFrame(summing_data.resample("H").sum(numeric_only=True))
             sums["timestamp"] = sums.index
             sums.reset_index(drop=True, inplace=True)
 
-            sums.rename(columns={"precipitation": "total_precipitation"}, inplace=True)
-
-            merged_data = pd.merge(averages, sums, on="timestamp")
-            merged_data.rename(
-                columns={"total_precipitation": "precipitation"}, inplace=True
-            )
-            merged_data["station_code"] = station_group["station_code"].iloc[0]
+            merged_data = pd.concat([averages, sums], axis=1)
+            merged_data["station_code"] = station_group.iloc[0]["station_code"]
 
             aggregated_data = pd.concat(
-                [aggregated_data, merged_data], ignore_index=True
+                [aggregated_data, merged_data], ignore_index=True, axis=0
             )
 
         return aggregated_data
