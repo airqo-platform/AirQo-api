@@ -196,7 +196,7 @@ class WeatherDataUtils:
             averages.reset_index(drop=True, inplace=True)
 
             summing_data = station_group.copy()[["precipitation"]]
-            sums = pd.DataFrame(summing_data.resample("H").sum(numeric_only=True))
+            sums = pd.DataFrame(summing_data.resample("H").sum())
             sums["timestamp"] = sums.index
             sums.reset_index(drop=True, inplace=True)
 
