@@ -190,7 +190,7 @@ class WeatherDataUtils:
             station_group = station_group.sort_index(axis=0)
 
             averaging_data = station_group.copy()
-            del averaging_data["precipitation"]
+            averaging_data.drop(columns=["precipitation"], inplace=True)
             numeric_cols = averaging_data.select_dtypes(include=[np.number]).columns
             averages = averaging_data.resample("H")[numeric_cols].mean()
             averages.reset_index(drop=True, inplace=True)
