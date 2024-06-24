@@ -373,7 +373,7 @@ class AirQoDataUtils:
                         )
                     )
 
-                meta_data = data.attrs.get("meta_data", {})
+                meta_data = data.attrs.pop("meta_data", {})
 
                 data["device_number"] = device.get("device_number", None)
                 data["device_id"] = device.get("device_id", None)
