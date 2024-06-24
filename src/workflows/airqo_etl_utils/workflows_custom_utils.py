@@ -12,7 +12,7 @@ from .utils import Utils
 
 class AirflowUtils:
     @staticmethod
-    def dag_default_configs():
+    def dag_default_configs() -> dict:
         return {
             "start_date": datetime.now(timezone.utc) - timedelta(days=2),
             "owner": "AirQo",

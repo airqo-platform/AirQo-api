@@ -5,7 +5,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
     celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
-  tag: prod-6f7abc97-1718374755
+  tag: prod-2cb000cc-1718970901
 api:
   name: airqo-analytics-api
   label: analytics-api
