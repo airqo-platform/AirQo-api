@@ -1,4 +1,4 @@
 apache-airflow==2.4.0
 great_expectations==0.15.22
-apache-airflow-providers-great-expectations==0.0.6
+apache-airflow-providers-great-expectations==0.2.6
 pytest==7.1.2
