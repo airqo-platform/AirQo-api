@@ -88,16 +88,16 @@ class EventsModel(BasePyMongoModel):
 
             if pollutant == "pm2_5":
                 bam_pollutant_columns.extend(
-                ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
-            )
+                    ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
+                )
             elif pollutant == "pm10":
                 bam_pollutant_columns.extend(
-                ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
-            )
+                    ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
+                )
             elif pollutant == "no2":
                 bam_pollutant_columns.extend(
-                ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
-            )
+                    ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
+                )
 
         if weather_fields is not None:
             for field in weather_fields:
