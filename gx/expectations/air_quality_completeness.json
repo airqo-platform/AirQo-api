@@ -22,7 +22,7 @@
         {
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
-                "column": "pm10"
+                "column": "Gaseous_component"
             },
             "meta": {}
         },
@@ -37,6 +37,20 @@
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
                 "column": "humidity"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "time"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "Longitude_latitude"
             },
             "meta": {}
         }
