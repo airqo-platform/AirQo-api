@@ -86,6 +86,19 @@ class EventsModel(BasePyMongoModel):
                 ]
             )
 
+            if pollutant == "pm2_5":
+                bam_pollutant_columns.extend(
+                ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
+            )
+            elif pollutant == "pm10":
+                bam_pollutant_columns.extend(
+                ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
+            )
+            elif pollutant == "no2":
+                bam_pollutant_columns.extend(
+                ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
+            )
+
         if weather_fields is not None:
             for field in weather_fields:
                 weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
@@ -94,20 +107,6 @@ class EventsModel(BasePyMongoModel):
                         f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
                     ]
                 )
-
-        if pollutant == "pm2_5":
-            bam_pollutant_columns.extend(
-                ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
-            )
-        elif pollutant == "pm10":
-            bam_pollutant_columns.extend(
-                ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
-            )
-        elif pollutant == "no2":
-            bam_pollutant_columns.extend(
-                ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
-            )
-
         pollutants_query = (
             f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
