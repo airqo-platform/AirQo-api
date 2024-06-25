@@ -138,9 +138,6 @@ def group_users(users, reading_type):
                 if len(place_groupings) == 0:
                     place_groupings = AirQoApi().get_search_history(user_id)
 
-                    if len(place_groupings) == 0:
-                        pm_value, name, location, place_id = get_random_measurement()
-
             if len(place_groupings) != 0:
                 random_index = random.randint(0, len(place_groupings) - 1)
                 target_place = place_groupings[random_index]
