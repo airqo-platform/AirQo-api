@@ -5,6 +5,7 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
+from typing import List, Dict
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -141,8 +142,11 @@ class AirQoApi:
             ]
         return devices
 
-    def get_thingspeak_read_keys(self, devices: list) -> dict:
-        body = []
+    def get_thingspeak_read_keys(self, devices: List) -> Dict[int, str]:
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        decrypted_read_keys: Dict[int, str] = {}
+
         for device in devices:
             read_key = device.get("readKey", None)
             device_number = device.get("device_number", None)
@@ -155,13 +159,15 @@ class AirQoApi:
                 )
 
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-        # TODO Check for when no data is returned
-        decrypted_keys = response.get("decrypted_keys", [])
 
-        return {
-            int(entry["device_number"]): entry["decrypted_key"]
-            for entry in decrypted_keys
-        }
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        # TODO Find a better way to do better handling vs returning an empty object.
+        return decrypted_read_keys
 
     def get_forecast(self, frequency, site_id) -> list:
         endpoint = f"predict/{frequency}-forecast"
@@ -422,7 +428,7 @@ class AirQoApi:
             if network.get("net_data_source") == str(data_source)
         ]
 
-    def __request(self, endpoint, params=None, body=None, method=None, base_url=None):
+    def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
         if base_url is None:
             base_url = self.AIRQO_BASE_URL_V2
 
@@ -441,30 +447,24 @@ class AirQoApi:
         url = f"{base_url}/{endpoint}"
         print(url)
         try:
-            if method is None or method == "get":
-                response = http.request("GET", url, fields=params, headers=headers)
-            elif method == "put":
+            if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
                 url = url + "?" + encoded_args
-                if body is not None:
+                if body:
                     response = http.request(
-                        "PUT",
+                        method.upper(),
                         url,
                         headers=headers,
                         body=simplejson.dumps(body, ignore_nan=True),
                     )
                 else:
-                    response = http.request("PUT", url, headers=headers)
-            elif method == "post":
-                headers["Content-Type"] = "application/json"
-                encoded_args = urlencode(params)
-                url = url + "?" + encoded_args
+                    # TODO Investigate what resource is being created here
+                    # This might be redundant but again it could be creating a resource with default arguments or triggering a server-side action.
+                    response = http.request(method.upper(), url, headers=headers)
+            elif method == "get":
                 response = http.request(
-                    "POST",
-                    url,
-                    headers=headers,
-                    body=simplejson.dumps(body, ignore_nan=True),
+                    method.upper(), url, fields=params, headers=headers
                 )
             else:
                 print("Method not supported")
