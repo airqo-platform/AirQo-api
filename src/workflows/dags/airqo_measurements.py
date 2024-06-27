@@ -1,4 +1,5 @@
 from airflow.decorators import dag, task
+from great_expectations.data_context import DataContext
 from airflow.providers.great_expectations.operators.great_expectations import GreatExpectationsOperator
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
@@ -110,18 +111,18 @@ def airqo_historical_hourly_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_data_quality = GreatExpectationsOperator(
         task_id='validate_air_quality_data_quality',
-        expectation_suite_name='air_quality_data_quality',
+        expectation_suite_name='gx/expectations',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_uniqueness_integrity = GreatExpectationsOperator(
@@ -132,7 +133,7 @@ def airqo_historical_hourly_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_temporal_consistency = GreatExpectationsOperator(
@@ -143,7 +144,7 @@ def airqo_historical_hourly_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_completeness = GreatExpectationsOperator(
@@ -154,7 +155,7 @@ def airqo_historical_hourly_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_referential_integrity = GreatExpectationsOperator(
@@ -165,7 +166,7 @@ def airqo_historical_hourly_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     extracted_device_measurements = extract_device_measurements()
@@ -282,7 +283,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_data_quality = GreatExpectationsOperator(
@@ -293,7 +294,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_uniqueness_integrity = GreatExpectationsOperator(
@@ -304,7 +305,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_temporal_consistency = GreatExpectationsOperator(
@@ -315,7 +316,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_completeness = GreatExpectationsOperator(
@@ -326,7 +327,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     validate_referential_integrity = GreatExpectationsOperator(
@@ -337,7 +338,7 @@ def airqo_historical_raw_measurements():
             'dataset': 'your_dataset',
             'table': 'temp_raw_air_quality_data'
         },
-        data_context_root_dir='/path/to/your/great_expectations'
+        data_context_root_dir='gx/expectations'
     )
 
     extracted_data = extract_raw_data()
