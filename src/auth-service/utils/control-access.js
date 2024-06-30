@@ -360,6 +360,50 @@ const isIPBlacklistedHelper = async (
     logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
 
     if (!accessToken) {
+      try {
+        const filter = { token };
+        const listTokenReponse = await AccessTokenModel("airqo").list(
+          { filter },
+          next
+        );
+
+        if (listTokenReponse.success === false) {
+          logger.error(
+            `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+          );
+        } else {
+          const tokenDetails = listTokenReponse.data[0];
+          const tokenResponseLength = listTokenReponse.data.length;
+          if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
+            logger.error(
+              `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+            );
+          } else {
+            const {
+              user: { email, firstName, lastName },
+            } = tokenDetails;
+            logger.info(
+              `🚨🚨 An AirQo Analytics Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
+            );
+            const emailResponse = await mailer.expiredToken(
+              {
+                email,
+                firstName,
+                lastName,
+              },
+              next
+            );
+
+            if (emailResponse && emailResponse.success === false) {
+              logger.error(
+                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+              );
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      }
       return true;
     } else if (whitelistedIP) {
       return false;
