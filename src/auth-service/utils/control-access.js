@@ -369,7 +369,9 @@ const isIPBlacklistedHelper = async (
 
         if (listTokenReponse.success === false) {
           logger.error(
-            `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+            `🐛🐛 Internal Server Error -- unable to retrieve the expired token's details -- ${stringify(
+              listTokenReponse
+            )}`
           );
         } else {
           const tokenDetails = listTokenReponse.data[0];
