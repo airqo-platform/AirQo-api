@@ -26,9 +26,9 @@ To get started with Great Expectations in this project, follow these steps:
    ```
 2. **Initialize Great Expectations**:
    Initialize Great Expectations in the project directory by running the following command:
-```bash
-great_expectations init
-```
+    ```bash
+    great_expectations init
+    ```
 
 3. **Configure Data Sources**:
    Configure your data sources in the `great_expectations.yml` file. This file contains information about the data sources you will use for validations.
