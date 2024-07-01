@@ -8,21 +8,14 @@
         {
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
-                "column": "sensor_id"
+                "column": "station_code"
             },
             "meta": {}
         },
         {
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
-                "column": "pm2_5"
-            },
-            "meta": {}
-        },
-        {
-            "expectation_type": "expect_column_values_to_not_be_null",
-            "kwargs": {
-                "column": "Gaseous_component"
+                "column": "timestamp"
             },
             "meta": {}
         },
@@ -43,14 +36,49 @@
         {
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
-                "column": "time"
+                "column": "wind_speed"
             },
             "meta": {}
         },
         {
             "expectation_type": "expect_column_values_to_not_be_null",
             "kwargs": {
-                "column": "Longitude_latitude"
+                "column": "atmospheric_pressure"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "radiation"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "vapor_pressure"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "wind_gusts"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "precipitation"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "wind_direction"
             },
             "meta": {}
         }
