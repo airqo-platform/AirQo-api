@@ -75,22 +75,24 @@ class DataExportResource(Resource):
                     create_response("No data found", data=[]),
                     Status.HTTP_404_NOT_FOUND,
                 )
-
             if output_format == "aqcsv":
-                records = format_to_aqcsv(
+                data_frame = format_to_aqcsv(
                     data=data_frame, frequency=frequency, pollutants=pollutants
                 )
 
             if download_type == "json":
                 return (
                     create_response(
-                        "air-quality data download successful", data=records
+                        "air-quality data download successful",
+                        data=data_frame.to_dict(orient="records"),
                     ),
                     Status.HTTP_200_OK,
                 )
 
             return excel.make_response_from_records(
-                records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
+                data_frame.to_dict(orient="records"),
+                "csv",
+                file_name=f"{frequency}-air-quality{postfix}data",
             )
         except Exception as ex:
             print(ex)
@@ -129,9 +131,7 @@ class BulkDataExportResource(Resource):
         airqlouds = json_data.get("airqlouds", [])
         frequency = f"{json_data.get('frequency', [])}".lower()
         export_format = f"{json_data.get('exportFormat', 'csv')}".lower()
-        pollutants = json_data.get(
-            "pollutants", []
-        )
+        pollutants = json_data.get("pollutants", [])
         weather_fields = json_data.get("weatherFields", [])
         output_format = f"{json_data.get('outputFormat', 'airqo-standard')}".lower()
         try:
@@ -169,9 +169,9 @@ class BulkDataExportResource(Resource):
             )
 
     @data_export_api.param("userId", "User ID", "string", required=True)
-    def get(self):
+    def get(self, userId):
         try:
-            result = tasks.export_data.AsyncResult("abcx")
+            result = tasks.export_data.AsyncResult(userId)
             if result.ready():
                 data = str(result.result)
                 result.forget()
@@ -190,7 +190,7 @@ class BulkDataExportResource(Resource):
             traceback.print_exc()
             return (
                 create_response(
-                    f"An Error occurred while processing your request. Please contact support",
+                    "An Error occurred while processing your request. Please contact support",
                     success=False,
                 ),
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -204,6 +204,7 @@ class DataSummaryResource(Resource):
             json_data = DataSummarySchema().load(data_export_api.payload)
         except ValidationError as err:
             return (create_response(f" {err.messages}", success=False),)
+        try:
             start_date_time = str_to_date(json_data["startDateTime"])
             end_date_time = str_to_date(json_data["endDateTime"])
             airqloud = str(json_data.get("airqloud"))

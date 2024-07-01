@@ -5,12 +5,14 @@ import pandas as pd
 import pytz
 from google.cloud import bigquery
 
+from config import CONFIGURATIONS
 from models.base.base_model import BasePyMongoModel
 from utils.dates import date_to_str
 from utils.pollutants.pm_25 import (
-    BIGQUERY_FREQUENCY_MAPPER, WEATHER_FIELDS_MAPPER,
+    BIGQUERY_FREQUENCY_MAPPER,
+    WEATHER_FIELDS_MAPPER,
 )
-from config import CONFIGURATIONS
+
 
 # from app import cache
 
@@ -86,15 +88,6 @@ class EventsModel(BasePyMongoModel):
                     for mapping in pollutant_mapping
                 ]
             )
-
-        for field in weather_fields:
-            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
-            weather_columns.extend(
-                [
-                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
-                ]
-            )
-
             if pollutant == "pm2_5":
                 bam_pollutant_columns.extend(
                     ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
@@ -108,13 +101,14 @@ class EventsModel(BasePyMongoModel):
                     ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
                 )
 
-        for field in weather_fields:
-            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
-            weather_columns.extend(
-                [
-                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
-                ]
-            )
+        if weather_fields is not None:
+            for field in weather_fields:
+                weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
+                weather_columns.extend(
+                    [
+                        f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
+                    ]
+                )
         pollutants_query = (
             f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
@@ -123,7 +117,6 @@ class EventsModel(BasePyMongoModel):
             f" SELECT {', '.join(map(str, set(bam_pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
-
 
         if len(devices) != 0:
             # Adding device information, start and end times

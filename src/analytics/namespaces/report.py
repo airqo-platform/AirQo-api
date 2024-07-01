@@ -23,6 +23,7 @@ class GridReportResource(Resource):
             )
         return air_quality_data(json_data)
 
+
 @auto_report_api.route("grid/report/diurnal")
 class DiurnalReportResource(Resource):
     @swag_from("/api/docs/report/generate_diurnal_report_post.yml")

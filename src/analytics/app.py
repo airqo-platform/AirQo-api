@@ -1,4 +1,3 @@
-
 from celery import Celery, Task
 from flasgger import Swagger
 from flask import Flask, jsonify, send_from_directory

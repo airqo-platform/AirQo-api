@@ -195,7 +195,7 @@ def compute_airqloud_summary(
 
 def format_to_aqcsv(
     data: pd.DataFrame, pollutants: list, frequency: str
-) -> list[Any] | list[dict]:
+) -> pd.DataFrame:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 

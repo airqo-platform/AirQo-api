@@ -9,9 +9,6 @@ from utils.pollutants.report import (
     PManalysis,
 )
 
-# Configure logging
-logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
-
 
 def air_quality_data_diurnal(json_data):
     data = json_data
