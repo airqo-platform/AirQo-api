@@ -5,7 +5,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
     celery: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery
-  tag: stage-34dea679-1718374613
+  tag: stage-5c6990cd-1719227902
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api

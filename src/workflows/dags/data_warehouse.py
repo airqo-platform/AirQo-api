@@ -5,7 +5,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 @dag(
     "Consolidated-Data-ETL",
-    schedule="0 0 * * */3",
+    schedule="0 0,12 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "consolidated data"],

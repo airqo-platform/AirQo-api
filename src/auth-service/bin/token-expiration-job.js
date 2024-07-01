@@ -30,8 +30,9 @@ async function sendEmailsInBatches(tokens, batchSize = 100) {
   }
 }
 
+const weeklyOnSundayAtMidnight = "0 0 * * 0";
 cron.schedule(
-  "0 0 1 * *",
+  weeklyOnSundayAtMidnight,
   async () => {
     const timeZone = moment.tz.guess();
     const now = moment().tz(timeZone);

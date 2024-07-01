@@ -88,6 +88,7 @@ class EventsModel(BasePyMongoModel):
                     for mapping in pollutant_mapping
                 ]
             )
+
             if pollutant == "pm2_5":
                 bam_pollutant_columns.extend(
                     ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
