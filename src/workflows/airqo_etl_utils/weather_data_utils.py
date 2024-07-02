@@ -12,6 +12,7 @@ from .data_validator import DataValidationUtils
 from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
+import numpy as np
 
 
 class WeatherDataUtils:
@@ -179,7 +180,7 @@ class WeatherDataUtils:
             return data
 
         data = data.dropna(subset=["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         aggregated_data = pd.DataFrame()
 
         station_groups = data.groupby("station_code")
@@ -189,21 +190,21 @@ class WeatherDataUtils:
             station_group = station_group.sort_index(axis=0)
 
             averaging_data = station_group.copy()
-            del averaging_data["precipitation"]
-            averages = pd.DataFrame(averaging_data.resample("H").mean())
-            averages["timestamp"] = averages.index
+            averaging_data.drop(columns=["precipitation"], inplace=True)
+            numeric_cols = averaging_data.select_dtypes(include=[np.number]).columns
+            averages = averaging_data.resample("H")[numeric_cols].mean()
             averages.reset_index(drop=True, inplace=True)
 
-            summing_data = station_group.copy()[["timestamp", "precipitation"]]
+            summing_data = station_group.copy()[["precipitation"]]
             sums = pd.DataFrame(summing_data.resample("H").sum())
             sums["timestamp"] = sums.index
             sums.reset_index(drop=True, inplace=True)
 
-            merged_data = pd.merge(left=averages, right=sums, on="timestamp")
+            merged_data = pd.concat([averages, sums], axis=1)
             merged_data["station_code"] = station_group.iloc[0]["station_code"]
 
             aggregated_data = pd.concat(
-                [aggregated_data, merged_data], ignore_index=True
+                [aggregated_data, merged_data], ignore_index=True, axis=0
             )
 
         return aggregated_data
