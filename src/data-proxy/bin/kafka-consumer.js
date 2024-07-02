@@ -5,6 +5,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- Kafka Consumer`);
 const { logText, logObject } = require("@utils/log");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
+const { BigQuery } = require("@google-cloud/bigquery");
 
 const dataSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
@@ -35,10 +36,38 @@ const operationFunction1 = async (messageData) => {
   } catch (error) {}
 };
 
-const operationFunction2 = async (messageData) => {
-  // Operation logic for topic2
-  // You can perform a different operation here
-};
+// BigQuery Setup
+const bigquery = new BigQuery();
+const datasetId = "our_dataset_id";
+const tableId = "our_table_id";
+
+// Function to update BigQuery table
+async function updateBigQueryTableOne(data) {
+  const rows = [
+    {
+      // data structure should matche our BigQuery table schema
+      field1: data.field1,
+      field2: data.field2,
+      // Add more fields as necessary
+    },
+  ];
+
+  await bigquery.dataset(datasetId).table(tableId).insert(rows);
+}
+
+// Function to update BigQuery table
+async function updateBigQueryTableTwo(data) {
+  const rows = [
+    {
+      // data structure should matche our BigQuery table schema
+      field1: data.field1,
+      field2: data.field2,
+      // Add more fields as necessary
+    },
+  ];
+
+  await bigquery.dataset(datasetId).table(tableId).insert(rows);
+}
 
 const kafkaConsumer = async () => {
   const kafka = new Kafka({
@@ -52,9 +81,8 @@ const kafkaConsumer = async () => {
 
   // Define topic-to-operation function mapping
   const topicOperations = {
-    ["constants.TOPIC_NAME"]: operationFunction1,
-    topic2: operationFunction2,
-    // Add more topics and their corresponding functions as needed
+    ["TOPIC_ONE"]: updateBigQueryTableOne,
+    ["TOPIC_TWO"]: updateBigQueryTableTwo,
   };
 
   try {
@@ -72,7 +100,8 @@ const kafkaConsumer = async () => {
           const operation = topicOperations[topic];
           if (operation) {
             const messageData = message.value.toString();
-            await operation(messageData);
+            const repairedJSONString = jsonrepair(messageData);
+            await operation(repairedJSONString);
           } else {
             logger.error(`No operation defined for topic: ${topic}`);
           }

@@ -15,7 +15,6 @@
         "create-env": "printenv > .env",
         "test": " mocha ./**/test/ut_*.js --exit",
         "test-coverage": "nyc --reporter=lcov mocha ./**/test/ut_*.js --exit"
-        
     },
     "_moduleAliases": {
         "@root": ".",
@@ -29,6 +28,7 @@
         "@bin": "bin"
     },
     "dependencies": {
+        "@google-cloud/bigquery": "^7.5.2",
         "@log4js-node/slack": "^1.0.0",
         "app-module-path": "^2.2.0",
         "axios": "^0.19.2",
@@ -69,5 +69,4 @@
         "rewire": "^6.0.0",
         "sinon": "^15.2.0"
     }
-  
 }
