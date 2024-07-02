@@ -5,6 +5,7 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
+from typing import List, Dict, Any
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -103,7 +104,7 @@ class AirQoApi:
         self,
         tenant: Tenant = Tenant.ALL,
         device_category: DeviceCategory = DeviceCategory.NONE,
-    ) -> list:
+    ) -> List:
         params = {"tenant": str(Tenant.AIRQO)}
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
@@ -141,8 +142,11 @@ class AirQoApi:
             ]
         return devices
 
-    def get_thingspeak_read_keys(self, devices: list) -> dict:
-        body = []
+    def get_thingspeak_read_keys(self, devices: List) -> Dict[int, str]:
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        decrypted_read_keys: Dict[int, str] = {}
+
         for device in devices:
             read_key = device.get("readKey", None)
             device_number = device.get("device_number", None)
@@ -155,15 +159,17 @@ class AirQoApi:
                 )
 
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-        # TODO Check for when no data is returned
-        decrypted_keys = response.get("decrypted_keys", [])
 
-        return {
-            int(entry["device_number"]): entry["decrypted_key"]
-            for entry in decrypted_keys
-        }
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        # TODO Find a better way to do better handling vs returning an empty object.
+        return decrypted_read_keys
 
-    def get_forecast(self, frequency, site_id) -> list:
+    def get_forecast(self, frequency: str, site_id) -> List:
         endpoint = f"predict/{frequency}-forecast"
         params = {"site_id": site_id}
         response = self.__request(endpoint=endpoint, params=params, method="get")
@@ -177,7 +183,7 @@ class AirQoApi:
 
         return []
 
-    def get_nearest_weather_stations(self, latitude, longitude) -> list:
+    def get_nearest_weather_stations(self, latitude, longitude) -> List:
         response = self.__request(
             endpoint="meta-data/nearest-weather-stations",
             params={"latitude": latitude, "longitude": longitude},
@@ -186,7 +192,7 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
-    def get_meta_data(self, latitude, longitude) -> dict:
+    def get_meta_data(self, latitude, longitude) -> Dict[str, float]:
         meta_data = {}
         meta_data_mappings = {
             "bearing_to_kampala_center": "",
@@ -244,7 +250,7 @@ class AirQoApi:
         except Exception as ex:
             print(ex)
 
-    def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
+    def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         if tenant != Tenant.ALL:
@@ -261,7 +267,7 @@ class AirQoApi:
             for airqloud in response.get("airqlouds", [])
         ]
 
-    def get_favorites(self, user_id) -> list:
+    def get_favorites(self, user_id: str) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         response = self.__request(f"users/favorites/users/{user_id}", query_params)
@@ -282,7 +288,7 @@ class AirQoApi:
 
         return favorites_with_pm
 
-    def get_location_history(self, user_id) -> list:
+    def get_location_history(self, user_id: str) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         response = self.__request(
@@ -305,7 +311,7 @@ class AirQoApi:
 
         return locations_with_measurements
 
-    def get_search_history(self, user_id) -> list:
+    def get_search_history(self, user_id: str) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
@@ -338,7 +344,7 @@ class AirQoApi:
             print(ex)
             return None
 
-    def get_grids(self, tenant: Tenant = Tenant.ALL) -> list:
+    def get_grids(self, tenant: Tenant = Tenant.ALL) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         if tenant != Tenant.ALL:
@@ -355,7 +361,7 @@ class AirQoApi:
             for grid in response.get("grids", [])
         ]
 
-    def get_cohorts(self, tenant: Tenant = Tenant.ALL) -> list:
+    def get_cohorts(self, tenant: Tenant = Tenant.ALL) -> List:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         if tenant != Tenant.ALL:
@@ -372,7 +378,119 @@ class AirQoApi:
             for cohort in response.get("cohorts", [])
         ]
 
-    def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
+    def get_site(self, site_id: str) -> Dict[str, Any]:
+        """
+        Retrieve details of a site given its site ID.
+
+        Args:
+            site_id (str): The unique identifier for the site.
+
+        Returns:
+            dict: A dictionary containing the details of the site. The dictionary has the following structure:
+            {
+                "_id": str,
+                "nearest_tahmo_station": Dict[str, Any]
+                "site_tags": List[str],
+                "city": str,
+                "district": str,
+                "county": str,
+                "region": str,
+                "country": str,
+                "latitude": float32,
+                "longitude": float32,
+                "name": str,
+                "lat_long": str,
+                "generated_name": str,
+                "bearing_to_kampala_center": float32,
+                "altitude": float32,
+                "distance_to_kampala_center": float32,
+                "aspect": int,
+                "landform_270": int,
+                "landform_90": int,
+                "greenness": int,
+                "distance_to_nearest_unclassified_road": float32,
+                "distance_to_nearest_tertiary_road": float32,
+                "distance_to_nearest_residential_road": float32,
+                "distance_to_nearest_secondary_road": float32,
+                "description": str,
+                "createdAt": str(date+tzinfo),
+                "distance_to_nearest_primary_road": float32,
+                "distance_to_nearest_road": float32,
+                "approximate_latitude": float32,
+                "approximate_longitude": float32,
+                "weather_stations": List[dict[str, Any]],
+                "devices": List,
+                "airqlouds": List[Dict[str, Any]]
+            }
+        """
+        query_params = {"id": site_id}
+
+        response = self.__request("devices/sites", query_params)
+        if response:
+            return {
+                **response,
+                "site_id": response.get("_id", None),
+                "tenant": response.get("network", response.get("tenant", None)),
+                "location": response.get("location", None),
+                "approximate_latitude": response.get(
+                    "approximate_latitude", response.get("latitude", None)
+                ),
+                "approximate_longitude": response.get(
+                    "approximate_longitude", response.get("longitude", None)
+                ),
+                "search_name": response.get("search_name", response.get("name", None)),
+                "location_name": response.get(
+                    "location_name", response.get("location", None)
+                ),
+            }
+
+    def get_sites(self, tenant: Tenant = Tenant.ALL) -> List:
+        """
+        Retrieve sites given a tenant.
+
+        Args:
+            tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
+
+        Returns:
+            List[Dict]: A List of dictionaries containing the details of the sites. The dictionary has the following structure.
+            [
+                {
+                    "_id": str,
+                    "nearest_tahmo_station": Dict[str, Any]
+                    "site_tags": List[str],
+                    "city": str,
+                    "district": str,
+                    "county": str,
+                    "region": str,
+                    "country": str,
+                    "latitude": float32,
+                    "longitude": float32,
+                    "name": str,
+                    "lat_long": str,
+                    "generated_name": str,
+                    "bearing_to_kampala_center": float32,
+                    "altitude": float32,
+                    "distance_to_kampala_center": float32,
+                    "aspect": int,
+                    "landform_270": int,
+                    "landform_90": int,
+                    "greenness": int,
+                    "distance_to_nearest_unclassified_road": float32,
+                    "distance_to_nearest_tertiary_road": float32,
+                    "distance_to_nearest_residential_road": float32,
+                    "distance_to_nearest_secondary_road": float32,
+                    "description": str,
+                    "createdAt": str(date+tzinfo),
+                    "distance_to_nearest_primary_road": float32,
+                    "distance_to_nearest_road": float32,
+                    "approximate_latitude": float32,
+                    "approximate_longitude": float32,
+                    "weather_stations": List[dict[str, Any]],
+                    "devices": List,
+                    "airqlouds": List[Dict[str, Any]]
+                },
+            ]
+        """
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         if tenant != Tenant.ALL:
@@ -422,7 +540,7 @@ class AirQoApi:
             if network.get("net_data_source") == str(data_source)
         ]
 
-    def __request(self, endpoint, params=None, body=None, method=None, base_url=None):
+    def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
         if base_url is None:
             base_url = self.AIRQO_BASE_URL_V2
 
@@ -441,30 +559,24 @@ class AirQoApi:
         url = f"{base_url}/{endpoint}"
         print(url)
         try:
-            if method is None or method == "get":
-                response = http.request("GET", url, fields=params, headers=headers)
-            elif method == "put":
+            if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
                 encoded_args = urlencode(params)
                 url = url + "?" + encoded_args
-                if body is not None:
+                if body:
                     response = http.request(
-                        "PUT",
+                        method.upper(),
                         url,
                         headers=headers,
                         body=simplejson.dumps(body, ignore_nan=True),
                     )
                 else:
-                    response = http.request("PUT", url, headers=headers)
-            elif method == "post":
-                headers["Content-Type"] = "application/json"
-                encoded_args = urlencode(params)
-                url = url + "?" + encoded_args
+                    # TODO Investigate what resource is being created here
+                    # This might be redundant but again it could be creating a resource with default arguments or triggering a server-side action.
+                    response = http.request(method.upper(), url, headers=headers)
+            elif method == "get":
                 response = http.request(
-                    "POST",
-                    url,
-                    headers=headers,
-                    body=simplejson.dumps(body, ignore_nan=True),
+                    method.upper(), url, fields=params, headers=headers
                 )
             else:
                 print("Method not supported")
