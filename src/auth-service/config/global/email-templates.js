@@ -6,6 +6,8 @@ const logger = log4js.getLogger(
   ).toUpperCase()} ENVIRONMENT -- config/global/email-template`
 );
 
+const baseUrl = process.env.PLATFORM_STAGING_BASE_URL || process.env.PLATFORM_PRODUCTION_BASE_URL;
+
 const emailTemplates = {
   EMAIL_GREETINGS: function (name) {
     try {
@@ -49,7 +51,22 @@ const emailTemplates = {
                             </table>
                             `;
   },
-  EMAIL_FOOTER_TEMPLATE: function (email) {
+    EMAIL_FOOTER_TEMPLATE: (email, type, paramString) => {
+        let subscriptionBlock = ``;
+        if (type && paramString) {
+            const unSubsciptionUrl = `${baseUrl}/api/v2/users/unsubscribe/${type}?${paramString}`;
+            subscriptionBlock = `
+            <span
+    style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+    If you'd rather not receive this kind of email, you can </span>
+<a href=${unSubsciptionUrl} target="_blank" <span
+    style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe!</span>
+</a>
+<span
+    style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;"></span>
+<br /><br />
+    `;
+        }
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
@@ -79,17 +96,7 @@ const emailTemplates = {
                                             email was sent to</span>
                                         <span
                                             style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
-                                        <span
-                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
-                                            If you'd rather not receive this kind of email, you can </span>
-                                        <span
-                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
-                                        <span
-                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
-                                            or </span>
-                                        <span
-                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
-                                            your email preferences.</span><br /><br />
+                                       ${subscriptionBlock} 
                                         <span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
                                             2023 AirQo<br /><br />
@@ -102,11 +109,11 @@ const emailTemplates = {
     `;
   },
 
-  EMAIL_BODY: function (email, content, name) {
-    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email);
+    EMAIL_BODY: function (email, content, name, type, paramString) {
+        const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email, type, paramString);
     const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
     let greetings = this.EMAIL_GREETINGS(name);
-    if (!name) {
+        if (!name || name === "") {
       greetings = ``;
     }
     return `<!DOCTYPE html>

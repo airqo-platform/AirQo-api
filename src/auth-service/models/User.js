@@ -214,12 +214,6 @@ const UserSchema = new Schema(
     category: {
       type: String,
     },
-    notifications: {
-      email: { type: Boolean, default: false },
-      push: { type: Boolean, default: false },
-      text: { type: Boolean, default: false },
-      phone: { type: Boolean, default: false },
-    },
     profilePicture: {
       type: String,
       maxLength: 200,
