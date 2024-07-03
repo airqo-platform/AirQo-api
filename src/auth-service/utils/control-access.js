@@ -321,11 +321,12 @@ const isIPBlacklistedHelper = async (
     const ip =
       request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
     const endpoint = request.headers["x-original-uri"];
-    let acessTokenFilter = generateFilter.tokens(request, next);
+    let accessTokenFilter = generateFilter.tokens(request, next);
     const timeZone = moment.tz.guess();
-    acessTokenFilter.expires = {
+    accessTokenFilter.expires = {
       $gt: moment().tz(timeZone).toDate(),
     };
+    const { expires, ...filteredAccessToken } = accessTokenFilter;
 
     const [
       blacklistedIP,
@@ -336,7 +337,7 @@ const isIPBlacklistedHelper = async (
       BlacklistedIPModel("airqo").findOne({ ip }),
       WhitelistedIPModel("airqo").findOne({ ip }),
       AccessTokenModel("airqo")
-        .findOne(acessTokenFilter)
+        .findOne(accessTokenFilter)
         .select("name token client_id"),
       BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
     ]);
@@ -357,8 +358,7 @@ const isIPBlacklistedHelper = async (
 
     if (!accessToken) {
       try {
-        const filter = acessTokenFilter;
-        delete filter.expires;
+        const filter = filteredAccessToken;
         const listTokenReponse = await AccessTokenModel("airqo").list(
           { filter },
           next
