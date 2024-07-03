@@ -382,6 +382,7 @@ const isIPBlacklistedHelper = async (
           } else {
             const {
               user: { email, firstName, lastName },
+              token,
             } = tokenDetails;
             logger.info(
               `🚨🚨 An AirQo Analytics Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
@@ -391,6 +392,7 @@ const isIPBlacklistedHelper = async (
                 email,
                 firstName,
                 lastName,
+                token,
               },
               next
             );
