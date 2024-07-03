@@ -835,24 +835,23 @@ const controlAccess = {
             `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
           );
           return createUnauthorizedResponse();
+        }
+        const isBlacklisted = await isIPBlacklisted({
+          request,
+          next,
+        });
+        logText("I have now returned back to the verifyToken() function");
+        if (isBlacklisted) {
+          return createUnauthorizedResponse();
         } else {
-          const isBlacklisted = await isIPBlacklisted({
-            request,
-            next,
+          winstonLogger.info("verify token", {
+            token: token,
+            service: "verify-token",
+            clientIp: ip,
+            clientOriginalIp: ip,
+            endpoint: endpoint ? endpoint : "unknown",
           });
-          logText("I have now returned back to the verifyToken() function");
-          if (isBlacklisted) {
-            return createUnauthorizedResponse();
-          } else {
-            winstonLogger.info("verify token", {
-              token: token,
-              service: "verify-token",
-              clientIp: ip,
-              clientOriginalIp: ip,
-              endpoint: endpoint ? endpoint : "unknown",
-            });
-            return createValidTokenResponse();
-          }
+          return createValidTokenResponse();
         }
       }
     } catch (error) {
