@@ -2072,7 +2072,13 @@ const mailer = {
     }
   },
   expiredToken: async (
-    { email = "", firstName = "", lastName = "", tenant = "airqo" } = {},
+    {
+      email = "",
+      firstName = "",
+      lastName = "",
+      tenant = "airqo",
+      token = "",
+    } = {},
     next
   ) => {
     try {
@@ -2115,6 +2121,7 @@ const mailer = {
           firstName,
           lastName,
           email,
+          token,
         })}`,
         attachments: attachments,
       };
