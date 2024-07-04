@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "airqo_etl_utils"
+version = "1.0.0"
+description = "AirQo Airflow custom python package"
+authors = ["AirQo <data@airqo.net>"]
+license = "MIT"
+keywords = ["python", "airflow", "AirQo"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^2.1.0"
+requests = "^2.31.0"
+simplejson = "^3.19.1"
+kafka-python = "*"
+numpy = "^1.25.2"
+pyarrow = "*"
+python-dotenv = "^1.0.0"
+google-cloud-bigquery = "*"
+google-cloud-storage = "*"
+firebase-admin = "*"
+lightgbm = "^4.1.0"
+mlflow = "*"
+gcsfs = "^2023.9.2"
+pymongo = "^4.5.0"
+optuna = "*"
+tweepy = "*"
+scikit-learn = "1.2.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4.0"
+scipy = "^1.11.1"
+coverage = "*"
+pytest-cov = "*"
+black = "*"
+sentry-sdk = "*"
+geopy = "*"
+joblib = "^1.3.1"
+db_dtypes = "*"
+urllib3 = "^1.26.16"
+setuptools = "^68.2.2"
+flake8 = "*"
+mypy = "*"
+isort = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude = .git,__pycache__,docs/source/conf.py,old,build,dist
+
+[tool.mypy]
+python_version = 3.8
+check_untyped_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--strict-markers --tb=short"
+testpaths = [
+    "tests",
+]
