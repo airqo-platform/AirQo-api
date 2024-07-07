@@ -1,31 +1,32 @@
 ## Setup
 
-1. Clone the repository:
-    ```shell
-    git clone https://github.com/airqo-platform/AirQo-api.git
-    ```
+1. To clone the repository:
+
+   ```shell
+   git clone https://github.com/airqo-platform/AirQo-api.git
+   ```
 
 2. Navigate to the project directory:
-    ```shell
-    cd src/predict/jobs/predict_places_air_quality
-    ```
+
+   ```shell
+   cd src/predict/jobs/predict_places_air_quality
+   ```
 
 3. Create and activate a python environment:
-    ```shell
-    python3 -m venv venv && source venv/bin/activate
-    ```
-   
+   ```shell
+   python3 -m venv venv && source venv/bin/activate
+   ```
 4. Install the required dependencies:
-    ```shell
-    pip install -r requirements.txt
-    ```
+   ```shell
+   pip install -r requirements.txt
+   ```
 
 ## Environment Variables
 
 You will need to add the following environment variables to your `.env` file
 
 | Variable                         | Description                                                                  |
-|:---------------------------------|:-----------------------------------------------------------------------------|
+| :------------------------------- | :--------------------------------------------------------------------------- |
 | `GOOGLE_APPLICATION_CREDENTIALS` | **Required**. Points a a google credentials file to write to BigQuery tables |
 | `BIGQUERY_HOURLY_DATA`           | **Required**. BigQuery table with hourly data                                |
 | `BIGQUERY_AIRQLOUDS_SITES`       | **Required**. BigQuery table with sites and airqlouds                        |
@@ -40,6 +41,6 @@ You will need to add the following environment variables to your `.env` file
 
 ## Predict and store air quality
 
- ```shell
- python main.py
- ```
+```shell
+python main.py
+```
