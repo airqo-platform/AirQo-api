@@ -1,5 +1,11 @@
 from airflow.decorators import dag, task
-
+from airflow.models import BaseOperator
+from airflow.utils.decorators import apply_defaults
+from great_expectations.data_context import DataContext
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+from airflow.providers.great_expectations.operators.great_expectations import GreatExpectationsOperator
+import great_expectations as ge
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
@@ -111,7 +117,17 @@ def airqo_historical_hourly_measurements():
     load(calibrated_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
-
+    
+    validate_schema = GreatExpectationsOperator(
+        task_id='validate_air_quality_schema',
+        expectation_suite_name='air_quality_schema_validation',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'your_dataset',
+            'table': 'temp_air_quality_data'
+        },
+        data_context_root_dir='/path/to/your/great_expectations'
+    )
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
