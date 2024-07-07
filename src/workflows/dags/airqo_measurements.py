@@ -107,10 +107,6 @@ def airqo_historical_hourly_measurements():
         device_measurements=extracted_device_measurements,
         weather_data=extracted_weather_data,
     )
-    calibrated_data = calibrate_data(merged_data)
-    load(calibrated_data)
-    send_hourly_measurements_to_api(calibrated_data)
-    send_hourly_measurements_to_message_broker(calibrated_data)
     
     validate_schema = GreatExpectationsOperator(
         task_id='validate_air_quality_schema',
@@ -177,7 +173,21 @@ def airqo_historical_hourly_measurements():
         },
         data_context_root_dir='gx/expectations'
     )
-
+    calibrated_data = calibrate_data(merged_data)
+    load(calibrated_data)
+    send_hourly_measurements_to_api(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
+    
+    # Define Our task dependencies
+    extracted_device_measurements >> extracted_weather_data >> merged_data
+    merged_data >> validate_schema
+    validate_schema >> validate_data_quality
+    validate_data_quality >> validate_uniqueness_integrity
+    validate_uniqueness_integrity >> validate_temporal_consistency
+    validate_temporal_consistency >> validate_completeness
+    validate_completeness >> validate_referential_integrity
+    validate_referential_integrity >> calibrated_data
+    
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
     schedule="0 4 * * *",
