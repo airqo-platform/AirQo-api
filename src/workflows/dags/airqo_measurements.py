@@ -155,6 +155,17 @@ def airqo_historical_hourly_measurements():
         },
         data_context_root_dir='gx/expectations'
     )
+    
+    validate_completeness = GreatExpectationsOperator(
+        task_id='validate_air_quality_completeness',
+        expectation_suite_name='air_quality_completeness',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'AirQo-dataset',
+            'table': 'temp_air_quality_data'
+        },
+        data_context_root_dir='gx/expectations'
+    )
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
