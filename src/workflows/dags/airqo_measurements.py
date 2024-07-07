@@ -145,6 +145,16 @@ def airqo_historical_hourly_measurements():
         data_context_root_dir='gx/expectations'
     )
     
+    validate_temporal_consistency = GreatExpectationsOperator(
+        task_id='validate_air_quality_temporal_consistency',
+        expectation_suite_name='air_quality_temporal_consistency',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'AirQo_dataset',
+            'table': 'temp_air_quality_data'
+        },
+        data_context_root_dir='gx/expectations'
+    )
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
