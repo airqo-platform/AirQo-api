@@ -256,7 +256,20 @@ def airqo_historical_raw_measurements():
         airqo_data=cleaned_data, deployment_logs=device_deployment_logs
     )
     load_data(mapped_site_ids_data)
-
+    
+    # gx validation steps-- Raw-low cost measurements
+    validate_raw_schema = GreatExpectationsOperator(
+        task_id='validate_raw_air_quality_schema',
+        expectation_suite_name='raw_air_quality_schema',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'AirQo-dataset',
+            'table': 'temp_raw_air_quality_data'
+        },
+        data_context_root_dir='gx/expectations'
+    )
+    
+    
 
 @dag(
     "Cleanup-AirQo-Measurements",
