@@ -249,13 +249,13 @@ def airqo_historical_raw_measurements():
             table=big_query_api.raw_measurements_table,
         )
 
-    raw_data = extract_raw_data()
-    clean_data = clean_data_raw_data(raw_data)
-    device_logs = extract_device_deployment_logs()
-    data_with_site_ids = map_site_ids(
-        airqo_data=clean_data, deployment_logs=device_logs
+    extracted_raw_data = extract_raw_data()
+    cleaned_data = clean_data_raw_data(extracted_raw_data)
+    device_deployment_logs = extract_device_deployment_logs()
+    mapped_site_ids_data = map_site_ids(
+        airqo_data=cleaned_data, deployment_logs=device_deployment_logs
     )
-    load_data(data_with_site_ids)
+    load_data(mapped_site_ids_data)
 
 
 @dag(
