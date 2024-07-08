@@ -268,7 +268,16 @@ def airqo_historical_raw_measurements():
         },
         data_context_root_dir='gx/expectations'
     )
-    
+    validate_raw_data_quality = GreatExpectationsOperator(
+        task_id='validate_raw_air_quality_data_quality',
+        expectation_suite_name='raw_air_quality_data_quality',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'AirQo-dataset',
+            'table': 'temp_raw_air_quality_data'
+        },
+        data_context_root_dir='gx/expectations'
+    )
     
 
 @dag(
