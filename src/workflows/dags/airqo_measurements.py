@@ -300,6 +300,17 @@ def airqo_historical_raw_measurements():
         },
         data_context_root_dir="gx/expectations",
     )
+    
+    validate_raw_uniqueness_integrity = GreatExpectationsOperator(
+        task_id='validate_raw_air_quality_uniqueness_integrity',
+        expectation_suite_name='raw_air_quality_uniqueness_integrity',
+        batch_kwargs={
+            'datasource': 'bigquery_datasource',
+            'dataset': 'AirQodataset',
+            'table': 'temp_raw_air_quality_data'
+        },
+        data_context_root_dir='gx/expectations'
+    )
 
 
 @dag(
