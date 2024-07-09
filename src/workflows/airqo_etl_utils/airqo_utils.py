@@ -423,25 +423,21 @@ class AirQoDataUtils:
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-        aggregated_data = pd.DataFrame()
         data["timestamp"] = pd.to_datetime(data["timestamp"])
+        def resample_and_aggregate(group):
+            device_id = group["device_id"].iloc[0]
+            site_id = group["site_id"].iloc[0]
+            device_number = group["device_number"].iloc[0]
+            
+            group = group.drop(columns=["site_id", "device_id", "device_number"])
+            resampled = group.resample("1H", on="timestamp").mean()
+            resampled["timestamp"] = resampled.index
+            resampled["device_id"] = device_id
+            resampled["site_id"] = site_id
+            resampled["device_number"] = device_number
+            return resampled.reset_index(drop=True)
 
-        for _, device_group in data.groupby("device_number"):
-            site_id = device_group.iloc[0]["site_id"]
-            device_id = device_group.iloc[0]["device_id"]
-            device_number = device_group.iloc[0]["device_number"]
-
-            del device_group["site_id"]
-            del device_group["device_id"]
-            del device_group["device_number"]
-
-            averages = device_group.resample("1H", on="timestamp").mean()
-            averages["timestamp"] = averages.index
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averages["device_number"] = device_number
-
-            aggregated_data = pd.concat([aggregated_data, averages], ignore_index=True)
+        aggregated_data = data.groupby("device_number").apply(resample_and_aggregate).reset_index(drop=True)
 
         return aggregated_data
 
@@ -469,7 +465,7 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
-        
+
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         data.drop_duplicates(
