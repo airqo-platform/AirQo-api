@@ -1,11 +1,6 @@
-# implement the openweather api
 import logging
-import os
-
 import requests
-
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.utils import Utils
 
 
 class OpenWeatherApi:
