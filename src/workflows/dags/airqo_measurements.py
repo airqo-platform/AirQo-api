@@ -300,63 +300,75 @@ def airqo_historical_raw_measurements():
         },
         data_context_root_dir="gx/expectations",
     )
-    
+
     validate_raw_uniqueness_integrity = GreatExpectationsOperator(
-        task_id='validate_raw_air_quality_uniqueness_integrity',
-        expectation_suite_name='raw_air_quality_uniqueness_integrity',
+        task_id="validate_raw_air_quality_uniqueness_integrity",
+        expectation_suite_name="raw_air_quality_uniqueness_integrity",
         batch_kwargs={
-            'datasource': 'bigquery_datasource',
-            'dataset': 'AirQo-dataset',
-            'table': 'temp_raw_air_quality_data'
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
         },
-        data_context_root_dir='gx/expectations'
+        data_context_root_dir="gx/expectations",
     )
-    
+
     validate_raw_temporal_consistency = GreatExpectationsOperator(
-        task_id='validate_raw_air_quality_temporal_consistency',
-        expectation_suite_name='raw_air_quality_temporal_consistency',
+        task_id="validate_raw_air_quality_temporal_consistency",
+        expectation_suite_name="raw_air_quality_temporal_consistency",
         batch_kwargs={
-            'datasource': 'bigquery_datasource',
-            'dataset': 'AirQo-dataset',
-            'table': 'temp_raw_air_quality_data'
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
         },
-        data_context_root_dir='gx/expectations'
+        data_context_root_dir="gx/expectations",
     )
-    
+
     validate_raw_completeness = GreatExpectationsOperator(
-        task_id='validate_raw_air_quality_completeness',
-        expectation_suite_name='raw_air_quality_completeness',
+        task_id="validate_raw_air_quality_completeness",
+        expectation_suite_name="raw_air_quality_completeness",
         batch_kwargs={
-            'datasource': 'bigquery_datasource',
-            'dataset': 'AirQo-dataset',
-            'table': 'temp_raw_air_quality_data'
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
         },
-        data_context_root_dir='gx/expectations'
+        data_context_root_dir="gx/expectations",
     )
 
     validate_raw_referential_integrity = GreatExpectationsOperator(
-        task_id='validate_raw_air_quality_referential_integrity',
-        expectation_suite_name='raw_air_quality_referential_integrity',
+        task_id="validate_raw_air_quality_referential_integrity",
+        expectation_suite_name="raw_air_quality_referential_integrity",
         batch_kwargs={
-            'datasource': 'bigquery_datasource',
-            'dataset': 'AirQo-dataset',
-            'table': 'temp_raw_air_quality_data'
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
         },
-        data_context_root_dir='gx/expectations'
+        data_context_root_dir="gx/expectations",
     )
 
     validate_raw_range = GreatExpectationsOperator(
-        task_id='validate_raw_air_quality_range_validation',
-        expectation_suite_name='raw_air_quality_range_validation',
+        task_id="validate_raw_air_quality_range_validation",
+        expectation_suite_name="raw_air_quality_range_validation",
         batch_kwargs={
-            'datasource': 'bigquery_datasource',
-            'dataset': 'AirQo-dataset',
-            'table': 'temp_raw_air_quality_data'
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
         },
-        data_context_root_dir='gx/expectations'
+        data_context_root_dir="gx/expectations",
     )
 
-    extract_raw_data() >> [validate_raw_schema, validate_raw_data_quality, validate_raw_uniqueness_integrity, validate_raw_temporal_consistency, validate_raw_completeness, validate_raw_referential_integrity, validate_raw_range] >> clean_data_raw_data()
+    (
+        extract_raw_data()
+        >> [
+            validate_raw_schema,
+            validate_raw_data_quality,
+            validate_raw_uniqueness_integrity,
+            validate_raw_temporal_consistency,
+            validate_raw_completeness,
+            validate_raw_referential_integrity,
+            validate_raw_range,
+        ]
+        >> clean_data_raw_data()
+    )
 
 
 @dag(
