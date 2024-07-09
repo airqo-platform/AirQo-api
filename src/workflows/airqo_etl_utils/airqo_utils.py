@@ -355,9 +355,10 @@ class AirQoDataUtils:
         for device in devices:
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
+            alias = device.get("alias")
 
             if read_key is None or device_number is None:
-                print(f"{device_number} does not have a read key")
+                print(f"{alias} does not have a read key. It's device number is {device_number}")
                 continue
 
             for start, end in dates:
