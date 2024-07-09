@@ -306,7 +306,7 @@ def airqo_historical_raw_measurements():
         expectation_suite_name='raw_air_quality_uniqueness_integrity',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
-            'dataset': 'AirQodataset',
+            'dataset': 'AirQo-dataset',
             'table': 'temp_raw_air_quality_data'
         },
         data_context_root_dir='gx/expectations'
@@ -317,7 +317,7 @@ def airqo_historical_raw_measurements():
         expectation_suite_name='raw_air_quality_temporal_consistency',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
-            'dataset': 'AirQodataset',
+            'dataset': 'AirQo-dataset',
             'table': 'temp_raw_air_quality_data'
         },
         data_context_root_dir='gx/expectations'
@@ -328,7 +328,7 @@ def airqo_historical_raw_measurements():
         expectation_suite_name='raw_air_quality_completeness',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
-            'dataset': 'AirQodataset',
+            'dataset': 'AirQo-dataset',
             'table': 'temp_raw_air_quality_data'
         },
         data_context_root_dir='gx/expectations'
@@ -339,7 +339,7 @@ def airqo_historical_raw_measurements():
         expectation_suite_name='raw_air_quality_referential_integrity',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
-            'dataset': 'AirQodataset',
+            'dataset': 'AirQo-dataset',
             'table': 'temp_raw_air_quality_data'
         },
         data_context_root_dir='gx/expectations'
@@ -350,7 +350,7 @@ def airqo_historical_raw_measurements():
         expectation_suite_name='raw_air_quality_range_validation',
         batch_kwargs={
             'datasource': 'bigquery_datasource',
-            'dataset': 'AirQodataset',
+            'dataset': 'AirQo-dataset',
             'table': 'temp_raw_air_quality_data'
         },
         data_context_root_dir='gx/expectations'
