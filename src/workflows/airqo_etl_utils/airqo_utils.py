@@ -370,7 +370,7 @@ class AirQoDataUtils:
                 )
 
                 if data.empty:
-                    print(f"Device does not have data between {start} and {end}")
+                    print(f"{alias} does not have data between {start} and {end}")
                     continue
 
                 if "field8" not in data.columns.to_list():
