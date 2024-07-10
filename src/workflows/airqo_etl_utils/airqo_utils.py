@@ -1,5 +1,5 @@
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -742,7 +742,7 @@ class AirQoDataUtils:
                 log_df = log_df.sort_values(by="start_date_time")
                 log_df["end_date_time"] = log_df["start_date_time"].shift(-1)
                 log_df["end_date_time"] = log_df["end_date_time"].fillna(
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                 )
 
                 log_df["start_date_time"] = log_df["start_date_time"].apply(
