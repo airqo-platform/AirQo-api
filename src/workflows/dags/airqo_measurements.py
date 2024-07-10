@@ -114,8 +114,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_schema",
         expectation_suite_name="air_quality_schema_validation",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "Aiqo-dataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -125,8 +125,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_data_quality",
         expectation_suite_name="air_quality_data_quality",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -136,8 +136,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_uniqueness_integrity",
         expectation_suite_name="air_quality_uniqueness_integrity",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -147,8 +147,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_temporal_consistency",
         expectation_suite_name="air_quality_temporal_consistency",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo_dataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -158,8 +158,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_completeness",
         expectation_suite_name="air_quality_completeness",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -169,8 +169,8 @@ def airqo_historical_hourly_measurements():
         task_id="validate_air_quality_referential_integrity",
         expectation_suite_name="air_quality_referential_integrity",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQodataset",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
             "table": "temp_air_quality_data",
         },
         data_context_root_dir="gx/expectations",
@@ -262,9 +262,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_schema",
         expectation_suite_name="raw_air_quality_schema",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -272,9 +272,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_data_quality",
         expectation_suite_name="raw_air_quality_data_quality",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -283,9 +283,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_uniqueness_integrity",
         expectation_suite_name="raw_air_quality_uniqueness_integrity",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -294,9 +294,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_temporal_consistency",
         expectation_suite_name="raw_air_quality_temporal_consistency",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -305,9 +305,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_uniqueness_integrity",
         expectation_suite_name="raw_air_quality_uniqueness_integrity",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -316,9 +316,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_temporal_consistency",
         expectation_suite_name="raw_air_quality_temporal_consistency",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -327,9 +327,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_completeness",
         expectation_suite_name="raw_air_quality_completeness",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -338,9 +338,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_referential_integrity",
         expectation_suite_name="raw_air_quality_referential_integrity",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
@@ -349,9 +349,9 @@ def airqo_historical_raw_measurements():
         task_id="validate_raw_air_quality_range_validation",
         expectation_suite_name="raw_air_quality_range_validation",
         batch_kwargs={
-            "datasource": "bigquery_datasource",
-            "dataset": "AirQo-dataset",
-            "table": "temp_raw_air_quality_data",
+            "datasource": "{datasource_name}",
+            "dataset": "bigquery://{project_id}/{dataset_id}",
+            "table": "airqo-250220.consolidated_data_stage.hourly_device_measurements",
         },
         data_context_root_dir="gx/expectations",
     )
