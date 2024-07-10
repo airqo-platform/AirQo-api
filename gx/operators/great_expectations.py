@@ -271,7 +271,8 @@ class GreatExpectationsOperator(BaseOperator):
                 driver = f"?driver={ms_driver}"
                 database_name = self.conn.schema or "master"
             else:
-                raise ValueError(f"Conn type: {conn_type} is not supported.")
+                self.log.error(f"Unsupported connection type: {conn_type}")
+                raise AirflowException(f"Unsupported connection type: {conn_type}")
             uri_string = (
                 f"{odbc_connector}://{self.conn.login}:{self.conn.password}@"
                 f"{self.conn.host}:{self.conn.port}/{database_name}{driver}"
