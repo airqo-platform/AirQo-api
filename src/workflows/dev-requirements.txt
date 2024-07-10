@@ -29,3 +29,4 @@ pytest-cov
 firebase-admin
 db_dtypes
 tweepy
+airflow-provider-great-expectations==0.2.8
