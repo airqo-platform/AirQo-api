@@ -7,7 +7,7 @@ const logger = log4js.getLogger(
 );
 
 const emailTemplates = {
-  EMAIL_GREETINGS: function (name) {
+  EMAIL_GREETINGS: function ({ name }) {
     try {
       let greetingText;
       if (isEmpty(name) || typeof name !== "string") {
@@ -49,7 +49,8 @@ const emailTemplates = {
                             </table>
                             `;
   },
-  EMAIL_FOOTER_TEMPLATE: function (email, optional) {
+
+  EMAIL_FOOTER_TEMPLATE: function ({ email, optional }) {
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
@@ -80,7 +81,7 @@ const emailTemplates = {
                                         <span
                                             style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}<br/></span>
                                             
-                                        ${this.EMAIL_UNSUBSCRIBE_CLAUSE(optional)}
+                                        ${this.EMAIL_UNSUBSCRIBE_CLAUSE({ optional })}
                                         <span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
                                             <br/>
@@ -94,7 +95,7 @@ const emailTemplates = {
     `;
   },
 
-  EMAIL_UNSUBSCRIBE_CLAUSE(optional = false) {
+  EMAIL_UNSUBSCRIBE_CLAUSE: function ({ optional = false }) {
     if (optional) {
       return `<span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
@@ -107,8 +108,7 @@ const emailTemplates = {
                                         <span
                                             style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
                                             your email preferences.</span><br /><br />`;
-    }
-    else {
+    } else {
       return `<span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
                                             You're receiving this email because you have an AirQo account. This email is not a marketing or promotional email. This is why
@@ -117,10 +117,10 @@ const emailTemplates = {
     }
   },
 
-  EMAIL_BODY: function (email, content, name, optional) {
-    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email, optional);
+  EMAIL_BODY: function ({ email, content, name, optional }) {
+    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE({ email, optional });
     const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
-    let greetings = this.EMAIL_GREETINGS(name);
+    let greetings = this.EMAIL_GREETINGS({ name });
     if (!name) {
       greetings = ``;
     }
@@ -163,4 +163,5 @@ const emailTemplates = {
     </html>`;
   },
 };
+
 module.exports = emailTemplates;
