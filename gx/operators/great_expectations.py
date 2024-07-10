@@ -163,7 +163,7 @@ class GreatExpectationsOperator(BaseOperator):
         ] = validation_failure_callback
         self.return_json_dict: bool = return_json_dict
         self.use_open_lineage = use_open_lineage
-        self.is_dataframe = True if self.dataframe_to_validate is not None else False
+        self.is_dataframe = self.dataframe_to_validate is not None
         self.datasource: Optional[Datasource] = None
         self.batch_request: Optional[BatchRequestBase] = None
         self.runtime_environment: Optional[Dict[str, Any]] = runtime_environment
@@ -558,7 +558,7 @@ class GreatExpectationsOperator(BaseOperator):
         try:
             context["ti"].xcom_push(key="data_docs_url", value=data_docs_site)
         except KeyError:
-            self.log.debug("Could not push data_docs_url to XCom.")
+            self.log.error("Failed to push data_docs_url to XCom.", exc_info=True)
         self.log.info("GE Checkpoint Run Result:\n%s", result)
         self.handle_result(result)
 
