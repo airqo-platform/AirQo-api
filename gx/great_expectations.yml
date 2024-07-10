@@ -18,7 +18,7 @@ datasources:
     class_name: Datasource
     execution_engine:
       class_name: SqlAlchemyExecutionEngine
-      connection_string: bigquery://airqo-250220
+      connection_string: bigquery://{project_id}/{dataset_id}
     data_connectors:
       default_runtime_data_connector_name:
         class_name: RuntimeDataConnector
