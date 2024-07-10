@@ -98,7 +98,7 @@ class AirQoApi:
             print(ex)
             return []
 
-    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=10, min=10, max=30))
+    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=20, min=20, max=80))
     def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,
@@ -140,7 +140,7 @@ class AirQoApi:
             ]
         return devices
 
-    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=10, min=10, max=30))
+    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=20, min=20, max=80))
     def get_thingspeak_read_keys(self, devices: list) -> dict:
         body = []
         for device in devices:
@@ -376,7 +376,7 @@ class AirQoApi:
             for cohort in response.get("cohorts", [])
         ]
 
-    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=10, min=10, max=30))
+    @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=20, min=20, max=80))
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
@@ -439,6 +439,8 @@ class AirQoApi:
         retry_strategy = Retry(
             total=5,
             backoff_factor=5,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS", "POST", "PUT"]
         )
 
         http = urllib3.PoolManager(retries=retry_strategy)
