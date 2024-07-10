@@ -49,7 +49,7 @@ const emailTemplates = {
                             </table>
                             `;
   },
-  EMAIL_FOOTER_TEMPLATE: function (email) {
+  EMAIL_FOOTER_TEMPLATE: function (email, optional) {
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
@@ -79,17 +79,7 @@ const emailTemplates = {
                                             email was sent to</span>
                                         <span
                                             style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
-                                        <span
-                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
-                                            If you'd rather not receive this kind of email, you can </span>
-                                        <span
-                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
-                                        <span
-                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
-                                            or </span>
-                                        <span
-                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
-                                            your email preferences.</span><br /><br />
+                                        ${this.EMAIL_UNSUBSCRIBE_CLAUSE(optional)}
                                         <span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
                                             2023 AirQo<br /><br />
@@ -102,8 +92,31 @@ const emailTemplates = {
     `;
   },
 
-  EMAIL_BODY: function (email, content, name) {
-    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email);
+  EMAIL_UNSUBSCRIBE_CLAUSE(optional = false) {
+    if (optional) {
+      return `<span
+                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                            If you'd rather not receive this kind of email, you can </span>
+                                        <span
+                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+                                        <span
+                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
+                                            or </span>
+                                        <span
+                                            style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
+                                            your email preferences.</span><br /><br />`;
+    }
+    else {
+      return `<span
+                                            style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                            You're receiving this email because you have an AirQo account. This email is not a marketing or promotional email. This is why
+                                            this email does not contain an unsubscribe link. You will receive this email even if you have unsubscribed from AirQo's marketing emails.
+                                             </span>`;
+    }
+  },
+
+  EMAIL_BODY: function (email, content, name, optional) {
+    const footerTemplate = this.EMAIL_FOOTER_TEMPLATE(email, optional);
     const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
     let greetings = this.EMAIL_GREETINGS(name);
     if (!name) {
