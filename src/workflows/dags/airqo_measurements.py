@@ -1,5 +1,7 @@
 from airflow.decorators import dag, task
-
+from great_expectations_provider.operators.great_expectations import (
+    GreatExpectationsOperator,
+)
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
@@ -107,10 +109,86 @@ def airqo_historical_hourly_measurements():
         device_measurements=extracted_device_measurements,
         weather_data=extracted_weather_data,
     )
+
+    validate_schema = GreatExpectationsOperator(
+        task_id="validate_air_quality_schema",
+        expectation_suite_name="air_quality_schema_validation",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "Aiqo-dataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_data_quality = GreatExpectationsOperator(
+        task_id="validate_air_quality_data_quality",
+        expectation_suite_name="air_quality_data_quality",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_uniqueness_integrity = GreatExpectationsOperator(
+        task_id="validate_air_quality_uniqueness_integrity",
+        expectation_suite_name="air_quality_uniqueness_integrity",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_temporal_consistency = GreatExpectationsOperator(
+        task_id="validate_air_quality_temporal_consistency",
+        expectation_suite_name="air_quality_temporal_consistency",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo_dataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_completeness = GreatExpectationsOperator(
+        task_id="validate_air_quality_completeness",
+        expectation_suite_name="air_quality_completeness",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_referential_integrity = GreatExpectationsOperator(
+        task_id="validate_air_quality_referential_integrity",
+        expectation_suite_name="air_quality_referential_integrity",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQodataset",
+            "table": "temp_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
+
+    # Define Our task dependencies
+    extracted_device_measurements >> extracted_weather_data >> merged_data
+    merged_data >> validate_schema
+    validate_schema >> validate_data_quality
+    validate_data_quality >> validate_uniqueness_integrity
+    validate_uniqueness_integrity >> validate_temporal_consistency
+    validate_temporal_consistency >> validate_completeness
+    validate_completeness >> validate_referential_integrity
+    validate_referential_integrity >> calibrated_data
 
 
 @dag(
@@ -171,13 +249,126 @@ def airqo_historical_raw_measurements():
             table=big_query_api.raw_measurements_table,
         )
 
-    raw_data = extract_raw_data()
-    clean_data = clean_data_raw_data(raw_data)
-    device_logs = extract_device_deployment_logs()
-    data_with_site_ids = map_site_ids(
-        airqo_data=clean_data, deployment_logs=device_logs
+    extracted_raw_data = extract_raw_data()
+    cleaned_data = clean_data_raw_data(extracted_raw_data)
+    device_deployment_logs = extract_device_deployment_logs()
+    mapped_site_ids_data = map_site_ids(
+        airqo_data=cleaned_data, deployment_logs=device_deployment_logs
     )
-    load_data(data_with_site_ids)
+    load_data(mapped_site_ids_data)
+
+    # gx validation steps-- Raw-low cost measurements
+    validate_raw_schema = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_schema",
+        expectation_suite_name="raw_air_quality_schema",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+    validate_raw_data_quality = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_data_quality",
+        expectation_suite_name="raw_air_quality_data_quality",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_uniqueness_integrity = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_uniqueness_integrity",
+        expectation_suite_name="raw_air_quality_uniqueness_integrity",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_temporal_consistency = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_temporal_consistency",
+        expectation_suite_name="raw_air_quality_temporal_consistency",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_uniqueness_integrity = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_uniqueness_integrity",
+        expectation_suite_name="raw_air_quality_uniqueness_integrity",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_temporal_consistency = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_temporal_consistency",
+        expectation_suite_name="raw_air_quality_temporal_consistency",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_completeness = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_completeness",
+        expectation_suite_name="raw_air_quality_completeness",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_referential_integrity = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_referential_integrity",
+        expectation_suite_name="raw_air_quality_referential_integrity",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    validate_raw_range = GreatExpectationsOperator(
+        task_id="validate_raw_air_quality_range_validation",
+        expectation_suite_name="raw_air_quality_range_validation",
+        batch_kwargs={
+            "datasource": "bigquery_datasource",
+            "dataset": "AirQo-dataset",
+            "table": "temp_raw_air_quality_data",
+        },
+        data_context_root_dir="gx/expectations",
+    )
+
+    (
+        extract_raw_data()
+        >> [
+            validate_raw_schema,
+            validate_raw_data_quality,
+            validate_raw_uniqueness_integrity,
+            validate_raw_temporal_consistency,
+            validate_raw_completeness,
+            validate_raw_referential_integrity,
+            validate_raw_range,
+        ]
+        >> clean_data_raw_data()
+    )
 
 
 @dag(
