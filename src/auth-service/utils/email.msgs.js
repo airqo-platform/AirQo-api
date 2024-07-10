@@ -343,12 +343,17 @@ module.exports = {
 
     return constants.EMAIL_BODY(email, content, name);
   },
-  tokenExpired: ({ firstName = "", lastName = "", email = "" } = {}) => {
+  tokenExpired: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    token = "",
+  } = {}) => {
     const name = firstName + " " + lastName;
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Your AIRQO API token has expired.</p>
+        <p>Your AIRQO API token <strong>${token}</strong> has expired.</p>
         <p>Please create a new token to continue accessing our services. You can do so by logging into your account and navigating to the API section under settings.</p>
         <p><a href="${constants.LOGIN_PAGE}">Click here</a> to log in to your AirQo account.</p>
       </td>

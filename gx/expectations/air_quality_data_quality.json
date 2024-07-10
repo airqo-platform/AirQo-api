@@ -1,0 +1,61 @@
+{
+    "data_asset_type": "Dataset",
+    "expectation_suite_name": "air_quality_data_quality",
+    "meta": {
+        "great_expectations_version": "0.15.34"
+    },
+    "expectations": [
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "timestamp"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_not_be_null",
+            "kwargs": {
+                "column": "sensor_id"
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_between",
+            "kwargs": {
+                "column": "pm2_5",
+                "min_value": 0,
+                "max_value": 500
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_between",
+            "kwargs": {
+                "column": "pm10",
+                "min_value": 0,
+                "max_value": 500
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_between",
+            "kwargs": {
+                "column": "temperature",
+                "min_value": -50,
+                "max_value": 50
+            },
+            "meta": {}
+        },
+        {
+            "expectation_type": "expect_column_values_to_be_between",
+            "kwargs": {
+                "column": "humidity",
+                "min_value": 0,
+                "max_value": 100
+            },
+            "meta": {}
+        }
+    ],
+    "ge_cloud_id": null,
+    "data_asset_name": null
+}

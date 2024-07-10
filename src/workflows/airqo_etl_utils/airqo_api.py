@@ -175,7 +175,7 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO)}
+        params = {"tenant": str(Tenant.AIRQO), "active": "yes"}
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
@@ -202,7 +202,6 @@ class AirQoApi:
             }
             for device in response.get("devices", [])
         ]
-        # TODO: For cases where lat & lon, look into checking bigquery metadata
 
         if device_category != DeviceCategory.NONE:
             devices = [

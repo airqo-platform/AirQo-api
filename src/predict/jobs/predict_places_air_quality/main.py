@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-
 import geopandas as gpd
 from shapely.geometry import Point
 
