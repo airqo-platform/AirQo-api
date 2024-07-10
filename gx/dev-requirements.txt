@@ -1,7 +1,13 @@
+feature/add-great-expectations-operator-GEX-OPS-227
 apache-airflow==2.4.0
 great_expectations==0.18.18
 airflow-provider-great-expectations==0.2.8
 pytest==8.2.2
 sqlalchemy==2.0.31
+=======
+great_expectations==0.18.18
+airflow-provider-great-expectations==0.2.8
+pytest==8.2.2
+staging
 pandas-gbq==0.23.1
 google-cloud-bigquery==3.25.0
