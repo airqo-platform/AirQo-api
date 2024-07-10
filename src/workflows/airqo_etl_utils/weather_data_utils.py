@@ -249,7 +249,7 @@ class WeatherDataUtils:
         return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites):
+    def fetch_openweathermap_data_for_sites(sites_or_coords):
         def process_batch(batch_of_coordinates):
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = list(
@@ -287,14 +287,14 @@ class WeatherDataUtils:
         batch_size = int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
         weather_data = []
 
-        for i in range(0, len(sites), batch_size):
+        for i in range(0, len(sites_or_coords), batch_size):
             batch = [
-                (site.get("latitude"), site.get("longitude"))
-                for site in sites[i : i + batch_size]
+                (item["latitude"], item["longitude"]) if isinstance(item, dict) else item
+                for item in sites_or_coords[i : i + batch_size]
             ]
             weather_data.extend(process_batch(batch))
 
-            if i + batch_size < len(sites):
+            if i + batch_size < len(sites_or_coords):
                 time.sleep(60)
 
         return pd.DataFrame(weather_data)
