@@ -354,9 +354,10 @@ class AirQoDataUtils:
         for device in devices:
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
+            alias = device.get("alias")
 
             if read_key is None or device_number is None:
-                print(f"{device_number} does not have a read key")
+                print(f"{alias}'s read key was not fetched successfully. It's probably has no device number")
                 continue
 
             for start, end in dates:
@@ -368,7 +369,7 @@ class AirQoDataUtils:
                 )
 
                 if data.empty:
-                    print(f"Device does not have data between {start} and {end}")
+                    print(f"{alias} does not have data between {start} and {end}")
                     continue
 
                 if "field8" not in data.columns.to_list():
