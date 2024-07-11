@@ -486,7 +486,7 @@ UserSchema.statics = {
       );
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
