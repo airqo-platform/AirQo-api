@@ -7,7 +7,7 @@ const logger = log4js.getLogger(
 );
 
 const emailTemplates = {
-  EMAIL_GREETINGS: function ({ name }) {
+  EMAIL_GREETINGS: function ({ name } = {}) {
     try {
       let greetingText;
       if (isEmpty(name) || typeof name !== "string") {
@@ -50,7 +50,7 @@ const emailTemplates = {
                             `;
   },
 
-  EMAIL_FOOTER_TEMPLATE: function ({ email, optional }) {
+  EMAIL_FOOTER_TEMPLATE: function ({ email, optional } = {}) {
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
@@ -95,7 +95,7 @@ const emailTemplates = {
     `;
   },
 
-  EMAIL_UNSUBSCRIBE_CLAUSE: function ({ optional = false }) {
+  EMAIL_UNSUBSCRIBE_CLAUSE: function ({ optional = false } = {}) {
     if (optional) {
       return `<span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
@@ -117,7 +117,7 @@ const emailTemplates = {
     }
   },
 
-  EMAIL_BODY: function ({ email, content, name, optional }) {
+  EMAIL_BODY: function ({ email, content, name, optional } = {}) {
     const footerTemplate = this.EMAIL_FOOTER_TEMPLATE({ email, optional });
     const headerTemplate = this.EMAIL_HEADER_TEMPLATE();
     let greetings = this.EMAIL_GREETINGS({ name });
