@@ -305,6 +305,12 @@ class AirQoDataUtils:
             tenant=Tenant.AIRQO, device_category=device_category
         )
 
+        device_numbers = (
+            [int(device_number) for device_number in device_numbers]
+            if device_numbers
+            else []
+        )
+
         devices = (
             [x for x in devices if x["device_number"] in device_numbers]
             if device_numbers
