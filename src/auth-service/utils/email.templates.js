@@ -94,7 +94,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "analytics", "email", `email=${email}`);
   },
   acceptInvitation: ({
     email,
@@ -108,12 +108,12 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Join your team on ${processString(
-                                      entity_title
-                                    )} 🎉
+      entity_title
+    )} 🎉
                                     <br /><br />
                                     ${processString(
-                                      entity_title
-                                    )}, ${inviterEmail} has invited you to collaborate in ${processString(
+      entity_title
+    )}, ${inviterEmail} has invited you to collaborate in ${processString(
       entity_title
     )} on AirQo Analytics
                                     <br /><br />
@@ -125,8 +125,8 @@ module.exports = {
                                             <div
                                                 style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
                                                 Join ${processString(
-                                                  entity_title
-                                                )}</div>
+      entity_title
+    )}</div>
                                         </div>
                                     </a>
                                     <br /><br />
@@ -144,6 +144,7 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY(email, content);
   },
+
   afterEmailVerification: (firstName, username, email) => {
     const name = firstName;
     const content = ` <tr>
@@ -169,8 +170,9 @@ module.exports = {
                                 The AirQo Data Team
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}`);
   },
+
   afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
     const name = firstName;
     const content = ` <tr>
@@ -196,7 +198,7 @@ module.exports = {
                                 The AirQo Data Team
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "analytics", "email", `email=${email}`);
   },
   deleteMobileAccountEmail: (email, token) => {
     const content = ` <tr>
@@ -220,6 +222,6 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "mobile", "email", `email=${email}`);
   },
 };

@@ -32,7 +32,13 @@ const SubscriptionSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
+
       email: {
+        type: Boolean,
+        default: true,
+      },
+
+      mobile_push: {
         type: Boolean,
         default: true,
       },
@@ -44,7 +50,7 @@ const SubscriptionSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
-    },
+    }
   },
   {
     timestamps: true,
@@ -63,9 +69,10 @@ SubscriptionSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      email: this.subscribed,
-      isSystemUser: this.isSystemUser,
+      email: this.email,
       notifications: this.notifications,
+      subscribed: this.subscribed,
+      isSystemUser: this.isSystemUser,
     };
   },
 };
@@ -250,8 +257,24 @@ SubscriptionSchema.statics.remove = async function (
   }
 };
 
+SubscriptionSchema.statics.subscribe = async function (email, type) {
+  const updatedSubscription = await this.findOneAndUpdate(
+    { email },
+    { $set: { [`notifications.${type}`]: true } },
+    { new: true, upsert: true }
+  );
+
+  return updatedSubscription;
+};
+
 SubscriptionSchema.statics.unsubscribe = async function (email, type) {
-  await this.updateOne({ email }, { [`notifications.${type}`]: false });
+  const updatedSubscription = await this.findOneAndUpdate(
+    { email },
+    { $set: { [`notifications.${type}`]: false } },
+    { new: true, upsert: true }
+  );
+
+  return updatedSubscription;
 };
 
 SubscriptionSchema.statics.checkNotificationStatus = async function (
@@ -270,31 +293,27 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
           message: `No subscription found for email: ${email}`,
         },
       };
-    } else if (isEmpty(subscription.notifications[type])) {
-      return {
-        success: true,
-        message: `not subscribed to type`,
-        status: httpStatus.OK,
-        errors: {
-          message: `User is not subscribed to ${type} notifications`,
-        },
-      };
-    } else if (subscription.notifications[type] === false) {
+    }
+
+    let isSubscribed = subscription.notifications[type];
+
+
+    if (!isSubscribed) {
       return {
         success: false,
         message: `Forbidden`,
         status: httpStatus.FORBIDDEN,
         errors: {
-          message: `User unsubscribed from ${type} notifications`,
+          message: `User not subscribed to ${type} notifications.`,
         },
       };
-    } else {
-      return {
-        success: true,
-        message: `User is subscribed to ${type} notifications`,
-        status: httpStatus.OK,
-      };
     }
+
+    return {
+      success: true,
+      message: `User is subscribed to ${type} notifications.`,
+      status: httpStatus.OK,
+    };
   } catch (error) {
     logger.error(`Data conflicts detected -- ${error.message}`);
     next(

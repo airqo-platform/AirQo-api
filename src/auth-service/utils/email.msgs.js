@@ -33,7 +33,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
   joinRequest: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
@@ -51,16 +51,17 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
+
   joinEntityRequest: (email, entity_title) => {
     const name = "";
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to access ${processString(
-                                      entity_title
-                                    )} has been received, we shall get back to you as soon as possible.
+      entity_title
+    )} has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
@@ -71,7 +72,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   inquiry: (fullName, email, category) => {
     let content;
@@ -158,7 +159,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY(email, content, fullName);
+    return constants.EMAIL_BODY(email, content, fullName, "email", `email=${email}`);
   },
   clientActivationRequest: ({ name = "", email, client_id = "" } = {}) => {
     const content = ` <tr>
@@ -171,7 +172,7 @@ module.exports = {
         <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
     </td>
 </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
     const content = `<tr>
@@ -184,7 +185,7 @@ module.exports = {
                               <p>The AirQo Data Team </p>
                           </td>
                       </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   afterClientDeactivation: ({ name = "", email, client_id = "" } = {}) => {
     const content = `
@@ -199,7 +200,7 @@ module.exports = {
        </td>
   </tr>`;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   welcome_kcca: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
@@ -232,7 +233,7 @@ module.exports = {
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">support@airqo.net</span>
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   welcome_general: (firstName, lastName, password, email) => {
     const name = firstName + " " + lastName;
@@ -256,7 +257,7 @@ module.exports = {
                              <p>Best regards, AirQo Data Team</p>
                          </td>
                     </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   user_updated: ({
     firstName = "",
@@ -289,7 +290,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   site_activity: ({
     firstName = "",
@@ -321,7 +322,7 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   token_compromised: ({
     firstName = "",
@@ -341,7 +342,7 @@ module.exports = {
     </tr>
    `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   tokenExpired: ({
     firstName = "",
@@ -404,7 +405,7 @@ module.exports = {
     </tr>
     `;
 
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   user_assigned: (firstName, lastName, assignedTo, email) => {
     const content = ` <tr>
@@ -424,7 +425,7 @@ module.exports = {
                                 </td>
                             </tr>`;
 
-    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`);
+    return constants.EMAIL_BODY(email, content, `${firstName} ${lastName}`, "email", `email=${email}`);
   },
   forgotten_password_updated: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
@@ -443,7 +444,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   known_password_updated: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
@@ -462,7 +463,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY(email, content, name, "email", `email=${email}`);
   },
   join_by_email: (email, token) => {
     const content = `<tr>
@@ -479,7 +480,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
   authenticate_email: (token, email) => {
     const content = ` <tr>
@@ -496,7 +497,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY(email, content, "", "email", `email=${email}`);
   },
   report: (senderEmail, recepientEmail, formart) => {
     const content = `
@@ -518,6 +519,35 @@ module.exports = {
                                 </td>
                             </tr>
   `;
-    return constants.EMAIL_BODY(recepientEmail, content);
+    return constants.EMAIL_BODY(recepientEmail, content, "", "email", `email=${email}`);
+  },
+
+  emailNotificationUnsubscibe: (type, email, name, paramString) => {
+
+    const subsciptionUrl = `${constants.PLATFORM_BASE_URL}/api/v2/users/subscribe/${type}?${paramString}`;
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We're sorry to see you go, but we've successfully unsubscribed you from our email notifications. You will no longer receive updates and notifications from your favorite locations. 
+                                    <br />
+                                    <br />
+                                    You will no longer receive updates and notifications from your favorite locations. If you ever change your mind and want to rejoin us, feel free to subscribe again at any time.
+                                    <br />
+                                    <br />
+                                    <a href=${subsciptionUrl} target="_blank">
+                                        <div
+                                            style="width: 15%; height: 100%; padding-left: 32px; padding-right: 2px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Subscribe </div>
+                                        </div>
+                                    </a>
+                                    <br />
+                                    If you have any questions or require further assistance, please feel free to reach out to our support team.<br />
+                                    <br />Thank you for being a part of the AirQo community. We hope to see you back in the future!
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content, name, type, paramString);
   },
 };
