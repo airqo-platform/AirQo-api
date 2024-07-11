@@ -1189,10 +1189,9 @@ const mailer = {
       const checkResult = await SubscriptionModel(
         tenant
       ).checkNotificationStatus({ email, type: "email" });
-      console.log(checkResult)
-      // if (!checkResult.success) {
-      //   return checkResult;
-      // }
+      if (!checkResult.success) {
+        return checkResult;
+      }
       const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
