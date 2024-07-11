@@ -357,7 +357,7 @@ class AirQoDataUtils:
             alias = device.get("alias")
 
             if read_key is None or device_number is None:
-                print(f"{alias}'s read key was not fetched successfully. It's probably has no device number")
+                print(f"{alias}'s read key was not fetched successfully. It probably has no device number.")
                 continue
 
             for start, end in dates:
