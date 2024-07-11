@@ -249,12 +249,14 @@ class WeatherDataUtils:
         return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites):
+    def fetch_openweathermap_data_for_sites(sites_or_coords):
         def process_batch(batch_of_coordinates):
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                results = executor.map(
-                    OpenWeatherApi.get_current_weather_for_each_site,
-                    batch_of_coordinates,
+                results = list(
+                    executor.map(
+                        OpenWeatherApi.get_current_weather_for_each_site,
+                        batch_of_coordinates,
+                    )
                 )
             return [
                 {
@@ -270,7 +272,7 @@ class WeatherDataUtils:
                     "wind_direction": result.get("wind", {}).get("deg", 0),
                     "wind_gust": result.get("wind", {}).get(
                         "gust", 0
-                    ),  # Uncomment if needed
+                    ),  
                     "weather_description": result.get("weather", [{}])[0].get(
                         "description", ""
                     ),
@@ -278,27 +280,23 @@ class WeatherDataUtils:
                     "ground_level": result.get("main", {}).get("grnd_level", 0),
                     "visibility": result.get("visibility", 0),
                     "cloudiness": result.get("clouds", {}).get("all", 0),
-                    "rain": result.get("rain", {}).get("1h", 0),  # Uncomment if needed
+                    "rain": result.get("rain", {}).get("1h", 0),
                 }
                 for result in results
                 if "main" in result
             ]
 
-        coordinates_tuples = []
-        for site in sites:
-            coordinates_tuples.append((site.get("latitude"), site.get("longitude")))
-
+        batch_size = int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
         weather_data = []
-        for i in range(
-            0, len(coordinates_tuples), int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
-        ):
-            batch = coordinates_tuples[
-                i : i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
+
+        for i in range(0, len(sites_or_coords), batch_size):
+            batch = [
+                (item["latitude"], item["longitude"]) if isinstance(item, dict) else item
+                for item in sites_or_coords[i : i + batch_size]
             ]
             weather_data.extend(process_batch(batch))
-            if i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE) < len(
-                coordinates_tuples
-            ):
+         
+            if i + batch_size < len(sites_or_coords):
                 time.sleep(60)
 
         return pd.DataFrame(weather_data)
