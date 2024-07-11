@@ -136,9 +136,12 @@ class AirQoDataUtils:
 
         for key, value in mappings.items():
             try:
-                series[value] = values[key]
+                if key < len(values):
+                    series[value] = values[key]
+                else:
+                    series[value] = None
             except Exception as ex:
-                print(ex)
+                print(f"issue encountered at key {key}: {ex}")
                 series[value] = None
 
         return series
