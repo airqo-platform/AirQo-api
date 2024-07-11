@@ -1,6 +1,6 @@
 # Workflows.
 
-This folder contains functionality for running various AirQo workflow scripts using Apache Airflow framework, an open-source workflow management platform for data
+This exact folder contains functionality for running various AirQo workflow scripts using Apache Airflow framework, an open-source workflow management platform for data
 engineering pipelines.
 
 ## Environment Setup
