@@ -104,7 +104,6 @@ class AirQoDataUtils:
 
         measurements = measurements.dropna(subset=["timestamp"])
         measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        devices_groups = measurements.groupby("device_number")
         averaged_measurements_list = []
 
         for (device_number, site_id), device_site in measurements.groupby(["device_number", "site_id"]):
