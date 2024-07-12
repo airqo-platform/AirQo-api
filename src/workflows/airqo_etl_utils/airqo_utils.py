@@ -107,19 +107,15 @@ class AirQoDataUtils:
         devices_groups = measurements.groupby("device_number")
         averaged_measurements_list = []
 
-        for device_number, device_group in devices_groups:
-            device_site_groups = device_group.groupby("site_id")
+        for (device_number, site_id), device_site in measurements.groupby(["device_number", "site_id"]):
+            data = device_site.sort_index(axis=0)
+            numeric_columns = data.select_dtypes(include='number').columns
+            averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
+            averages["timestamp"] = averages.index
+            averages["device_number"] = device_number
+            averages["site_id"] = site_id
+            averaged_measurements_list.append(averages)
 
-            for site_id, device_site in device_site_groups:
-                data = device_site.sort_index(axis=0)
-                numeric_columns = data.select_dtypes(include='number').columns
-                averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
-
-                averages["timestamp"] = averages.index
-                averages["device_number"] = device_number
-                averages["site_id"] = site_id
-                averaged_measurements_list.append(averages)
-                
         averaged_measurements = pd.concat(averaged_measurements_list, ignore_index=True)
 
         return averaged_measurements
