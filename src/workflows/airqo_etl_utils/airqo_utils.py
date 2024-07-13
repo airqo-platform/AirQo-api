@@ -1,5 +1,5 @@
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -282,14 +282,18 @@ class AirQoDataUtils:
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
-        Returns a dataframe of AiQo sensors measurements.
+        Extracts sensor measurements from AirQo devices recorded between specified date and time ranges.
 
-        :param start_date_time: start date time
-        :param end_date_time: end date time
-        :param device_category: BAM or low cost sensors
-        :param device_numbers: list of device numbers whose data you want to extract. Defaults to all AirQo devices
-        :param remove_outliers: Removes outliers if set to true.
-        :return: a dataframe of measurements recorded between start date time and end date time
+        Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
+        Optionally filters data by specific device numbers and removes outliers if requested.
+
+        Parameters:
+        - start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
+        - end_date_time (str): End date and time (ISO 8601 format) for data extraction.
+        - device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
+        - device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
+        - remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+
         """
 
         airqo_api = AirQoApi()
@@ -298,13 +302,17 @@ class AirQoDataUtils:
             tenant=Tenant.AIRQO, device_category=device_category
         )
 
-        if device_numbers:
-            devices = [x for x in devices if x["device_number"] in device_numbers]
+        devices = (
+            [x for x in devices if x["device_number"] in device_numbers]
+            if device_numbers
+            else devices
+        )
+
         if device_category == DeviceCategory.BAM:
+            field_8_cols = list(configuration.AIRQO_BAM_CONFIG.values())
             other_fields_cols = []
-            field_8_cols = [x for x in configuration.AIRQO_BAM_CONFIG.values()]
         else:
-            field_8_cols = [x for x in configuration.AIRQO_LOW_COST_CONFIG.values()]
+            field_8_cols = list(configuration.AIRQO_LOW_COST_CONFIG.values())
             other_fields_cols = [
                 "s1_pm2_5",
                 "s1_pm10",
@@ -320,9 +328,9 @@ class AirQoDataUtils:
             "latitude",
             "longitude",
             "timestamp",
+            *field_8_cols,
+            *other_fields_cols,
         ]
-        data_columns.extend(field_8_cols)
-        data_columns.extend(other_fields_cols)
         data_columns = list(set(data_columns))
 
         read_keys = airqo_api.get_thingspeak_read_keys(devices=devices)
@@ -334,7 +342,6 @@ class AirQoDataUtils:
             data_source=DataSource.THINGSPEAK,
         )
 
-        # TODO: Need to review this entire data querying process. some metadata for some devices seems to be missing after the operation. Intend to look into in different pull request.
         for device in devices:
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
@@ -352,12 +359,8 @@ class AirQoDataUtils:
                 )
 
                 if data.empty:
-                    print(
-                        f"{device_number} does not have data between {start} and {end}"
-                    )
+                    print(f"Device does not have data between {start} and {end}")
                     continue
-
-                meta_data = data.attrs.pop("meta_data", {})
 
                 if "field8" not in data.columns.to_list():
                     data = DataValidationUtils.fill_missing_columns(
@@ -370,15 +373,15 @@ class AirQoDataUtils:
                         )
                     )
 
-                data["device_number"] = device_number
-                data["device_id"] = device.get("device_id")
-                data["site_id"] = device.get("site_id")
+                meta_data = data.attrs.pop("meta_data", {})
 
-                if device_category == DeviceCategory.BAM:
-                    data["latitude"] = meta_data.get("latitude", None)
-                    data["longitude"] = meta_data.get("longitude", None)
+                data["device_number"] = device.get("device_number", None)
+                data["device_id"] = device.get("device_id", None)
+                data["site_id"] = device.get("site_id", None)
 
                 if device_category == DeviceCategory.LOW_COST:
+                    data["latitude"] = device.get("latitude", None)
+                    data["longitude"] = device.get("longitude", None)
                     data.rename(
                         columns={
                             "field1": "s1_pm2_5",
@@ -390,6 +393,9 @@ class AirQoDataUtils:
                         },
                         inplace=True,
                     )
+                else:
+                    data["latitude"] = meta_data.get("latitude", None)
+                    data["longitude"] = meta_data.get("longitude", None)
 
                 devices_data = pd.concat(
                     [devices_data, data[data_columns]], ignore_index=True
@@ -452,11 +458,11 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
+        data.dropna(inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
-
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
@@ -736,7 +742,7 @@ class AirQoDataUtils:
                 log_df = log_df.sort_values(by="start_date_time")
                 log_df["end_date_time"] = log_df["start_date_time"].shift(-1)
                 log_df["end_date_time"] = log_df["end_date_time"].fillna(
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                 )
 
                 log_df["start_date_time"] = log_df["start_date_time"].apply(

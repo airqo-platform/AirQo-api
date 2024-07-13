@@ -321,11 +321,12 @@ const isIPBlacklistedHelper = async (
     const ip =
       request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
     const endpoint = request.headers["x-original-uri"];
-    let acessTokenFilter = generateFilter.tokens(request, next);
+    let accessTokenFilter = generateFilter.tokens(request, next);
     const timeZone = moment.tz.guess();
-    acessTokenFilter.expires = {
+    accessTokenFilter.expires = {
       $gt: moment().tz(timeZone).toDate(),
     };
+    const { expires, ...filteredAccessToken } = accessTokenFilter;
 
     const [
       blacklistedIP,
@@ -336,7 +337,7 @@ const isIPBlacklistedHelper = async (
       BlacklistedIPModel("airqo").findOne({ ip }),
       WhitelistedIPModel("airqo").findOne({ ip }),
       AccessTokenModel("airqo")
-        .findOne(acessTokenFilter)
+        .findOne(accessTokenFilter)
         .select("name token client_id"),
       BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
     ]);
@@ -355,13 +356,9 @@ const isIPBlacklistedHelper = async (
       (item) => item.prefix
     );
 
-    logObject("blockedIpPrefixes", blockedIpPrefixes);
-
-    logObject("blacklistedIpPrefixes", blacklistedIpPrefixes);
-
     if (!accessToken) {
       try {
-        const filter = { token };
+        const filter = filteredAccessToken;
         const listTokenReponse = await AccessTokenModel("airqo").list(
           { filter },
           next
@@ -378,11 +375,15 @@ const isIPBlacklistedHelper = async (
           const tokenResponseLength = listTokenReponse.data.length;
           if (isEmpty(tokenDetails) || tokenResponseLength > 1) {
             logger.error(
-              `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip}`
+              `🐛🐛 Internal Server Error -- unable to find the expired token's user details -- TOKEN_DETAILS: ${stringify(
+                tokenDetails
+              )} -- CLIENT_IP: ${ip}`
             );
           } else {
             const {
               user: { email, firstName, lastName },
+              token,
+              name,
             } = tokenDetails;
             logger.info(
               `🚨🚨 An AirQo Analytics Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
@@ -392,6 +393,7 @@ const isIPBlacklistedHelper = async (
                 email,
                 firstName,
                 lastName,
+                token,
               },
               next
             );
@@ -816,47 +818,44 @@ const controlAccess = {
       const { token } = {
         ...request.params,
       };
-
-      if (isEmpty(ip)) {
-        logText(`🚨🚨 Token is being accessed without an IP address`);
-        logger.error(`🚨🚨 Token is being accessed without an IP address`);
-        return createUnauthorizedResponse();
-      }
-
       const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
         .select("client_id token");
-      if (!accessToken) {
+
+      if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
-      }
-
-      const client = await ClientModel("airqo")
-        .findById(accessToken.client_id)
-        .select("isActive");
-      if (!client || !client.isActive) {
-        logger.error(
-          `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
-        );
-        return createUnauthorizedResponse();
-      }
-
-      const isBlacklisted = await isIPBlacklisted({
-        request,
-        next,
-      });
-
-      logText("I have now returned back to the verifyToken() function");
-      if (isBlacklisted) {
+      } else if (isEmpty(ip)) {
+        logText(`🚨🚨 Token is being accessed without an IP address`);
+        logger.error(`🚨🚨 Token is being accessed without an IP address`);
         return createUnauthorizedResponse();
       } else {
-        winstonLogger.info("verify token", {
-          token: token,
-          service: "verify-token",
-          clientIp: ip,
-          clientOriginalIp: ip,
-          endpoint: endpoint ? endpoint : "unknown",
+        const client = await ClientModel("airqo")
+          .findById(accessToken.client_id)
+          .select("isActive");
+        logObject("client.isActive", client.isActive);
+        if (isEmpty(client) || !client.isActive) {
+          logger.error(
+            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
+          );
+          return createUnauthorizedResponse();
+        }
+        const isBlacklisted = await isIPBlacklisted({
+          request,
+          next,
         });
-        return createValidTokenResponse();
+        logText("I have now returned back to the verifyToken() function");
+        if (isBlacklisted) {
+          return createUnauthorizedResponse();
+        } else {
+          winstonLogger.info("verify token", {
+            token: token,
+            service: "verify-token",
+            clientIp: ip,
+            clientOriginalIp: ip,
+            endpoint: endpoint ? endpoint : "unknown",
+          });
+          return createValidTokenResponse();
+        }
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

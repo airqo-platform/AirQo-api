@@ -31,6 +31,7 @@ setup(
         "optuna",
         "tweepy",
         "scikit-learn==1.2.2",
+        "airflow-provider-great-expectations==0.2.8",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

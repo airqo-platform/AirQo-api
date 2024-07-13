@@ -31,6 +31,7 @@ module.exports = {
                         `;
     },
     email_footer_template: (email, unSubsciptionUrl) => {
+        const currentYear = new Date().getFullYear();
         let unsubscribeSection = ` <span
                                         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>`;
         if (unSubsciptionUrl) {
@@ -81,7 +82,7 @@ module.exports = {
                                         your email preferences.</span><br /><br />
                                     <span
                                         style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
-                                        2023 AirQo<br /><br />
+                                        ${currentYear} AirQo<br /><br />
                                         Makerere University, Software Systems Centre, Block B, Level 3, College of
                                         Computing and
                                         Information Sciences, Plot 56 University Pool Road</span>
