@@ -4,16 +4,8 @@ fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
-
     celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
-  tag: prod-826dc5fb-1719751716
-=======
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-8e1c6b9a-1720783092
-
+  tag: prod-c8f283f9-1720882119
 api:
   name: airqo-analytics-api
   label: analytics-api

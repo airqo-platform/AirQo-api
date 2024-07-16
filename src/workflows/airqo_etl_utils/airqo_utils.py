@@ -458,7 +458,7 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
-        data.dropna(inplace=True)
+        data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
