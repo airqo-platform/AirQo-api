@@ -21,10 +21,9 @@ def export_data(
     end_date,
     frequency,
     pollutants,
-    output_format,
     weather_fields,
+    output_format,
     export_format,
-    meta_data,
     user_id,
 ):
     try:
@@ -46,11 +45,14 @@ def export_data(
                 pollutants=pollutants,
             )
 
-        filename = f'{user_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}.csv'
         client = storage.Client()
         bucket = client.bucket(bucket_name="data_export_datasets")
+        filename = f'{user_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}'
         blob = bucket.blob(filename)
-        blob.upload_from_string(dataframe.to_csv(index=False), "text/csv")
+        if export_format == "json":
+            blob.upload_from_string(dataframe.to_json(orient="records"), "application/json")
+        else:
+            blob.upload_from_string(dataframe.to_csv(index=False), "text/csv")
 
         file_url = blob.public_url
 

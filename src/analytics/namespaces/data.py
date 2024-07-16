@@ -135,6 +135,7 @@ class BulkDataExportResource(Resource):
         weather_fields = json_data.get("weatherFields", [])
         output_format = f"{json_data.get('outputFormat', 'airqo-standard')}".lower()
         try:
+            # NOTE: order of args must match the celery task definition lest errors occur
             tasks.export_data.apply_async(
                 args=[
                     devices,
@@ -147,7 +148,6 @@ class BulkDataExportResource(Resource):
                     weather_fields,
                     output_format,
                     export_format,
-                    meta_data,
                     user_id,
                 ],
                 countdown=3,
