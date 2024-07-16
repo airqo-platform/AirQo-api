@@ -27,6 +27,13 @@ from utils.validators.data import (
 )
 
 data_export_api = Namespace("data", description="Data export APIs", path="/")
+parser = data_export_api.parser()
+parser.add_argument(
+    "userId",
+    type=str,
+    required=False,
+    help="User ID",
+)
 
 
 @data_export_api.route("/data-download")
@@ -168,9 +175,18 @@ class BulkDataExportResource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @data_export_api.param("userId", "User ID", "string", required=True)
-    def get(self, userId):
+    def get(self):
         try:
+            args = parser.parse_args()
+            userId = args.get("userId")
+            if userId is None:
+                return (
+                    create_response(
+                        "An Error occurred while processing your request. Please contact support",
+                        success=False,
+                    ),
+                    Status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
             result = tasks.export_data.AsyncResult(userId)
             if result.ready():
                 data = str(result.result)

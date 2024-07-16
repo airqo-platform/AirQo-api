@@ -50,10 +50,13 @@ def export_data(
         filename = f'{user_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}'
         blob = bucket.blob(filename)
         if export_format == "json":
-            blob.upload_from_string(dataframe.to_json(orient="records"), "application/json")
+            blob.upload_from_string(
+                dataframe.to_json(orient="records"), "application/json"
+            )
         else:
             blob.upload_from_string(dataframe.to_csv(index=False), "text/csv")
 
+        # TODO: Some security concerns here. Buckets are publicly readable, but not private. Needs to be reviewed
         file_url = blob.public_url
 
         celery_logger.info("Data export completed successfully")

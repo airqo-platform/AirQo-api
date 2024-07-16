@@ -2,6 +2,8 @@
 
 This microservice contains the back-end source code for the AirQo analytics & netmanager platforms.
 
+The code is written following concepts in the Flask-restX framework [documentation](https://flask-restx.readthedocs.io/en/latest/index.html)
+
 ## Steps to run 
 clone project from GitHub.
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
