@@ -1,6 +1,7 @@
 import os
 
 from .config import configuration
+from datetime import datetime
 
 
 image_dir = os.path.join(os.path.dirname(__file__), "../config/images")
@@ -147,6 +148,7 @@ def email_header_template():
 
 
 def email_footer_template(email, unSubscriptionUrl=None):
+    current_year = datetime.now().year
     unsubscribeSection = (
         f"""<span
         style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
@@ -199,7 +201,7 @@ def email_footer_template(email, unSubscriptionUrl=None):
                     your email preferences.</span><br /><br />
                 <span
                     style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
-                    2023 AirQo<br /><br />
+                    {current_year} AirQo<br /><br />
                     Makerere University, Software Systems Centre, Block B, Level 3, College of
                     Computing and
                     Information Sciences, Plot 56 University Pool Road</span>

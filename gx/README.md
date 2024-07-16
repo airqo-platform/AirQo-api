@@ -24,7 +24,6 @@ To get started with Great Expectations in this project, follow these steps:
 1. **Install Dependencies**:
    Ensure you have the required dependencies installed. You can install them using the `dev-requirements.txt` file in the gx directory:
 
-
    ```bash
    pip install -r dev-requirements.txt
    ```
@@ -111,6 +110,9 @@ Then reload your shell configuration file:
 ```sh
 source ~/.bashrc  # or the relevant file for your shell
 ```
+## Store Sensitive Information
+`{Applies if you're an internal AirQo developer}`. To store sensitive information, such as credentials and configuration variables, create a `config_variables.yml` file in the `uncommitted/` directory. This file should contain the configuration variables, environment-specific configurations, secrets, and credentials. 
+[GX Configure credentials](https://docs.greatexpectations.io/docs/oss/guides/setup/configuring_data_contexts/how_to_configure_credentials/) 
 
 Here is an example of how to use Great Expectations in an Airflow DAG:
 
@@ -157,6 +159,18 @@ with DAG(
 
     start >> validate_data >> end
 ```
+
+## View Data Docs
+
+Open the generated Data Docs in your browser to review the validation results
+
+```bash
+great_expectations docs list
+great_expectations docs open
+```
+`{Applies if you're an internal Contributor}` To have access to the generated data docs by the AirQo Team, please head over to https://app.greatexpectations.io/organizations/airqo/data-assets and sign in with the provided credentials/request for access. The data docs site looks like so 👇
+
+![Data Docs site](gx/img/datadocssite.png)
 
 ## Contributing
 

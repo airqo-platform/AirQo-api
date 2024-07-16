@@ -1,7 +1,5 @@
 from airflow.decorators import dag, task
-from great_expectations_provider.operators.great_expectations import (
-    GreatExpectationsOperator,
-)
+
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
@@ -110,6 +108,7 @@ def airqo_historical_hourly_measurements():
         weather_data=extracted_weather_data,
     )
 
+
     validate_schema = GreatExpectationsOperator(
         task_id="validate_air_quality_schema",
         expectation_suite_name="air_quality_schema_validation",
@@ -175,20 +174,11 @@ def airqo_historical_hourly_measurements():
         },
         data_context_root_dir="gx/expectations",
     )
+
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
-
-    # Define Our task dependencies
-    extracted_device_measurements >> extracted_weather_data >> merged_data
-    merged_data >> validate_schema
-    validate_schema >> validate_data_quality
-    validate_data_quality >> validate_uniqueness_integrity
-    validate_uniqueness_integrity >> validate_temporal_consistency
-    validate_temporal_consistency >> validate_completeness
-    validate_completeness >> validate_referential_integrity
-    validate_referential_integrity >> calibrated_data
 
 
 @dag(
@@ -248,6 +238,7 @@ def airqo_historical_raw_measurements():
             dataframe=data,
             table=big_query_api.raw_measurements_table,
         )
+
 
     extracted_raw_data = extract_raw_data()
     cleaned_data = clean_data_raw_data(extracted_raw_data)
@@ -368,7 +359,15 @@ def airqo_historical_raw_measurements():
             validate_raw_range,
         ]
         >> clean_data_raw_data()
+
+    raw_data = extract_raw_data()
+    clean_data = clean_data_raw_data(raw_data)
+    device_logs = extract_device_deployment_logs()
+    data_with_site_ids = map_site_ids(
+        airqo_data=clean_data, deployment_logs=device_logs
+
     )
+    load_data(data_with_site_ids)
 
 
 @dag(
