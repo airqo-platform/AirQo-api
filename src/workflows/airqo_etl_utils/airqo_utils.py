@@ -1,5 +1,5 @@
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -458,11 +458,11 @@ class AirQoDataUtils:
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
+        data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
-
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
@@ -742,7 +742,7 @@ class AirQoDataUtils:
                 log_df = log_df.sort_values(by="start_date_time")
                 log_df["end_date_time"] = log_df["start_date_time"].shift(-1)
                 log_df["end_date_time"] = log_df["end_date_time"].fillna(
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                 )
 
                 log_df["start_date_time"] = log_df["start_date_time"].apply(

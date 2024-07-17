@@ -51,6 +51,7 @@ const emailTemplates = {
   },
 
   EMAIL_FOOTER_TEMPLATE: function ({ email, optional } = {}) {
+    const currentYear = new Date().getFullYear();
     return `
     <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
                                 <tr>
@@ -85,7 +86,7 @@ const emailTemplates = {
                                         <span
                                             style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
                                             <br/>
-                                            ©2023 AirQo<br /><br />
+                                            ©${currentYear} AirQo<br /><br />
                                             Makerere University, Software Systems Centre, Block B, Level 3, College of
                                             Computing and
                                             Information Sciences, Plot 56 University Pool Road</span>
