@@ -4,10 +4,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
+    celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
   tag: prod-c8f283f9-1720882119
 api:
   name: airqo-analytics-api
@@ -22,17 +19,6 @@ api:
     requests:
       cpu: 10m
       memory: 250Mi
-jobs:
-  reports:
-    name: prod-analytics-report
-    configmap: env-analytics-report-production
-  devicesSummaryJob:
-    name: analytics-devices-summary
-    configmap: env-analytics-production
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

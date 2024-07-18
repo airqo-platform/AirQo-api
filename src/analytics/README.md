@@ -1,10 +1,25 @@
+# ANALYTICS MICROSERVICE 
+
+This microservice contains the back-end source code for the AirQo analytics & netmanager platforms.
+
+The code is written following concepts in the Flask-restX framework [documentation](https://flask-restx.readthedocs.io/en/latest/index.html)
+
+## Steps to run 
 clone project from GitHub.
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
 change directory to the analytics microservice
 - `cd src/analytics`
 
-create local python environment
+### Using Docker
+#### Prerequisites
+
+- Docker (>= 26.0.0)
+- Docker compose (>= v2.26.1)
+- `docker compose up`
+
+#### Running locally
+- create local python environment
 
 windows
 
@@ -27,11 +42,11 @@ Install dependencies using the requirements.txt
 set environment variables
 
 windows
-- `set FLASK_APP=manage.py`
+- `set FLASK_APP=app.py`
 - `set FLASK_ENV=development`
 
 linux/mac
-- `export FLASK_APP=manage.py`
+- `export FLASK_APP=app.py`
 - `export FLASK_ENV=development`
 
 
