@@ -417,6 +417,8 @@ UserSchema.statics = {
             $push: {
               userName: "$userName",
               email: "$email",
+              firstName: "$firstName",
+              lastName: "$lastName",
               _id: "$_id",
             },
           },
@@ -428,6 +430,8 @@ UserSchema.statics = {
                 then: {
                   userName: "$userName",
                   email: "$email",
+                  firstName: "$firstName",
+                  lastName: "$lastName",
                   _id: "$_id",
                 },
                 else: "$nothing",
@@ -439,6 +443,8 @@ UserSchema.statics = {
             $addToSet: {
               userName: { $arrayElemAt: ["$api_clients.userName", 0] },
               email: { $arrayElemAt: ["$api_clients.email", 0] },
+              firstName: { $arrayElemAt: ["$api_clients.firstName", 0] },
+              lastName: { $arrayElemAt: ["$api_clients.lastName", 0] },
               _id: { $arrayElemAt: ["$api_clients._id", 0] },
             },
           },
