@@ -668,6 +668,9 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def fetch_raw_readings(self) -> pd.DataFrame:
+        """
+        TODO: Document
+        """
         query = f"""
         SELECT DISTINCT 
         raw_device_data_table.timestamp AS timestamp,
@@ -687,22 +690,26 @@ class BigQueryApi:
             ORDER BY device_id, timestamp
            """
         # TODO: May need to review frequency
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        dataframe = self.client.query(f"{query}", job_config).result().to_dataframe()
         try:
-            if dataframe.empty:
-                raise Exception("No data found from bigquery")
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
-            dataframe = (
-                dataframe.groupby("device_id").resample("H", on="timestamp").mean()
-            )
-            dataframe.reset_index(inplace=True)
-            return dataframe
+            job_config = bigquery.QueryJobConfig()
+            job_config.use_query_cache = True
+            results = self.client.query(f"{query}", job_config).result().to_dataframe()
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
+        else:
+            if results.empty:
+                raise Exception("No data found from bigquery")
+            else:
+                results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
+                num_cols = results.select_dtypes(include="number").columns
+                results = (
+                    results.groupby("device_id")
+                    .resample("H", on="timestamp")[num_cols]
+                    .mean()
+                )
+                results.reset_index(inplace=True)
+
+        return results
 
     #
     def fetch_data(

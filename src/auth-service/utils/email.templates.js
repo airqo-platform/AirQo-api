@@ -94,7 +94,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY({ email, content });
   },
   acceptInvitation: ({
     email,
@@ -142,7 +142,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY({ email, content });
   },
   afterEmailVerification: (firstName, username, email) => {
     const name = firstName;
@@ -169,7 +169,7 @@ module.exports = {
                                 The AirQo Data Team
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY({ email, content, name });
   },
   afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
     const name = firstName;
@@ -196,7 +196,7 @@ module.exports = {
                                 The AirQo Data Team
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content, name);
+    return constants.EMAIL_BODY({ email, content, name });
   },
   deleteMobileAccountEmail: (email, token) => {
     const content = ` <tr>
@@ -220,6 +220,6 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-    return constants.EMAIL_BODY(email, content);
+    return constants.EMAIL_BODY({ email, content });
   },
 };
