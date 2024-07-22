@@ -34,8 +34,8 @@ function handleResponse({
   const errors = isSuccess
     ? undefined
     : result.errors !== undefined
-    ? result.errors
-    : { message: "Internal Server Error" };
+      ? result.errors
+      : { message: "Internal Server Error" };
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
@@ -70,6 +70,7 @@ const activity = {
           message: result.message,
           createdActivity: result.data.createdActivity,
           updatedDevice: result.data.updatedDevice,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -122,6 +123,7 @@ const activity = {
           message: result.message,
           createdActivity: result.data.createdActivity,
           updatedDevice: result.data.updatedDevice,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -174,6 +176,7 @@ const activity = {
           message: result.message,
           createdActivity: result.data.createdActivity,
           updatedDevice: result.data.updatedDevice,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -292,6 +295,7 @@ const activity = {
           success: true,
           message: result.message,
           updated_activity: result.data,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -346,6 +350,7 @@ const activity = {
           success: true,
           message: result.message,
           deleted_activity: result.data,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -399,6 +404,7 @@ const activity = {
           success: true,
           message: result.message,
           site_activities: result.data,
+          network: result.data.network,
         });
       } else if (result.success === false) {
         const status = result.status
