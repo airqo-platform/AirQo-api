@@ -76,7 +76,7 @@ spec:
   upstreams:
     - name: reports
       service: airqo-stage-reports-svc
-      port: 8000
+      port: 3000
   subroutes:
     - path: /reports
       action:
@@ -145,7 +145,9 @@ spec:
   routes:
     - path: /
       action:
-        pass: analytics
+        redirect:
+          url: https://staging-analytics.airqo.net
+          code: 301
     - path: /workflows
       route: pipeline/workflows
     - path: /mlflow

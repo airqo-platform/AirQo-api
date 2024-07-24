@@ -9,6 +9,7 @@ RUN python airqo_etl_utils/setup.py bdist_wheel
 
 FROM apache/airflow:2.6.3-python3.10 as base-builder
 ENV AIRFLOW_VERSION=2.6.3
+ENV AIRFLOW__CORE__ENABLE_XCOM_PICKLING=true
 USER root
 RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
 RUN apt-get install -y gcc && apt-get install -y git && apt-get install libgomp1
