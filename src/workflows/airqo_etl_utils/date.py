@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Tuple
 
 
 class DateUtils:
@@ -7,8 +8,18 @@ class DateUtils:
     hour_date_time_format = "%Y-%m-%dT%H:00:00Z"
 
     @staticmethod
-    def date_to_str(date: datetime, str_format):
-        return datetime.strftime(date, str_format)
+    def date_to_str(date: datetime, unit: str = None) -> str:
+        """
+        Returns a string formatted datetime.
+        """
+        date_str: str = ""
+        if unit == "hours":
+            date_str = datetime.strftime(date, DateUtils.hour_date_time_format)
+        elif unit == "days":
+            date_str = datetime.strftime(date, DateUtils.day_start_date_time_format)
+        else:
+            date_str = datetime.strftime(date, DateUtils.day_end_date_time_format)
+        return date_str
 
     @staticmethod
     def get_dag_date_time_values(
@@ -16,53 +27,54 @@ class DateUtils:
         days: int = None,
         hours: int = None,
         **kwargs,
-    ):
-        try:
-            is_manual_run = (
-                kwargs["dag_run"].external_trigger if "dag_run" in kwargs else False
-            )
-            print("KWARGS:", kwargs)
-            print("IS MANUAL RUN:", is_manual_run)
-            if historical and is_manual_run:
-                start_date_time = kwargs.get("params", {}).get("start_date_time")
-                end_date_time = kwargs.get("params", {}).get("end_date_time")
-            else:
-                dag_run = kwargs.get("dag_run")
-                print("DAG RUN:", dag_run)
-                start_date_time = dag_run.conf["start_date_time"]
-                end_date_time = dag_run.conf["end_date_time"]
-        except Exception as e:
-            print("Exception in get_dag_date_time_values", repr(e))
-            if hours is not None:
-                start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-                end_date_time = start_date_time + timedelta(hours=hours)
-                start_date_time = DateUtils.date_to_str(
-                    start_date_time, DateUtils.hour_date_time_format
-                )
-                end_date_time = DateUtils.date_to_str(
-                    end_date_time, DateUtils.hour_date_time_format
-                )
-            elif days is not None:
-                start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
-                end_date_time = start_date_time + timedelta(days=days)
-                start_date_time = DateUtils.date_to_str(
-                    start_date_time, DateUtils.day_start_date_time_format
-                )
-                end_date_time = DateUtils.date_to_str(
-                    end_date_time, DateUtils.day_end_date_time_format
-                )
-            else:
-                start_date_time = datetime.now(timezone.utc) - timedelta(days=1)
-                end_date_time = datetime.now(timezone.utc)
-                start_date_time = DateUtils.date_to_str(
-                    start_date_time, DateUtils.day_start_date_time_format
-                )
-                end_date_time = DateUtils.date_to_str(
-                    end_date_time, DateUtils.day_end_date_time_format
-                )
+    ) -> Tuple[str, str]:
+        """ "
+        Formats start and end dates.
 
-        print("START DATE TIME:", start_date_time)
-        print("END DATE TIME:", end_date_time)
+        Args:
+            - historical: A boolean that defines if the data is more than a day old or not.
+            - days(Optional): Number of days in the past to consider.
+            - hours(Optional): Number of hours in the past to consider.
+            - **kwargs: Extra arguments to pass. Usually from the airflow context.
+
+        Returns:
+            A tuple of string formatted dates
+        """
+        exception_occurred: bool = False
+        unit: str = "hours" if hours else "days"
+        value: int = hours if hours else (days if days else 1)
+        delta_kwargs = {unit: value}
+        dag_run = kwargs.get("dag_run", None)
+        is_manual_run = dag_run.external_trigger if dag_run else False
+        print("KWARGS:", kwargs)
+        print("IS MANUAL RUN:", is_manual_run)
+
+        if historical and is_manual_run:
+            start_date_time = kwargs.get("params", {}).get("start_date_time")
+            end_date_time = kwargs.get("params", {}).get("end_date_time")
+            if not start_date_time:
+                try:
+                    print("DAG RUN:", dag_run)
+                    start_date_time = dag_run.conf["start_date_time"]
+                    end_date_time = dag_run.conf["end_date_time"]
+                except Exception as e:
+                    exception_occurred = True
+                    print("Exception in get_dag_date_time_values", repr(e))
+
+        if exception_occurred or not is_manual_run:
+            start_date_time = datetime.now(timezone.utc) - timedelta(**delta_kwargs)
+            end_date_time = (
+                start_date_time + timedelta(**delta_kwargs)
+                if hours or days
+                else datetime.now(timezone.utc)
+            )
+            start_date_time = DateUtils.date_to_str(start_date_time, unit)
+            end_date_time = (
+                DateUtils.date_to_str(end_date_time, unit)
+                if unit == "hours"
+                else DateUtils.date_to_str(end_date_time)
+            )
+
         return start_date_time, end_date_time
 
     @staticmethod
