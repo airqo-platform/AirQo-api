@@ -1,7 +1,7 @@
 import great_expectations as gx
 import os
 from pathlib import Path
-from .airqo_gx_metrics import AirQoGxExpectattions
+from .airqo_gx_metrics import AirQoGxExpectations
 from .config import configuration
 
 
