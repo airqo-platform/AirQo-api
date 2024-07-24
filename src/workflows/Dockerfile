@@ -1,18 +1,18 @@
 FROM python:3.10.14-slim-bullseye as utils-package
 RUN pip install --upgrade pip setuptools wheel
-WORKDIR airqo_etl_utils
-COPY airqo_etl_utils/* airqo_etl_utils/
-
-#TODO: Update to use the toml script, may requires updated dags to use relative imports
-RUN python airqo_etl_utils/setup.py bdist_wheel
-
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="/root/.local/bin:$PATH"
+WORKDIR /airqo_etl_utils
+COPY airqo_etl_utils/ .
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root
+RUN poetry build
 
 FROM apache/airflow:2.6.3-python3.10 as base-builder
 ENV AIRFLOW_VERSION=2.6.3
 ENV AIRFLOW__CORE__ENABLE_XCOM_PICKLING=true
 USER root
-RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
-RUN apt-get install -y gcc && apt-get install -y git && apt-get install libgomp1
+RUN apt-get update -y && apt-get install -y python3-distutils python3-apt gcc git libgomp1
 USER airflow
 
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl
