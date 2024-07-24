@@ -5,6 +5,7 @@ WORKDIR airqo_etl_utils
 COPY airqo_etl_utils/* airqo_etl_utils/
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --verbose
+RUN poetry build
 
 FROM apache/airflow:2.6.3-python3.10 as base-builder
 ENV AIRFLOW_VERSION=2.6.3
