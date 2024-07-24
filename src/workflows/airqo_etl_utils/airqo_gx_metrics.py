@@ -1,7 +1,7 @@
 from great_expectations.core.expectation_configuration import ExpectationConfiguration
 
 
-class AirQoGxExpectattions:
+class AirQoGxExpectations:
     def __init__(self, expectation_suite_name):
         """
         Initialize GxMetrics with a Great Expectations context and expectation suite name.
