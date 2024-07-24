@@ -80,5 +80,5 @@ exclude = [
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.packages]
-include = [{ include = "*.json" }]
+[tool.poetry.include]
+files = ["*.json"]
