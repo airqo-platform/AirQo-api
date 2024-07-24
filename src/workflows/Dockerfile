@@ -1,12 +1,10 @@
 FROM python:3.10.14-slim-bullseye as utils-package
 RUN pip install --upgrade pip setuptools wheel
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
-WORKDIR /airqo_etl_utils
-COPY airqo_etl_utils/ .
+RUN pip install poetry
+WORKDIR airqo_etl_utils
+COPY airqo_etl_utils/* airqo_etl_utils/
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-root
-RUN poetry build
+RUN poetry install --verbose
 
 FROM apache/airflow:2.6.3-python3.10 as base-builder
 ENV AIRFLOW_VERSION=2.6.3
