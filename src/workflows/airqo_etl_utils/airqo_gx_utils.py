@@ -65,7 +65,7 @@ class AirQoGx:
         Add or update expectations in the given expectation suite.
         """
 
-        gx_metrics = AirQoGxExpectattions(self.expectation_suite_name)
+        gx_metrics = AirQoGxExpectations(self.expectation_suite_name)
 
         suite = self.context.get_expectation_suite(
             expectation_suite_name=self.expectation_suite_name
