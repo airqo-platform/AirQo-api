@@ -60,7 +60,47 @@ class AirQoGx:
 
         self.create_or_update_checkpoint()
 
-        gx_metrics = AirQoGxExpectations(self.expectation_suite_name)
+    def add_or_update_expectations(self) -> None:
+        """
+        Add or update expectations in the given expectation suite.
+        """
+
+        gx_metrics = AirQoGxExpectattions(self.expectation_suite_name)
+
+        suite = self.context.get_expectation_suite(
+            expectation_suite_name=self.expectation_suite_name
+        )
+
+        for expectation_type, kwargs in self.expectations.items():
+            if hasattr(gx_metrics, expectation_type):
+                try:
+                    expectation_method = getattr(gx_metrics, expectation_type)
+                    if isinstance(kwargs, dict):
+                        if len(kwargs) == 1 and isinstance(
+                            next(iter(kwargs.values())), dict
+                        ):
+                            column, params = next(iter(kwargs.items()))
+                            expectation_config = expectation_method(
+                                column=column, **params
+                            )
+                        else:
+                            expectation_config = expectation_method(**kwargs)
+                    elif isinstance(kwargs, list):
+                        expectation_config = expectation_method(*kwargs)
+                    elif isinstance(kwargs, str):
+                        expectation_config = expectation_method(column=kwargs)
+                    else:
+                        raise ValueError(
+                            f"Unsupported format for expectation: {expectation_type}"
+                        )
+
+                    suite.add_expectation(expectation_config)
+                except Exception as e:
+                    print(f"Error adding expectation for {expectation_type}: {e}")
+            else:
+                print(f"No method found for expectation type: {expectation_type}")
+
+        self.context.add_or_update_expectation_suite(expectation_suite=suite)
 
     def build_data_source(self) -> None:
         match self.execution_engine:
