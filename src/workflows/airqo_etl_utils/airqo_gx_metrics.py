@@ -38,7 +38,7 @@ class AirQoGxExpectations:
         Returns:
             ExpectationConfiguration: The configuration of the expectation.
         """
-        return self.add_expectation("expect_column_to_exist", column=column)
+        return self.add_expectation("", column=column)
 
     def expect_column_values_to_not_match_regex_list(self, column, regex_list):
         """
@@ -488,18 +488,6 @@ class AirQoGxExpectations:
             column_B=column_B,
             value_pairs_set=value_pairs_set,
         )
-
-    def expect_column_to_exist(self, column):
-        """
-        Expect the specified column to exist.
-
-        Args:
-            column (str): The name of the column.
-
-        Returns:
-            ExpectationConfiguration: The configuration of the expectation.
-        """
-        return self.add_expectation("expect_column_to_exist", column=column)
 
     def expect_column_values_to_be_in_set(self, column, value_set):
         """
