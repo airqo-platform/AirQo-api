@@ -741,14 +741,3 @@ class AirQoGxExpectations:
             column=column,
             like_pattern=like_pattern,
         )
-
-    def get_expectation_metrics(self, validator):
-        """
-        Get metrics for all expectations in the suite.
-
-        Args:
-            validator: The Great Expectations validator.
-
-        Returns:
-            dict: A dictionary containing metrics for each expectation.
-        """
