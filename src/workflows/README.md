@@ -12,30 +12,40 @@ engineering pipelines.
 
 Follow these steps if you wish to run the various scripts locally without entirely launching Airflow, otherwise we recommend running using Docker
 
-### Create a virtual environment
+### Install Poetry
 
 ```bash
-python3 -m venv venv
+pip install poetry
 ```
 
-### Activate your environment
-
-#### Linux or MacOS
+or
 
 ```bash
-source venv/bin/activate
+curl -sSL https://install.python-poetry.org | python3 -
 ```
 
-#### Windows
+### Export Path( Only Linux)
 
 ```bash
-source venv\bin\activate
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-### Install requirements
+### Install dependencies
 
 ```bash
-pip install -r dev-requirements.txt
+poetry install --verbose
+```
+
+### Activate your environment.
+
+```bash
+poetry shell
+```
+
+### Run workflows only.
+
+```bash
+poetry run sh run-workflows-only.sh
 ```
 
 ## 2. Running using Docker
