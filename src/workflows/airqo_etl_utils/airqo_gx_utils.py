@@ -16,7 +16,26 @@ class AirQoGx:
         data_connector_name: str = "default_runtime_data_connector_name",
         execution_engine: str = "sql",
         dataframe=None,
+        cloud_mode=None,
     ):
+        """
+        Class builds a context and bundles up all necessary bits i.e expectation suite and expectations, checkpoints and also provides a method to run a checkpoint returning the results of the validations.
+
+        Args:
+            datasource_name (str): A datasource represents a connection to a data store, such as a database, data warehouse, file system, or a cloud storage system.
+            data_asset_name (str): Represents a collection of data that you want to validate, such as a specific table in a database or a file in a storage system.
+            expectation_suite_name (str): Groups together multiple expectations that describe the desired characteristics of a dataset.
+            checkpoint_name (str): Defines how and when to validate data against an expectation suite. Includes data to be validated (batch request), the expectation suite to use, and other settings.
+            expectations (dict): Assertions about data, which define what the data should look like.
+            data_connector_name (str): Defines how to connect to a specific data asset within a datasource.
+            execution_engine (str): Component responsible for executing expectations against data. The execution engine can be based on different backend technologies, such as SQL for databases or Pandas for dataframes in memory.
+            dataframe (pandas.DataFrame):
+            cloud_mode (bool): Enables integration with Great Expectations Cloud.
+
+        This method builds the data source, retrieves or creates the expectation suite,
+        and adds or updates the expectations. It also creates or updates the checkpoint.
+        """
+
         self.datasource_name = datasource_name
         self.data_connector_name = data_connector_name
         self.data_asset_name = data_asset_name
@@ -26,6 +45,7 @@ class AirQoGx:
         self.execution_engine = execution_engine
         self.dataframe = dataframe
         self.project = configuration.GOOGLE_CLOUD_PROJECT_ID
+        self.cloud_mode = cloud_mode
 
     def setup(self):
         """
@@ -37,8 +57,7 @@ class AirQoGx:
         BASE_PATH = Path(__file__).resolve().parents[1]
 
         gx_dir = os.path.join(BASE_PATH, "include")
-        print(gx_dir)
-        self.context = gx.get_context(None, gx_dir)
+        self.context = gx.get_context(None, gx_dir, cloud_mode=self.cloud_mode)
 
         self.build_data_source()
 
@@ -182,6 +201,6 @@ class AirQoGx:
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
         # Uncomment in local environment to open docs.
-        # self.context.build_data_docs()
-        # self.context.open_data_docs()
+        self.context.build_data_docs()
+        self.context.open_data_docs()
         return results
