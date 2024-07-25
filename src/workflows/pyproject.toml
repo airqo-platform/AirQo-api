@@ -5,6 +5,7 @@ description = "AirQo Airflow custom python package"
 authors = ["AirQo <data@airqo.net>"]
 license = "MIT"
 keywords = ["python", "airflow", "AirQo"]
+include = ["**/*.json"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -78,5 +79,3 @@ exclude = [
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-include = ["**/*.json"]
