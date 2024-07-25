@@ -48,6 +48,12 @@ poetry shell
 poetry run sh run-workflows-only.sh
 ```
 
+### Adding dependencies
+
+```bash
+poetry add <package-name>
+```
+
 ## 2. Running using Docker
 
 ### Prerequisites
