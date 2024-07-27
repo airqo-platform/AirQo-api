@@ -674,28 +674,21 @@ class AirQoDataUtils:
                 weather_data["station_code"].isin(by_site["station_code"].to_list())
             ]
             if site_weather_data.empty:
-                continue
+                print(f"Site {by_site['site_id'].iloc[0]} has no weather data")
 
             site_weather_data = pd.merge(site_weather_data, by_site, on="station_code")
 
             for _, by_timestamp in site_weather_data.groupby("timestamp"):
-                by_timestamp.sort_values(ascending=True, by="distance", inplace=True)
-                by_timestamp.fillna(method="bfill", inplace=True)
-                by_timestamp.drop_duplicates(
-                    keep="first", subset=["timestamp"], inplace=True
+                by_timestamp = (
+                    by_timestamp.sort_values("distance")
+                    .bfill()
+                    .drop_duplicates("timestamp", keep="first")
+                    .assign(site_id=by_site.iloc[0]["site_id"])
+                    [weather_data_cols + ["site_id"]]
                 )
-                by_timestamp = by_timestamp[weather_data_cols]
+                sites_weather_data = pd.concat([sites_weather_data, by_timestamp], ignore_index=True)
 
-                by_timestamp.loc[:, "site_id"] = by_site.iloc[0]["site_id"]
-                sites_weather_data = pd.concat(
-                    [sites_weather_data, by_timestamp], ignore_index=True
-                )
-
-        airqo_data_cols = list(airqo_data.columns)
-        weather_data_cols = list(sites_weather_data.columns)
-        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
-        intersecting_cols.remove("timestamp")
-        intersecting_cols.remove("site_id")
+        intersecting_cols = [col for col in set(airqo_data.columns) & set(sites_weather_data.columns) if col not in ["timestamp", "site_id"]]
 
         for col in intersecting_cols:
             airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
