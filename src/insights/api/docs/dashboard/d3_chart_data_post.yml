@@ -1,0 +1,71 @@
+Example endpoint for fetching d3 chart data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: body
+    in: body
+    required: true
+    schema:
+      $ref: "#/definitions/CustomisedChartDataBody"
+definitions:
+  CustomisedChartDataBody:
+    type: object
+    properties:
+      sites:
+        required: true
+        type: array
+        items:
+          type: string
+        example: ["60d2b0317e9018a1a8d38c11", "60d2b5c57e9018a1a8d38c1c"]
+      startDate:
+        type: string
+        example: "2021-01-08T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-02-08T21:00:00.000Z"
+      frequency:
+        type: string
+        enum: [raw, hourly, daily, monthly]
+        example: daily
+  D3CustomisedChartDataResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: chart data successfully retrieved d3 chart data
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/D3CustomisedChartData'
+  D3CustomisedChartData:
+    type: object
+    properties:
+      time:
+        type: string
+        example: "2021-10-08T00:00:00:00+0300"
+      value:
+        type: string
+        example: 78.26
+      site_id:
+        type: string
+        example: 60d058c8048305120d2d6133
+      name:
+        type: string
+        example: "Kasharara, Rubirizi"
+      generated_name:
+        type: string
+        example: site_04
+
+responses:
+  200:
+    description: chart data successfully retrieved d3 chart data
+    schema:
+      $ref: '#/definitions/D3CustomisedChartDataResponse'

@@ -1,0 +1,93 @@
+Example endpoint for downloading pollutant custom data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: downloadType
+    in: query
+    type: string
+    enum: [json, csv]
+    required: true
+    default: json
+  - name: body
+    in: body
+    required: true
+    schema:
+      $ref: "#/definitions/CustomDownloadDataBody"
+definitions:
+  CustomDownloadDataBody:
+    type: object
+    properties:
+      sites:
+        required: true
+        type: array
+        items:
+          type: string
+        example: ["60d2b0317e9018a1a8d38c11", "60d2b5c57e9018a1a8d38c1c"]
+      startDate:
+        type: string
+        example: "2021-01-08T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-02-08T21:00:00.000Z"
+      frequency:
+        type: string
+        enum: [raw, hourly, daily, monthly]
+        example: daily
+      pollutants:
+        type: array
+        items:
+          type: string
+        example: ["pm2_5", "pm10", "no2"]
+  CustomDownloadDataResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: air-quality data download successful
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/PollutantData'
+  PollutantData:
+    type: object
+    properties:
+      frequency:
+        type: string
+        example: "raw"
+      time:
+        type: string
+        example: "2021-06-16T00:57:42.898Z"
+      site_id:
+        type: string
+        example: 60d2b5c57e9018a1a8d38c1c
+      pm2_5:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
+      pm10:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
+      no2:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
+responses:
+  200:
+    description: A successful downlaod of json data
+    schema:
+      $ref: '#/definitions/CustomDownloadDataResponse'
