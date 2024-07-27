@@ -1,0 +1,39 @@
+Example endpoint for retrieving default report template
+---
+tags: [Report]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+responses:
+  200:
+    description: A successful retrieval of default report template
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: default report successfully fetched
+        data:
+          type: object
+          properties:
+            report:
+              type: object
+              properties:
+                _id:
+                  type: string
+                user_id:
+                  type: string
+                report_date:
+                  type: datetime
+                report_type:
+                  type: string
+                report_name:
+                  type: string
+                report_body:
+                  type: object

@@ -1,0 +1,77 @@
+Example endpoint for fetching customised chart data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: body
+    in: body
+    required: true
+    schema:
+      $ref: "#/definitions/CustomisedChartDataBody"
+definitions:
+  CustomisedChartDataBody:
+    type: object
+    properties:
+      sites:
+        required: true
+        type: array
+        items:
+          type: string
+        example: ["60d2b0317e9018a1a8d38c11", "60d2b5c57e9018a1a8d38c1c"]
+      startDate:
+        type: string
+        example: "2021-01-08T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-02-08T21:00:00.000Z"
+      frequency:
+        type: string
+        enum: [raw, hourly, daily, monthly]
+        example: daily
+  CustomisedChartDataResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: chart data successfully retrieved
+      data:
+        type: object
+        properties:
+          _id:
+            type: string
+            example: 60d2b5c57e9018a1a8d38c1c
+          frequency:
+            type: string
+            example: raw
+          site_reading:
+            type: array
+            items:
+              $ref: '#/definitions/CustomisedChartData'
+  CustomisedChartData:
+    type: object
+    properties:
+      time:
+        type: string
+        example: "2021-06-16T00:57:42.898Z"
+      pm2_5:
+        type: string
+        example: 78.26829528808594
+      pm10:
+        type: string
+        example: 85.92682647705078
+      no2:
+        type: string
+        example: 8.168185234069824
+
+responses:
+  200:
+    description: A successful retrieval of chart data
+    schema:
+      $ref: '#/definitions/CustomisedChartDataResponse'
