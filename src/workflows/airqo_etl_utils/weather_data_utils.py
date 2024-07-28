@@ -253,7 +253,7 @@ class WeatherDataUtils:
         return list(zip(data['latitude'], data['longitude']))
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites_or_coords, coords: bool = True) -> pd.DataFrame:
+    def fetch_openweathermap_data_for_sites(sites_or_coords) -> pd.DataFrame:
         def process_batch(batch_of_coordinates):
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = list(
@@ -302,10 +302,5 @@ class WeatherDataUtils:
          
             if i + batch_size < len(sites_or_coords):
                 time.sleep(60)
-
-        if coords:
-            weather_data = pd.DataFrame(weather_data)
-            weather_data[['latitude', 'longitude']] = [x for x in sites_or_coords]
-            return weather_data
 
         return pd.DataFrame(weather_data)
