@@ -316,9 +316,13 @@ def airqo_realtime_measurements():
     def extract_hourly_weather_data(aggregated_hourly_data: pd.DataFrame):
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        coordinates = WeatherDataUtils.extract_latitude_and_longitude(data=aggregated_hourly_data)
+        coordinates = WeatherDataUtils.extract_latitude_and_longitude(
+            data=aggregated_hourly_data
+        )
 
-        return WeatherDataUtils.fetch_openweathermap_data_for_sites(sites_or_coords=coordinates)
+        return WeatherDataUtils.fetch_openweathermap_data_for_sites(
+            sites_or_coords=coordinates
+        )
 
     @task()
     def merge_data(aggregated_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
@@ -395,7 +399,9 @@ def airqo_realtime_measurements():
 
     averaged_airqo_data = aggregate(data=clean_data)
     send_raw_measurements_to_bigquery(airqo_data=clean_data)
-    extracted_weather_data = extract_hourly_weather_data(aggregated_hourly_data=averaged_airqo_data)
+    extracted_weather_data = extract_hourly_weather_data(
+        aggregated_hourly_data=averaged_airqo_data
+    )
     merged_data = merge_data(
         aggregated_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )

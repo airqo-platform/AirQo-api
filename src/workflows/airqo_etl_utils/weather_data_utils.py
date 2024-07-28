@@ -247,10 +247,10 @@ class WeatherDataUtils:
         cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
 
         return Utils.populate_missing_columns(data=data, cols=cols)
-    
+
     @staticmethod
     def extract_latitude_and_longitude(data: pd.DataFrame) -> list[tuple]:
-        return list(zip(data['latitude'], data['longitude'], data['device_number']))
+        return list(zip(data["latitude"], data["longitude"], data["device_number"]))
 
     @staticmethod
     def fetch_openweathermap_data_for_sites(sites_or_coords) -> pd.DataFrame:
@@ -286,7 +286,9 @@ class WeatherDataUtils:
                     "cloudiness": result.get("clouds", {}).get("all", 0),
                     "rain": result.get("rain", {}).get("1h", 0),
                 }
-                for (lat, lon, device_number), result in zip(batch_of_coordinates, results)
+                for (lat, lon, device_number), result in zip(
+                    batch_of_coordinates, results
+                )
                 if "main" in result
             ]
 
@@ -295,9 +297,13 @@ class WeatherDataUtils:
 
         for i in range(0, len(sites_or_coords), batch_size):
             batch = [
-                (item["latitude"], item["longitude"], item["device_number"]) if isinstance(item, dict) else item
+                (
+                    (item["latitude"], item["longitude"], item["device_number"])
+                    if isinstance(item, dict)
+                    else item
+                )
                 for item in sites_or_coords[i : i + batch_size]
-            ] 
+            ]
             weather_data.extend(process_batch(batch))
 
             if i + batch_size < len(sites_or_coords):

@@ -106,9 +106,11 @@ class AirQoDataUtils:
         measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
         averaged_measurements_list = []
 
-        for (device_number, site_id), device_site in measurements.groupby(["device_number", "site_id"]):
+        for (device_number, site_id), device_site in measurements.groupby(
+            ["device_number", "site_id"]
+        ):
             data = device_site.sort_index(axis=0)
-            numeric_columns = data.select_dtypes(include='number').columns
+            numeric_columns = data.select_dtypes(include="number").columns
             averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
             averages["timestamp"] = averages.index
             averages["device_number"] = device_number
@@ -352,7 +354,9 @@ class AirQoDataUtils:
             alias = device.get("alias")
 
             if read_key is None or device_number is None:
-                print(f"{alias}'s read key was not fetched successfully. It probably has no device number.")
+                print(
+                    f"{alias}'s read key was not fetched successfully. It probably has no device number."
+                )
                 continue
 
             for start, end in dates:
@@ -418,6 +422,7 @@ class AirQoDataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
+
         def resample_and_aggregate(group):
             device_id = group["device_id"].iloc[0]
             site_id = group["site_id"].iloc[0]
@@ -431,7 +436,11 @@ class AirQoDataUtils:
             resampled["device_number"] = device_number
             return resampled.reset_index(drop=True)
 
-        aggregated_data = data.groupby("device_number").apply(resample_and_aggregate).reset_index(drop=True)
+        aggregated_data = (
+            data.groupby("device_number")
+            .apply(resample_and_aggregate)
+            .reset_index(drop=True)
+        )
 
         return aggregated_data
 
@@ -683,12 +692,19 @@ class AirQoDataUtils:
                     by_timestamp.sort_values("distance")
                     .bfill()
                     .drop_duplicates("timestamp", keep="first")
-                    .assign(site_id=by_site.iloc[0]["site_id"])
-                    [weather_data_cols + ["site_id"]]
+                    .assign(site_id=by_site.iloc[0]["site_id"])[
+                        weather_data_cols + ["site_id"]
+                    ]
                 )
-                sites_weather_data = pd.concat([sites_weather_data, by_timestamp], ignore_index=True)
+                sites_weather_data = pd.concat(
+                    [sites_weather_data, by_timestamp], ignore_index=True
+                )
 
-        intersecting_cols = [col for col in set(airqo_data.columns) & set(sites_weather_data.columns) if col not in ["timestamp", "site_id"]]
+        intersecting_cols = [
+            col
+            for col in set(airqo_data.columns) & set(sites_weather_data.columns)
+            if col not in ["timestamp", "site_id"]
+        ]
 
         for col in intersecting_cols:
             airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
@@ -707,15 +723,23 @@ class AirQoDataUtils:
             measurements.drop(f"device_reading_{col}_col", axis=1, inplace=True)
 
         return measurements
-    
-    @staticmethod
-    def merge_aggregated_openweathermap_data(aggregated_data: pd.DataFrame, weather_data: pd.DataFrame) -> pd.DataFrame:
-        weather_data.drop(columns=['timestamp', 'latitude', 'longitude'], inplace=True)
 
-        intersecting_cols = [col for col in set(aggregated_data.columns) & set(weather_data.columns) if col not in ["device_number"]]
+    @staticmethod
+    def merge_aggregated_openweathermap_data(
+        aggregated_data: pd.DataFrame, weather_data: pd.DataFrame
+    ) -> pd.DataFrame:
+        weather_data.drop(columns=["timestamp", "latitude", "longitude"], inplace=True)
+
+        intersecting_cols = [
+            col
+            for col in set(aggregated_data.columns) & set(weather_data.columns)
+            if col not in ["device_number"]
+        ]
 
         for col in intersecting_cols:
-            aggregated_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
+            aggregated_data.rename(
+                columns={col: f"device_reading_{col}_col"}, inplace=True
+            )
 
         measurements = pd.merge(
             left=aggregated_data,
@@ -723,7 +747,7 @@ class AirQoDataUtils:
             how="left",
             on=["device_number"],
         )
-        
+
         for col in intersecting_cols:
             measurements[col].fillna(
                 measurements[f"device_reading_{col}_col"], inplace=True

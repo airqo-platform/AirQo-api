@@ -89,7 +89,7 @@ class Config:
 
     # Open-Meteo Weather API
     OPEN_METEO_BASE_URL = os.getenv("OPEN_METEO_BASE_URL")
-    
+
     # Kafka
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092").split(",")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "1,2,3,4").split(",")

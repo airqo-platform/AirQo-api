@@ -56,7 +56,7 @@ class TestAirQoDataUtils(unittest.TestCase):
         self.assertEqual(data.iloc[0]["device_number"], 2)
         self.assertEqual(date_to_str(data.iloc[0]["timestamp"]), "2022-01-01T10:00:00Z")
 
-    @patch('airqo_etl_utils.airqo_utils.BigQueryApi')
+    @patch("airqo_etl_utils.airqo_utils.BigQueryApi")
     def test_extract_aggregated_raw_data(self, MockBigQueryApi):
 
         mock_bigquery_api = MockBigQueryApi.return_value
@@ -104,7 +104,18 @@ class TestAirQoDataUtils(unittest.TestCase):
                 102.75,
                 98.78,
             ],
-            "s2_pm2_5": [94.98, 84.6, 90.67, 99.8, 96.33, 97.8, 88.62, 95.4, 95.43, 92.05],
+            "s2_pm2_5": [
+                94.98,
+                84.6,
+                90.67,
+                99.8,
+                96.33,
+                97.8,
+                88.62,
+                95.4,
+                95.43,
+                92.05,
+            ],
             "pm10": [
                 106.415,
                 96.675,
@@ -176,8 +187,10 @@ class TestAirQoDataUtils(unittest.TestCase):
         }
 
         input_dataframe = pd.DataFrame(input_data)
-        input_dataframe['timestamp'] = pd.to_datetime(input_dataframe['timestamp'])
-        input_dataframe['device_number'] = input_dataframe['device_number'].astype('int64')
+        input_dataframe["timestamp"] = pd.to_datetime(input_dataframe["timestamp"])
+        input_dataframe["device_number"] = input_dataframe["device_number"].astype(
+            "int64"
+        )
 
         mock_bigquery_api.query_data.return_value = input_dataframe
 
@@ -216,13 +229,19 @@ class TestAirQoDataUtils(unittest.TestCase):
             "site_id": ["60d058c8048305120d2d616d"],
         }
         expected_dataframe = pd.DataFrame(expected_data)
-        expected_dataframe['timestamp'] = pd.to_datetime(expected_dataframe['timestamp'])
-        expected_dataframe['device_number'] = expected_dataframe['device_number'].astype('int64')
+        expected_dataframe["timestamp"] = pd.to_datetime(
+            expected_dataframe["timestamp"]
+        )
+        expected_dataframe["device_number"] = expected_dataframe[
+            "device_number"
+        ].astype("int64")
 
-        start_date_time = '2024-07-10T00:00:00Z'
-        end_date_time = '2024-07-11T11:59:59Z'
+        start_date_time = "2024-07-10T00:00:00Z"
+        end_date_time = "2024-07-11T11:59:59Z"
 
-        result = AirQoDataUtils.extract_aggregated_raw_data(start_date_time, end_date_time)
+        result = AirQoDataUtils.extract_aggregated_raw_data(
+            start_date_time, end_date_time
+        )
 
         pd.testing.assert_frame_equal(result, expected_dataframe)
 
