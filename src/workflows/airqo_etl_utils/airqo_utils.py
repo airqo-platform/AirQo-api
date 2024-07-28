@@ -704,7 +704,7 @@ class AirQoDataUtils:
             measurements[col].fillna(
                 measurements[f"device_reading_{col}_col"], inplace=True
             )
-            del measurements[f"device_reading_{col}_col"]
+            measurements.drop(f"device_reading_{col}_col", axis=1, inplace=True)
 
         return measurements
 
