@@ -707,6 +707,30 @@ class AirQoDataUtils:
             measurements.drop(f"device_reading_{col}_col", axis=1, inplace=True)
 
         return measurements
+    
+    @staticmethod
+    def merge_aggregated_openweathermap_data(aggregated_data: pd.DataFrame, weather_data: pd.DataFrame) -> pd.DataFrame:
+        weather_data.drop(columns=['timestamp', 'latitude', 'longitude'], inplace=True)
+
+        intersecting_cols = [col for col in set(aggregated_data.columns) & set(weather_data.columns) if col not in ["device_number"]]
+
+        for col in intersecting_cols:
+            aggregated_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
+
+        measurements = pd.merge(
+            left=aggregated_data,
+            right=weather_data,
+            how="left",
+            on=["device_number"],
+        )
+        
+        for col in intersecting_cols:
+            measurements[col].fillna(
+                measurements[f"device_reading_{col}_col"], inplace=True
+            )
+            measurements.drop(f"device_reading_{col}_col", axis=1, inplace=True)
+
+        return measurements
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:

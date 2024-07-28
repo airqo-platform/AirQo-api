@@ -313,19 +313,19 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.aggregate_low_cost_sensors_data(data=data)
 
     @task()
-    def extract_hourly_weather_data():
+    def extract_hourly_weather_data(aggregated_hourly_data: pd.DataFrame):
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.extract_hourly_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
+        coordinates = WeatherDataUtils.extract_latitude_and_longitude(data=aggregated_hourly_data)
+
+        return WeatherDataUtils.fetch_openweathermap_data_for_sites(sites_or_coords=coordinates)
 
     @task()
-    def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
+    def merge_data(aggregated_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.merge_aggregated_weather_data(
-            airqo_data=averaged_hourly_data, weather_data=weather_data
+        return AirQoDataUtils.merge_aggregated_openweathermap_data(
+            aggregated_data=aggregated_hourly_data, weather_data=weather_data
         )
 
     @task()
@@ -390,14 +390,14 @@ def airqo_realtime_measurements():
         MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     raw_data = extract_raw_data()
-    clean_data = clean_data_raw_data(raw_data)
-    save_test_data(clean_data)
+    clean_data = clean_data_raw_data(data=raw_data)
+    save_test_data(data=clean_data)
 
-    averaged_airqo_data = aggregate(clean_data)
-    send_raw_measurements_to_bigquery(clean_data)
-    extracted_weather_data = extract_hourly_weather_data()
+    averaged_airqo_data = aggregate(data=clean_data)
+    send_raw_measurements_to_bigquery(airqo_data=clean_data)
+    extracted_weather_data = extract_hourly_weather_data(aggregated_hourly_data=averaged_airqo_data)
     merged_data = merge_data(
-        averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
+        aggregated_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
