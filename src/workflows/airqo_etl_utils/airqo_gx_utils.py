@@ -1,8 +1,15 @@
 import great_expectations as gx
+from great_expectations.exceptions import DataContextError
+from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
+
 import os
 from pathlib import Path
+
 from .airqo_gx_metrics import AirQoGxExpectations
 from .config import configuration
+
+from typing import Dict, Any, List
 
 
 class AirQoGx:
@@ -12,11 +19,11 @@ class AirQoGx:
         data_asset_name: str,
         expectation_suite_name: str,
         checkpoint_name: str,
-        expectations: dict,
+        expectations: Dict[str, Any],
         data_connector_name: str = "default_runtime_data_connector_name",
         execution_engine: str = "sql",
         dataframe=None,
-        cloud_mode=None,
+        cloud_mode=False,
     ):
         """
         Class builds a context and bundles up all necessary bits i.e expectation suite and expectations, checkpoints and also provides a method to run a checkpoint returning the results of the validations.
@@ -46,6 +53,7 @@ class AirQoGx:
         self.dataframe = dataframe
         self.project = configuration.GOOGLE_CLOUD_PROJECT_ID
         self.cloud_mode = cloud_mode
+        self.data_checks_table = configuration.BIGQUERY_GX_RESULTS_TABLE
 
     def setup(self):
         """
@@ -57,7 +65,12 @@ class AirQoGx:
         BASE_PATH = Path(__file__).resolve().parents[1]
 
         gx_dir = os.path.join(BASE_PATH, "include")
-        self.context = gx.get_context(None, gx_dir, cloud_mode=self.cloud_mode)
+
+        # TODO complete config setup
+
+        self.context = gx.get_context(
+            project_config=None, context_root_dir=gx_dir, cloud_mode=self.cloud_mode
+        )
 
         self.build_data_source()
 
@@ -67,7 +80,7 @@ class AirQoGx:
                 self.expectation_suite_name
             )
             print(f"Expectation suite '{self.expectation_suite_name}' already exists.")
-        except gx.exceptions.DataContextError:
+        except DataContextError:
             expectation_suite = self.context.add_expectation_suite(
                 self.expectation_suite_name
             )
@@ -158,7 +171,7 @@ class AirQoGx:
             return f"""
             SELECT *
             FROM `{data_asset_name}`
-            WHERE TIMESTAMP_TRUNC(timestamp, MONTH) = TIMESTAMP(CURRENT_DATE()) LIMIT 1000
+            WHERE TIMESTAMP_TRUNC(timestamp, MONTH) = TIMESTAMP(DATE_TRUNC(CURRENT_DATE(), MONTH)) LIMIT 1000
             """
 
         if self.execution_engine == "sql":
@@ -201,6 +214,106 @@ class AirQoGx:
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
         # Uncomment in local environment to open docs.
-        self.context.build_data_docs()
+        self.context.build_data_docs(site_names=["local_site"])
         self.context.open_data_docs()
         return results
+
+    def store_results_in_bigquery(
+        self, validation_results: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Store the extracted validation results into BigQuery.
+
+        Args:
+            validation_results (list of dict): List of validation results to store.
+            table_id (str): The BigQuery table ID where results will be stored.
+        """
+        client = bigquery.Client()
+        table_id = self.data_checks_table
+        # Define the schema for the BigQuery table
+        schema = [
+            bigquery.SchemaField("run_name", "STRING"),
+            bigquery.SchemaField("run_time", "TIMESTAMP"),
+            bigquery.SchemaField("run_result", "BOOLEAN"),
+            bigquery.SchemaField("data_source", "STRING"),
+            bigquery.SchemaField("data_asset", "STRING"),
+            bigquery.SchemaField("checkpoint_name", "STRING"),
+            bigquery.SchemaField("expectation_suite", "STRING"),
+            bigquery.SchemaField("expectation_type", "STRING"),
+            bigquery.SchemaField("expectation_result", "BOOLEAN"),
+            bigquery.SchemaField("raised_exception", "BOOLEAN"),
+            bigquery.SchemaField("local_site", "STRING"),
+        ]
+
+        try:
+            client.get_table(table_id)
+            print(f"Table {table_id} already exists.")
+        except NotFound:
+            print(f"Table {table_id} not found. Creating table.")
+            table = bigquery.Table(table_id, schema=schema)
+            client.create_table(table)
+            print(f"Table {table_id} created.")
+
+        errors = client.insert_rows_json(
+            table_id, validation_results, row_ids=[None] * len(validation_results)
+        )
+        if errors:
+            print(f"Encountered errors while inserting rows: {errors}")
+
+    def digest_validation_results(
+        self, validation_result: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Extract relevant information from a validation result for storing.
+
+        Args:
+            validation_result (Dict[str, Any]): The validation result object from Great Expectations.
+
+        Returns:
+            list of dict: Extracted information from the validation results.
+        """
+        validation_info: List[Dict[str, Any]] = []
+
+        # Extract metadata from the validation result
+        run_name = validation_result["validation_result"]["meta"]["run_id"].run_name
+        run_time = validation_result["validation_result"]["meta"]["run_id"].run_time
+        data_source = validation_result["validation_result"]["meta"][
+            "active_batch_definition"
+        ]["datasource_name"]
+        data_asset = validation_result["validation_result"]["meta"][
+            "active_batch_definition"
+        ]["data_asset_name"]
+        checkpoint_name = validation_result["validation_result"]["meta"][
+            "checkpoint_name"
+        ]
+        expectation_suite = validation_result["validation_result"]["meta"][
+            "expectation_suite_name"
+        ]
+        run_result = validation_result["validation_result"]["success"]
+        local_site = validation_result["actions_results"]["update_data_docs"][
+            "local_site"
+        ]
+
+        # Extract validation results
+        for result in validation_result["validation_result"]["results"]:
+            expectation_type = result["expectation_config"]["expectation_type"]
+            success = result["success"]
+            raised_exception = result["exception_info"].get("raised_exception", True)
+
+            validation_info.append(
+                {
+                    "run_name": run_name,
+                    "run_time": str(run_time),
+                    "run_result": run_result,
+                    "data_source": data_source,
+                    "data_asset": data_asset,
+                    "checkpoint_name": checkpoint_name,
+                    "expectation_suite": expectation_suite,
+                    "expectation_type": expectation_type,
+                    "expectation_result": success,
+                    "raised_exception": raised_exception,
+                    "local_site": local_site,
+                }
+            )
+
+        return validation_info
