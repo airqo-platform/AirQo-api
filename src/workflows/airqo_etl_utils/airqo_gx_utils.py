@@ -1,5 +1,6 @@
 import great_expectations as gx
 from great_expectations.exceptions import DataContextError
+from great_expectations.data_context.types.base import DataContextConfig
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
@@ -64,12 +65,57 @@ class AirQoGx:
         """
         BASE_PATH = Path(__file__).resolve().parents[1]
 
-        gx_dir = os.path.join(BASE_PATH, "include")
+        gx_dir = os.path.join(BASE_PATH, "include", "gx")
 
-        # TODO complete config setup
-
+        data_context_config = DataContextConfig(
+            config_version=3,
+            stores={
+                "expectations_store": {
+                    "class_name": "ExpectationsStore",
+                    "store_backend": {
+                        "class_name": "TupleFilesystemStoreBackend",
+                        "base_directory": gx_dir + "/expectations/",
+                    },
+                },
+                "validations_store": {
+                    "class_name": "ValidationsStore",
+                    "store_backend": {
+                        "class_name": "TupleFilesystemStoreBackend",
+                        "base_directory": gx_dir + "/validations/",
+                    },
+                },
+                "evaluation_parameter_store": {
+                    "class_name": "EvaluationParameterStore",
+                },
+                "checkpoint_store": {
+                    "class_name": "CheckpointStore",
+                    "store_backend": {
+                        "class_name": "TupleFilesystemStoreBackend",
+                        "base_directory": gx_dir + "/checkpoints/",
+                    },
+                },
+            },
+            expectations_store_name="expectations_store",
+            validations_store_name="validations_store",
+            evaluation_parameter_store_name="evaluation_parameter_store",
+            checkpoint_store_name="checkpoint_store",
+            data_docs_sites={
+                "local_site": {
+                    "class_name": "SiteBuilder",
+                    "store_backend": {
+                        "class_name": "TupleFilesystemStoreBackend",
+                        "base_directory": gx_dir + "/uncommitted/data_docs/local_site/",
+                    },
+                    "site_index_builder": {
+                        "class_name": "DefaultSiteIndexBuilder",
+                    },
+                },
+            },
+        )
         self.context = gx.get_context(
-            project_config=None, context_root_dir=gx_dir, cloud_mode=self.cloud_mode
+            project_config=data_context_config,
+            context_root_dir=gx_dir,
+            cloud_mode=self.cloud_mode,
         )
 
         self.build_data_source()
@@ -214,8 +260,8 @@ class AirQoGx:
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
         # Uncomment in local environment to open docs.
-        self.context.build_data_docs(site_names=["local_site"])
-        self.context.open_data_docs()
+        # self.context.build_data_docs(site_names=["local_site"])
+        # self.context.open_data_docs()
         return results
 
     def store_results_in_bigquery(
