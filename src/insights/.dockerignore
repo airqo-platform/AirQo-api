@@ -1,0 +1,9 @@
+analytics_env/
+.vscode
+__pycache__/
+testing.env
+env/
+
+.DS_Store
+*.db
+venv/

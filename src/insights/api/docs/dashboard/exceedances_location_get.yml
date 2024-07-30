@@ -1,0 +1,52 @@
+Example endpoint for fetching exceedance locations data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+definitions:
+  ExceedanceLocationResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: Exceedance location data successfully fetched
+      data:
+        type: array
+        items:
+          type: string
+        example: [
+            "Luzira",
+            "Kawala",
+            "Nakulabye",
+            "Namirembe",
+            "Kiswa",
+            "Civic Centre",
+            "Ggaba",
+            "Kazo Angola",
+            "Kisugu",
+            "Kyebando",
+            "Mutundwe",
+            "Bwaise II",
+            "Naguru I",
+            "Nakawa",
+            "Kamwokya II",
+            "Wandegeya",
+            "Nsambya Central",
+            "Komamboga",
+            "Kisenyi II",
+            "Nakasero II",
+            "Kibuye I",
+            "Kyanja"
+        ]
+responses:
+  200:
+    description: A successful retrieval of exceedance locations data
+    schema:
+      $ref: '#/definitions/ExceedanceLocationResponse'

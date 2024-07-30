@@ -1,0 +1,54 @@
+Example endpoint for fetching monitoring site location data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+definitions:
+  MonitoringSiteResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: monitoring site location data successfully fetched
+      data:
+        type: array
+        items:
+           $ref: '#/definitions/MonitoringSiteData'
+  MonitoringSiteDevice:
+    type: object
+    properties:
+      _id:
+        type: string
+        example: 5f2036bc70223655545a8b3c
+      name:
+        type: string
+        example: aq_04
+  MonitoringSiteData:
+    type: object
+    properties:
+      name:
+        type: string
+        example: Rubirizi
+      description:
+        type: string
+        example: Kasharara, Rubirizi
+      generated_name:
+        type: string
+        example: site_21
+      devices:
+        type: array
+        items:
+          $ref: '#/definitions/MonitoringSiteDevice'
+
+responses:
+  200:
+    description: A successful retrieval of monitoring site location data
+    schema:
+      $ref: '#/definitions/MonitoringSiteResponse'

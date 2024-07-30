@@ -812,7 +812,7 @@ async function fetchData(model, filter) {
                       case: {
                         $and: [
                           { $gte: ["$pm2_5.value", 0] },
-                          { $lt: ["$pm2_5.value", 12.1] },
+                          { $lte: ["$pm2_5.value", 9.0] },
                         ],
                       },
                       then: "00e400",
@@ -820,8 +820,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 12.1] },
-                          { $lt: ["$pm2_5.value", 35.5] },
+                          { $gt: ["$pm2_5.value", 9.0] },
+                          { $lte: ["$pm2_5.value", 35.4] },
                         ],
                       },
                       then: "ffff00",
@@ -829,8 +829,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 35.5] },
-                          { $lt: ["$pm2_5.value", 55.5] },
+                          { $gt: ["$pm2_5.value", 35.4] },
+                          { $lte: ["$pm2_5.value", 55.4] },
                         ],
                       },
                       then: "ff7e00",
@@ -838,8 +838,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 55.5] },
-                          { $lt: ["$pm2_5.value", 150.5] },
+                          { $gt: ["$pm2_5.value", 55.4] },
+                          { $lte: ["$pm2_5.value", 125.4] },
                         ],
                       },
                       then: "ff0000",
@@ -847,14 +847,14 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 150.5] },
-                          { $lt: ["$pm2_5.value", 250.5] },
+                          { $gt: ["$pm2_5.value", 125.4] },
+                          { $lte: ["$pm2_5.value", 225.4] },
                         ],
                       },
                       then: "8f3f97",
                     },
                     {
-                      case: { $gte: ["$pm2_5.value", 250.5] },
+                      case: { $gt: ["$pm2_5.value", 225.4] },
                       then: "7e0023",
                     },
                   ],
@@ -869,7 +869,7 @@ async function fetchData(model, filter) {
                       case: {
                         $and: [
                           { $gte: ["$pm2_5.value", 0] },
-                          { $lte: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 9.0] },
                         ],
                       },
                       then: "Good",
@@ -877,7 +877,7 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 12] },
+                          { $gt: ["$pm2_5.value", 9.0] },
                           { $lte: ["$pm2_5.value", 35.4] },
                         ],
                       },
@@ -896,7 +896,7 @@ async function fetchData(model, filter) {
                       case: {
                         $and: [
                           { $gt: ["$pm2_5.value", 55.4] },
-                          { $lte: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 125.4] },
                         ],
                       },
                       then: "Unhealthy",
@@ -904,18 +904,15 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 150.4] },
-                          { $lte: ["$pm2_5.value", 250.4] },
+                          { $gt: ["$pm2_5.value", 125.4] },
+                          { $lte: ["$pm2_5.value", 225.4] },
                         ],
                       },
                       then: "Very Unhealthy",
                     },
                     {
                       case: {
-                        $and: [
-                          { $gt: ["$pm2_5.value", 250.4] },
-                          { $lte: ["$pm2_5.value", 500] },
-                        ],
+                        $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                       },
                       then: "Hazardous",
                     },
@@ -930,7 +927,7 @@ async function fetchData(model, filter) {
                       case: {
                         $and: [
                           { $gte: ["$pm2_5.value", 0] },
-                          { $lte: ["$pm2_5.value", 12] },
+                          { $lte: ["$pm2_5.value", 9.0] },
                         ],
                       },
                       then: "Green",
@@ -938,7 +935,7 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 12] },
+                          { $gt: ["$pm2_5.value", 9.0] },
                           { $lte: ["$pm2_5.value", 35.4] },
                         ],
                       },
@@ -957,7 +954,7 @@ async function fetchData(model, filter) {
                       case: {
                         $and: [
                           { $gt: ["$pm2_5.value", 55.4] },
-                          { $lte: ["$pm2_5.value", 150.4] },
+                          { $lte: ["$pm2_5.value", 125.4] },
                         ],
                       },
                       then: "Red",
@@ -965,18 +962,15 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 150.4] },
-                          { $lte: ["$pm2_5.value", 250.4] },
+                          { $gt: ["$pm2_5.value", 125.4] },
+                          { $lte: ["$pm2_5.value", 225.4] },
                         ],
                       },
                       then: "Purple",
                     },
                     {
                       case: {
-                        $and: [
-                          { $gt: ["$pm2_5.value", 250.4] },
-                          { $lte: ["$pm2_5.value", 500] },
-                        ],
+                        $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                       },
                       then: "Maroon",
                     },
@@ -1400,7 +1394,7 @@ async function signalData(model, filter) {
                     case: {
                       $and: [
                         { $gte: ["$pm2_5.value", 0] },
-                        { $lt: ["$pm2_5.value", 12.1] },
+                        { $lte: ["$pm2_5.value", 9.0] },
                       ],
                     },
                     then: "00e400",
@@ -1408,8 +1402,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 12.1] },
-                        { $lt: ["$pm2_5.value", 35.5] },
+                        { $gt: ["$pm2_5.value", 9.0] },
+                        { $lte: ["$pm2_5.value", 35.4] },
                       ],
                     },
                     then: "ffff00",
@@ -1417,8 +1411,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 35.5] },
-                        { $lt: ["$pm2_5.value", 55.5] },
+                        { $gt: ["$pm2_5.value", 35.4] },
+                        { $lte: ["$pm2_5.value", 55.4] },
                       ],
                     },
                     then: "ff7e00",
@@ -1426,8 +1420,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 55.5] },
-                        { $lt: ["$pm2_5.value", 150.5] },
+                        { $gt: ["$pm2_5.value", 55.4] },
+                        { $lte: ["$pm2_5.value", 125.4] },
                       ],
                     },
                     then: "ff0000",
@@ -1435,14 +1429,14 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 150.5] },
-                        { $lt: ["$pm2_5.value", 250.5] },
+                        { $gt: ["$pm2_5.value", 125.4] },
+                        { $lte: ["$pm2_5.value", 225.4] },
                       ],
                     },
                     then: "8f3f97",
                   },
                   {
-                    case: { $gte: ["$pm2_5.value", 250.5] },
+                    case: { $gt: ["$pm2_5.value", 225.4] },
                     then: "7e0023",
                   },
                 ],
@@ -1457,7 +1451,7 @@ async function signalData(model, filter) {
                     case: {
                       $and: [
                         { $gte: ["$pm2_5.value", 0] },
-                        { $lte: ["$pm2_5.value", 12] },
+                        { $lte: ["$pm2_5.value", 9.0] },
                       ],
                     },
                     then: "Good",
@@ -1465,7 +1459,7 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 12] },
+                        { $gt: ["$pm2_5.value", 9.0] },
                         { $lte: ["$pm2_5.value", 35.4] },
                       ],
                     },
@@ -1484,7 +1478,7 @@ async function signalData(model, filter) {
                     case: {
                       $and: [
                         { $gt: ["$pm2_5.value", 55.4] },
-                        { $lte: ["$pm2_5.value", 150.4] },
+                        { $lte: ["$pm2_5.value", 125.4] },
                       ],
                     },
                     then: "Unhealthy",
@@ -1492,18 +1486,15 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 150.4] },
-                        { $lte: ["$pm2_5.value", 250.4] },
+                        { $gt: ["$pm2_5.value", 125.4] },
+                        { $lte: ["$pm2_5.value", 225.4] },
                       ],
                     },
                     then: "Very Unhealthy",
                   },
                   {
                     case: {
-                      $and: [
-                        { $gt: ["$pm2_5.value", 250.4] },
-                        { $lte: ["$pm2_5.value", 500] },
-                      ],
+                      $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                     },
                     then: "Hazardous",
                   },
@@ -1518,7 +1509,7 @@ async function signalData(model, filter) {
                     case: {
                       $and: [
                         { $gte: ["$pm2_5.value", 0] },
-                        { $lte: ["$pm2_5.value", 12] },
+                        { $lte: ["$pm2_5.value", 9.0] },
                       ],
                     },
                     then: "Green",
@@ -1526,7 +1517,7 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 12] },
+                        { $gt: ["$pm2_5.value", 9.0] },
                         { $lte: ["$pm2_5.value", 35.4] },
                       ],
                     },
@@ -1545,7 +1536,7 @@ async function signalData(model, filter) {
                     case: {
                       $and: [
                         { $gt: ["$pm2_5.value", 55.4] },
-                        { $lte: ["$pm2_5.value", 150.4] },
+                        { $lte: ["$pm2_5.value", 125.4] },
                       ],
                     },
                     then: "Red",
@@ -1553,18 +1544,15 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 150.4] },
-                        { $lte: ["$pm2_5.value", 250.4] },
+                        { $gt: ["$pm2_5.value", 125.4] },
+                        { $lte: ["$pm2_5.value", 225.4] },
                       ],
                     },
                     then: "Purple",
                   },
                   {
                     case: {
-                      $and: [
-                        { $gt: ["$pm2_5.value", 250.4] },
-                        { $lte: ["$pm2_5.value", 500] },
-                      ],
+                      $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                     },
                     then: "Maroon",
                   },
@@ -2027,7 +2015,7 @@ eventSchema.statics.list = async function(
                         case: {
                           $and: [
                             { $gte: ["$pm2_5.value", 0] },
-                            { $lt: ["$pm2_5.value", 12.1] },
+                            { $lte: ["$pm2_5.value", 9.0] },
                           ],
                         },
                         then: "00e400",
@@ -2035,8 +2023,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 12.1] },
-                            { $lt: ["$pm2_5.value", 35.5] },
+                            { $gt: ["$pm2_5.value", 9.0] },
+                            { $lte: ["$pm2_5.value", 35.4] },
                           ],
                         },
                         then: "ffff00",
@@ -2044,8 +2032,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 35.5] },
-                            { $lt: ["$pm2_5.value", 55.5] },
+                            { $gt: ["$pm2_5.value", 35.4] },
+                            { $lte: ["$pm2_5.value", 55.4] },
                           ],
                         },
                         then: "ff7e00",
@@ -2053,8 +2041,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 55.5] },
-                            { $lt: ["$pm2_5.value", 150.5] },
+                            { $gt: ["$pm2_5.value", 55.4] },
+                            { $lte: ["$pm2_5.value", 125.4] },
                           ],
                         },
                         then: "ff0000",
@@ -2062,14 +2050,14 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 150.5] },
-                            { $lt: ["$pm2_5.value", 250.5] },
+                            { $gt: ["$pm2_5.value", 125.4] },
+                            { $lte: ["$pm2_5.value", 225.4] },
                           ],
                         },
                         then: "8f3f97",
                       },
                       {
-                        case: { $gte: ["$pm2_5.value", 250.5] },
+                        case: { $gt: ["$pm2_5.value", 225.4] },
                         then: "7e0023",
                       },
                     ],
@@ -2084,7 +2072,7 @@ eventSchema.statics.list = async function(
                         case: {
                           $and: [
                             { $gte: ["$pm2_5.value", 0] },
-                            { $lte: ["$pm2_5.value", 12] },
+                            { $lte: ["$pm2_5.value", 9.0] },
                           ],
                         },
                         then: "Good",
@@ -2092,7 +2080,7 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 12] },
+                            { $gt: ["$pm2_5.value", 9.0] },
                             { $lte: ["$pm2_5.value", 35.4] },
                           ],
                         },
@@ -2111,7 +2099,7 @@ eventSchema.statics.list = async function(
                         case: {
                           $and: [
                             { $gt: ["$pm2_5.value", 55.4] },
-                            { $lte: ["$pm2_5.value", 150.4] },
+                            { $lte: ["$pm2_5.value", 125.4] },
                           ],
                         },
                         then: "Unhealthy",
@@ -2119,18 +2107,15 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 150.4] },
-                            { $lte: ["$pm2_5.value", 250.4] },
+                            { $gt: ["$pm2_5.value", 125.4] },
+                            { $lte: ["$pm2_5.value", 225.4] },
                           ],
                         },
                         then: "Very Unhealthy",
                       },
                       {
                         case: {
-                          $and: [
-                            { $gt: ["$pm2_5.value", 250.4] },
-                            { $lte: ["$pm2_5.value", 500] },
-                          ],
+                          $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                         },
                         then: "Hazardous",
                       },
@@ -2145,7 +2130,7 @@ eventSchema.statics.list = async function(
                         case: {
                           $and: [
                             { $gte: ["$pm2_5.value", 0] },
-                            { $lte: ["$pm2_5.value", 12] },
+                            { $lte: ["$pm2_5.value", 9.0] },
                           ],
                         },
                         then: "Green",
@@ -2153,7 +2138,7 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 12] },
+                            { $gt: ["$pm2_5.value", 9.0] },
                             { $lte: ["$pm2_5.value", 35.4] },
                           ],
                         },
@@ -2172,7 +2157,7 @@ eventSchema.statics.list = async function(
                         case: {
                           $and: [
                             { $gt: ["$pm2_5.value", 55.4] },
-                            { $lte: ["$pm2_5.value", 150.4] },
+                            { $lte: ["$pm2_5.value", 125.4] },
                           ],
                         },
                         then: "Red",
@@ -2180,18 +2165,15 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 150.4] },
-                            { $lte: ["$pm2_5.value", 250.4] },
+                            { $gt: ["$pm2_5.value", 125.4] },
+                            { $lte: ["$pm2_5.value", 225.4] },
                           ],
                         },
                         then: "Purple",
                       },
                       {
                         case: {
-                          $and: [
-                            { $gt: ["$pm2_5.value", 250.4] },
-                            { $lte: ["$pm2_5.value", 500] },
-                          ],
+                          $and: [{ $gt: ["$pm2_5.value", 225.4] }],
                         },
                         then: "Maroon",
                       },
