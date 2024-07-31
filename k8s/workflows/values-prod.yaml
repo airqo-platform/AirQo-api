@@ -16,10 +16,10 @@ podAnnotations: {}
 resources:
   limits:
     cpu: 2000m
-    memory: 6000Mi
+    memory: 6500Mi
   requests:
     cpu: 700m
-    memory: 4500Mi
+    memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
