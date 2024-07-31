@@ -18,8 +18,8 @@ resources:
     cpu: 1500m
     memory: 4500Mi
   requests:
-    cpu: 400m
-    memory: 2000Mi
+    cpu: 150m
+    memory: 1400Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
