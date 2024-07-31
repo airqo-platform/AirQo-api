@@ -15,11 +15,11 @@ fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 1500m
-    memory: 4500Mi
+    cpu: 2000m
+    memory: 6500Mi
   requests:
-    cpu: 500m
-    memory: 3000Mi
+    cpu: 700m
+    memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
