@@ -17,10 +17,11 @@ x-common-data: &common-data
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
     AIRFLOW__WEBSERVER__INSTANCE_NAME: AirQo
     AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 240
+    AIRFLOW__SCHEDULER__ZOMBIE_MAX_AGE: 3600
     AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
     AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
     AIRFLOW_UID: 50000
-#    BOOTSTRAP_SERVERS: message-broker:9092
+    #    BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
     PLUME_LABS_ORGANISATIONS_CRED: /etc/config/plume_labs_metadata.json
     AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
@@ -31,7 +32,6 @@ x-common-data: &common-data
     - ${PWD}/meta_data/google_application_credentials.json:/etc/config/google_application_credentials.json
     - ${PWD}/meta_data/plume_labs_metadata.json:/etc/config/plume_labs_metadata.json
     - ${PWD}/airflow_xcom:/etc/airflow_xcom
-
 
 services:
   db:
@@ -90,7 +90,7 @@ services:
     <<: *common-data
     container_name: webserver
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     build:
       context: .
       target: webserver

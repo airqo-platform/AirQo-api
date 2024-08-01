@@ -548,9 +548,9 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["bam", "lowcost"])
+        .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: LOWCOST and BAM"
+          "the category value is not among the expected ones which include: LOWCOST, GAS and BAM"
         ),
       body("powerType")
         .optional()
