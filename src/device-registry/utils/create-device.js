@@ -534,6 +534,8 @@ const createDevice = {
       let context = {};
       if (category === "bam") {
         context = constants.BAM_THINGSPEAK_FIELD_DESCRIPTIONS;
+      } else if (category === "gas") {
+        context = constants.THINGSPEAK_GAS_FIELD_DESCRIPTIONS;
       } else {
         context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       }
