@@ -73,6 +73,16 @@ const mappings = {
     field7: "Battery Voltage",
     field8: "ExtraData",
   },
+  THINGSPEAK_GAS_FIELD_DESCRIPTIONS: {
+    field1: "PM2.5",
+    field2: "TVOC",
+    field3: "HCHO",
+    field4: "CO2",
+    field5: "Intake Temperature",
+    field6: "Intake Humidity",
+    field7: "Battery Voltage",
+    field8: "ExtraData",
+  },
   DEVICE_THINGSPEAK_MAPPINGS: {
     item: {
       name: "long_name",
