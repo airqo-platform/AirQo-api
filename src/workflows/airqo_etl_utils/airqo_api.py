@@ -227,14 +227,20 @@ class AirQoApi:
             }
         """
 
-        body = [
-            {
-                "encrypted_key": device["readKey"],
-                "device_number": device["device_number"],
-            }
-            for device in devices
-            if device.get("readKey") and device.get("device_number")
-        ]
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        decrypted_read_keys: Dict[int, str] = {}
+
+        for device in devices:
+            read_key = device.get("readKey", None)
+            device_number = device.get("device_number", None)
+            if read_key and device_number:
+                body.append(
+                    {
+                        "encrypted_key": read_key,
+                        "device_number": device_number,
+                    }
+                )
 
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
 
@@ -244,7 +250,8 @@ class AirQoApi:
                 int(entry["device_number"]): entry["decrypted_key"]
                 for entry in decrypted_keys
             }
-        return {}
+         # TODO Find a better way to do better handling vs returning an empty object.
+        return decrypted_read_keys
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
