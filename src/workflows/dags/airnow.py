@@ -3,7 +3,6 @@ from airflow.utils.dates import days_ago
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
-
 # Historical Data DAG
 @dag(
     dag_id="Airnow-Historical-Bam-Data",

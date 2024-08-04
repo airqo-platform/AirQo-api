@@ -249,28 +249,34 @@ class WeatherDataUtils:
         return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites):
+    def extract_latitude_and_longitude(data: pd.DataFrame) -> list[tuple]:
+        return list(zip(data["latitude"], data["longitude"], data["device_number"]))
+
+    @staticmethod
+    def fetch_openweathermap_data_for_sites(sites_or_coords) -> pd.DataFrame:
         def process_batch(batch_of_coordinates):
+            coordinates = [(lat, lon) for lat, lon, _ in batch_of_coordinates]
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                results = executor.map(
-                    OpenWeatherApi.get_current_weather_for_each_site,
-                    batch_of_coordinates,
+                results = list(
+                    executor.map(
+                        OpenWeatherApi.get_current_weather_for_each_site,
+                        coordinates,
+                    )
                 )
             return [
                 {
                     "timestamp": datetime.fromtimestamp(
                         result.get("dt", 0), tz=timezone.utc
                     ).strftime("%Y-%m-%d %H:%M:%S"),
-                    "latitude": result.get("coord", {}).get("lat", 0),
-                    "longitude": result.get("coord", {}).get("lon", 0),
+                    "latitude": lat,
+                    "longitude": lon,
+                    "device_number": device_number,
                     "temperature": result.get("main", {}).get("temp", 0),
                     "humidity": result.get("main", {}).get("humidity", 0),
                     "pressure": result.get("main", {}).get("pressure", 0),
                     "wind_speed": result.get("wind", {}).get("speed", 0),
                     "wind_direction": result.get("wind", {}).get("deg", 0),
-                    "wind_gust": result.get("wind", {}).get(
-                        "gust", 0
-                    ),  # Uncomment if needed
+                    "wind_gust": result.get("wind", {}).get("gust", 0),
                     "weather_description": result.get("weather", [{}])[0].get(
                         "description", ""
                     ),
@@ -278,27 +284,29 @@ class WeatherDataUtils:
                     "ground_level": result.get("main", {}).get("grnd_level", 0),
                     "visibility": result.get("visibility", 0),
                     "cloudiness": result.get("clouds", {}).get("all", 0),
-                    "rain": result.get("rain", {}).get("1h", 0),  # Uncomment if needed
+                    "rain": result.get("rain", {}).get("1h", 0),
                 }
-                for result in results
+                for (lat, lon, device_number), result in zip(
+                    batch_of_coordinates, results
+                )
                 if "main" in result
             ]
 
-        coordinates_tuples = []
-        for site in sites:
-            coordinates_tuples.append((site.get("latitude"), site.get("longitude")))
-
+        batch_size = int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
         weather_data = []
-        for i in range(
-            0, len(coordinates_tuples), int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
-        ):
-            batch = coordinates_tuples[
-                i : i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE)
+
+        for i in range(0, len(sites_or_coords), batch_size):
+            batch = [
+                (
+                    (item["latitude"], item["longitude"], item["device_number"])
+                    if isinstance(item, dict)
+                    else item
+                )
+                for item in sites_or_coords[i : i + batch_size]
             ]
             weather_data.extend(process_batch(batch))
-            if i + int(configuration.OPENWEATHER_DATA_BATCH_SIZE) < len(
-                coordinates_tuples
-            ):
+
+            if i + batch_size < len(sites_or_coords):
                 time.sleep(60)
 
         return pd.DataFrame(weather_data)
