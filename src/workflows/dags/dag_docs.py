@@ -6,3 +6,9 @@ Streams and calibrates measurements for AirQo low cost sensors on an hourly freq
 #### Notes
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+airqo_gaseous_realtime_low_cost_data_doc = """
+### AirQo Gaseous low cost sensors hourly ETL
+#### Purpose
+Streams measurements for AirQo Gaseous low cost sensors on an hourly frequency.
+"""
