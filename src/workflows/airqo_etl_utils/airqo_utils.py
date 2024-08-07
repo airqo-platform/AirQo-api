@@ -21,6 +21,7 @@ from .ml_utils import GCSUtils
 from .thingspeak_api import ThingspeakApi
 from .utils import Utils
 from .weather_data_utils import WeatherDataUtils
+from typing import List, Dict, Any
 
 
 class AirQoDataUtils:
@@ -104,16 +105,17 @@ class AirQoDataUtils:
 
         measurements = measurements.dropna(subset=["timestamp"])
         measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        averaged_measurements_list = []
+        averaged_measurements_list: List[pd.DataFrame] = []
 
-        for (device_number, site_id), device_site in measurements.groupby(
-            ["device_number", "site_id"]
+        for (device_number, device_id, site_id), device_site in measurements.groupby(
+            ["device_number", "device_id", "site_id"]
         ):
             data = device_site.sort_index(axis=0)
             numeric_columns = data.select_dtypes(include="number").columns
             averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
             averages["timestamp"] = averages.index
             averages["device_number"] = device_number
+            averages["device_id"] = device_id
             averages["site_id"] = site_id
             averaged_measurements_list.append(averages)
 
@@ -650,7 +652,7 @@ class AirQoDataUtils:
         weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
 
         airqo_api = AirQoApi()
-        sites = []
+        sites: List[Dict[str, Any]] = []
 
         for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
             sites.extend(
@@ -663,13 +665,11 @@ class AirQoDataUtils:
                     for station in site.get("weather_stations", [])
                 ]
             )
-
-        sites = pd.DataFrame(sites)
-
+        sites_df = pd.DataFrame(sites)
         sites_weather_data = pd.DataFrame()
         weather_data_cols = list(weather_data.columns)
 
-        for _, by_site in sites.groupby("site_id"):
+        for _, by_site in sites_df.groupby("site_id"):
             site_weather_data = weather_data[
                 weather_data["station_code"].isin(by_site["station_code"].to_list())
             ]

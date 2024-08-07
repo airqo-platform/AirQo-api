@@ -3,7 +3,10 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
-from dag_docs import airqo_realtime_low_cost_measurements_doc
+from dag_docs import (
+    airqo_realtime_low_cost_measurements_doc,
+    airqo_historical_hourly_measurements_doc,
+)
 from task_docs import (
     extract_raw_airqo_data_doc,
     clean_data_raw_data_doc,
@@ -14,6 +17,7 @@ from task_docs import (
 @dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule="0 0 * * *",
+    doc_md=airqo_historical_hourly_measurements_doc,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "historical", "low cost"],
