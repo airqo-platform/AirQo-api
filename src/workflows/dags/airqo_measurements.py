@@ -3,7 +3,10 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
-from dag_docs import airqo_realtime_low_cost_measurements_doc
+from dag_docs import (
+    airqo_realtime_low_cost_measurements_doc,
+    airqo_historical_hourly_measurements_doc,
+)
 from task_docs import (
     extract_raw_airqo_data_doc,
     clean_data_raw_data_doc,
@@ -14,29 +17,27 @@ from task_docs import (
 @dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule="0 0 * * *",
+    doc_md=airqo_historical_hourly_measurements_doc,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "historical", "low cost"],
 )
 def airqo_historical_hourly_measurements():
     import pandas as pd
+    from airqo_etl_utils.airqo_utils import AirQoDataUtils
+    from airqo_etl_utils.date import DateUtils
 
     @task()
-    def extract_device_measurements(**kwargs):
-        from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
+    def extract_device_measurements(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=3, **kwargs
         )
         return AirQoDataUtils.extract_aggregated_raw_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
     def extract_weather_data(**kwargs):
-        from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -44,42 +45,36 @@ def airqo_historical_hourly_measurements():
         )
 
         return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
-    def merge_data(device_measurements: pd.DataFrame, weather_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
+    def merge_data(
+        device_measurements: pd.DataFrame, weather_data: pd.DataFrame
+    ) -> pd.DataFrame:
         return AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=device_measurements, weather_data=weather_data
         )
 
     @task()
-    def calibrate_data(measurements: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
+    def calibrate_data(measurements: pd.DataFrame) -> pd.DataFrame:
         return AirQoDataUtils.calibrate_data(data=measurements)
 
     @task()
-    def load(data: pd.DataFrame):
+    def load(data: pd.DataFrame) -> None:
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = AirQoDataUtils.process_aggregated_data_for_bigquery(data=data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=data,
-            table=big_query_api.hourly_measurements_table,
+            dataframe=data, table=big_query_api.hourly_measurements_table
         )
 
     @task()
-    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs):
+    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs) -> None:
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
             from airqo_etl_utils.airqo_api import AirQoApi
-            from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
             data = AirQoDataUtils.process_data_for_api(
                 airqo_data, frequency=Frequency.HOURLY
@@ -91,7 +86,7 @@ def airqo_historical_hourly_measurements():
             print("The send to API parameter has been set to false")
 
     @task()
-    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame) -> None:
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
