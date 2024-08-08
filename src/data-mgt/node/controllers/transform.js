@@ -684,6 +684,9 @@ const data = {
                     },
                   });
                 } else if (!isEmpty(fieldOneValue)) {
+                  /**
+                   * I need to update this check
+                   */
                   const isProvidedDateReal = isDate(fieldOneValue);
                   if (isProvidedDateReal) {
                     cleanedDeviceMeasurements.field9 = "reference";
