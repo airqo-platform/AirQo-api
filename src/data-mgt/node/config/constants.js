@@ -171,6 +171,31 @@ const defaultConfig = {
     11: "ExternalAltitude",
     12: "DeviceType",
   },
+  THINGSPEAK_GAS_FIELD_DESCRIPTIONS: {
+    field1: "PM2.5",
+    field2: "TVOC",
+    field3: "HCHO",
+    field4: "C02",
+    field5: "Intake Temperature",
+    field6: "Intake Humidity",
+    field7: "Battery Voltage",
+    field8: "ExtraData",
+  },
+  GAS_POSITIONS_AND_LABELS: {
+    0: "latitude",
+    1: "longitude",
+    2: "altitude",
+    3: "speed",
+    4: "satellites",
+    5: "hdop",
+    6: "internalTemperature",
+    7: "internalHumidity",
+    8: "externalTemperature",
+    9: "ExternalHumidity",
+    10: "ExternalPressure",
+    11: "ExternalAltitude",
+    12: "DeviceType",
+  },
 };
 
 function envConfig(env) {

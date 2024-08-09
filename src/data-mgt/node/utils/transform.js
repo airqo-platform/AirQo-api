@@ -182,6 +182,13 @@ const transform = {
       logElement("the getBamFieldLabel error", error.message);
     }
   },
+  getGasFieldLabel: (field) => {
+    try {
+      return constants.THINGSPEAK_GAS_FIELD_DESCRIPTIONS[field];
+    } catch (error) {
+      logElement("the getGasFieldLabel error", error.message);
+    }
+  },
   getFieldByLabel: (value) => {
     try {
       return Object.keys(constants.FIELDS_AND_LABELS).find(
@@ -197,6 +204,10 @@ const transform = {
         return constants.POSITIONS_AND_LABELS[position];
       } else if (deviceCategory === "reference") {
         return constants.BAM_POSITIONS_AND_LABELS[position];
+      } else if (deviceCategory === "bam") {
+        return constants.BAM_POSITIONS_AND_LABELS[position];
+      } else if (deviceCategory === "gas") {
+        return constants.GAS_POSITIONS_AND_LABELS[position];
       } else {
         return {};
       }
@@ -237,6 +248,9 @@ const transform = {
 
   transformMeasurement: (measurement) => {
     try {
+      /**
+       * there is a need to identify device category using another means
+       */
       const deviceCategory = measurement.field9
         ? measurement.field9
         : "lowcost";
@@ -246,6 +260,14 @@ const transform = {
         if (deviceCategory === "reference") {
           logText("the device is a BAM");
           transformedField = transform.getBamFieldLabel(key);
+          logElement("transformedField", transformedField);
+        } else if (deviceCategory === "bam") {
+          logText("the device is a BAM");
+          transformedField = transform.getBamFieldLabel(key);
+          logElement("transformedField", transformedField);
+        } else if (deviceCategory === "gas") {
+          logText("the device is a GAS monitor");
+          transformedField = transform.getGasFieldLabel(key);
           logElement("transformedField", transformedField);
         } else if (deviceCategory === "lowcost") {
           logText("the device is a lowcost one");
