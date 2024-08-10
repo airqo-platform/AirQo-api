@@ -7,6 +7,19 @@ const { generateDateFormatWithoutHrs, isDate } = require("./date");
 const cleanDeep = require("clean-deep");
 const HTTPStatus = require("http-status");
 
+function retrieveChannelMetadata(request) {
+  try {
+    const { channel, api_key } = request;
+    const response = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?api_key=${api_key}`;
+    return response.channel;
+  } catch (error) {
+    logElement(
+      "the error for generating urls of getting Thingspeak feeds",
+      error.message
+    );
+  }
+}
+
 const transform = {
   readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
@@ -35,16 +48,27 @@ const transform = {
     try {
       logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
+      /**
+       * let me first make a request to the feeds API to get the channel details
+       */
+      const channelDetails = retrieveChannelMetadata(request);
+      let response = {};
+      response.metadata = channelDetails;
       if (isEmpty(start) && !isEmpty(end)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&end=${end}`;
+        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&end=${end}`;
+        return response;
       } else if (isEmpty(end) && !isEmpty(start)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}`;
+        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}`;
+        return response;
       } else if (!isEmpty(end) && !isEmpty(start)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}&end=${end}`;
+        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}&end=${end}`;
+        return response;
       } else if (!isEmpty(path) && path === "last") {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        return response;
       } else {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        return response;
       }
     } catch (error) {
       logElement(
