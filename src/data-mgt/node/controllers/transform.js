@@ -15,6 +15,20 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
 
+function determineSensorTypeByDescription(deviceMetadata) {
+  const channelDescription = deviceMetadata?.description || null;
+  if (!channelDescription) {
+    return "lowcost";
+  }
+  const upperCaseDescription = channelDescription.toUpperCase();
+  const GEN_6_KEYWORD = "GAS";
+  if (upperCaseDescription.includes(GEN_6_KEYWORD)) {
+    return "gas";
+  } else {
+    return "lowcost";
+  }
+}
+
 const data = {
   getChannels: async (req, res) => {
     try {
@@ -115,7 +129,6 @@ const data = {
     const json = await fetch_response.json();
     res.status(200).send(json);
   },
-
   getLastEntry: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -207,7 +220,6 @@ const data = {
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
-
   hourly: async (req, res) => {
     logText("getting hourly..............  ");
     try {
@@ -298,12 +310,10 @@ const data = {
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
-
   readBAM: async (req, res) => {
     try {
     } catch (error) {}
   },
-
   readFeeds: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -451,7 +461,6 @@ const data = {
       });
     }
   },
-
   readMostRecentFeeds: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -611,7 +620,6 @@ const data = {
       });
     }
   },
-
   generateDescriptiveLastEntry: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -662,7 +670,12 @@ const data = {
             )
             .then(async (response) => {
               logObject("the response man", response);
-              const readings = response.data;
+              const readings = response.data.measurements;
+              const deviceMetadata = response.data.metadata;
+              /**
+               * In case we modify the response,
+               * we might have  to add additional checks before the next step
+               */
               if (isEmpty(readings)) {
                 return res.status(httpStatus.NOT_FOUND).json({
                   success: true,
@@ -684,13 +697,18 @@ const data = {
                     },
                   });
                 } else if (!isEmpty(fieldOneValue)) {
+                  /**
+                   * I need to update this check
+                   */
                   const isProvidedDateReal = isDate(fieldOneValue);
                   if (isProvidedDateReal) {
                     cleanedDeviceMeasurements.field9 = "reference";
                     deviceCategory = "reference";
                   } else {
-                    cleanedDeviceMeasurements.field9 = "lowcost";
-                    deviceCategory = "lowcost";
+                    const sensorType =
+                      determineSensorTypeByDescription(deviceMetadata);
+                    cleanedDeviceMeasurements.field9 = sensorType;
+                    deviceCategory = sensorType;
                   }
                   let transformedData =
                     await transformUtil.transformMeasurement(
@@ -879,7 +897,6 @@ const data = {
         .json({ error: e.message, message: "Server Error" });
     }
   },
-
   getLastFieldEntryAge: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -968,7 +985,6 @@ const data = {
         .json({ error: e.message, message: "server error" });
     }
   },
-
   getDeviceCount: async (req, res) => {
     logText(" getDeviceCount..............  ");
     try {
@@ -1038,13 +1054,9 @@ const data = {
       res.status(500).json({ error: e.message, message: "Server Error" });
     }
   },
-
   getOutOfRange: () => {},
-
   getIncorrectValues: () => {},
-
   getThingsOff: () => {},
-
   getDueMaintenance: () => {},
 };
 
