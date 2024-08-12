@@ -83,9 +83,9 @@ class Utils:
         return ""
 
     @staticmethod
-    def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
-        for col in cols:
-            if col not in list(data.columns):
+    def populate_missing_columns(data: pd.DataFrame, columns: list) -> pd.DataFrame:
+        for col in columns:
+            if col not in data.columns.to_list():
                 print(f"{col} missing in dataset")
                 data.loc[:, col] = None
 
