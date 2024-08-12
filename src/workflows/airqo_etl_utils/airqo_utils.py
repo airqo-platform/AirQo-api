@@ -226,8 +226,8 @@ class AirQoDataUtils:
     def merge_aggregated_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
-        airqo_data_cols = list(measurements.columns)
-        weather_data_cols = list(weather_data.columns)
+        airqo_data_cols = measurements.columns.to_list()
+        weather_data_cols = weather_data.columns.to_list()
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
         intersecting_cols.remove("timestamp")
         intersecting_cols.remove("device_number")
@@ -268,7 +268,7 @@ class AirQoDataUtils:
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
         )
-        return Utils.populate_missing_columns(data=data, cols=cols)
+        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def extract_devices_data(
@@ -447,7 +447,7 @@ class AirQoDataUtils:
             table=big_query_api.bam_measurements_table
         )
 
-        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = Utils.populate_missing_columns(data=data, columns=required_cols)
         data = data[required_cols]
 
         return data
@@ -490,7 +490,7 @@ class AirQoDataUtils:
             )
         else:
             raise Exception("invalid data type")
-        return Utils.populate_missing_columns(data=data, cols=cols)
+        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def process_raw_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
@@ -667,7 +667,7 @@ class AirQoDataUtils:
             )
         sites_df = pd.DataFrame(sites)
         sites_weather_data = pd.DataFrame()
-        weather_data_cols = list(weather_data.columns)
+        weather_data_cols = weather_data.columns.to_list()
 
         for _, by_site in sites_df.groupby("site_id"):
             site_weather_data = weather_data[
@@ -691,8 +691,8 @@ class AirQoDataUtils:
                     [sites_weather_data, by_timestamp], ignore_index=True
                 )
 
-        airqo_data_cols = list(airqo_data.columns)
-        weather_data_cols = list(sites_weather_data.columns)
+        airqo_data_cols = airqo_data.columns.to_list()
+        weather_data_cols = sites_weather_data.columns.to_list()
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
         intersecting_cols.remove("timestamp")
         intersecting_cols.remove("site_id")
@@ -802,7 +802,7 @@ class AirQoDataUtils:
                 continue
 
             temp_device_data = device_data.copy()
-            for col in list(temp_device_data.columns):
+            for col in temp_device_data.columns.to_list():
                 temp_device_data.rename(columns={col: f"{col}_temp"}, inplace=True)
 
             non_device_data = pd.merge(
@@ -817,7 +817,7 @@ class AirQoDataUtils:
                 non_device_data["_merge"] == "left_only"
             ].drop("_merge", axis=1)
 
-            non_device_data = non_device_data[list(device_data.columns)]
+            non_device_data = non_device_data[device_data.columns.to_list()]
 
             device_data["site_id"] = device_log["site_id"]
             data = non_device_data.append(device_data, ignore_index=True)

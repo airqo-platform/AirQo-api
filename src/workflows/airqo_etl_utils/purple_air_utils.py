@@ -86,4 +86,4 @@ class PurpleDataUtils:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        return Utils.populate_missing_columns(data=data, cols=cols)
+        return Utils.populate_missing_columns(data=data, columns=cols)

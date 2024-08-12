@@ -170,7 +170,7 @@ class WeatherDataUtils:
 
         cols = [value for value in parameter_mappings.values()]
 
-        weather_data = Utils.populate_missing_columns(data=weather_data, cols=cols)
+        weather_data = Utils.populate_missing_columns(data=weather_data, columns=cols)
 
         return DataValidationUtils.remove_outliers(weather_data)
 
@@ -246,7 +246,7 @@ class WeatherDataUtils:
         bigquery = BigQueryApi()
         cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
 
-        return Utils.populate_missing_columns(data=data, cols=cols)
+        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def fetch_openweathermap_data_for_sites(sites):
