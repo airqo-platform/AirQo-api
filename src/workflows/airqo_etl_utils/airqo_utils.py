@@ -92,6 +92,9 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
+        """
+        Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
+        """
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
@@ -645,6 +648,13 @@ class AirQoDataUtils:
     def merge_aggregated_weather_data(
         airqo_data: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
+        """
+        Merges airqo pm2.5 sensor data with weather data from the weather stations selected from the sites data.
+
+        args:
+            airqo_data(pandas.DataFrame):
+            weather_data(pandas.DataFrame):
+        """
         if weather_data.empty:
             return airqo_data
 
