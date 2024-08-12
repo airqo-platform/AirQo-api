@@ -9,6 +9,7 @@ const devConfig = {
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   MONGO_URI: "mongodb://localhost/",
   JWT_SECRET: process.env.JWT_SECRET,
+  JWT_TOKEN: process.env.JWT_TOKEN_STAGING,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.DEV_REDIS_SERVER,
   REDIS_PORT: process.env.DEV_REDIS_PORT,
