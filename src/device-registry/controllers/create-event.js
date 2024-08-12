@@ -217,7 +217,6 @@ const getSitesFromLatitudeAndLongitude = async ({
 
       // Sort sites by distance from provided coordinates
       sites.sort((a, b) => {
-        lat1, lon1, lat2, lon2;
         const distanceSquaredA = distanceUtil.getDistanceSquared(
           {
             lat1: latitude,
