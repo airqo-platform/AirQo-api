@@ -6,11 +6,13 @@ from airqo_etl_utils.constants import Frequency
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
+    airqo_gaseous_realtime_low_cost_data_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
     clean_data_raw_data_doc,
     send_raw_measurements_to_bigquery_doc,
+    extract_raw_airqo_gaseous_data_doc,
 )
 
 
@@ -418,9 +420,9 @@ def airqo_raw_data_measurements():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        hour_of_day = datetime.utcnow() - timedelta(minutes=30)
+        hour_of_day = datetime.now(timezone.utc) - timedelta(minutes=30)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
@@ -448,6 +450,154 @@ def airqo_raw_data_measurements():
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
     send_raw_measurements_to_bigquery(clean_data)
+
+
+@dag(
+    "AirQo-Gaseous-Low-Cost-Raw-Data",
+    schedule="10 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    doc_md=airqo_gaseous_realtime_low_cost_data_doc,
+    tags=["airqo", "gaseous", "raw", "low cost"],
+)
+def airqo_gaseous_realtime_measurements():
+    import pandas as pd
+    from airqo_etl_utils.date import date_to_str_hours
+    from datetime import datetime, timedelta, timezone
+
+    hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
+    start_date_time = date_to_str_hours(hour_of_day)
+    end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
+    @task(
+        doc_md=extract_raw_airqo_gaseous_data_doc,
+    )
+    def extract_raw_data() -> pd.DataFrame:
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
+
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.GAS,
+        )
+
+    @task()
+    def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
+
+    @task()
+    # TODO : Needs review. If properly executed could ease identification of data issues
+    def save_test_data(data: pd.DataFrame):
+        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.config import Config
+
+        bucket_name = Config.BUCKET_NAME_AIRQO
+        file_path = Config.FILE_PATH_AIRQO
+        return Utils.test_data(
+            data=data, bucket_name=bucket_name, destination_file=file_path
+        )
+
+    @task()
+    def aggregate(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.aggregate_low_cost_sensors_data(data=data)
+
+    @task()
+    def extract_hourly_weather_data():
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.extract_hourly_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+    @task()
+    def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.merge_aggregated_weather_data(
+            airqo_data=averaged_hourly_data, weather_data=weather_data
+        )
+
+    @task()
+    def calibrate(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.calibrate_data(data=data)
+
+    @task()
+    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        data = AirQoDataUtils.process_data_for_api(
+            airqo_data, frequency=Frequency.HOURLY
+        )
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=data)
+
+    @task()
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.AIRQO
+        )
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
+
+    @task()
+    def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        data = AirQoDataUtils.process_aggregated_data_for_bigquery(data=airqo_data)
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=data,
+            table=big_query_api.hourly_measurements_table,
+        )
+
+    @task()
+    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        data = AirQoDataUtils.process_raw_data_for_bigquery(data=airqo_data)
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+
+    @task()
+    def update_latest_data_topic(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.constants import DeviceCategory
+
+        data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
+
+    raw_data = extract_raw_data()
+    clean_data = clean_data_raw_data(raw_data)
+    save_test_data(clean_data)
+
+    averaged_airqo_data = aggregate(clean_data)
+    send_raw_measurements_to_bigquery(clean_data)
+    extracted_weather_data = extract_hourly_weather_data()
+    merged_data = merge_data(
+        averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
+    )
+    calibrated_data = calibrate(merged_data)
+    send_hourly_measurements_to_api(calibrated_data)
+    send_hourly_measurements_to_bigquery(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
+    update_latest_data_topic(calibrated_data)
 
 
 airqo_historical_hourly_measurements()
