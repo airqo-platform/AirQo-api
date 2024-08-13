@@ -11,13 +11,13 @@ class DeviceCategory(Enum):
 
     LOW_COST = 1
     BAM = 2
-    GAS = 3
+    LOW_COST_GAS = 3
     NONE = 20
 
     def __str__(self):
         if self == self.BAM:
             return "bam"
-        elif self == self.GAS:
+        elif self == self.LOW_COST_GAS:
             return "gas"
         else:
             return "lowcost"
@@ -26,8 +26,8 @@ class DeviceCategory(Enum):
     def from_str(string: str):
         if string.lower() == str(DeviceCategory.BAM):
             return DeviceCategory.BAM
-        elif string.lower() == str(DeviceCategory.GAS):
-            return DeviceCategory.GAS
+        elif string.lower() == str(DeviceCategory.LOW_COST_GAS):
+            return DeviceCategory.LOW_COST_GAS
         else:
             return DeviceCategory.LOW_COST
 
@@ -310,8 +310,8 @@ class DataType(Enum):
     CLEAN_LOW_COST_DATA = 3
     # TODO investigate numbering
     AGGREGATED_LOW_COST_DATA = 3
-    UNCLEAN_LOW_COST_DATA = 5
-    CLEAN_LOW_COST_DATA = 6
+    UNCLEAN_LOW_COST_GASEOUS_DATA = 5
+    CLEAN_LOW_COST_GASEOUS_DATA = 6
 
 
 class CityModel(Enum):
