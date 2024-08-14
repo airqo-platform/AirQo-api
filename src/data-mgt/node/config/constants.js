@@ -176,7 +176,7 @@ const defaultConfig = {
     field1: "pm2_5",
     field2: "TVOC",
     field3: "HCHO",
-    field4: "C02",
+    field4: "CO2",
     field5: "IntakeTemperature",
     field6: "IntakeHumidity",
     field7: "BatteryVoltage",
