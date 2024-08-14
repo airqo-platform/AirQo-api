@@ -25,7 +25,7 @@ class AirQoApi:
         #  Temporarily disabling usage of the API to store measurements.
         if "staging" in self.AIRQO_BASE_URL_V2.lower():
             return
-
+        # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             response = self.__request(
@@ -175,7 +175,11 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO), "active": "yes"}
+        params = {"tenant": str(Tenant.AIRQO)}
+        if configuration.ENVIRONMENT == "production":
+            # Query for active devices only when in production
+            params["active"] = "yes"
+
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
@@ -800,7 +804,6 @@ class AirQoApi:
                 return None
 
             print(response._request_url)
-            print(response.data)
 
             if response.status == 200 or response.status == 201:
                 return simplejson.loads(response.data)
