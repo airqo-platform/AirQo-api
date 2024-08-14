@@ -77,7 +77,7 @@ const mappings = {
     field1: "PM2.5",
     field2: "TVOC",
     field3: "HCHO",
-    field4: "CO2",
+    field4: "C02",
     field5: "Intake Temperature",
     field6: "Intake Humidity",
     field7: "Battery Voltage",

@@ -15,6 +15,22 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
 
+function categorizeOutput(input) {
+  try {
+    if (!input.hasOwnProperty("description")) {
+      return "lowcost";
+    }
+    const containsGas = input.description.toLowerCase().includes("gas");
+    return containsGas ? "gas" : "lowcost";
+  } catch (error) {
+    return {
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+}
+
 const data = {
   getChannels: async (req, res) => {
     try {
@@ -115,7 +131,6 @@ const data = {
     const json = await fetch_response.json();
     res.status(200).send(json);
   },
-
   getLastEntry: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -181,17 +196,14 @@ const data = {
                   error["response"] = err.response.data;
                 } else if (err.request) {
                   error["request"] = err.request;
-                } else {
+                } else if (err.config) {
                   error["config"] = err.config;
                 }
-                let message = err.response
+                const message = err.response
                   ? err.response.data
                   : "Internal Server Error";
-
-                let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse(
-                  ({ res, message, statusCode, error } = {})
-                );
+                const statusCode = httpStatus.INTERNAL_SERVER_ERROR;
+                errorsUtil.errorResponse({ res, message, statusCode, error });
               });
           }
         });
@@ -207,7 +219,6 @@ const data = {
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
-
   hourly: async (req, res) => {
     logText("getting hourly..............  ");
     try {
@@ -298,12 +309,10 @@ const data = {
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
-
   readBAM: async (req, res) => {
     try {
     } catch (error) {}
   },
-
   readFeeds: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -451,7 +460,6 @@ const data = {
       });
     }
   },
-
   readMostRecentFeeds: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -611,7 +619,6 @@ const data = {
       });
     }
   },
-
   generateDescriptiveLastEntry: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -662,7 +669,8 @@ const data = {
             )
             .then(async (response) => {
               logObject("the response man", response);
-              const readings = response.data;
+              const readings = response.data.feeds[0];
+              const metadata = response.data.channel;
               if (isEmpty(readings)) {
                 return res.status(httpStatus.NOT_FOUND).json({
                   success: true,
@@ -689,8 +697,10 @@ const data = {
                     cleanedDeviceMeasurements.field9 = "reference";
                     deviceCategory = "reference";
                   } else {
-                    cleanedDeviceMeasurements.field9 = "lowcost";
-                    deviceCategory = "lowcost";
+                    logObject("metadata", metadata);
+                    deviceCategory = categorizeOutput(metadata);
+                    cleanedDeviceMeasurements.field9 =
+                      categorizeOutput(metadata);
                   }
                   let transformedData =
                     await transformUtil.transformMeasurement(
@@ -879,7 +889,6 @@ const data = {
         .json({ error: e.message, message: "Server Error" });
     }
   },
-
   getLastFieldEntryAge: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -968,7 +977,6 @@ const data = {
         .json({ error: e.message, message: "server error" });
     }
   },
-
   getDeviceCount: async (req, res) => {
     logText(" getDeviceCount..............  ");
     try {
@@ -1038,14 +1046,6 @@ const data = {
       res.status(500).json({ error: e.message, message: "Server Error" });
     }
   },
-
-  getOutOfRange: () => {},
-
-  getIncorrectValues: () => {},
-
-  getThingsOff: () => {},
-
-  getDueMaintenance: () => {},
 };
 
 module.exports = data;
