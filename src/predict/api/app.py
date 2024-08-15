@@ -12,7 +12,6 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
-
 import config
 
 app_configuration = config.app_config.get(os.getenv("FLASK_ENV", "staging"))

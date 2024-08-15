@@ -1,10 +1,14 @@
 import traceback
-
+from flask_restx import Namespace,Resource
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 from flask import current_app
 
+
+
+
 import routes
+
 from app import cache
 from config import Config
 from helpers import (
@@ -30,6 +34,7 @@ from helpers import (
 load_dotenv()
 
 ml_app = Blueprint("ml_app", __name__)
+
 
 
 @ml_app.get(routes.route["fetch_faulty_devices"])
@@ -322,3 +327,22 @@ def parish_predictions():
         print(ex)
         traceback.print_exc()
         return {"message": "Please contact support", "success": False}, 500
+    
+
+#TODO write an api to retrieve model predictions 
+
+@ml_app.route(routes.route['predict_pm2_5'])
+def pm2_5_prediction():
+    try:
+        latitude = float(request.args.get('latitude')),None
+        longitude = float(request.args.get('longitude')),None
+        if latitude and longitude:
+            preds = get_predictions_by_geo_coordinates_v2(latitude,longitude)
+        else:
+            return {
+                'message':"no arguments are specified",
+                sucess:False
+            },
+    except e:
+        return {'message':str(e),'sucess':False}
+    return {'forcasts':preds,'message':"pm2.5 forcasts retrieved","sucess":True}
