@@ -180,6 +180,70 @@ class Config:
         10: "vapor_pressure",
     }
 
+    AIRQO_LOW_COST_GAS_CONFIG = {
+        0: "latitude",
+        1: "longitude",
+        2: "altitude",
+        3: "wind_speed",
+        4: "satellites",
+        5: "hdop",
+        6: "device_temperature",
+        7: "device_humidity",
+        8: "temperature",
+        9: "humidity",
+        10: "vapor_pressure",
+    }
+    AIRQO_DATA_COLUMN_NAME_MAPPING = {
+        "pm2_5": "pm2_5",
+        "s1_pm2_5": "pm2_5",
+        "s2_pm2_5": "pm2_5",
+        "pm2_5_pi": "pm2_5",
+        "pm2_5_raw_value": "pm2_5",
+        "pm2_5_calibrated_value": "pm2_5",
+        "pm10": "pm10",
+        "s1_pm10": "pm10",
+        "s2_pm10": "pm10",
+        "pm10_pi": "pm10",
+        "pm10_raw_value": "pm10",
+        "pm10_calibrated_value": "pm10",
+        "device_humidity": "humidity",
+        "humidity": "humidity",
+        "device_temperature": "temperature",
+        "temperature": "temperature",
+        "no2": "no2",
+        "no2_raw_value": "no2",
+        "no2_calibrated_value": "no2",
+        "pm1": "pm1",
+        "pm1_raw_value": "pm1",
+        "pm1_pi": "pm1",
+    }
+
+    BIGQUERY_SCHEMA_MAPPING = {
+        "hourly_measurements_table": "measurements.json",
+        "daily_measurements_table": "measurements.json",
+        "raw_measurements_table": "raw_measurements.json",
+        "hourly_weather_table": "weather_data.json",
+        "raw_weather_table": "weather_data.json",
+        "latest_measurements_table": "latest_measurements.json",
+        "consolidated_data_table": "data_warehouse.json",
+        "airqlouds_table": "airqlouds.json",
+        "airqlouds_sites_table": "airqlouds_sites.json",
+        "grids_table": "grids.json",
+        "cohorts_table": "cohorts.json",
+        "grids_sites_table": "grids_sites.json",
+        "cohorts_devices_table": "cohorts_devices.json",
+        "sites_table": "sites.json",
+        "sites_meta_data_table": "sites_meta_data.json",
+        "sensor_positions_table": "sensor_positions.json",
+        "devices_table": "devices.json",
+        "clean_mobile_raw_measurements_table": "mobile_measurements.json",
+        "unclean_mobile_raw_measurements_table": "mobile_measurements.json",
+        "airqo_mobile_measurements_table": "airqo_mobile_measurements.json",
+        "bam_measurements_table": "bam_measurements.json",
+        "raw_bam_measurements_table": "bam_raw_measurements.json",
+        "all": None,
+    }
+
     # Data unit tests
     BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
