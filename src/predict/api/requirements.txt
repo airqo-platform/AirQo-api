@@ -4,6 +4,7 @@ pymongo
 flask-cors
 flask-pymongo
 flask-caching
+flask-restx
 redis
 gunicorn
 pandas

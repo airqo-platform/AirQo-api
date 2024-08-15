@@ -341,8 +341,8 @@ def pm2_5_prediction():
         else:
             return {
                 'message':"no arguments are specified",
-                sucess:False
+                "success":False
             },
-    except e:
+    except Exception as e:
         return {'message':str(e),'sucess':False}
     return {'forcasts':preds,'message':"pm2.5 forcasts retrieved","sucess":True}

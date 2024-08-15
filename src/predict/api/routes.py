@@ -9,4 +9,5 @@ route = {
     "predict_for_heatmap": f"{base_url}/predict/heatmap",
     "parish_predictions": f"{base_url}/predict/parishes",
     "fetch_faulty_devices": f"{base_url}/predict/faulty-devices",
-}
+    "predict_pm2_5":f"{base_url}/predict/pm2_5"
+}   
