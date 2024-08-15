@@ -7,19 +7,6 @@ const { generateDateFormatWithoutHrs, isDate } = require("./date");
 const cleanDeep = require("clean-deep");
 const HTTPStatus = require("http-status");
 
-function retrieveChannelMetadata(request) {
-  try {
-    const { channel, api_key } = request;
-    const response = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?api_key=${api_key}`;
-    return response.channel;
-  } catch (error) {
-    logElement(
-      "the error for generating urls of getting Thingspeak feeds",
-      error.message
-    );
-  }
-}
-
 const transform = {
   readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
@@ -43,32 +30,20 @@ const transform = {
       );
     }
   },
-
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
       logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
-      /**
-       * let me first make a request to the feeds API to get the channel details
-       */
-      const channelDetails = retrieveChannelMetadata(request);
-      let response = {};
-      response.metadata = channelDetails;
       if (isEmpty(start) && !isEmpty(end)) {
-        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&end=${end}`;
-        return response;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&end=${end}`;
       } else if (isEmpty(end) && !isEmpty(start)) {
-        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}`;
-        return response;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&start=${start}`;
       } else if (!isEmpty(end) && !isEmpty(start)) {
-        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}&end=${end}`;
-        return response;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&start=${start}&end=${end}`;
       } else if (!isEmpty(path) && path === "last") {
-        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
-        return response;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}`;
       } else {
-        response.measurements = `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
-        return response;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}`;
       }
     } catch (error) {
       logElement(
@@ -77,7 +52,6 @@ const transform = {
       );
     }
   },
-
   clean: (obj) => {
     logObject("the obj", obj);
     let trimmedValues = Object.entries(obj).reduce((acc, [key, value]) => {
@@ -228,8 +202,6 @@ const transform = {
         return constants.POSITIONS_AND_LABELS[position];
       } else if (deviceCategory === "reference") {
         return constants.BAM_POSITIONS_AND_LABELS[position];
-      } else if (deviceCategory === "bam") {
-        return constants.BAM_POSITIONS_AND_LABELS[position];
       } else if (deviceCategory === "gas") {
         return constants.GAS_POSITIONS_AND_LABELS[position];
       } else {
@@ -247,7 +219,6 @@ const transform = {
       logElement("the getValuesFromString error", error.message);
     }
   },
-
   trasformFieldValues: async ({ otherData = "", deviceCategory = "" } = {}) => {
     try {
       let arrayValues = transform.getValuesFromString(otherData);
@@ -269,12 +240,8 @@ const transform = {
       logElement("the trasformFieldValues error", e.message);
     }
   },
-
   transformMeasurement: (measurement) => {
     try {
-      /**
-       * there is a need to identify device category using another means
-       */
       const deviceCategory = measurement.field9
         ? measurement.field9
         : "lowcost";
@@ -285,17 +252,12 @@ const transform = {
           logText("the device is a BAM");
           transformedField = transform.getBamFieldLabel(key);
           logElement("transformedField", transformedField);
-        } else if (deviceCategory === "bam") {
-          logText("the device is a BAM");
-          transformedField = transform.getBamFieldLabel(key);
-          logElement("transformedField", transformedField);
-        } else if (deviceCategory === "gas") {
-          logText("the device is a GAS monitor");
-          transformedField = transform.getGasFieldLabel(key);
-          logElement("transformedField", transformedField);
         } else if (deviceCategory === "lowcost") {
           logText("the device is a lowcost one");
           transformedField = transform.getFieldLabel(key);
+        } else if (deviceCategory === "gas") {
+          logText("the device is a gas one");
+          transformedField = transform.getGasFieldLabel(key);
         } else {
           logText("the device does not have a category/type");
           return {};

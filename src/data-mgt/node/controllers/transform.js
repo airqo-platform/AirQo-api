@@ -15,17 +15,19 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
 
-function determineSensorTypeByDescription(deviceMetadata) {
-  const channelDescription = deviceMetadata?.description || null;
-  if (!channelDescription) {
-    return "lowcost";
-  }
-  const upperCaseDescription = channelDescription.toUpperCase();
-  const GEN_6_KEYWORD = "GAS";
-  if (upperCaseDescription.includes(GEN_6_KEYWORD)) {
-    return "gas";
-  } else {
-    return "lowcost";
+function categorizeOutput(input) {
+  try {
+    if (!input.hasOwnProperty("description")) {
+      return "lowcost";
+    }
+    const containsGas = input.description.toLowerCase().includes("gas");
+    return containsGas ? "gas" : "lowcost";
+  } catch (error) {
+    return {
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 }
 
@@ -194,17 +196,14 @@ const data = {
                   error["response"] = err.response.data;
                 } else if (err.request) {
                   error["request"] = err.request;
-                } else {
+                } else if (err.config) {
                   error["config"] = err.config;
                 }
-                let message = err.response
+                const message = err.response
                   ? err.response.data
                   : "Internal Server Error";
-
-                let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse(
-                  ({ res, message, statusCode, error } = {})
-                );
+                const statusCode = httpStatus.INTERNAL_SERVER_ERROR;
+                errorsUtil.errorResponse({ res, message, statusCode, error });
               });
           }
         });
@@ -670,12 +669,8 @@ const data = {
             )
             .then(async (response) => {
               logObject("the response man", response);
-              const readings = response.data.measurements;
-              const deviceMetadata = response.data.metadata;
-              /**
-               * In case we modify the response,
-               * we might have  to add additional checks before the next step
-               */
+              const readings = response.data.feeds[0];
+              const metadata = response.data.channel;
               if (isEmpty(readings)) {
                 return res.status(httpStatus.NOT_FOUND).json({
                   success: true,
@@ -697,18 +692,15 @@ const data = {
                     },
                   });
                 } else if (!isEmpty(fieldOneValue)) {
-                  /**
-                   * I need to update this check
-                   */
                   const isProvidedDateReal = isDate(fieldOneValue);
                   if (isProvidedDateReal) {
                     cleanedDeviceMeasurements.field9 = "reference";
                     deviceCategory = "reference";
                   } else {
-                    const sensorType =
-                      determineSensorTypeByDescription(deviceMetadata);
-                    cleanedDeviceMeasurements.field9 = sensorType;
-                    deviceCategory = sensorType;
+                    logObject("metadata", metadata);
+                    deviceCategory = categorizeOutput(metadata);
+                    cleanedDeviceMeasurements.field9 =
+                      categorizeOutput(metadata);
                   }
                   let transformedData =
                     await transformUtil.transformMeasurement(
@@ -1054,10 +1046,6 @@ const data = {
       res.status(500).json({ error: e.message, message: "Server Error" });
     }
   },
-  getOutOfRange: () => {},
-  getIncorrectValues: () => {},
-  getThingsOff: () => {},
-  getDueMaintenance: () => {},
 };
 
 module.exports = data;
