@@ -6,11 +6,13 @@ from airqo_etl_utils.constants import Frequency
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
+    airqo_gaseous_realtime_low_cost_data_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
     clean_data_raw_data_doc,
     send_raw_measurements_to_bigquery_doc,
+    extract_raw_airqo_gaseous_data_doc,
 )
 
 
@@ -136,8 +138,11 @@ def airqo_historical_raw_measurements():
     @task()
     def clean_data_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
-        return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
+        return AirQoDataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
 
     @task()
     def extract_device_deployment_logs():
@@ -285,9 +290,13 @@ def airqo_realtime_measurements():
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
+        # TODO Future possibility of adding gx data quality checks here to measure data quality
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
-        return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
+        return AirQoDataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
 
     @task()
     # TODO : Needs review. If properly executed could ease identification of data issues
@@ -418,9 +427,9 @@ def airqo_raw_data_measurements():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        hour_of_day = datetime.utcnow() - timedelta(minutes=30)
+        hour_of_day = datetime.now(timezone.utc) - timedelta(minutes=30)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
@@ -433,8 +442,65 @@ def airqo_raw_data_measurements():
     @task(doc_md=clean_data_raw_data_doc)
     def clean_data_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
-        return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
+        return AirQoDataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
+
+    @task(doc_md=send_raw_measurements_to_bigquery_doc)
+    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        data = AirQoDataUtils.process_raw_data_for_bigquery(data=airqo_data)
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+
+    raw_data = extract_raw_data()
+    clean_data = clean_data_raw_data(raw_data)
+    send_raw_measurements_to_bigquery(clean_data)
+
+
+@dag(
+    "AirQo-Raw-Gaseous-Low-Cost-Measurements",
+    schedule="10 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
+    doc_md=airqo_gaseous_realtime_low_cost_data_doc,
+    tags=["airqo", "gaseous", "raw", "low cost"],
+)
+def airqo_gaseous_realtime_measurements():
+    import pandas as pd
+    from airqo_etl_utils.date import date_to_str_hours
+    from datetime import datetime, timedelta, timezone
+
+    hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
+    start_date_time = date_to_str_hours(hour_of_day)
+    end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
+    @task(
+        doc_md=extract_raw_airqo_gaseous_data_doc,
+    )
+    def extract_raw_data() -> pd.DataFrame:
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
+
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.LOW_COST_GAS,
+            remove_outliers=False,
+        )
+
+    @task(doc_md=clean_data_raw_data_doc)
+    def clean_data_raw_data(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
+
+        return AirQoDataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOW_COST_GAS
+        )
 
     @task(doc_md=send_raw_measurements_to_bigquery_doc)
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
@@ -455,3 +521,4 @@ airqo_realtime_measurements()
 airqo_historical_raw_measurements()
 airqo_cleanup_measurements()
 airqo_raw_data_measurements()
+airqo_gaseous_realtime_measurements()
