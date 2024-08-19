@@ -30,6 +30,7 @@ class SiteCategorizationView:
         
         # Prepare and return the response
         response = {
+            "site":{
             "site-category": {
                 "category": category,
                 "search_radius": search_radius,
@@ -43,5 +44,5 @@ class SiteCategorizationView:
             },
             "OSM_info": debug_info
         }
-        
+        }
         return jsonify(response), 200
