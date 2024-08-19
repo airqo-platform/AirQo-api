@@ -5,7 +5,7 @@ from geopy.distance import geodesic
 api = overpy.Overpass()
 
 class SiteCategoryModel:
-    def __init__(self, category):
+    def __init__(self, category=None):
         self.category = category
 
     def categorize_site_osm(self, latitude, longitude):
@@ -15,8 +15,19 @@ class SiteCategoryModel:
             "Urban Commercial": ["commercial", "retail", "industrial"],
             "Background Site": ["forest", "farmland", "grass", "meadow", "wetland", "park"],
             "Water Body": ["river", "stream", "lake", "canal", "ditch"],
-            "Major Highway": ["motorway", "trunk", "primary"]
+            "Major Highway": ["motorway", "trunk", "primary", "secondary", "service"],
+            "Residential Road": ["residential", "living_street", "unclassified", "tertiary"]
         }
+        
+        # Priority list of categories to check in case of unknown
+        priority_categories = [
+            "Major Highway",
+            "Urban Commercial",
+            "Urban Background",
+            "Background Site",
+            "Residential Road",
+            "Water Body"
+        ]
         
         nearest_categorization = None
         nearest_distance = float('inf')
@@ -75,46 +86,55 @@ class SiteCategoryModel:
                 if center_lat and center_lon:
                     distance = geodesic((latitude, longitude), (center_lat, center_lon)).meters
 
-                    # Check for major highways within 50m first
+                    # Check for industrial landuse first
+                    if landuse == "industrial":
+                        return "Urban Commercial", distance, area_name, landuse, natural, waterway, highway, debug_info
+
+                    # Check for major highways within 50m
                     if distance < 50 and highway in categories["Major Highway"]:
                         return "Urban Commercial", distance, area_name, landuse, natural, waterway, highway, debug_info
 
-                    if landuse in categories["Urban Background"] or natural in ["urban_area"]:
-                        if distance < nearest_distance:
-                            nearest_categorization = "Urban Background"
-                            nearest_distance = distance
-                            nearest_area_name = area_name
-                            landuse_info = landuse
-                            natural_info = natural
-                            waterway_info = waterway
-                            highway_info = highway
-                    elif landuse in categories["Urban Commercial"]:
-                        if distance < nearest_distance:
-                            nearest_categorization = "Urban Commercial"
-                            nearest_distance = distance
-                            nearest_area_name = area_name
-                            landuse_info = landuse
-                            natural_info = natural
-                            waterway_info = waterway
-                            highway_info = highway
-                    elif landuse in categories["Background Site"] or natural in ["forest", "wood", "scrub"]:
-                        if distance < nearest_distance:
-                            nearest_categorization = "Background Site"
-                            nearest_distance = distance
-                            nearest_area_name = area_name
-                            landuse_info = landuse
-                            natural_info = natural
-                            waterway_info = waterway
-                            highway_info = highway
-                    elif waterway in categories["Water Body"] or natural == "water":
-                        if distance < nearest_distance:
-                            nearest_categorization = "Water Body"
-                            nearest_distance = distance
-                            nearest_area_name = area_name
-                            landuse_info = landuse
-                            natural_info = natural
-                            waterway_info = waterway
-                            highway_info = highway
+                    # Update nearest_categorization based on landuse and highway tags
+                    for category in priority_categories:
+                        if category == "Urban Background" and (landuse in categories["Urban Background"] or natural in ["urban_area"] or highway in categories["Residential Road"]):
+                            if distance < nearest_distance:
+                                nearest_categorization = "Urban Background"
+                                nearest_distance = distance
+                                nearest_area_name = area_name
+                                landuse_info = landuse
+                                natural_info = natural
+                                waterway_info = waterway
+                                highway_info = highway
+
+                        elif category == "Urban Commercial" and landuse in categories["Urban Commercial"]:
+                            if distance < nearest_distance:
+                                nearest_categorization = "Urban Commercial"
+                                nearest_distance = distance
+                                nearest_area_name = area_name
+                                landuse_info = landuse
+                                natural_info = natural
+                                waterway_info = waterway
+                                highway_info = highway
+
+                        elif category == "Background Site" and (landuse in categories["Background Site"] or natural in ["forest", "wood", "scrub"] or highway in ["path", "footway", "track", "cycleway"] or waterway in ["riverbank", "stream", "canal"]):
+                            if distance < nearest_distance:
+                                nearest_categorization = "Background Site"
+                                nearest_distance = distance
+                                nearest_area_name = area_name
+                                landuse_info = landuse
+                                natural_info = natural
+                                waterway_info = waterway
+                                highway_info = highway
+
+                        elif category == "Water Body" and (waterway in categories["Water Body"] or natural == "water"):
+                            if distance < nearest_distance:
+                                nearest_categorization = "Water Body"
+                                nearest_distance = distance
+                                nearest_area_name = area_name
+                                landuse_info = landuse
+                                natural_info = natural
+                                waterway_info = waterway
+                                highway_info = highway
 
         # Fallback if no categorization found but area name is available
         if nearest_categorization is None and nearest_area_name:
