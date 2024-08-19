@@ -15,8 +15,8 @@ class SiteCategoryModel:
             "Urban Commercial": ["commercial", "retail", "industrial"],
             "Background Site": ["forest", "farmland", "grass", "meadow", "wetland", "park"],
             "Water Body": ["river", "stream", "lake", "canal", "ditch"],
-            "Major Highway": ["motorway", "trunk", "primary", "secondary"],
-            "Residential Road": ["residential", "living_street", "unclassified", "tertiary", "service"]
+            "Major Highway": ["motorway", "trunk", "primary", "secondary", "service"],
+            "Residential Road": ["residential", "living_street", "unclassified", "tertiary"]
         }
         
         # Priority list of categories to check in case of unknown
