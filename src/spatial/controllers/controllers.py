@@ -5,6 +5,7 @@ from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
 from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily, Sentinel5PView, Satellite_data
 from views.site_category_view import SiteCategorizationView
+from views.framework_map_views import AQIColorView
 
 
 
@@ -41,3 +42,8 @@ def get_satellite_data():
 @controller_bp.route('/categorize_site', methods=['GET'])
 def categorize_site():
     return SiteCategorizationView.get_site_categorization()
+
+@controller_bp.route('/grid/<grid_id>', methods=['GET'])
+def show_pm25_map(grid_id):
+    aqi_view = AQIColorView()
+    return aqi_view.pm25_map(grid_id)

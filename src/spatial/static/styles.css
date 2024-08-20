@@ -1,0 +1,66 @@
+/* styles.css */
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+#map {
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: #f0f0f0; /* Light gray background for better contrast */
+}
+
+.legend {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 10px;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 1;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.legend h3 {
+    margin-top: 0;
+    font-size: 16px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.color-box {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    border: 1px solid #ddd;
+}
+
+.mapboxgl-popup {
+    max-width: 200px; /* Limit popup width */
+}
+
+.mapboxgl-popup-content {
+    font-size: 14px; /* Set a readable font size */
+}
+
+.mapboxgl-popup-close-button {
+    color: #000; /* Make close button color black */
+}
+
+.mapboxgl-marker {
+    border-radius: 50%;
+    width: 12px; /* Marker size */
+    height: 12px;
+    background-color: inherit;
+    border: 2px solid #fff; /* White border for visibility */
+}
