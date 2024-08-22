@@ -93,6 +93,36 @@ class MlUtils:
         )
         data = data.dropna(subset=["pm2_5"])
         return data
+    @staticmethod
+    def encoding(data: pd.DataFrame, encoder: str = 'LabelEncoder') -> pd.DataFrame:
+        """
+        applies encoding for the city and country features 
+
+        Keyword arguments:
+        data --  the data frame to apply the transformation on
+        encoder --  the type of encoding to apply (default: 'LabelEncoder')
+        Return: returns a dataframe after applying the encoding
+        """
+        
+        if not 'city' in data.columns or not 'country' in data.columns:
+            raise ValueError('data frame does not contain city or country column')
+        
+        if encoder == 'LabelEncoder':
+            le = LabelEncoder()
+            for column in ['city', 'country']:
+                data[column] = le.fit_transform(data[column])
+        elif encoder == 'OneHotEncoder':
+            ohe = OneHotEncoder(sparse=False)
+            for column in ['city', 'country']:
+                encoded_data = ohe.fit_transform(data[[column]])
+                encoded_columns = [f"{column}_{i}" for i in range(encoded_data.shape[1])]
+                encoded_df = pd.DataFrame(encoded_data, columns=encoded_columns)
+                data = pd.concat([data, encoded_df], axis=1)
+                data = data.drop(column, axis=1)
+        else:
+            raise ValueError("Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'.")
+
+        return data
 
     @staticmethod
     def get_lag_and_roll_features(df, target_col, freq):
