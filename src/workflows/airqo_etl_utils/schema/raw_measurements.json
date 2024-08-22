@@ -125,6 +125,31 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "tvoc",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "co2",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "hcho",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "intaketemperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "intakehumidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "wind_speed",
     "type": "FLOAT",
     "mode": "NULLABLE",

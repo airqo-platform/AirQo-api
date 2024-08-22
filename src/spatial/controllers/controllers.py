@@ -4,6 +4,7 @@ from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
 from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily, Sentinel5PView, Satellite_data
+from views.site_category_view import SiteCategorizationView
 
 
 
@@ -36,3 +37,7 @@ def get_sentinel5p():
 @controller_bp.route('/satellite_data', methods=['GET'])
 def get_satellite_data():
     return Satellite_data.get_pollutants_data()
+
+@controller_bp.route('/categorize_site', methods=['GET'])
+def categorize_site():
+    return SiteCategorizationView.get_site_categorization()

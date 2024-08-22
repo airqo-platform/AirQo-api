@@ -1,4 +1,5 @@
 import traceback
+from itertools import chain
 
 import numpy as np
 import pandas as pd
@@ -6,9 +7,31 @@ import pandas as pd
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
 from airqo_etl_utils.date import date_to_str
+from typing import Any
+from .config import configuration
 
 
 class DataValidationUtils:
+    VALID_SENSOR_RANGES = {
+        "pm2_5": (1, 1000),
+        "pm10": (1, 1000),
+        "latitude": (-90, 90),
+        "longitude": (-180, 180),
+        "battery": (2.7, 5),
+        "no2": (0, 2049),
+        "altitude": (0, float("inf")),
+        "hdop": (0, float("inf")),
+        "satellites": (1, 50),
+        "temperature": (0, 45),
+        "humidity": (0, 99),
+        "pressure": (30, 110),
+        "tvoc": (0, float("inf")),
+        "co2": (0, float("inf")),
+        "hcho": (0, float("inf")),
+        "intaketemperature": (0, 45),
+        "intakehumidity": (0, 99),
+    }
+
     @staticmethod
     def format_data_types(
         data: pd.DataFrame,
@@ -20,6 +43,7 @@ class DataValidationUtils:
         integers = [] if integers is None else integers
         timestamps = [] if timestamps is None else timestamps
 
+        # This drops rows that have data that cannot be converted
         data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
         data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
 
@@ -36,31 +60,22 @@ class DataValidationUtils:
         return data
 
     @staticmethod
-    def get_valid_value(value, name):
-        if (name == "pm2_5" or name == "pm10") and (value < 1 or value > 1000):
-            return None
-        elif name == "latitude" and (value < -90 or value > 90):
-            return None
-        elif name == "longitude" and (value < -180 or value > 180):
-            return None
-        elif name == "battery" and (value < 2.7 or value > 5):
-            return None
-        elif name == "no2" and (value < 0 or value > 2049):
-            return None
-        elif (name == "altitude" or name == "hdop") and value <= 0:
-            return None
-        elif name == "satellites" and (value <= 0 or value > 50):
-            return None
-        elif (name == "temperature") and (value <= 0 or value > 45):
-            return None
-        elif (name == "humidity") and (value <= 0 or value > 99):
-            return None
-        elif name == "pressure" and (value < 30 or value > 110):
-            return None
-        else:
-            pass
+    def get_valid_value(column_name: str, row_value: Any) -> Any:
+        """
+        Checks if column values fall with in specific ranges.
 
-        return value
+        Args:
+            column_name(str): Name of column to validate
+            row_value(Any): Actual value to validate against valid sensor ranges.
+
+        Return:
+            None if value does not fall with in the valid range otherwise returns the value passed.
+        """
+        if column_name in DataValidationUtils.VALID_SENSOR_RANGES:
+            min_val, max_val = DataValidationUtils.VALID_SENSOR_RANGES[column_name]
+        if not (min_val <= row_value <= max_val):
+            return None
+        return row_value
 
     @staticmethod
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
@@ -86,42 +101,14 @@ class DataValidationUtils:
             timestamps=timestamp_columns,
         )
 
-        columns = []
-        columns.extend(float_columns)
-        columns.extend(integer_columns)
-        columns.extend(timestamp_columns)
+        columns = list(chain(float_columns, integer_columns, timestamp_columns))
 
         for col in columns:
-            name = col
-            if name in [
-                "pm2_5",
-                "s1_pm2_5",
-                "s2_pm2_5",
-                "pm2_5_pi",
-                "pm2_5_raw_value",
-                "pm2_5_calibrated_value",
-            ]:
-                name = "pm2_5"
-            elif name in [
-                "pm10",
-                "s1_pm10",
-                "s2_pm10",
-                "pm10_pi",
-                "pm10_raw_value",
-                "pm10_calibrated_value",
-            ]:
-                name = "pm10"
-            elif name in ["device_humidity", "humidity"]:
-                name = "humidity"
-            elif col in ["device_temperature", "temperature"]:
-                name = "temperature"
-            elif name in ["no2", "no2_raw_value", "no2_calibrated_value"]:
-                name = "no2"
-            elif name in ["pm1", "pm1_raw_value", "pm1_pi"]:
-                name = "pm1"
-
+            name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
             data.loc[:, col] = data[col].apply(
-                lambda x: DataValidationUtils.get_valid_value(x, name)
+                lambda x: DataValidationUtils.get_valid_value(
+                    column_name=name, row_value=x
+                )
             )
 
         return data

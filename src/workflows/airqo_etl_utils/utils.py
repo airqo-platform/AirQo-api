@@ -11,6 +11,8 @@ import joblib
 from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
 
+from typing import List
+
 
 class Utils:
     @staticmethod
@@ -83,12 +85,24 @@ class Utils:
         return ""
 
     @staticmethod
-    def populate_missing_columns(data: pd.DataFrame, columns: list) -> pd.DataFrame:
-        for col in columns:
-            if col not in data.columns.to_list():
-                print(f"{col} missing in dataset")
-                data.loc[:, col] = None
+    def populate_missing_columns(
+        data: pd.DataFrame, columns: List[str]
+    ) -> pd.DataFrame:
+        """
+        Adds columns from `cols` to the `data`, populating them with None if they are not already present in `data`.
 
+        Args:
+            data(pandasDataFrame):
+            cols(list): A list of columns to check/create in the shared dataframe.
+
+        Returns:
+            An updated pandas dataframe with missing columns populated with None if there were any.
+        """
+        data_cols = data.columns.to_list()
+        for column in columns:
+            if column not in data_cols:
+                print(f"{column} missing in dataset")
+                data.loc[:, column] = None
         return data
 
     @staticmethod
