@@ -33,12 +33,32 @@ class AirQoGx:
             datasource_name (str): A datasource represents a connection to a data store, such as a database, data warehouse, file system, or a cloud storage system.
             data_asset_name (str): Represents a collection of data that you want to validate, such as a specific table in a database or a file in a storage system.
             expectation_suite_name (str): Groups together multiple expectations that describe the desired characteristics of a dataset.
-            checkpoint_name (str): Defines how and when to validate data against an expectation suite. Includes data to be validated (batch request), the expectation suite to use, and other settings.
+            checkpoint_name (str): A checkpoint is a reusable configuration in Great Expectations that bundles together the data source, data asset, expectation suite, and other options for a validation run.
             expectations (dict): Assertions about data, which define what the data should look like.
             data_connector_name (str): Defines how to connect to a specific data asset within a datasource.
             execution_engine (str): Component responsible for executing expectations against data. The execution engine can be based on different backend technologies, such as SQL for databases or Pandas for dataframes in memory.
             dataframe (pandas.DataFrame):
             cloud_mode (bool): Enables integration with Great Expectations Cloud.
+
+        Notes:
+            There are two approaches to passing an expectation dict.
+            1. Unique expectations can be passed normally in a dictionary i.e
+                expectation = {
+                    "expect_column_values_to_not_be_null":"tenant",
+                    "expect_column_values_to_be_between":{"pm2_5":{"min_value":1, "max_value":100}},
+                    "expect_column_value_lengths_to_equal":{"device_number":{"value":7}},
+                    "expect_column_values_to_not_match_regex_list":{"device_id":{"regex_list":["^b.*", "^c.*"]}},
+                    "expect_column_values_to_match_regex":{"device_id":{"regex":"^a.*"}}
+                    }
+            2. To apply the same expectation to multuple columns, the columns are added to a list as shown below:
+                expectations = {
+                    "expect_column_values_to_not_be_null": ["co2", "hcho", "tvoc", "timestamp"],
+                    "expect_column_values_to_be_between": [
+                        {"co2": {"min_value": 45.47, "max_value": 1445.23}},
+                        {"tvoc": {"min_value": 0, "max_value": 120.55}},
+                        {"hcho": {"min_value": 0, "max_value": 132.58}}
+                        ]
+                    }
 
         This method builds the data source, retrieves or creates the expectation suite,
         and adds or updates the expectations. It also creates or updates the checkpoint.
@@ -149,30 +169,32 @@ class AirQoGx:
             expectation_suite_name=self.expectation_suite_name
         )
 
-        for expectation_type, kwargs in self.expectations.items():
+        for expectation_type, expectation_list in self.expectations.items():
             if hasattr(gx_metrics, expectation_type):
                 try:
                     expectation_method = getattr(gx_metrics, expectation_type)
-                    if isinstance(kwargs, dict):
-                        if len(kwargs) == 1 and isinstance(
-                            next(iter(kwargs.values())), dict
-                        ):
-                            column, params = next(iter(kwargs.items()))
-                            expectation_config = expectation_method(
-                                column=column, **params
-                            )
-                        else:
-                            expectation_config = expectation_method(**kwargs)
-                    elif isinstance(kwargs, list):
-                        expectation_config = expectation_method(*kwargs)
-                    elif isinstance(kwargs, str):
-                        expectation_config = expectation_method(column=kwargs)
-                    else:
-                        raise ValueError(
-                            f"Unsupported format for expectation: {expectation_type}"
-                        )
+                    if not isinstance(expectation_list, list):
+                        expectation_list = [expectation_list]
 
-                    suite.add_expectation(expectation_config)
+                    for kwargs in expectation_list:
+                        if isinstance(kwargs, dict):
+                            if len(kwargs) == 1 and isinstance(
+                                next(iter(kwargs.values())), dict
+                            ):
+                                column, params = next(iter(kwargs.items()))
+                                expectation_config = expectation_method(
+                                    column=column, **params
+                                )
+                            else:
+                                expectation_config = expectation_method(**kwargs)
+                        elif isinstance(kwargs, str):
+                            expectation_config = expectation_method(column=kwargs)
+                        else:
+                            raise ValueError(
+                                f"Unsupported format for expectation: {expectation_type}"
+                            )
+
+                        suite.add_expectation(expectation_config)
                 except Exception as e:
                     print(f"Error adding expectation for {expectation_type}: {e}")
             else:
@@ -260,8 +282,8 @@ class AirQoGx:
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
         # Uncomment in local environment to open docs.
-        # self.context.build_data_docs(site_names=["local_site"])
-        # self.context.open_data_docs()
+        self.context.build_data_docs(site_names=["local_site"])
+        self.context.open_data_docs()
         return results
 
     def store_results_in_bigquery(
@@ -283,12 +305,21 @@ class AirQoGx:
             bigquery.SchemaField("run_result", "BOOLEAN"),
             bigquery.SchemaField("data_source", "STRING"),
             bigquery.SchemaField("data_asset", "STRING"),
+            bigquery.SchemaField("column_name", "STRING"),
             bigquery.SchemaField("checkpoint_name", "STRING"),
             bigquery.SchemaField("expectation_suite", "STRING"),
             bigquery.SchemaField("expectation_type", "STRING"),
             bigquery.SchemaField("expectation_result", "BOOLEAN"),
             bigquery.SchemaField("raised_exception", "BOOLEAN"),
-            bigquery.SchemaField("local_site", "STRING"),
+            bigquery.SchemaField("sample_space", "FLOAT"),
+            bigquery.SchemaField("unexpected_count", "FLOAT"),
+            bigquery.SchemaField("unexpected_percentage", "FLOAT"),
+            bigquery.SchemaField("partial_unexpected_list", "STRING"),
+            bigquery.SchemaField("missing_count", "FLOAT"),
+            bigquery.SchemaField("missing_percent", "FLOAT"),
+            bigquery.SchemaField("unexpected_percent_total", "FLOAT"),
+            bigquery.SchemaField("unexpected_percent_nonmissing", "FLOAT"),
+            bigquery.SchemaField("partial_unexpected_counts", "STRING"),
         ]
 
         try:
@@ -336,15 +367,15 @@ class AirQoGx:
             "expectation_suite_name"
         ]
         run_result = validation_result["validation_result"]["success"]
-        local_site = validation_result["actions_results"]["update_data_docs"][
-            "local_site"
-        ]
+        # Not being used for at the moment
+        # local_site = validation_result["actions_results"]["update_data_docs"][
+        #     "local_site"
+        # ]
 
         # Extract validation results
         for result in validation_result["validation_result"]["results"]:
+            # Type ExpectationConfig
             expectation_type = result["expectation_config"]["expectation_type"]
-            success = result["success"]
-            raised_exception = result["exception_info"].get("raised_exception", True)
 
             validation_info.append(
                 {
@@ -353,12 +384,35 @@ class AirQoGx:
                     "run_result": run_result,
                     "data_source": data_source,
                     "data_asset": data_asset,
+                    "column_name": result["expectation_config"]["kwargs"].get(
+                        "column", None
+                    ),
                     "checkpoint_name": checkpoint_name,
                     "expectation_suite": expectation_suite,
                     "expectation_type": expectation_type,
-                    "expectation_result": success,
-                    "raised_exception": raised_exception,
-                    "local_site": local_site,
+                    "expectation_result": result["success"],
+                    "raised_exception": result["exception_info"].get(
+                        "raised_exception", True
+                    ),
+                    "sample_space": result["result"].get("element_count", 0),
+                    "unexpected_count": result["result"].get("unexpected_count", 0),
+                    "unexpected_percentage": result["result"].get(
+                        "unexpected_percent", 0
+                    ),
+                    "partial_unexpected_list": result["result"].get(
+                        "partial_unexpected_list", []
+                    ),
+                    "missing_count": result["result"].get("missing_count", 0),
+                    "missing_percent": result["result"].get("missing_count", 0),
+                    "unexpected_percent_total": result["result"].get(
+                        "unexpected_percent_total", 0
+                    ),
+                    "unexpected_percent_nonmissing": result["result"].get(
+                        "unexpected_percent_nonmissing", 0
+                    ),
+                    "partial_unexpected_counts": result["result"].get(
+                        "partial_unexpected_counts", []
+                    ),
                 }
             )
 
