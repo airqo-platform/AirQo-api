@@ -1,0 +1,133 @@
+[
+  {
+    "description": "A unique identifier for a particular validation run.",
+    "maxLength": "64",
+    "mode": "NULLABLE",
+    "name": "run_name",
+    "type": "STRING"
+  },
+  {
+    "description": "The exact time when the validation run was executed.",
+    "mode": "NULLABLE",
+    "name": "run_time",
+    "type": "TIMESTAMP"
+  },
+  {
+    "description": "A boolean that defines whether a validation run was successful or not.",
+    "mode": "NULLABLE",
+    "name": "run_result",
+    "type": "BOOLEAN"
+  },
+  {
+    "description": "The source from which the data being validated is derived.",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "data_source",
+    "type": "STRING"
+  },
+  {
+    "description": "The particular table or document that the data being validated is derived i.e a specific table in a database or a file in a storage system",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "data_asset",
+    "type": "STRING"
+  },
+  {
+    "description": "The specific column on which the a given expectation/validation is applied.",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "column_name",
+    "type": "STRING"
+  },
+  {
+    "description": "The name of the checkpoint used for the validation run.",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "checkpoint_name",
+    "type": "STRING"
+  },
+  {
+    "description": "The collection of expectations that were applied to the data asset during the validation run.",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "expectation_suite",
+    "type": "STRING"
+  },
+  {
+    "description": "The specific type of data quality check that was performed.",
+    "maxLength": "124",
+    "mode": "NULLABLE",
+    "name": "expectation_type",
+    "type": "STRING"
+  },
+  {
+    "description": "The outcome of a specific expectation within the suite.",
+    "mode": "NULLABLE",
+    "name": "expectation_result",
+    "type": "BOOLEAN"
+  },
+  {
+    "description": "If a specific expectation raised an expectation due to an error in the data.",
+    "mode": "NULLABLE",
+    "name": "raised_exception",
+    "type": "BOOLEAN"
+  },
+  {
+    "description": "The total number of elements or rows that were evaluated in the expectation.",
+    "mode": "NULLABLE",
+    "name": "sample_space",
+    "type": "FLOAT"
+  },
+  {
+    "description": "The number of elements that did not meet the expectation.",
+    "mode": "NULLABLE",
+    "name": "unexpected_count",
+    "type": "FLOAT"
+  },
+  {
+    "description": "The percentage of elements that did not meet the expectation",
+    "mode": "NULLABLE",
+    "name": "unexpected_percentage",
+    "type": "FLOAT"
+  },
+  {
+    "description": "A list of a sample of the values that did not meet the expectation",
+    "mode": "REPEATED",
+    "name": "partial_unexpected_list",
+    "type": "STRING"
+  },
+  {
+    "description": "The number of missing or null elements in the column or data that was evaluated.",
+    "mode": "NULLABLE",
+    "name": "missing_count",
+    "type": "FLOAT"
+  },
+  {
+    "description": "The percentage of elements that are missing.",
+    "mode": "NULLABLE",
+    "name": "missing_percent",
+    "type": "FLOAT"
+  },
+  {
+    "description": "The percentage of all elements that were unexpected, relative to the total number of elements, including any missing data.",
+    "mode": "NULLABLE",
+    "name": "unexpected_percent_total",
+    "type": "FLOAT"
+  },
+  {
+    "description": "The percentage of non-missing elements that were unexpected.",
+    "mode": "NULLABLE",
+    "name": "unexpected_percent_nonmissing",
+    "type": "FLOAT"
+  },
+  {
+    "description": "A list of dictionaries showing the counts of unique unexpected values",
+    "mode": "REPEATED",
+    "name": "partial_unexpected_counts",
+    "type": "RECORD",
+    "fields": [
+      { "name": "value", "type": "STRING" },
+      { "name": "count", "type": "INTEGER" }
+    ]
+  }
+]
