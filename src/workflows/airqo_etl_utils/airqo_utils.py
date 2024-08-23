@@ -517,10 +517,16 @@ class AirQoDataUtils:
         """
         if remove_outliers:
             data = DataValidationUtils.remove_outliers(data)
-            # Perform data check here:
-            AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                data
-            )
+            # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
+            match device_category:
+                case DeviceCategory.LOW_COST_GAS:
+                    AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                        data
+                    )
+                case DeviceCategory.LOW_COST:
+                    AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
+                        data
+                    )
 
         data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
