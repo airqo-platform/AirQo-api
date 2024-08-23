@@ -6,6 +6,7 @@ from google.cloud.exceptions import NotFound
 
 import os
 from pathlib import Path
+import numpy as np
 
 from .airqo_gx_metrics import AirQoGxExpectations
 from .config import configuration
@@ -376,6 +377,10 @@ class AirQoGx:
         for result in validation_result["validation_result"]["results"]:
             # Type ExpectationConfig
             expectation_type = result["expectation_config"]["expectation_type"]
+            partial_unexpected_list = [
+                "null" if np.isnan(x) else x
+                for x in result["result"].get("partial_unexpected_list", [])
+            ]
 
             validation_info.append(
                 {
@@ -399,9 +404,7 @@ class AirQoGx:
                     "unexpected_percentage": result["result"].get(
                         "unexpected_percent", 0
                     ),
-                    "partial_unexpected_list": result["result"].get(
-                        "partial_unexpected_list", []
-                    ),
+                    "partial_unexpected_list": partial_unexpected_list,
                     "missing_count": result["result"].get("missing_count", 0),
                     "missing_percent": result["result"].get("missing_count", 0),
                     "unexpected_percent_total": result["result"].get(
