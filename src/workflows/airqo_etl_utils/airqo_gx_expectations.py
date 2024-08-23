@@ -1,9 +1,10 @@
 from typing import Dict, Any
 from .airqo_gx_utils import AirQoGx
+import pandas
 
 
 class AirQoGxExpectations:
-    def __init__(self, execution_engine, datasource_name=None):
+    def __init__(self, execution_engine: str, datasource_name: str = None):
         self.datasource_name = datasource_name
         self.data_asset_name = None
         self.expectation_suite_name = None
@@ -15,6 +16,9 @@ class AirQoGxExpectations:
         self.cloud_mode = False
 
     def run_checks(self):
+        """
+        Sets up and executes the data validation checks using the AirQoGx class. The validation results are stored in bigquery.
+        """
         gx_checks = AirQoGx(
             self.datasource_name,
             self.data_asset_name,
@@ -38,6 +42,9 @@ class AirQoGxExpectations:
 
     @classmethod
     def from_sql(cls, datasource_name: str = "BigQuery"):
+        """
+        Creates a class contructor for the sql execution engine.
+        """
         return cls(
             execution_engine="sql",
             datasource_name=datasource_name,
@@ -45,12 +52,18 @@ class AirQoGxExpectations:
 
     @classmethod
     def from_pandas(cls):
+        """
+        Creates a class contructor for the pandas execution engine.
+        """
         return cls(
             datasource_name="pandas_data_source",
             execution_engine="pandas",
         )
 
-    def gaseous_low_cost_sensor_raw_data_check(self, data):
+    def gaseous_low_cost_sensor_raw_data_check(self, data: pandas.DataFrame) -> None:
+        """
+        Sets up expectations for the gaseous low cost sensors.
+        """
         expectations = {
             "expect_column_values_to_not_be_null": [
                 "co2",
@@ -79,7 +92,10 @@ class AirQoGxExpectations:
         self.dataframe = data
         self.run_checks()
 
-    def pm2_5_low_cost_sensor_raw_data(self, data):
+    def pm2_5_low_cost_sensor_raw_data(self, data: pandas.DataFrame) -> None:
+        """
+        Sets up expectations for the pm2.5 low cost sensors.
+        """
         expectations = {
             "expect_column_values_to_not_be_null": [
                 "pm2_5",
