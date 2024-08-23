@@ -25,8 +25,8 @@ class DataValidationUtils:
         "temperature": (0, 45),
         "humidity": (0, 99),
         "pressure": (30, 110),
-        "tvoc": (0, float("inf")),
-        "co2": (0, float("inf")),
+        "tvoc": (0, 10),
+        "co2": (400, 3000),
         "hcho": (0, float("inf")),
         "intaketemperature": (0, 45),
         "intakehumidity": (0, 99),
@@ -73,8 +73,9 @@ class DataValidationUtils:
         """
         if column_name in DataValidationUtils.VALID_SENSOR_RANGES:
             min_val, max_val = DataValidationUtils.VALID_SENSOR_RANGES[column_name]
-        if not (min_val <= row_value <= max_val):
-            return None
+            if not (min_val <= row_value <= max_val):
+                return None
+
         return row_value
 
     @staticmethod

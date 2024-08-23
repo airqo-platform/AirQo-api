@@ -22,6 +22,7 @@ from .thingspeak_api import ThingspeakApi
 from .utils import Utils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any
+from .airqo_gx_expectations import AirQoGxExpectations
 
 
 class AirQoDataUtils:
@@ -447,6 +448,15 @@ class AirQoDataUtils:
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and avergages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted(numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         averages_list: List[pd.DataFrame] = []
         for _, device_group in data.groupby("device_number"):
@@ -457,7 +467,6 @@ class AirQoDataUtils:
             del device_group["site_id"]
             del device_group["device_id"]
             del device_group["device_number"]
-            print("This device has bad data: ", device_number)
             averages = device_group.resample("1H", on="timestamp").mean()
             averages["timestamp"] = averages.index
             averages["device_id"] = device_id
@@ -508,6 +517,17 @@ class AirQoDataUtils:
         """
         if remove_outliers:
             data = DataValidationUtils.remove_outliers(data)
+            # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
+            match device_category:
+                case DeviceCategory.LOW_COST_GAS:
+                    AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                        data
+                    )
+                case DeviceCategory.LOW_COST:
+                    AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
+                        data
+                    )
+
         data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
