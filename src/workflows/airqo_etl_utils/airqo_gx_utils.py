@@ -387,7 +387,7 @@ class AirQoGx:
                     "value": "null" if np.isnan(item["value"]) else item["value"],
                     "count": item["count"],
                 }
-                for item in result["result"].get(["partial_unexpected_counts"], [])
+                for item in result["result"].get("partial_unexpected_counts", [])
             ]
 
             validation_info.append(
