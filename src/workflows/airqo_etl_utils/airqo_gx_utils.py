@@ -382,6 +382,14 @@ class AirQoGx:
                 for x in result["result"].get("partial_unexpected_list", [])
             ]
 
+            partial_unexpected_counts = [
+                {
+                    "value": "null" if np.isnan(item["value"]) else item["value"],
+                    "count": item["count"],
+                }
+                for item in result["result"].get("partial_unexpected_counts", [])
+            ]
+
             validation_info.append(
                 {
                     "run_name": run_name,
@@ -413,9 +421,7 @@ class AirQoGx:
                     "unexpected_percent_nonmissing": result["result"].get(
                         "unexpected_percent_nonmissing", 0
                     ),
-                    "partial_unexpected_counts": result["result"].get(
-                        "partial_unexpected_counts", []
-                    ),
+                    "partial_unexpected_counts": partial_unexpected_counts,
                 }
             )
 
