@@ -33,7 +33,7 @@ class AirQoGx:
             datasource_name (str): A datasource represents a connection to a data store, such as a database, data warehouse, file system, or a cloud storage system.
             data_asset_name (str): Represents a collection of data that you want to validate, such as a specific table in a database or a file in a storage system.
             expectation_suite_name (str): Groups together multiple expectations that describe the desired characteristics of a dataset.
-            checkpoint_name (str): Defines how and when to validate data against an expectation suite. Includes data to be validated (batch request), the expectation suite to use, and other settings.
+            checkpoint_name (str): A checkpoint is a reusable configuration in Great Expectations that bundles together the data source, data asset, expectation suite, and other options for a validation run.
             expectations (dict): Assertions about data, which define what the data should look like.
             data_connector_name (str): Defines how to connect to a specific data asset within a datasource.
             execution_engine (str): Component responsible for executing expectations against data. The execution engine can be based on different backend technologies, such as SQL for databases or Pandas for dataframes in memory.
@@ -305,6 +305,7 @@ class AirQoGx:
             bigquery.SchemaField("run_result", "BOOLEAN"),
             bigquery.SchemaField("data_source", "STRING"),
             bigquery.SchemaField("data_asset", "STRING"),
+            bigquery.SchemaField("column_name", "STRING"),
             bigquery.SchemaField("checkpoint_name", "STRING"),
             bigquery.SchemaField("expectation_suite", "STRING"),
             bigquery.SchemaField("expectation_type", "STRING"),
@@ -383,6 +384,9 @@ class AirQoGx:
                     "run_result": run_result,
                     "data_source": data_source,
                     "data_asset": data_asset,
+                    "column_name": result["expectation_config"]["kwargs"].get(
+                        "column", None
+                    ),
                     "checkpoint_name": checkpoint_name,
                     "expectation_suite": expectation_suite,
                     "expectation_type": expectation_type,
