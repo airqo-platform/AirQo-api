@@ -467,13 +467,14 @@ class AirQoDataUtils:
             del device_group["site_id"]
             del device_group["device_id"]
             del device_group["device_number"]
+
             averages = device_group.resample("1H", on="timestamp").mean()
             averages["timestamp"] = averages.index
             averages["device_id"] = device_id
             averages["site_id"] = site_id
             averages["device_number"] = device_number
             averages_list.append(averages)
-        aggregated_data = pd.DataFrame(averages_list)
+        aggregated_data = pd.concat(averages_list, ignore_index=True)
 
         return aggregated_data
 
