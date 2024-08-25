@@ -13,7 +13,7 @@ class SatelliteUtils:
     @staticmethod
     def extract_data_from_api(locations, date):
         ee.Initialize(credentials=service_account.Credentials.from_service_account_file(
-            configuration.GOOGLE_APPLICATION_CREDENTIALS
+            configuration.GOOGLE_APPLICATION_CREDENTIALS, scopes=['https://www.googleapis.com/auth/earthengine']
         ), project=configuration.GOOGLE_CLOUD_PROJECT_ID)
         data = []
         end_date = date + timedelta(days=1)
