@@ -5,6 +5,7 @@ metadata:
     app.kubernetes.io/name: argocd-cm
     app.kubernetes.io/part-of: argocd
   name: argocd-cm
+  namespace: cicd
 data:
   accounts.admin.enabled: "false"
   accounts.guest: login
