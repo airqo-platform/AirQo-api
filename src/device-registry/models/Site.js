@@ -12,8 +12,32 @@ const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
 
+const categorySchema = new Schema(
+  {
+    area_name: { type: String },
+    category: { type: String },
+    highway: { type: String },
+    landuse: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    natural: { type: String },
+    search_radius: { type: Number },
+    waterway: { type: String },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+  },
+  {
+    _id: false,
+  }
+);
+
 const siteSchema = new Schema(
   {
+    site_category: { type: categorySchema },
     name: {
       type: String,
       trim: true,
