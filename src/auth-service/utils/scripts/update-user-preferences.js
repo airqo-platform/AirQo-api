@@ -5,11 +5,11 @@
 const axios = require("axios");
 
 // Define your JWT token here
-const jwtToken = "JWT_TOKEN";
+const jwtToken = "";
 
 // Create an Axios instance
 const apiClient = axios.create({
-  baseURL: "https://staging-platform.airqo.net", // Replace with your API base URL
+  baseURL: "baseURL", // Replace with your API base URL
 });
 
 // Add a request interceptor
@@ -24,41 +24,6 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-
-// Function to fetch user IDs
-async function fetchUserIds(skip = 0, limit = 100) {
-  try {
-    const response = await apiClient.get(`/api/v2/users`, {
-      params: {
-        skip: skip,
-        limit: limit,
-      },
-    });
-    const users = response.data.users;
-    if (users.length > 0) {
-      // If there are more users, recursively fetch the next page
-      const nextSkip = skip + limit;
-      const nextUserIds = await fetchUserIds(nextSkip, limit);
-      return users.map((user) => user._id).concat(nextUserIds);
-    } else {
-      // Base case: No more users, return an empty array
-      return [];
-    }
-  } catch (error) {
-    console.error("Error fetching user IDs:", error);
-    return []; // Return an empty array in case of error
-  }
-}
-
-// Function to fetch user preferences by ID
-async function fetchUserPreferences(userId) {
-  try {
-    const response = await apiClient.get(`/api/v2/users/preferences/${userId}`);
-    return response.data.preferences[0]; // Assuming each user has only one set of preferences
-  } catch (error) {
-    console.error(`Error fetching preferences for user ${userId}:`, error);
-  }
-}
 
 // Function to fetch user preferences all in one go......
 async function fetchAllUserPreferences() {
@@ -80,43 +45,32 @@ async function fetchSiteDetails(siteId) {
   }
 }
 
-// Function to update the search_name in user preferences
-function updateSearchNameInPreferences(preferences, siteDetails) {
-  const updatedPreference = preferences;
-  for (const site of updatedPreference.selected_sites) {
-    // console.log("the OLD search_name", site.search_name);
-    // console.log("the OLD search_id", site._id);
-    // console.log("the NEW search_name", siteDetails.search_name);
-    // console.log("the NEW search_id", siteDetails._id);
-    // console.log("--------------");
-    site.search_name = siteDetails.search_name; // Update the search_name with the new name
-  }
-  return updatedPreference;
-}
-
-// Main function to orchestrate the process
 async function updateUserPreferences() {
   const allPreferences = await fetchAllUserPreferences();
-  // console.log("the userIds:");
-  // console.dir(userIds);
 
-  // Define the size of each batch
+  // Filter preferences to keep only those with at least one site having 'hasPlus'
+  const filteredPreferences = allPreferences.filter((preference) => {
+    return preference.selected_sites.some((site) =>
+      /[+]/.test(site.search_name)
+    );
+  });
+
+  // Calculate the size of each batch
   const batchSize = 50;
 
   // Calculate the number of batches needed
-  const numBatches = Math.ceil(allPreferences.length / batchSize);
+  const numBatches = Math.ceil(filteredPreferences.length / batchSize);
   console.log("numBatches", numBatches);
 
   // Process each batch
   for (let i = 0; i < numBatches; i++) {
     const startIdx = i * batchSize;
-    const endIdx = Math.min(startIdx + batchSize, allPreferences.length);
+    const endIdx = Math.min(startIdx + batchSize, filteredPreferences.length);
 
     // Extract the current batch of preferences
-    const batchPreferences = allPreferences.slice(startIdx, endIdx);
+    const batchPreferences = filteredPreferences.slice(startIdx, endIdx);
 
     // Process each preference in the current batch
-
     for (const preference of batchPreferences) {
       let updatedPreference = {};
 
@@ -126,15 +80,6 @@ async function updateUserPreferences() {
             const siteDetails = await fetchSiteDetails(site._id);
             const hasPlus = /[+]/.test(site.search_name);
             if (hasPlus) {
-              updatedPreference = preference;
-              console.log("the OLD search_name", site.search_name);
-              console.log("the OLD search_id", site._id);
-              console.log("the NEW search_name", siteDetails.search_name);
-              console.log("the NEW search_id", siteDetails._id);
-              console.log(
-                "the search_names are not the same and the current one has a number!"
-              );
-              console.log("--------------");
               return { ...site, search_name: siteDetails.search_name };
             }
             return site;
@@ -142,39 +87,12 @@ async function updateUserPreferences() {
         );
 
         updatedPreference = {
-          ...updatedPreference,
+          ...preference,
           selected_sites: siteUpdates,
         };
       }
-
-      // if (updatedPreference) {
-      //   for (const site of updatedPreference.selected_sites) {
-      //     const siteDetails = await fetchSiteDetails(site._id);
-      //     if (siteDetails) {
-      //       if (site.search_name !== siteDetails.search_name) {
-      //         console.log("the OLD search_name", site.search_name);
-      //         console.log("the OLD search_id", site._id);
-      //         console.log("the NEW search_name", siteDetails.search_name);
-      //         console.log("the NEW search_id", siteDetails._id);
-      //         console.log("the search_names are not the same");
-      //         console.log("--------------");
-      //         site.search_name = siteDetails.search_name;
-      //       }
-      //       // Update the search_name with the new name
-      //     }
-      //   }
-      // }
-      // console.log("the updatedPreference:");
-      // console.dir(updatedPreference);
-      //  Replace the user's preferences with the updated ones
-      // try {
-      //   await apiClient.patch(`/api/v2/users/preferences/replace`, {
-      //     updatedPreference,
-      //   });
-      //   console.log(`Updated preferences for user ${userId}`);
-      // } catch (error) {
-      //   console.error(`Error updating preferences for user ${userId}:`, error);
-      // }
+      console.log("the updated preference");
+      console.dir(updatedPreference);
     }
   }
 }
