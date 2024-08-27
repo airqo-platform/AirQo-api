@@ -5,7 +5,7 @@
 const axios = require("axios");
 
 // Define your JWT token here
-const jwtToken = "";
+const jwtToken = process.env.JWT_TOKEN;
 
 // Create an Axios instance
 const apiClient = axios.create({
