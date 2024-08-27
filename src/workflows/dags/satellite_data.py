@@ -17,7 +17,7 @@ def retrieve_satellite_data():
         from airqo_etl_utils.satellite_utils import SatelliteUtils
         from airqo_etl_utils.constants import satellite_cities
 
-        return SatelliteUtils.extract_data_from_api(locations=satellite_cities, date=datetime.now() - timedelta(days=1))
+        return SatelliteUtils.extract_data_from_api(locations=satellite_cities, date=datetime.now())
 
 
 
