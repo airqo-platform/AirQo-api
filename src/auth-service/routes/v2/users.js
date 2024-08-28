@@ -21,8 +21,14 @@ const ObjectId = mongoose.Types.ObjectId;
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
-  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
+  if (Number.isNaN(limit) || limit < 1) {
+    req.query.limit = 100;
+  } else if (limit > 500) {
+    req.query.limit = 500;
+  }
+  if (Number.isNaN(skip) || skip < 0) {
+    req.query.skip = 0;
+  }
   next();
 };
 

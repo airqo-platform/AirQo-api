@@ -655,6 +655,7 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
+      // bcc: subscribedBccEmails,
       const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
@@ -672,7 +673,6 @@ const mailer = {
           token,
           category,
         }),
-        bcc: subscribedBccEmails,
         attachments: [
           {
             filename: "airqoLogo.png",

@@ -118,6 +118,7 @@ const dbProjections = {
   SITES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
+    site_category: 1,
     latitude: 1,
     longitude: 1,
     grids: 1,
