@@ -10,8 +10,11 @@ x-common-data: &common-data
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
     ADMIN_USERNAME: airflow
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    LOAD_EX: n
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@db:5432/postgres
     AIRFLOW__WEBSERVER__SECRET_KEY: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
@@ -99,3 +102,34 @@ services:
       - "8080:8080"
     depends_on:
       - db-setup
+
+  redis:
+    # Redis is limited to 7.2-bookworm due to licencing change
+    # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
+    image: redis:7.2-bookworm
+    expose:
+      - 6379
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    restart: always
+
+  airflow-worker:
+    <<: *common-data
+    container_name: worker
+    build:
+      context: .
+      target: worker
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+    restart: always
+    depends_on:
+      - db
+      - redis
