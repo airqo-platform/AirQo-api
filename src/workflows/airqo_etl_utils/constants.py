@@ -324,6 +324,7 @@ satellite_collections = {
         'SO2_column_number_density',
         'SO2_column_number_density_amf',
         'SO2_slant_column_number_density',
+        'absorbing_aerosol_index',
         'cloud_fraction',
         'sensor_azimuth_angle',
         'sensor_zenith_angle',
@@ -367,8 +368,6 @@ satellite_collections = {
     ],
     'COPERNICUS/S5P/OFFL/L3_O3': [
         'O3_column_number_density',
-        'O3_column_number_density_amf',
-        'O3_slant_column_number_density',
         'O3_effective_temperature',
         'cloud_fraction',
         'sensor_azimuth_angle',
@@ -384,9 +383,9 @@ satellite_collections = {
         'solar_azimuth_angle',
         'solar_zenith_angle'
     ],
-    'COPERNICUS/S5P/OFFL/L3_AER_LH': [
+    'COPERNICUS/S5P/OFFL/L3_CH4': [
+        'CH4_column_volume_mixing_ratio_dry_air',
         'aerosol_height',
-        'aerosol_pressure',
         'aerosol_optical_depth',
         'sensor_zenith_angle',
         'sensor_azimuth_angle',
