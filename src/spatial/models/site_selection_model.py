@@ -1,10 +1,8 @@
-import json
 import random
 from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
 from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
-import numpy as np
 
 class SiteCategoryModel:
     def __init__(self):
@@ -15,7 +13,7 @@ class SiteCategoryModel:
             location = self.geolocator.reverse((lat, lon), language='en')
             address = location.raw.get('address', {})
         except Exception as e:
-            print(f"Error during reverse geocoding: {e}")
+        #    print(f"Error during reverse geocoding: {e}")
             address = {}
 
         category = self._determine_category(address)
