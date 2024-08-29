@@ -3,7 +3,8 @@ import random
 from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
 from geopy.geocoders import Nominatim
-
+from sklearn.cluster import KMeans
+import numpy as np
 
 class SiteCategoryModel:
     def __init__(self):
@@ -66,13 +67,23 @@ class SensorDeployment:
                 return False
         return True
 
+    def generate_random_points(self, num_points):
+        minx, miny, maxx, maxy = self.polygon.bounds
+        points = []
+        while len(points) < num_points:
+            random_point = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
+            if self.polygon.contains(random_point):
+                points.append(random_point)
+        return points
+
     def optimize_sensor_locations(self, num_sensors):
+        # Add must-have locations first
         for loc in self.must_have_locations:
             lat, lon = loc
             if self.polygon.contains(Point(lon, lat)):
                 self.sites.append({
-                    'latitude': lat,
-                    'longitude': lon,
+                    'latitude': round(lat, 6),
+                    'longitude': round(lon, 6),
                     'category': "Unknown",
                     'area_name': "Unknown",
                     'highway': "Unknown",
@@ -80,22 +91,26 @@ class SensorDeployment:
                     'natural': "Unknown"
                 })
 
-        minx, miny, maxx, maxy = self.polygon.bounds
-        while len(self.sites) < num_sensors:
-            while True:
-                random_point = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
-                if self.polygon.contains(random_point) and self.is_far_enough(random_point):
-                    if not any(site['latitude'] == random_point.y and site['longitude'] == random_point.x for site in self.sites):
-                        self.sites.append({
-                            'latitude': random_point.y,
-                            'longitude': random_point.x,
-                            'category': "Unknown",
-                            'area_name': "Unknown",
-                            'highway': "Unknown",
-                            'landuse': "Unknown",
-                            'natural': "Unknown"
-                        })
-                        break
+        # Generate random points within the polygon
+        random_points = self.generate_random_points(num_sensors )  # Generate more points than needed
+        random_coords = [(point.y, point.x) for point in random_points]
+
+        # Apply KMeans clustering to find optimal sensor locations
+        kmeans = KMeans(n_clusters=num_sensors, random_state=42)
+        kmeans.fit(random_coords)
+        cluster_centers = kmeans.cluster_centers_
+
+        for center in cluster_centers:
+            lat, lon = center
+            self.sites.append({
+                'latitude': round(lat, 6),
+                'longitude': round(lon, 6),
+                'category': "Unknown",
+                'area_name': "Unknown",
+                'highway': "Unknown",
+                'landuse': "Unknown",
+                'natural': "Unknown"
+            })
 
     def categorize_sites(self):
         model = SiteCategoryModel()
