@@ -5,7 +5,7 @@ from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
 from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily, Sentinel5PView, Satellite_data
 from views.site_category_view import SiteCategorizationView
-
+from views.site_selection_views import SiteSelectionView
 
 
 controller_bp = Blueprint('controller', __name__)
@@ -41,3 +41,7 @@ def get_satellite_data():
 @controller_bp.route('/categorize_site', methods=['GET'])
 def categorize_site():
     return SiteCategorizationView.get_site_categorization()
+
+@controller_bp.route('/site_selection', methods=['GET'])
+def site_selection():
+    return SiteSelectionView.site_selection()
