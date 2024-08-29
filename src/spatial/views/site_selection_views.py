@@ -1,7 +1,4 @@
-import json
 from flask import Flask, request, jsonify
-from shapely.geometry import Polygon, Point
-import logging
 from models.site_selection_model import SensorDeployment 
 
 app = Flask(__name__)
