@@ -43,6 +43,6 @@ def get_satellite_data():
 def categorize_site():
     return SiteCategorizationView.get_site_categorization()
 
-@controller_bp.route('/site_selection', methods=['GET'])
+@controller_bp.route('/site_location', methods=['GET'])
 def site_selection():
     return SiteSelectionView.site_selection()
