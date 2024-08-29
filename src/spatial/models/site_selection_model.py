@@ -119,7 +119,7 @@ class SensorDeployment:
             category, _, area_name, landuse, natural, _, highway, _ = model.categorize_site_osm(lat, lon)
 
             if natural in ["Water", "Wetland"]:
-                print(f"Skipping site at ({lat}, {lon}) due to water body presence.")
+#                print(f"Skipping site at ({lat}, {lon}) due to water body presence.")
                 continue
 
             site.update({
