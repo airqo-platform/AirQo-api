@@ -4,6 +4,7 @@ from geopy.distance import great_circle
 from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 
+random.seed(42)
 class SiteCategoryModel:
     def __init__(self):
         self.geolocator = Nominatim(user_agent="sensor_deployment")
@@ -94,7 +95,7 @@ class SensorDeployment:
         random_coords = [(point.y, point.x) for point in random_points]
 
         # Apply KMeans clustering to find optimal sensor locations
-        kmeans = KMeans(n_clusters=num_sensors, random_state=42)
+        kmeans = KMeans(n_clusters=num_sensors, random_state=42, n_init=10)
         kmeans.fit(random_coords)
         cluster_centers = kmeans.cluster_centers_
 
