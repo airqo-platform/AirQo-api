@@ -49,8 +49,8 @@ class SiteCategoryModel:
             return 'Natural'
         if 'city' in address or 'suburb' in address:
             return 'Urban'
-        return 'Rural'
-
+        return 'Unknown'
+        
 
 class SensorDeployment:
     def __init__(self, polygon, must_have_locations=None, min_distance_km=0.5):
