@@ -169,6 +169,7 @@ const dbProjections = {
     devices: "$devices",
     airqlouds: "$airqlouds",
     weather_stations: 1,
+    site_category: 1,
   },
   SITES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {

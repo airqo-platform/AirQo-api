@@ -423,6 +423,7 @@ siteSchema.methods = {
       _id: this._id,
       grids: this.grids,
       name: this.name,
+      site_category: this.site_category,
       visibility: this.visibility,
       generated_name: this.generated_name,
       search_name: this.search_name,
@@ -509,6 +510,7 @@ siteSchema.statics = {
         delete data.airqlouds;
         delete data.site_tags;
         delete data.nearest_tahmo_station;
+        delete data.weather_stations;
         return {
           success: true,
           data,
