@@ -28,7 +28,11 @@ class SiteSelectionView:
                     "longitude": site['longitude'],
                     "natural": site.get('natural', None)
                 } for site in deployment.sites
-            ]
+            ],
+                "site_information": {
+                "total_sites": len(deployment.sites),
+                "category_counts": deployment.get_category_counts(),  # Count of each category
+            }
         }
 
         return jsonify(formatted_sites)

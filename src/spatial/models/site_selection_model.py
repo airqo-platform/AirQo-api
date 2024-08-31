@@ -3,8 +3,10 @@ from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
 from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 random.seed(42)
+
 class SiteCategoryModel:
     def __init__(self):
         self.geolocator = Nominatim(user_agent="sensor_deployment")
@@ -14,7 +16,6 @@ class SiteCategoryModel:
             location = self.geolocator.reverse((lat, lon), language='en')
             address = location.raw.get('address', {})
         except Exception as e:
-        #    print(f"Error during reverse geocoding: {e}")
             address = {}
 
         category = self._determine_category(address)
@@ -91,7 +92,7 @@ class SensorDeployment:
                 })
 
         # Generate random points within the polygon
-        random_points = self.generate_random_points(num_sensors )  # Generate more points than needed
+        random_points = self.generate_random_points(num_sensors * 2)  # Generate more points than needed
         random_coords = [(point.y, point.x) for point in random_points]
 
         # Apply KMeans clustering to find optimal sensor locations
@@ -113,13 +114,13 @@ class SensorDeployment:
 
     def categorize_sites(self):
         model = SiteCategoryModel()
-        for site in self.sites:
+        
+        def process_site(site):
             lat, lon = site['latitude'], site['longitude']
             category, _, area_name, landuse, natural, _, highway, _ = model.categorize_site_osm(lat, lon)
 
-            if natural in ["Water", "Wetland"]:
-#                print(f"Skipping site at ({lat}, {lon}) due to water body presence.")
-                continue
+            if natural in ["water", "wetland", "lake", "river", "stream", "glacier", "beach"]:
+                return None  # Skip sites with natural features that are not desired
 
             site.update({
                 'category': category,
@@ -127,4 +128,22 @@ class SensorDeployment:
                 'highway': highway,
                 'landuse': landuse,
                 'natural': natural
-            }) 
+            })
+            return site
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_site = {executor.submit(process_site, site): site for site in self.sites}
+            results = []
+            for future in as_completed(future_to_site):
+                result = future.result()
+                if result is not None:
+                    results.append(result)
+        
+        self.sites = results
+
+    def get_category_counts(self):
+        counts = {}
+        for site in self.sites:
+            category = site.get('category', 'Unknown')
+            counts[category] = counts.get(category, 0) + 1
+        return counts
