@@ -92,7 +92,7 @@ class SensorDeployment:
                 })
 
         # Generate random points within the polygon
-        random_points = self.generate_random_points(num_sensors * 2)  # Generate more points than needed
+        random_points = self.generate_random_points(num_sensors * 10)  # Generate more points than needed
         random_coords = [(point.y, point.x) for point in random_points]
 
         # Apply KMeans clustering to find optimal sensor locations
