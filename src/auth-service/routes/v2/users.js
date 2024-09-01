@@ -982,6 +982,64 @@ router.post(
   createUserController.subscribeToNewsLetter
 );
 
+router.post(
+  "/newsletter/resubscribe",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+    ],
+  ]),
+  createUserController.reSubscribeToNewsLetter
+);
+
+router.post(
+  "/newsletter/unsubscribe",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+    ],
+  ]),
+  createUserController.unSubscribeFromNewsLetter
+);
+
 router.get(
   "/stats",
   oneOf([
