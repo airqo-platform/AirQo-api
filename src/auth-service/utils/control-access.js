@@ -1247,37 +1247,78 @@ const controlAccess = {
           }
           return responseFromUpdateClient;
         } else if (ip_addresses && ip_addresses.length > 0) {
-          try {
-            const res = await WhitelistedIPModel("airqo").updateMany(
-              { ip: { $in: ip_addresses } },
-              { $set: { ip: { $toLower: "$ip" } } },
-              { upsert: true }
-            );
+          const responses = await Promise.all(
+            ip_addresses.map(async (ip) => {
+              try {
+                const result = await WhitelistedIPModel(tenant).updateOne(
+                  { ip },
+                  { ip },
+                  {
+                    upsert: true,
+                  }
+                );
 
-            if (res.modifiedCount > 0) {
-              logText(
-                `Successfully updated ${res.modifiedCount} IP(s) for client ${client._id}`
-              );
-            } else if (res.upsertedCount > 0) {
-              logText(
-                `Successfully inserted ${res.upsertedCount} new IP(s) for client ${client._id}`
-              );
-            } else {
-              logger.error(
-                `No IPs were updated or inserted for client ${client._id}`
-              );
-            }
-          } catch (error) {
-            if (error.name === "MongoError" && error.code !== 11000) {
-              logger.error(
-                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
-              );
-            } else if (error.code === 11000) {
-              logger.error(
-                `Duplicate key error for IP(s) when updating/upserting a CLIENT`
-              );
-            }
+                return {
+                  ip,
+                  success: result.ok === 1,
+                  message:
+                    result.ok === 1
+                      ? `Whitelisting CLIENT IP ${ip} successful`
+                      : `Whitelisting CLIENT's IP ${ip} was NOT successful`,
+                };
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
+                      error
+                    )}`
+                  );
+                } else if (error.code === 11000) {
+                  logger.error(
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                  );
+                }
+                return {
+                  ip,
+                  success: false,
+                  message: `Error whitelisting IP ${ip}: ${error.message}`,
+                };
+              }
+            })
+          );
+
+          const successfulResponses = responses
+            .filter((response) => response.success)
+            .map((response) => response.ip);
+
+          const unsuccessfulResponses = responses
+            .filter((response) => !response.success)
+            .map((response) => response.ip);
+
+          let finalMessage = "";
+          let finalStatus = httpStatus.OK;
+
+          if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "Some IPs have been whitelisted.";
+          } else if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length === 0
+          ) {
+            finalMessage = "All responses were successful.";
+          } else if (
+            successfulResponses.length === 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "None of the IPs provided were whitelisted.";
+            finalStatus = httpStatus.BAD_REQUEST;
           }
+          // logObject("finalMessage", finalMessage);
+          // logObject("successfulResponses", successfulResponses);
+          // logObject("unsuccessfulResponses", unsuccessfulResponses);
+          // logObject("finalStatus", finalStatus);
           return responseFromUpdateClient;
         } else {
           return responseFromUpdateClient;
@@ -1519,37 +1560,80 @@ const controlAccess = {
           }
           return responseFromCreateClient;
         } else if (ip_addresses && ip_addresses.length > 0) {
-          try {
-            const res = await WhitelistedIPModel("airqo").updateMany(
-              { ip: { $in: ip_addresses } },
-              { $set: { ip: { $toLower: "$ip" } } },
-              { upsert: true }
-            );
+          const responses = await Promise.all(
+            ip_addresses.map(async (ip) => {
+              try {
+                const result = await WhitelistedIPModel(tenant).updateOne(
+                  { ip },
+                  { ip },
+                  {
+                    upsert: true,
+                  }
+                );
 
-            if (res.modifiedCount > 0) {
-              logText(
-                `Successfully updated ${res.modifiedCount} IP(s) for client ${client._id}`
-              );
-            } else if (res.upsertedCount > 0) {
-              logText(
-                `Successfully inserted ${res.upsertedCount} new IP(s) for client ${client._id}`
-              );
-            } else {
-              logger.error(
-                `No IPs were updated or inserted for client ${client._id}`
-              );
-            }
-          } catch (error) {
-            if (error.name === "MongoError" && error.code !== 11000) {
-              logger.error(
-                `🐛🐛 MongoError -- createClient -- ${stringify(error)}`
-              );
-            } else if (error.code === 11000) {
-              logger.error(
-                `Duplicate key error for IP(s) when updating/upserting a CLIENT`
-              );
-            }
+                return {
+                  ip,
+                  success: result.ok === 1,
+                  message:
+                    result.ok === 1
+                      ? `Whitelisting CLIENT IP ${ip} successful`
+                      : `Whitelisting CLIENT's IP ${ip} was NOT successful`,
+                };
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
+                      error
+                    )}`
+                  );
+                } else if (error.code === 11000) {
+                  logger.error(
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                  );
+                }
+                return {
+                  ip,
+                  success: false,
+                  message: `Error whitelisting IP ${ip}: ${error.message}`,
+                };
+              }
+            })
+          );
+
+          const successfulResponses = responses
+            .filter((response) => response.success)
+            .map((response) => response.ip);
+
+          const unsuccessfulResponses = responses
+            .filter((response) => !response.success)
+            .map((response) => response.ip);
+
+          let finalMessage = "";
+          let finalStatus = httpStatus.OK;
+
+          if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "Some IPs have been whitelisted.";
+          } else if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length === 0
+          ) {
+            finalMessage = "All responses were successful.";
+          } else if (
+            successfulResponses.length === 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "None of the IPs provided were whitelisted.";
+            finalStatus = httpStatus.BAD_REQUEST;
           }
+
+          // logObject("finalMessage", finalMessage);
+          // logObject("successfulResponses", successfulResponses);
+          // logObject("unsuccessfulResponses", unsuccessfulResponses);
+          // logObject("finalStatus", finalStatus);
+
           return responseFromCreateClient;
         } else {
           return responseFromCreateClient;
