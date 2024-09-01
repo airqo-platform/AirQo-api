@@ -31,6 +31,7 @@ const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 const { HttpError } = require("@utils/errors");
+const stringify = require("@utils/stringify");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -2123,6 +2124,53 @@ const createUserModule = {
         );
       }
     } catch (error) {
+      logObject("error.response.body", error.response.body);
+      logger.error(
+        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`
+      );
+      next(
+        new HttpError("Internal Server Error", error.response.body.status, {
+          message: error.message,
+          ...error.response.body,
+        })
+      );
+    }
+  },
+  unSubscribeFromNewsLetter: async (request, next) => {
+    try {
+      const { email } = request.body;
+
+      const subscriberHash = md5(email.toLowerCase());
+      const listId = constants.MAILCHIMP_LIST_ID;
+
+      const responseFromMailChimp = await mailchimp.lists.setListMember(
+        listId,
+        subscriberHash,
+        { email_address: email, status: "unsubscribed" }
+      );
+
+      logObject("responseFromMailChimp", responseFromMailChimp);
+
+      logger.info(
+        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
+      );
+
+      if (responseFromMailChimp.status !== "unsubscribed") {
+        return next(
+          new HttpError(
+            `Failed to unsubscribe from newsletter`,
+            httpStatus.INTERNAL_SERVER_ERROR
+          )
+        );
+      }
+
+      return {
+        success: true,
+        status: httpStatus.OK,
+        message: `Successfully unsubscribed ${email} from the AirQo newsletter`,
+      };
+    } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -2133,20 +2181,70 @@ const createUserModule = {
       );
     }
   },
-  unSubscribeFromNewsletter: async (request, next) => {
+  reSubscribeToNewsLetter: async (request, next) => {
+    try {
+      return {
+        success: false,
+        status: httpStatus.NOT_IMPLEMENTED,
+        message: "work in progress",
+        errors: {
+          message: "not yet implemented, work in progress",
+        },
+      };
+      const { email } = request.body;
+
+      const subscriberHash = md5(email.toLowerCase());
+      const listId = constants.MAILCHIMP_LIST_ID;
+
+      // Add member to the list
+      const responseFromMailChimp = await mailchimp.lists.addListMember(
+        listId,
+        subscriberHash,
+        {
+          email_address: email,
+          status: "subscribed",
+        }
+      );
+
+      logObject("responseFromMailChimp", responseFromMailChimp);
+
+      return {
+        status: httpStatus.OK,
+        success: true,
+        message: "Successfully resubscribed to the AirQo newsletter",
+      };
+    } catch (error) {
+      logObject("resubscribe error", error.response.body);
+      logger.error(
+        `🐛🐛 Internal Server Error ${stringify(error.response.body)}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message, ...error.response.body }
+        )
+      );
+    }
+  },
+  unSubscribeFromNewsLetterV2: async (request, next) => {
     try {
       const { email } = request.body;
 
       const subscriberHash = md5(email.toLowerCase());
       const listId = constants.MAILCHIMP_LIST_ID;
 
-      // Unsubscribe the member
-      const responseFromMailChimp = await mailchimp.lists.removeListMember(
-        listId,
-        subscriberHash
+      // Delete member permanently
+      const responseFromMailChimp =
+        await mailchimp.lists.deleteListMemberPermanent(listId, subscriberHash);
+      logObject("responseFromMailChimp", responseFromMailChimp);
+
+      logger.info(
+        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
       );
 
       if (responseFromMailChimp.status_code !== 200) {
+        logObject("responseFromMailChimp", responseFromMailChimp);
         return next(
           new HttpError(
             `Failed to unsubscribe from newsletter: ${responseFromMailChimp.error}`,
@@ -2155,19 +2253,19 @@ const createUserModule = {
         );
       }
 
-      return {
+      res.status(httpStatus.NO_CONTENT).json({
         success: true,
-        status: httpStatus.NO_CONTENT,
         message: "Successfully unsubscribed from the AirQo newsletter",
-      };
+      });
     } catch (error) {
+      logObject("error.response.body", error.response.body);
+
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+        new HttpError("Internal Server Error", error.response.body.status, {
+          message: error.message,
+          ...error.response.body,
+        })
       );
     }
   },
