@@ -655,6 +655,7 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
+      // bcc: subscribedBccEmails,
       const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
@@ -672,7 +673,6 @@ const mailer = {
           token,
           category,
         }),
-        bcc: subscribedBccEmails,
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -1935,8 +1935,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject:
-          "AirQo Analytics: Post-Activity Notification for Device Management Actions",
+        subject: "AirQo Analytics: Monitor Deployment/Recall Alert",
         html: `${msgs.site_activity({
           firstName,
           lastName,

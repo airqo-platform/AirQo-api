@@ -1217,7 +1217,9 @@ const controlAccess = {
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
       if (responseFromUpdateClient.success === true) {
+        const client = responseFromUpdateClient.data;
         const ip = update.ip_address || "";
+        const ip_addresses = update.ip_addresses || [];
         if (!isEmpty(ip)) {
           try {
             const res = await WhitelistedIPModel("airqo").updateOne(
@@ -1243,6 +1245,80 @@ const controlAccess = {
               );
             }
           }
+          return responseFromUpdateClient;
+        } else if (ip_addresses && ip_addresses.length > 0) {
+          const responses = await Promise.all(
+            ip_addresses.map(async (ip) => {
+              try {
+                const result = await WhitelistedIPModel(tenant).updateOne(
+                  { ip },
+                  { ip },
+                  {
+                    upsert: true,
+                  }
+                );
+
+                return {
+                  ip,
+                  success: result.ok === 1,
+                  message:
+                    result.ok === 1
+                      ? `Whitelisting CLIENT IP ${ip} successful`
+                      : `Whitelisting CLIENT's IP ${ip} was NOT successful`,
+                };
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
+                      error
+                    )}`
+                  );
+                } else if (error.code === 11000) {
+                  logger.error(
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                  );
+                }
+                return {
+                  ip,
+                  success: false,
+                  message: `Error whitelisting IP ${ip}: ${error.message}`,
+                };
+              }
+            })
+          );
+
+          const successfulResponses = responses
+            .filter((response) => response.success)
+            .map((response) => response.ip);
+
+          const unsuccessfulResponses = responses
+            .filter((response) => !response.success)
+            .map((response) => response.ip);
+
+          let finalMessage = "";
+          let finalStatus = httpStatus.OK;
+
+          if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "Some IPs have been whitelisted.";
+          } else if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length === 0
+          ) {
+            finalMessage = "All responses were successful.";
+          } else if (
+            successfulResponses.length === 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "None of the IPs provided were whitelisted.";
+            finalStatus = httpStatus.BAD_REQUEST;
+          }
+          // logObject("finalMessage", finalMessage);
+          // logObject("successfulResponses", successfulResponses);
+          // logObject("unsuccessfulResponses", unsuccessfulResponses);
+          // logObject("finalStatus", finalStatus);
           return responseFromUpdateClient;
         } else {
           return responseFromUpdateClient;
@@ -1453,7 +1529,9 @@ const controlAccess = {
       ).register(modifiedBody, next);
 
       if (responseFromCreateClient.success === true) {
+        const client = responseFromCreateClient.data;
         const ip = modifiedBody.ip_address || "";
+        const ip_addresses = modifiedBody.ip_addresses || [];
         if (!isEmpty(ip)) {
           try {
             const res = await WhitelistedIPModel("airqo").updateOne(
@@ -1480,6 +1558,82 @@ const controlAccess = {
               );
             }
           }
+          return responseFromCreateClient;
+        } else if (ip_addresses && ip_addresses.length > 0) {
+          const responses = await Promise.all(
+            ip_addresses.map(async (ip) => {
+              try {
+                const result = await WhitelistedIPModel(tenant).updateOne(
+                  { ip },
+                  { ip },
+                  {
+                    upsert: true,
+                  }
+                );
+
+                return {
+                  ip,
+                  success: result.ok === 1,
+                  message:
+                    result.ok === 1
+                      ? `Whitelisting CLIENT IP ${ip} successful`
+                      : `Whitelisting CLIENT's IP ${ip} was NOT successful`,
+                };
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- whitelisting IP ${ip} -- ${stringify(
+                      error
+                    )}`
+                  );
+                } else if (error.code === 11000) {
+                  logger.error(
+                    `Duplicate key error for IP ${ip} when creating a new CLIENT`
+                  );
+                }
+                return {
+                  ip,
+                  success: false,
+                  message: `Error whitelisting IP ${ip}: ${error.message}`,
+                };
+              }
+            })
+          );
+
+          const successfulResponses = responses
+            .filter((response) => response.success)
+            .map((response) => response.ip);
+
+          const unsuccessfulResponses = responses
+            .filter((response) => !response.success)
+            .map((response) => response.ip);
+
+          let finalMessage = "";
+          let finalStatus = httpStatus.OK;
+
+          if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "Some IPs have been whitelisted.";
+          } else if (
+            successfulResponses.length > 0 &&
+            unsuccessfulResponses.length === 0
+          ) {
+            finalMessage = "All responses were successful.";
+          } else if (
+            successfulResponses.length === 0 &&
+            unsuccessfulResponses.length > 0
+          ) {
+            finalMessage = "None of the IPs provided were whitelisted.";
+            finalStatus = httpStatus.BAD_REQUEST;
+          }
+
+          // logObject("finalMessage", finalMessage);
+          // logObject("successfulResponses", successfulResponses);
+          // logObject("unsuccessfulResponses", unsuccessfulResponses);
+          // logObject("finalStatus", finalStatus);
+
           return responseFromCreateClient;
         } else {
           return responseFromCreateClient;
@@ -3743,11 +3897,16 @@ const controlAccess = {
 
       const responses = await Promise.all(
         ips.map(async (ip) => {
-          const result = await BlacklistedIPModel(tenant).register(
-            { ip },
-            next
-          );
-          return { ip, success: result.success };
+          try {
+            const result = await BlacklistedIPModel(tenant).register(
+              { ip },
+              () => {}
+            );
+            return { ip, success: result.success };
+          } catch (error) {
+            logger.error(`Error blacklisting IP ${ip}: ${error.message}`);
+            return { ip, success: false };
+          }
         })
       );
 
@@ -4305,6 +4464,82 @@ const controlAccess = {
         next
       );
       return responseFromWhitelistIp;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  bulkWhiteListIps: async (request, next) => {
+    try {
+      const { ips, tenant } = {
+        ...request.body,
+        ...request.query,
+      };
+
+      if (!ips || !Array.isArray(ips) || ips.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid input. Please provide an array of IP addresses.",
+          })
+        );
+      }
+
+      const responses = await Promise.all(
+        ips.map(async (ip) => {
+          try {
+            const result = await WhitelistedIPModel(tenant).register(
+              { ip },
+              () => {}
+            );
+            return { ip, success: result.success };
+          } catch (error) {
+            logger.error(`Error whitelisting IP ${ip}: ${error.message}`);
+            return { ip, success: false };
+          }
+        })
+      );
+
+      const successful_responses = responses
+        .filter((response) => response.success)
+        .map((response) => response.ip);
+
+      const unsuccessful_responses = responses
+        .filter((response) => !response.success)
+        .map((response) => response.ip);
+
+      let finalMessage = "";
+      let finalStatus = httpStatus.OK;
+
+      if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "Some IPs have been whitelisted.";
+      } else if (
+        successful_responses.length > 0 &&
+        unsuccessful_responses.length === 0
+      ) {
+        finalMessage = "All responses were successful.";
+      } else if (
+        successful_responses.length === 0 &&
+        unsuccessful_responses.length > 0
+      ) {
+        finalMessage = "None of the IPs provided were whitelisted.";
+        finalStatus = httpStatus.BAD_REQUEST;
+      }
+
+      return {
+        success: true,
+        data: { successful_responses, unsuccessful_responses },
+        status: finalStatus,
+        message: finalMessage,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
