@@ -82,14 +82,12 @@ class SatelliteUtils:
         return all_data
 
     @staticmethod
-    def extract_data_from_api(locations: List[Dict[str, Any]], start_date: datetime, end_date: datetime,
-                              satellite_collections: Dict[str, List[str]]) -> pd.DataFrame:
+    def extract_satellite_data(locations: List[Dict[str, Any]], start_date: datetime, end_date: datetime,
+                               satellite_collections: Dict[str, List[str]]) -> pd.DataFrame:
 
         SatelliteUtils.initialize_earth_engine()
         all_data = []
         for location in locations:
             all_data.extend(
                 SatelliteUtils.extract_data_for_location(location, satellite_collections, start_date, end_date))
-            print("first done")
-
         return pd.DataFrame(all_data)
