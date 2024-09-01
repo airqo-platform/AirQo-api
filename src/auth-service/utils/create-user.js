@@ -2133,6 +2133,44 @@ const createUserModule = {
       );
     }
   },
+  unSubscribeFromNewsletter: async (request, next) => {
+    try {
+      const { email } = request.body;
+
+      const subscriberHash = md5(email.toLowerCase());
+      const listId = constants.MAILCHIMP_LIST_ID;
+
+      // Unsubscribe the member
+      const responseFromMailChimp = await mailchimp.lists.removeListMember(
+        listId,
+        subscriberHash
+      );
+
+      if (responseFromMailChimp.status_code !== 200) {
+        return next(
+          new HttpError(
+            `Failed to unsubscribe from newsletter: ${responseFromMailChimp.error}`,
+            httpStatus.INTERNAL_SERVER_ERROR
+          )
+        );
+      }
+
+      return {
+        success: true,
+        status: httpStatus.NO_CONTENT,
+        message: "Successfully unsubscribed from the AirQo newsletter",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   deleteMobileUserData: async (request, next) => {
     try {
       const { userId, token } = request.params;
