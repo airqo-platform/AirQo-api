@@ -75,12 +75,14 @@ function validateSelectedSitesField(value) {
 
   // Validate string fields
   function validateStringFields(fields) {
+    let isValid = true;
     fields.forEach((field) => {
       if (typeof value[field] !== "string" || value[field].trim() === "") {
-        return false;
+        isValid = false;
+        return;
       }
     });
-    return true;
+    return isValid;
   }
 
   // Validate tags array
