@@ -4,6 +4,7 @@ from geopy.distance import great_circle
 from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 random.seed(42)
 
@@ -50,7 +51,6 @@ class SiteCategoryModel:
         if 'city' in address or 'suburb' in address:
             return 'Urban'
         return 'Unknown'
-        
 
 class SensorDeployment:
     def __init__(self, polygon, must_have_locations=None, min_distance_km=0.5):
@@ -112,26 +112,34 @@ class SensorDeployment:
                 'natural': "Unknown"
             })
 
-    def categorize_sites(self):
+    def categorize_sites(self, max_workers=None):
         model = SiteCategoryModel()
         
         def process_site(site):
-            lat, lon = site['latitude'], site['longitude']
-            category, _, area_name, landuse, natural, _, highway, _ = model.categorize_site_osm(lat, lon)
+            try:
+                lat, lon = site['latitude'], site['longitude']
+                category, _, area_name, landuse, natural, _, highway, _ = model.categorize_site_osm(lat, lon)
 
-            if natural in ["water", "wetland", "lake", "river", "stream", "glacier", "beach"]:
-                return None  # Skip sites with natural features that are not desired
+                if natural in ["water", "wetland", "lake", "river", "stream", "glacier", "beach"]:
+                    return None  # Skip sites with natural features that are not desired
 
-            site.update({
-                'category': category,
-                'area_name': area_name,
-                'highway': highway,
-                'landuse': landuse,
-                'natural': natural
-            })
-            return site
+                site.update({
+                    'category': category,
+                    'area_name': area_name,
+                    'highway': highway,
+                    'landuse': landuse,
+                    'natural': natural
+                })
+                return site
+            except Exception as e:
+                print(f"Error processing site at ({site['latitude']}, {site['longitude']}): {e}")
+                return None
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Determine the number of workers, defaulting to the number of CPU cores if not provided
+        if max_workers is None:
+            max_workers = multiprocessing.cpu_count()
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_site = {executor.submit(process_site, site): site for site in self.sites}
             results = []
             for future in as_completed(future_to_site):
