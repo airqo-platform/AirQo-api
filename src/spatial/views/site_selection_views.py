@@ -3,7 +3,6 @@ from models.site_selection_model import SensorDeployment
 
 app = Flask(__name__)
 # Assuming the classes SiteCategoryModel and SensorDeployment are already defined above or imported
- 
 class SiteSelectionView:
     @staticmethod
     def site_selection():
