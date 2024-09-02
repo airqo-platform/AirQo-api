@@ -132,7 +132,7 @@ class SensorDeployment:
                 })
                 return site
             except Exception as e:
-                print(f"Error processing site at ({site['latitude']}, {site['longitude']}): {e}")
+             #   print(f"Error processing site at ({site['latitude']}, {site['longitude']}): {e}")
                 return None
 
         # Determine the number of workers, defaulting to the number of CPU cores if not provided
