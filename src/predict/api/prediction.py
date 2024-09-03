@@ -4,9 +4,6 @@ from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 from flask import current_app
 
-
-
-
 import routes
 
 from app import cache
@@ -29,13 +26,16 @@ from helpers import (
     read_faulty_devices,
     get_faults_cache_key,
     add_forecast_health_tips,
+    get_pm2_5_by_coordinates,
+    get_pm2_5_by_city
 )
-
+from app import api
 load_dotenv()
 
 ml_app = Blueprint("ml_app", __name__)
-api = Api()
-api.init_app(ml_app)
+
+#TODO: intializing restx
+#TODO: data validtion
 
 @api.route(routes.route['fetch_faulty_devices'])
 class FetchFaultyDevices(Resource):
@@ -44,7 +44,6 @@ class FetchFaultyDevices(Resource):
         # print("this is result",'-'*50)
         try:
             result = read_faulty_devices()
-            
             if len(result) == 0:
                 return (
                     jsonify(
@@ -342,15 +341,21 @@ class ParishPredictions(Resource):
     
 
 #TODO write an api to retrieve model predictions 
-
+import datetime
 @api.route(routes.route['predict_pm2_5'])
 class PM2_5Prediction(Resource):
     def get(self):
         try:
-            latitude = float(request.args.get('latitude')),None
-            longitude = float(request.args.get('longitude')),None
+            latitude = float(request.args.get('latitude'))
+            longitude = float(request.args.get('longitude'))
+            city = float(request.args.get('city'))
+            date = datetime.datetime(request.args.get('date'))
             if latitude and longitude:
-                preds = get_predictions_by_geo_coordinates_v2(latitude,longitude)
+                preds = get_pm2_5_by_coordinates((latitude,longitude))
+                if len(preds) <= 0 :
+                    return {'message':'No forcasts available.'}
+            elif city:
+                preds = get_pm2_5_by_city(city)
             else:
                 return {
                     'message':"no arguments are specified",
@@ -360,4 +365,3 @@ class PM2_5Prediction(Resource):
             return {'message':str(e),'sucess':False}
         return {'forcasts':preds,'message':"pm2.5 forcasts retrieved","sucess":True}
     
-

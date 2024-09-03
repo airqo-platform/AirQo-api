@@ -19,7 +19,7 @@ db = connect_mongo()
 
 
 def date_to_str(date: datetime):
-    return date.isoformat()
+    return date.isoformat() 
 
 
 # Ensure these are updated when the API query parameters are changed
@@ -419,3 +419,26 @@ def add_forecast_health_tips(results: dict, language: str = ""):
             ]
 
     return results
+
+
+def get_pm2_5_by_coordinates(coordinates:tuple[float],date:datetime):
+    if not coordinates:
+        raise ValueError("coordinates aren't specified")
+    predictions = db.forcasts
+    query = [{'$match':
+              {'date':{'$gte':date},
+              'coordinates':{'$eq':coordinates}
+              }
+              }]
+    data = [prediction for prediction in predictions.find(query)]
+    return data
+
+def get_pm2_5_by_city(city:str,date:datetime):
+    predictions = db.forcasts
+    query = [{'$match':
+              {'date':{'$gte':date},
+              'city':{'$eq':city}
+              }
+              }]
+    data = [prediction for prediction in predictions.find(query)]
+    return data
