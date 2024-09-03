@@ -1,10 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const createPreferenceController = require("@controllers/create-preference");
-const { check, oneOf, query, body, param } = require("express-validator");
+const { oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+// const { logText, logObject } = require("@utils/log");
+const isEmpty = require("is-empty");
+// const stringify = require("@utils/stringify");
 
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -26,6 +29,7 @@ const headers = (req, res, next) => {
 
 function validateSelectedSitesField(value) {
   const requiredFields = [
+    "_id",
     "latitude",
     "longitude",
     "search_name",
@@ -39,7 +43,6 @@ function validateSelectedSitesField(value) {
     return false;
   }
 
-  // Validate numeric fields
   function validateNumericFields(fields) {
     let isValid = true;
 
@@ -73,7 +76,6 @@ function validateSelectedSitesField(value) {
     return isValid;
   }
 
-  // Validate string fields
   function validateStringFields(fields) {
     let isValid = true;
     fields.forEach((field) => {
@@ -85,25 +87,29 @@ function validateSelectedSitesField(value) {
     return isValid;
   }
 
-  // Validate tags array
   function validateTags(tags) {
-    if (!Array.isArray(tags)) {
+    if (isEmpty(tags)) {
+      return true;
+    } else if (!Array.isArray(tags)) {
       return false;
+    } else {
+      return tags.every((tag) => typeof tag === "string");
     }
-    return tags.every((tag) => typeof tag === "string");
   }
 
-  // Combine validations
-  return (
-    validateNumericFields([
-      "latitude",
-      "longitude",
-      "approximate_latitude",
-      "approximate_longitude",
-    ]) &&
-    validateStringFields(["name", "search_name"]) &&
-    validateTags(value.site_tags)
-  );
+  const numericValid = validateNumericFields([
+    "latitude",
+    "longitude",
+    "approximate_latitude",
+    "approximate_longitude",
+  ]);
+
+  const stringValid = validateStringFields(["name", "search_name"]);
+
+  const tags = value && value.site_tags;
+  const tagValid = validateTags(tags);
+
+  return numericValid && stringValid && tagValid;
 }
 
 router.use(headers);
