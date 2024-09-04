@@ -371,6 +371,7 @@ const dbProjections = {
     group: 1,
     category: 1,
     cohorts: 1,
+    grids: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },
