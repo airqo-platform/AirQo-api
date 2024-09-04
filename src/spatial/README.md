@@ -31,7 +31,7 @@
 python main.py
 flask run
 
-### API token
+### The API token
 
 Create an API token from https://platform.airqo.net/settings
 The process is highlighted here: https://docs.airqo.net/airqo-rest-api-documentation
