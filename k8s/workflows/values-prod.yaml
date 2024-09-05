@@ -8,10 +8,11 @@ serviceAccountName: airflow-sa
 images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
+    redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
   tag: prod-14339b32-1725456565
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
@@ -35,10 +36,17 @@ ingress:
   enabled: false
 service:
   type: NodePort
-  port: 8080
-  protocol: TCP
-  targetPort: 8080
-  nodePort: 30036
+  ports:
+    - name: web-server
+      port: 8080
+      targetPort: 8080
+      nodePort: 30036
+      protocol: TCP
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 30079
+      protocol: TCP
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
