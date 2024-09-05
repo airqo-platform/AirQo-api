@@ -112,7 +112,7 @@ spec:
         - name: '{{ .Values.app.name }}-redis'
           image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
-          {{- $redisPort := include "getTargetPortByName" (list . "redis") }}
+          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: redis
