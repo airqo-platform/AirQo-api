@@ -1935,8 +1935,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject:
-          "AirQo Analytics: Post-Activity Notification for Device Management Actions",
+        subject: "AirQo Analytics: Monitor Deployment/Recall Alert",
         html: `${msgs.site_activity({
           firstName,
           lastName,
