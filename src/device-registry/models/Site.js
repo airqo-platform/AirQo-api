@@ -12,8 +12,32 @@ const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
 
+const categorySchema = new Schema(
+  {
+    area_name: { type: String },
+    category: { type: String },
+    highway: { type: String },
+    landuse: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    natural: { type: String },
+    search_radius: { type: Number },
+    waterway: { type: String },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+  },
+  {
+    _id: false,
+  }
+);
+
 const siteSchema = new Schema(
   {
+    site_category: { type: categorySchema },
     name: {
       type: String,
       trim: true,
@@ -399,6 +423,7 @@ siteSchema.methods = {
       _id: this._id,
       grids: this.grids,
       name: this.name,
+      site_category: this.site_category,
       visibility: this.visibility,
       generated_name: this.generated_name,
       search_name: this.search_name,
@@ -485,6 +510,7 @@ siteSchema.statics = {
         delete data.airqlouds;
         delete data.site_tags;
         delete data.nearest_tahmo_station;
+        delete data.weather_stations;
         return {
           success: true,
           data,

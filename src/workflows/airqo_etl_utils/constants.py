@@ -5,16 +5,20 @@ from enum import Enum
 class DeviceCategory(Enum):
     """
     LOW_COST -> Reference monitors
-    BAM -> Low cost senors
+    BAM -> Low cost sensors
+    GAS -> GASEOUS sensors
     """
 
     LOW_COST = 1
     BAM = 2
+    LOW_COST_GAS = 3
     NONE = 20
 
     def __str__(self):
         if self == self.BAM:
             return "bam"
+        elif self == self.LOW_COST_GAS:
+            return "gas"
         else:
             return "lowcost"
 
@@ -22,6 +26,8 @@ class DeviceCategory(Enum):
     def from_str(string: str):
         if string.lower() == str(DeviceCategory.BAM):
             return DeviceCategory.BAM
+        elif string.lower() == str(DeviceCategory.LOW_COST_GAS):
+            return DeviceCategory.LOW_COST_GAS
         else:
             return DeviceCategory.LOW_COST
 
@@ -302,7 +308,10 @@ class DataType(Enum):
     CLEAN_BAM_DATA = 1
     UNCLEAN_LOW_COST_DATA = 2
     CLEAN_LOW_COST_DATA = 3
+    # TODO investigate numbering
     AGGREGATED_LOW_COST_DATA = 3
+    UNCLEAN_LOW_COST_GASEOUS_DATA = 5
+    CLEAN_LOW_COST_GASEOUS_DATA = 6
 
 
 class CityModel(Enum):
