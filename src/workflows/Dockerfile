@@ -45,12 +45,20 @@ FROM base-builder as webserver
 USER airflow
 CMD ["airflow", "webserver"]
 
-FROM base-builder as worker
+
+# As of Airflow 2.7.0, you need to install the celery provider package to use this executor.
+# This can be done by installing apache-airflow-providers-celery>=3.3.0 or by installing 
+# Airflow with the celery extra: pip install 'apache-airflow[celery]'
+FROM base-builder as celery
 USER airflow
-CMD ["celery", "worker", "--autoscale=10,3"]
+CMD ["celery", "worker", "--autoscale=8,3"]
 
 FROM base-builder as deployment
 USER airflow
+
+FROM redis:7.2-bookworm as redis
+USER root
+CMD ["redis-server"]
 
 FROM base-builder as xcom-setup
 USER root

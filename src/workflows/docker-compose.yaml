@@ -13,8 +13,6 @@ x-common-data: &common-data
     LOAD_EX: n
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@db:5432/postgres
     AIRFLOW__WEBSERVER__SECRET_KEY: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
@@ -30,6 +28,10 @@ x-common-data: &common-data
     AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
     AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
     PYTHONPATH: /etc/airflow_xcom
+    #Celery
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@db:5432/postgres
+    AIRFLOW__CELERY__WORKER_UMASK: 027
 
   volumes:
     - ${PWD}/meta_data/google_application_credentials.json:/etc/config/google_application_credentials.json
@@ -121,10 +123,10 @@ services:
 
   airflow-worker:
     <<: *common-data
-    container_name: worker
+    container_name: celery-worker
     build:
       context: .
-      target: worker
+      target: celery
     healthcheck:
       test:
         - "CMD-SHELL"
