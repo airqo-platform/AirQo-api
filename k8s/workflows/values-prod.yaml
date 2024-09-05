@@ -40,7 +40,7 @@ service:
     - name: web-server
       port: 8080
       targetPort: 8080
-      nodePort: 30080
+      nodePort: 30036
       protocol: TCP
     - name: redis-server
       port: 6379
