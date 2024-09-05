@@ -76,9 +76,9 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }} 
+                name: {{ .Values.app.configmap }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=8,3"]         
+          args: ["celery", "worker", "--autoscale=8,3"]
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
@@ -112,7 +112,7 @@ spec:
         - name: '{{ .Values.app.name }}-redis'
           image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
-          {{- $redisPort := include "getTargetPortByName" (list . "redis") }}
+          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: redis
