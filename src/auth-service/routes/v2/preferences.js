@@ -52,7 +52,7 @@ function validateSelectedSitesField(value) {
         return;
       }
       const numValue = parseFloat(value[field]);
-      if (isNaN(numValue)) {
+      if (Number.isNaN(numValue)) {
         isValid = false;
         return;
       } else if (
