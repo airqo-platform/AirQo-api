@@ -11,16 +11,16 @@ images:
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
   tag: stage-af031d45-1725608963
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
-    cpu: 1500m
+    cpu: 2000m
     memory: 4500Mi
   requests:
-    cpu: 150m
-    memory: 1400Mi
+    cpu: 1000m
+    memory: 2000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
