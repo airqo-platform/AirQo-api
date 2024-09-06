@@ -6,14 +6,24 @@ metadata:
   namespace: {{ .Values.app.namespace }}
 spec:
   type: {{ .Values.service.type }}
-  {{- $webSvcPort := include "getPortByName" (list . "webserver") }}
-  {{- $webTargetPort := include "getTargetPortByName" (list . "webserver") }}
-  {{- $webNodePort := include "getNodePortByName" (list . "webserver") }}
-  {{- $webProtocol := include "getProtocolBySvcName" (list . "webserver") }}
+  {{- $webSvcPort := include "getPortByName" (list . "web-server") }}
+  {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
+  {{- $webNodePort := include "getNodePortByName" (list . "web-server") }}
+  {{- $webProtocol := include "getProtocolBySvcName" (list . "web-server") }}
+  {{- $redisSvcPort := include "getPortByName" (list . "redis-server") }}
+  {{- $redisTargetPort := include "getTargetPortByName" (list . "redis-server") }}
+  {{- $redisNodePort := include "getNodePortByName" (list . "redis-server") }}
+  {{- $redisProtocol := include "getProtocolBySvcName" (list . "redis-server") }}
   ports:
-    - port: {{ $webSvcPort }}
+    - name: web-server 
+      port: {{ $webSvcPort }}
       targetPort: {{ $webTargetPort }}
       protocol: {{ $webProtocol }}
       nodePort: {{ $webNodePort }}
+    - name: redis-server 
+      port: {{ $redisSvcPort }}
+      targetPort: {{ $redisTargetPort }}
+      protocol: {{ $redisProtocol }}
+      nodePort: {{ $redisNodePort }}
   selector:
     app: {{ .Values.app.label }}
