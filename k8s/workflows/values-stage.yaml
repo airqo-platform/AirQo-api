@@ -27,14 +27,14 @@ resources:
       cpu: 50m
       memory: 500Mi
     limits:
-      cpu: 500m
+      cpu: 1000m
       memory: 2000Mi
   celery:
     requests:
       cpu: 50m
       memory: 100Mi
     limits:
-      cpu: 500m
+      cpu: 1000m
       memory: 2000Mi
   redis:
     requests:
