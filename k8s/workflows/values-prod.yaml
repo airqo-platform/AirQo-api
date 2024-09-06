@@ -34,14 +34,14 @@ resources:
       cpu: 50m
       memory: 100Mi
     limits:
-      cpu: 250m
+      cpu: 1000m
       memory: 3000Mi
   redis:
     requests:
       cpu: 50m
       memory: 100Mi
     limits:
-      cpu: 250m
+      cpu: 1000m
       memory: 2000Mi
 volumeMounts:
   - name: config-volume
