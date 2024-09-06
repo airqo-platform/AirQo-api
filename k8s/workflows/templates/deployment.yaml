@@ -114,7 +114,7 @@ spec:
           imagePullPolicy: IfNotPresent
           {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
+            - containerPort: {{ $redisPort}}
               name: redis
           envFrom:
             - configMapRef:
