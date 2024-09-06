@@ -11,7 +11,7 @@ spec:
   {{- $webNodePort := include "getNodePortByName" (list . "webserver") }}
   {{- $webProtocol := include "getProtocolBySvcName" (list . "webserver") }}
   ports:
-    - port: {{ $webPort }}
+    - port: {{ $webSvcPort }}
       targetPort: {{ $webTargetPort }}
       protocol: {{ $webProtocol }}
       nodePort: {{ $webNodePort }}
