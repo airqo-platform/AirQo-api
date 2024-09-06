@@ -13,7 +13,7 @@ spec:
   {{- $redisSvcPort := include "getPortByName" (list . "redis-server") }}
   {{- $redisTargetPort := include "getTargetPortByName" (list . "redis-server") }}
   {{- $redisNodePort := include "getNodePortByName" (list . "redis-server") }}
-  {{- $redisProtocol := include "getProtocolBySvcName" (list . redis-server") }}
+  {{- $redisProtocol := include "getProtocolBySvcName" (list . "redis-server") }}
   ports:
     - name: web-server 
       port: {{ $webSvcPort }}
