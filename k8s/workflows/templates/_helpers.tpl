@@ -60,3 +60,59 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Added to get specific service ports
+*/}}
+
+{{/*
+Get targetPort(8080) by name.
+*/}}
+{{- define "getTargetPortByName" -}}
+{{- $context := index . 0 -}}
+{{- $targetPortName := index . 1 -}}
+{{- range $context.Values.service.ports -}}
+  {{- if eq .name $targetPortName -}}
+    {{- .targetPort -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get port(80) by name
+*/}}
+{{- define "getPortByName" -}}
+{{- $context := index . 0 -}}
+{{- $portName := index . 1 -}}
+{{- range $context.Values.service.ports -}}
+  {{- if eq .name $portName -}}
+    {{- .port -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get node port(30080) by name
+*/}}
+{{- define "getNodePortByName" -}}
+{{- $context := index . 0 -}}
+{{- $nodePortName := index . 1 -}}
+{{- range $context.Values.service.ports -}}
+  {{- if eq .name $nodePortName -}}
+    {{- .nodePort -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Get protocol by service name
+*/}}
+{{- define "getProtocolBySvcName" -}}
+{{- $context := index . 0 -}}
+{{- $protocol := index . 1 -}}
+{{- range $context.Values.service.ports -}}
+  {{- if eq .name $protocol -}}
+    {{- .protocol -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}

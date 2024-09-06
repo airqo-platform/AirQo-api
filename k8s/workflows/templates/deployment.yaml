@@ -71,11 +71,26 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        - name: '{{ .Values.app.name }}-celery'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }}
+          command: ["airflow"]
+          args: ["celery", "worker", "--autoscale=8,3"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
         - name: '{{ .Values.app.name }}-webserver'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
+          {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
+            - containerPort: {{ $webTargetPort }}
               name: {{ .Values.app.label }}
           envFrom:
             - configMapRef:
@@ -86,13 +101,36 @@ spec:
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          resources: {}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           readinessProbe:
             initialDelaySeconds: 120
             timeoutSeconds: 120
             httpGet:
               path: /workflows/health
-              port: 8080
+              port: {{ $webTargetPort }}
+        - name: '{{ .Values.app.name }}-redis'
+          image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: redis
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }} 
+          command: ["redis-server"]         
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            tcpSocket:
+              port: {{ $redisPort }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
