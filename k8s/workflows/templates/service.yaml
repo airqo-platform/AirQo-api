@@ -8,7 +8,7 @@ spec:
   type: {{ .Values.service.type }}
   {{- $webSvcPort := include "getPortByName" (list . "web-server") }}
   {{- $webTargetPort := include "getTargetPortByName" (list . "web-server") }}
-  {{- $webNodePort := include "getNodePortByName" (list . "webs-erver") }}
+  {{- $webNodePort := include "getNodePortByName" (list . "web-server") }}
   {{- $webProtocol := include "getProtocolBySvcName" (list . "web-server") }}
   {{- $redisSvcPort := include "getPortByName" (list . "redis-server") }}
   {{- $redisTargetPort := include "getTargetPortByName" (list . "redis-server") }}
