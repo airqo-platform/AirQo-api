@@ -22,7 +22,7 @@ class SatelliteUtils:
         return ee.Feature(None, image.reduceRegion(
             reducer=ee.Reducer.mean(),
             geometry=aoi,
-            scale=1000
+            scale=1000 #TODO: Review this, possibly a need for custom scales.
         ).set('date', image.date().format('YYYY-MM-dd')))
 
     @staticmethod
