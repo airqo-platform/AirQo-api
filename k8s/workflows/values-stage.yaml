@@ -17,24 +17,24 @@ podAnnotations: {}
 resources:
   webserver:
     requests:
-      cpu: 500m
+      cpu: 125m
       memory: 500Mi
     limits:
       cpu: 1000m
       memory: 1000Mi
   scheduler:
     requests:
-      cpu: 50m
+      cpu: 125m
       memory: 500Mi
     limits:
       cpu: 1000m
       memory: 2000Mi
   celery:
     requests:
-      cpu: 500m
+      cpu: 125m
       memory: 500Mi
     limits:
-      cpu: 3000m
+      cpu: 2000m
       memory: 3000Mi
   redis:
     requests:
