@@ -484,23 +484,9 @@ deviceSchema.statics = {
           as: "cohorts",
         })
         .lookup({
-          from: "sites",
-          let: { siteId: "$site._id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: ["$_id", "$site_id"],
-                },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                grids: 1,
-              },
-            },
-          ],
+          from: "grids",
+          localField: "site.grids",
+          foreignField: "_id",
           as: "grids",
         })
         .sort({ createdAt: -1 })
