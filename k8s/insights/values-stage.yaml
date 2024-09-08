@@ -3,13 +3,13 @@ nameOverride: ''
 fullnameOverride: ''
 images:
   repositories:
-    api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-    celery: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery
+    api: eu.gcr.io/airqo-250220/airqo-stage-insights-api
+    celery: eu.gcr.io/airqo-250220/airqo-stage-insights-celery
   tag: stage-5c6990cd-1719227902
 api:
-  name: airqo-stage-analytics-api
+  name: airqo-stage-insights-api
   label: sta-alytics-api
-  configmap: env-analytics-staging
+  configmap: env-insights-staging
   replicaCount: 2
   podAnnotations: {}
   resources:
@@ -25,7 +25,7 @@ volumeMounts:
 volumes:
   - name: config-volume
     configMap:
-      name: stage-analytics-config-files
+      name: stage-insights-config-files
 service:
   type: NodePort
   port: 5000

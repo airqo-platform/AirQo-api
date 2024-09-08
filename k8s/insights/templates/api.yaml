@@ -4,7 +4,7 @@ metadata:
   name: {{ .Values.api.name }}
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "airqo-analytics.labels" . | nindent 4 }}
+    {{- include "airqo-insights.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:

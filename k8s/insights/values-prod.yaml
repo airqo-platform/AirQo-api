@@ -3,17 +3,14 @@ nameOverride: ''
 fullnameOverride: ''
 images:
   repositories:
-    api: eu.gcr.io/airqo-250220/airqo-analytics-api
-    celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
-    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
+    api: eu.gcr.io/airqo-250220/airqo-insights-api
+    celery: eu.gcr.io/airqo-250220/airqo-insights-celery
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-insights-celery-worker
   tag: prod-14339b32-1725456565
 api:
-  name: airqo-analytics-api
-  label: analytics-api
-  configmap: env-analytics-production
+  name: airqo-insights-api
+  label: insights-api
+  configmap: env-insights-production
   replicaCount: 3
   podAnnotations: {}
   resources:
@@ -29,7 +26,7 @@ volumeMounts:
 volumes:
   - name: config-volume
     configMap:
-      name: prod-analytics-config-files
+      name: prod-insights-config-files
 service:
   type: NodePort
   port: 5000
