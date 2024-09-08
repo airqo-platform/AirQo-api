@@ -1,9 +1,9 @@
 import os
+
 from datetime import datetime
 from pathlib import Path
-
-from decouple import config as env_var
 from dotenv import load_dotenv
+from decouple import config as env_var
 from flasgger import LazyString
 
 env_path = Path(".") / ".env"
@@ -11,12 +11,15 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-API_BASE_URL = "/api/v2/analytics"
+API_V2_BASE_URL = "/api/v2/insights"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
 
 class Config:
+    DEBUG = False
+    TESTING = False
+    CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
     AIRQO_API_BASE_URL = env_var("AIRQO_API_BASE_URL")
     GRID_URL = os.getenv("GRID_URL_ID")
@@ -73,7 +76,7 @@ class Config:
         "ui_params_text": """{
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
         }""",
-        "url_prefix": f"{API_BASE_URL}",
+        "url_prefix": f"{API_V2_BASE_URL}",
     }
 
 
@@ -86,8 +89,8 @@ class ProductionConfig(Config):
 
 
 class DevelopmentConfig(Config):
+    DEVELOPMENT = True
     DEBUG = True
-    TESTING = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
     DB_NAME = env_var("MONGO_DEV")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
@@ -95,8 +98,8 @@ class DevelopmentConfig(Config):
 
 
 class TestingConfig(Config):
-    DEBUG = True
     TESTING = True
+    DEBUG = True
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
@@ -109,4 +112,7 @@ config = {
     "staging": TestingConfig,
     "production": ProductionConfig,
 }
+
+print(f"app running - {APP_ENV.upper()} mode")
+
 CONFIGURATIONS = config[APP_ENV]
