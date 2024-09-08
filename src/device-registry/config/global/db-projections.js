@@ -371,6 +371,7 @@ const dbProjections = {
     group: 1,
     category: 1,
     cohorts: 1,
+    grids: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },
@@ -485,6 +486,15 @@ const dbProjections = {
       "cohorts.createdAt": 0,
       "cohorts.updatedAt": 0,
       "cohorts.__v": 0,
+      "grids.shape": 0,
+      "grids.grid_tags": 0,
+      "grids.grid_codes": 0,
+      "grids.centers": 0,
+      "grids.sites": 0,
+      "grids.createdAt": 0,
+      "grids.updatedAt": 0,
+      "grids.__v": 0,
+      "grids.network": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
