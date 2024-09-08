@@ -888,19 +888,19 @@ jobs:
           push: true
           context: src/insights/
           target: celery
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery-worker:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/analytics/values-prod.yaml"
+            valueFile: "k8s/insights/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update insights production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
