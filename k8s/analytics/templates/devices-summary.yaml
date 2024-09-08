@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.jobs.devicesSummaryJob.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 4 * * *" # Every day at 4am
+  suspend: false
+  jobTemplate:
+    metadata:
+      name: {{ .Values.jobs.devicesSummaryJob.name }}
+    spec:
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+          containers:
+            - name: {{ .Values.jobs.devicesSummaryJob.name }}
+              image: "{{ .Values.images.repositories.devicesSummaryJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.jobs.devicesSummaryJob.configmap }} 
+              resources:
+                {{- toYaml .Values.api.resources | nindent 16 }}
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
