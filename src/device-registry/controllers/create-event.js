@@ -2336,7 +2336,7 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.metadata = "device_id";
+      request.query.metadata = "site_id";
       request.query.brief = "yes";
       request.query.recent = "yes";
       const { cohort_id } = { ...req.query, ...req.params };
