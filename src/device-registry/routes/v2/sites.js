@@ -1,28 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const siteController = require("@controllers/create-site");
-const { check, oneOf, query, body, param } = require("express-validator");
+const { oneOf, query, body } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("@utils/create-site");
-const { logElement, logText, logObject } = require("@utils/log");
-const isEmpty = require("is-empty");
+const { logText, logObject } = require("@utils/log");
 const decimalPlaces = require("decimal-places");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
 
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
@@ -61,6 +47,55 @@ const headers = (req, res, next) => {
     next(); // Continue to the next middleware for non-preflight requests
   }
 };
+
+function validateCategoryField(value) {
+  const requiredFields = ["category", "search_radius", "tags"];
+
+  // Check if all required fields exist
+  if (!requiredFields.every((field) => field in value)) {
+    return false;
+  }
+
+  // Validate numeric fields
+  const numericFields = ["latitude", "longitude", "search_radius"];
+  let isValid = true;
+
+  numericFields.forEach((field) => {
+    if (!(field in value)) {
+      isValid = false;
+      return;
+    }
+    const numValue = parseFloat(value[field]);
+    if (isNaN(numValue)) {
+      isValid = false;
+      return;
+    } else if (field === "latitude" || field === "longitude") {
+      if (Math.abs(numValue) > 90) {
+        isValid = false;
+        return;
+      }
+    } else if (field === "search_radius") {
+      if (numValue <= 0) {
+        isValid = false;
+        return;
+      }
+    }
+  });
+
+  // Validate tags array
+  if ("tags" in value && !Array.isArray(value.tags)) {
+    return false;
+  }
+  value.tags.forEach((tag) => {
+    if (typeof tag !== "string" || tag.trim() === "") {
+      return false;
+    }
+  });
+
+  // All validations passed
+  return isValid;
+}
+
 router.use(headers);
 router.use(validatePagination);
 
@@ -80,7 +115,6 @@ router.get(
   ]),
   siteController.list
 );
-
 router.get(
   "/summary",
   oneOf([
@@ -96,7 +130,6 @@ router.get(
   ]),
   siteController.listSummary
 );
-
 router.get("/weather", siteController.listWeatherStations);
 router.get(
   "/weather/nearest",
@@ -144,7 +177,6 @@ router.get(
   ]),
   siteController.listNearestWeatherStation
 );
-
 router.get(
   "/airqlouds/",
   oneOf([
@@ -263,6 +295,15 @@ router.post(
         .withMessage(
           "The name should be greater than 5 and less than 50 in length"
         ),
+      body("site_tags")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the site_tags should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the site_tags should not be empty"),
       body("airqlouds")
         .optional()
         .custom((value) => {
@@ -276,11 +317,16 @@ router.post(
         .optional()
         .isMongoId()
         .withMessage("each airqloud should be a mongo ID"),
+      body("site_category")
+        .optional()
+        .custom(validateCategoryField)
+        .withMessage(
+          "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+        ),
     ],
   ]),
   siteController.register
 );
-
 router.post(
   "/metadata",
   oneOf([
@@ -333,7 +379,6 @@ router.post(
   ]),
   siteController.generateMetadata
 );
-
 router.put(
   "/",
   oneOf([
@@ -629,6 +674,15 @@ router.put(
         .notEmpty()
         .withMessage("the data_provider should not be empty")
         .trim(),
+      body("site_tags")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the site_tags should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the site_tags should not be empty"),
       body("airqlouds")
         .optional()
         .custom((value) => {
@@ -642,6 +696,12 @@ router.put(
         .optional()
         .isMongoId()
         .withMessage("each airqloud should be a mongo ID"),
+      body("site_category")
+        .optional()
+        .custom(validateCategoryField)
+        .withMessage(
+          "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+        ),
     ],
   ]),
   siteController.update
@@ -692,7 +752,6 @@ router.put(
   ]),
   siteController.refresh
 );
-
 router.delete(
   "/",
   oneOf([

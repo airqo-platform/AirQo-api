@@ -1,7 +1,7 @@
 name: deploy-apis-to-production
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - master
     types:
@@ -354,7 +354,7 @@ jobs:
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
       - name: Set up GCP credentials and Kubernetes configmaps
-        run : |
+        run: |
           gcloud secrets versions access latest --secret="prod-env-kafka-bigquery-connectors" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-kafka-bigquery-connectors" > google_application_credentials.json
@@ -449,6 +449,14 @@ jobs:
           context: src/workflows
           target: deployment
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-workflows:latest
+
+      - name: Build and push Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: redis
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-redis:latest
 
       - name: Build and push XCom
         uses: docker/build-push-action@v4.1.1
@@ -737,7 +745,6 @@ jobs:
           cd src/data-proxy/
           gcloud secrets versions access latest --secret="prod-env-data-proxy" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-proxy-api-config | kubectl replace -f - -n production
-
 
   ### analytics ###
   analytics:
@@ -1414,7 +1421,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-calibrate-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-calibrate-api-config-files | kubectl replace -f - -n production
 
-
   ### predict api and jobs ###
   predict-service:
     name: build-push-deploy-predict-service
@@ -1469,7 +1475,7 @@ jobs:
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
-            
+
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
         with:
@@ -1490,7 +1496,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-production | kubectl replace -f - -n production
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
-
 
   ### incentives ###
   incentives:
@@ -1604,7 +1609,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/spatial-service/values-prod.yaml"
+            valueFile: "k8s/spatial/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -1625,4 +1630,4 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-spatial" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-spatial-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-spatial-api-config-files | kubectl replace -f - -n production        
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-spatial-api-config-files | kubectl replace -f - -n production

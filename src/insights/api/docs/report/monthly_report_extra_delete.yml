@@ -1,0 +1,25 @@
+Example endpoint for deleting monthly report
+---
+tags: [Report]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: report_name
+    in: path
+    required: true
+    type: string
+responses:
+  200:
+    description: A successful deletion of monthly report
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: monthly report {report_name} deleted successfully

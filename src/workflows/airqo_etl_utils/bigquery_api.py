@@ -10,6 +10,8 @@ from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
 from .utils import Utils
 
+from typing import List
+
 
 class BigQueryApi:
     def __init__(self):
@@ -156,56 +158,48 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-        self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
-    ) -> list:
-        if (
-            table == self.hourly_measurements_table
-            or table == self.daily_measurements_table
-        ):
-            schema_file = "measurements.json"
-        elif table == self.raw_measurements_table:
-            schema_file = "raw_measurements.json"
-        elif table == self.hourly_weather_table or table == self.raw_weather_table:
-            schema_file = "weather_data.json"
-        elif table == self.latest_measurements_table:
-            schema_file = "latest_measurements.json"
-        elif table == self.consolidated_data_table:
-            schema_file = "data_warehouse.json"
-        elif table == self.airqlouds_table:
-            schema_file = "airqlouds.json"
-        elif table == self.airqlouds_sites_table:
-            schema_file = "airqlouds_sites.json"
-        elif table == self.grids_table:
-            schema_file = "grids.json"
-        elif table == self.cohorts_table:
-            schema_file = "cohorts.json"
-        elif table == self.grids_sites_table:
-            schema_file = "grids_sites.json"
-        elif table == self.cohorts_devices_table:
-            schema_file = "cohorts_devices.json"
-        elif table == self.sites_table:
-            schema_file = "sites.json"
-        elif table == self.sites_meta_data_table:
-            schema_file = "sites_meta_data.json"
+        self, table: str = "all", column_type: ColumnDataType = ColumnDataType.NONE
+    ) -> List[str]:
+        """
+        Retrieves a list of columns that match a schema of a given table and or match data type as well. The schemas should match the tables in bigquery.
 
-        elif table == self.sensor_positions_table:
-            schema_file = "sensor_positions.json"
-        elif table == self.devices_table:
-            schema_file = "devices.json"
-        elif (
-            table == self.clean_mobile_raw_measurements_table
-            or table == self.unclean_mobile_raw_measurements_table
-        ):
-            schema_file = "mobile_measurements.json"
-        elif table == self.airqo_mobile_measurements_table:
-            schema_file = "airqo_mobile_measurements.json"
-        elif table == self.bam_measurements_table:
-            schema_file = "bam_measurements.json"
-        elif table == self.raw_bam_measurements_table:
-            schema_file = "bam_raw_measurements.json"
-        elif table == "all":
-            schema_file = None
-        else:
+        Args:
+            table(project.data_set.table): Data asset name as appears in bigquery.
+            column_type: One of the predetermined ColumnDataType Enums
+
+        Returns:
+            A list of column names that match the passed specifications.
+        """
+        # TODO Find an approach that pushes this mapping to config or make it more dynamic
+        schema_mapping = {
+            self.hourly_measurements_table: "measurements.json",
+            self.daily_measurements_table: "measurements.json",
+            self.raw_measurements_table: "raw_measurements.json",
+            self.hourly_weather_table: "weather_data.json",
+            self.raw_weather_table: "weather_data.json",
+            self.latest_measurements_table: "latest_measurements.json",
+            self.consolidated_data_table: "data_warehouse.json",
+            self.airqlouds_table: "airqlouds.json",
+            self.airqlouds_sites_table: "airqlouds_sites.json",
+            self.grids_table: "grids.json",
+            self.cohorts_table: "cohorts.json",
+            self.grids_sites_table: "grids_sites.json",
+            self.cohorts_devices_table: "cohorts_devices.json",
+            self.sites_table: "sites.json",
+            self.sites_meta_data_table: "sites_meta_data.json",
+            self.sensor_positions_table: "sensor_positions.json",
+            self.devices_table: "devices.json",
+            self.clean_mobile_raw_measurements_table: "mobile_measurements.json",
+            self.unclean_mobile_raw_measurements_table: "mobile_measurements.json",
+            self.airqo_mobile_measurements_table: "airqo_mobile_measurements.json",
+            self.bam_measurements_table: "bam_measurements.json",
+            self.raw_bam_measurements_table: "bam_raw_measurements.json",
+            "all": None,
+        }
+
+        schema_file = schema_mapping.get(table)
+
+        if schema_file is None and table != "all":
             raise Exception("Invalid table")
 
         if schema_file:
@@ -229,21 +223,18 @@ class BigQueryApi:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
 
-            # with os.scandir(os.path.join("path", "schema")) as iterator:
-            #     for entry in iterator:
-            #         if entry.name.endswith(".json") and entry.is_file():
-            #
-            #             file_schema = Utils.load_schema(file_path=entry.path)
-            #             schema.extend(file_schema)
+        columns: List[str] = list(
+            set(
+                [
+                    column["name"]
+                    for column in schema
+                    if column_type == ColumnDataType.NONE
+                    or column["type"] == str(column_type)
+                ]
+            )
+        )
 
-        columns = []
-        if column_type != ColumnDataType.NONE:
-            for column in schema:
-                if column["type"] == str(column_type):
-                    columns.append(column["name"])
-        else:
-            columns = [column["name"] for column in schema]
-        return list(set(columns))
+        return columns
 
     def load_data(
         self,
@@ -668,6 +659,9 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def fetch_raw_readings(self) -> pd.DataFrame:
+        """
+        TODO: Document
+        """
         query = f"""
         SELECT DISTINCT 
         raw_device_data_table.timestamp AS timestamp,
@@ -687,22 +681,26 @@ class BigQueryApi:
             ORDER BY device_id, timestamp
            """
         # TODO: May need to review frequency
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        dataframe = self.client.query(f"{query}", job_config).result().to_dataframe()
         try:
-            if dataframe.empty:
-                raise Exception("No data found from bigquery")
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], utc=True)
-            dataframe = (
-                dataframe.groupby("device_id").resample("H", on="timestamp").mean()
-            )
-            dataframe.reset_index(inplace=True)
-            return dataframe
+            job_config = bigquery.QueryJobConfig()
+            job_config.use_query_cache = True
+            results = self.client.query(f"{query}", job_config).result().to_dataframe()
         except Exception as e:
             print(f"Error when fetching data from bigquery, {e}")
+        else:
+            if results.empty:
+                raise Exception("No data found from bigquery")
+            else:
+                results["timestamp"] = pd.to_datetime(results["timestamp"], utc=True)
+                num_cols = results.select_dtypes(include="number").columns
+                results = (
+                    results.groupby("device_id")
+                    .resample("H", on="timestamp")[num_cols]
+                    .mean()
+                )
+                results.reset_index(inplace=True)
+
+        return results
 
     #
     def fetch_data(

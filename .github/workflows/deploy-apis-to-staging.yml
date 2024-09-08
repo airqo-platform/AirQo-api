@@ -1,7 +1,7 @@
 name: deploy-apis-to-staging
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - staging
     types:
@@ -451,6 +451,14 @@ jobs:
           target: deployment
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-workflows:latest
 
+      - name: Build and push Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/workflows
+          target: redis
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-redis:latest
+
       - name: Build and push XCom
         uses: docker/build-push-action@v4.1.1
         with:
@@ -886,7 +894,6 @@ jobs:
           cd src/data-proxy/
           gcloud secrets versions access latest --secret="sta-env-data-proxy" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-proxy-api-config | kubectl replace -f - -n staging
-
 
   ### analytics ###
   analytics:
@@ -1632,4 +1639,3 @@ jobs:
 
       - name: Apply nginx changes
         run: kubectl apply -f k8s/nginx/staging/
-

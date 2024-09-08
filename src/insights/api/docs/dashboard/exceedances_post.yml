@@ -1,0 +1,65 @@
+Example endpoint for fetching exceedances data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: kcca
+  - name: body
+    in: body
+    type: object
+    properties:
+      pollutant:
+        type: string
+        example: pm2_5
+      standard:
+        type: string
+        example: aqi
+      startDate:
+        type: string
+        example: "2021-07-13T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-07-10T21:00:00.000Z"
+definitions:
+  ExceedanceResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: exceedance data successfully fetched
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/ExceedanceData'
+  ExceedanceData:
+    type: object
+    properties:
+      site:
+        type: object
+        properties:
+          name:
+            type: string
+            example: kampala central
+          generated_name:
+            type: string
+            example: site_5
+          description:
+            type: string
+            example: Kampala Central
+      total:
+        type: integer
+        example: 36
+      exceedance:
+        type: integer
+        example: 21
+responses:
+  200:
+    description: A successful retrieval of exceedances data
+    schema:
+      $ref: '#/definitions/ExceedanceResponse'

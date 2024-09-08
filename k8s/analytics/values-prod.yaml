@@ -5,7 +5,11 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
     celery: eu.gcr.io/airqo-250220/airqo-analytics-celery
-  tag: prod-c8f283f9-1720882119
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
+    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
+  tag: prod-14339b32-1725456565
 api:
   name: airqo-analytics-api
   label: analytics-api

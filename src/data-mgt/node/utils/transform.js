@@ -30,21 +30,20 @@ const transform = {
       );
     }
   },
-
   readRecentDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
       logObject("the request", request);
       const { channel, api_key, start, end, path } = request;
       if (isEmpty(start) && !isEmpty(end)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&end=${end}`;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&end=${end}`;
       } else if (isEmpty(end) && !isEmpty(start)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}`;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&start=${start}`;
       } else if (!isEmpty(end) && !isEmpty(start)) {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}&start=${start}&end=${end}`;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}&start=${start}&end=${end}`;
       } else if (!isEmpty(path) && path === "last") {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}`;
       } else {
-        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds/last.json?api_key=${api_key}`;
+        return `${constants.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?results=1&metadata=true&api_key=${api_key}`;
       }
     } catch (error) {
       logElement(
@@ -53,7 +52,6 @@ const transform = {
       );
     }
   },
-
   clean: (obj) => {
     logObject("the obj", obj);
     let trimmedValues = Object.entries(obj).reduce((acc, [key, value]) => {
@@ -182,6 +180,13 @@ const transform = {
       logElement("the getBamFieldLabel error", error.message);
     }
   },
+  getGasFieldLabel: (field) => {
+    try {
+      return constants.THINGSPEAK_GAS_FIELD_DESCRIPTIONS[field];
+    } catch (error) {
+      logElement("the getGasFieldLabel error", error.message);
+    }
+  },
   getFieldByLabel: (value) => {
     try {
       return Object.keys(constants.FIELDS_AND_LABELS).find(
@@ -197,6 +202,8 @@ const transform = {
         return constants.POSITIONS_AND_LABELS[position];
       } else if (deviceCategory === "reference") {
         return constants.BAM_POSITIONS_AND_LABELS[position];
+      } else if (deviceCategory === "gas") {
+        return constants.GAS_POSITIONS_AND_LABELS[position];
       } else {
         return {};
       }
@@ -212,7 +219,6 @@ const transform = {
       logElement("the getValuesFromString error", error.message);
     }
   },
-
   trasformFieldValues: async ({ otherData = "", deviceCategory = "" } = {}) => {
     try {
       let arrayValues = transform.getValuesFromString(otherData);
@@ -234,7 +240,6 @@ const transform = {
       logElement("the trasformFieldValues error", e.message);
     }
   },
-
   transformMeasurement: (measurement) => {
     try {
       const deviceCategory = measurement.field9
@@ -250,6 +255,9 @@ const transform = {
         } else if (deviceCategory === "lowcost") {
           logText("the device is a lowcost one");
           transformedField = transform.getFieldLabel(key);
+        } else if (deviceCategory === "gas") {
+          logText("the device is a gas one");
+          transformedField = transform.getGasFieldLabel(key);
         } else {
           logText("the device does not have a category/type");
           return {};

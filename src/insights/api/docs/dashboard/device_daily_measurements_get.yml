@@ -1,0 +1,115 @@
+Example endpoint for fetching device daily measurements
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+definitions:
+  DeviceDailyMeasurementResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: daily measurements successfully fetched
+      data:
+        type: object
+        properties:
+          average_pm25_values:
+            type: array
+            items:
+              type: float
+            example: [
+                85,
+                93,
+                89,
+                83,
+                71,
+                77,
+                101,
+                78,
+                88,
+                118,
+                87,
+                83,
+                90,
+                101,
+                96,
+                73,
+                90,
+                92,
+                86,
+                91,
+                84,
+                88,
+                79
+            ]
+          labels:
+            type: array
+            items:
+              type: string
+            example: [
+                "Wandegeya ",
+                "Kawala",
+                "Nakulabye",
+                "Kibuye I",
+                "Ggaba",
+                "Nakawa",
+                "Kisenyi II",
+                "Nsambya Central",
+                "Kazo Angola",
+                "Bwaise II",
+                "Nakasero II",
+                "Kiswa",
+                "Namirembe",
+                "Kyanja",
+                "Kamwokya II",
+                "Luzira",
+                "Komamboga",
+                "Kyebando",
+                "Naguru I",
+                "Kisenyi II",
+                "Kisugu",
+                " Mutundwe",
+                "Civic Centre"
+            ]
+          background_color:
+            type: array
+            items:
+              type: string
+            example: [
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000",
+                "#fe0000"
+            ]
+
+responses:
+  200:
+    description: A successful retrieval of device daily measurement data
+    schema:
+      $ref: '#/definitions/DeviceDailyMeasurementResponse'

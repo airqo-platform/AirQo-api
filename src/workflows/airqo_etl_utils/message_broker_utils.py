@@ -72,13 +72,16 @@ class MessageBrokerUtils:
 
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
+        """
+        Add extra devices meta-data such as the device names, latitude and longitude e.t.c to the data.
+        """
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         devices = pd.DataFrame(devices)
         devices = devices[
             [
                 "mongo_id",
                 "tenant",
-                "device_id",
+                "name",
                 "device_number",
                 "site_id",
                 "latitude",
@@ -87,7 +90,7 @@ class MessageBrokerUtils:
         ]
         devices.rename(
             columns={
-                "device_id": "device_name",
+                "name": "device_name",
                 "mongo_id": "device_id",
                 "latitude": "device_latitude",
                 "longitude": "device_longitude",
