@@ -788,7 +788,6 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:latest
 
-
       - name: Build and push Celery beat Docker Image
         uses: docker/build-push-action@v4.1.1
         with:

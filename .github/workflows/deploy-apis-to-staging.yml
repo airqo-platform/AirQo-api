@@ -261,7 +261,7 @@ jobs:
               echo "run_insights=true" >>$GITHUB_OUTPUT
             fi
             
-            if [[ $file == k8s/incentives/* ]]; then
+            if [[ $file == k8s/insights/* ]]; then
               echo "run_insights=true" >>$GITHUB_OUTPUT              
             fi
 
@@ -969,7 +969,7 @@ jobs:
           push: true
           context: src/analytics/jobs/reports
           target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest 
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
@@ -1066,7 +1066,7 @@ jobs:
           cd src/insights/
           gcloud secrets versions access latest --secret="sta-env-analytics" > .env
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-insights-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-insights-config-files | kubectl replace -f - -n staging
   ### device uptime ###
   device-uptime:
