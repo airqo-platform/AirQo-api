@@ -28,15 +28,7 @@ const headers = (req, res, next) => {
 };
 
 function validateSelectedSitesField(value) {
-  const requiredFields = [
-    "_id",
-    "latitude",
-    "longitude",
-    "search_name",
-    "name",
-    "approximate_latitude",
-    "approximate_longitude",
-  ];
+  const requiredFields = ["_id", "search_name", "name"];
 
   // Check if all required fields exist
   if (!requiredFields.every((field) => field in value)) {
