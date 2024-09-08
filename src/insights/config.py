@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-API_BASE_URL = "/api/v2/analytics"
+API_BASE_URL = "/api/v2/insights"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
@@ -23,7 +23,7 @@ class Config:
 
     CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
-    CACHE_KEY_PREFIX = f"Analytics-{APP_ENV}"
+    CACHE_KEY_PREFIX = f"insights-{APP_ENV}"
     CACHE_REDIS_HOST = env_var("REDIS_SERVER")
     CACHE_REDIS_PORT = env_var("REDIS_PORT")
     CACHE_REDIS_URL = f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}"
@@ -58,8 +58,8 @@ class Config:
     SWAGGER = {
         "swagger": "2.0",
         "info": {
-            "title": "Analytics API",
-            "description": "API docs for analytics AirQO microservice",
+            "title": "insights API",
+            "description": "API docs for insights AirQO microservice",
             "version": "0.0.1",
         },
         "schemes": ["http", "https"],

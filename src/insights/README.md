@@ -1,6 +1,6 @@
-# ANALYTICS MICROSERVICE 
+# INSIGHTS MICROSERVICE 
 
-This microservice contains the back-end source code for the AirQo analytics & netmanager platforms.
+This microservice contains the back-end source code for the AirQo insights & netmanager platforms.
 
 The code is written following concepts in the Flask-restX framework [documentation](https://flask-restx.readthedocs.io/en/latest/index.html)
 
@@ -8,8 +8,8 @@ The code is written following concepts in the Flask-restX framework [documentati
 clone project from GitHub.
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
-change directory to the analytics microservice
-- `cd src/analytics`
+change directory to the insights microservice
+- `cd src/insights`
 
 ### Using Docker
 #### Prerequisites
