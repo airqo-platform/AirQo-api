@@ -15,12 +15,34 @@ nameOverride: ""
 fullnameOverride: ""
 podAnnotations: {}
 resources:
-  limits:
-    cpu: 2000m
-    memory: 6500Mi
-  requests:
-    cpu: 700m
-    memory: 4000Mi
+  webserver:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 1500m
+      memory: 2000Mi
+  scheduler:
+    requests:
+      cpu: 50m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 3000Mi
+  celery:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 1000m
+      memory: 3000Mi
+  redis:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 1000m
+      memory: 2000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

@@ -33,7 +33,6 @@ data:
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/grafana/api') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
-      if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
 
       set $client_ip $remote_addr;
       set $host_name $host;
