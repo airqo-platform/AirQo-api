@@ -483,6 +483,12 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "cohorts",
         })
+        .lookup({
+          from: "grids",
+          localField: "site.grids",
+          foreignField: "_id",
+          as: "grids",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
