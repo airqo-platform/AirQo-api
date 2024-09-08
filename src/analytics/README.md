@@ -2,9 +2,9 @@ clone project from GitHub.
 
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
-change directory to the insights microservice
+change directory to the analytics microservice
 
-- `cd src/insights`
+- `cd src/analytics`
 
 create local python environment
 

@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-API_V2_BASE_URL = "/api/v2/insights"
+API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 

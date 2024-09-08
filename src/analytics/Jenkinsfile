@@ -1,8 +1,8 @@
 pipeline {
     agent any
     environment {
-        IMAGE_NAME_PROD = 'airqo-insights-api'
-        IMAGE_NAME_STAGE = 'airqo-stage-insights-api'
+        IMAGE_NAME_PROD = 'airqo-analytics-api'
+        IMAGE_NAME_STAGE = 'airqo-stage-analytics-api'
     }
     stages {
         stage("Start"){
@@ -21,7 +21,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/insights/Dockerfile.stage.txt" . 
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/analytics/Dockerfile.stage.txt" . 
                     """
                     withCredentials([file(credentialsId: "${GCR_CONFIG}", variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
@@ -51,7 +51,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/insights/Dockerfile" . 
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/analytics/Dockerfile" . 
                     """
                     withCredentials([file(credentialsId: "${GCR_CONFIG}", variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
@@ -70,7 +70,7 @@ pipeline {
                             }
                         failure{
                             echo "Build and Push Failed"
-                            echo 'insights service deployed successfully'
+                            echo 'analytics service deployed successfully'
                             slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                             }
                     }
@@ -81,7 +81,7 @@ pipeline {
                 steps {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
-                        kubectl apply -f 'k8s/stage-insights-api.yaml'
+                        kubectl apply -f 'k8s/stage-analytics-api.yaml'
                         kubectl rollout restart deployment/${IMAGE_NAME_STAGE} -n staging
                         """
                     }
@@ -92,7 +92,7 @@ pipeline {
                     }
                     failure{
                         echo "Failed deploying to staging"
-                        echo 'insights service deployed successfully'
+                        echo 'analytics service deployed successfully'
                         slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                     }
                 }
@@ -102,7 +102,7 @@ pipeline {
                 steps {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
-                        kubectl apply -f 'k8s/prod-insights-api.yaml'
+                        kubectl apply -f 'k8s/prod-analytics-api.yaml'
                         kubectl rollout restart deployment/${IMAGE_NAME_PROD} -n production
                         """
                     }
@@ -113,14 +113,14 @@ pipeline {
                     }
                     failure{
                         echo "Failed deploying to production"
-                        echo 'insights service deployed successfully'
+                        echo 'analytics service deployed successfully'
                         slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                     }
                 }
         }
         stage('Final'){
             steps {
-                echo 'insights service deployed successfully'
+                echo 'analytics service deployed successfully'
                 slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
             }
         }
