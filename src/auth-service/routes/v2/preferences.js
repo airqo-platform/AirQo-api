@@ -1,10 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const createPreferenceController = require("@controllers/create-preference");
-const { check, oneOf, query, body, param } = require("express-validator");
+const { oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+// const { logText, logObject } = require("@utils/log");
+const isEmpty = require("is-empty");
+// const stringify = require("@utils/stringify");
 
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -23,6 +26,84 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
   next();
 };
+
+function validateSelectedSitesField(value) {
+  const requiredFields = ["_id", "search_name", "name"];
+
+  // Check if all required fields exist
+  if (!requiredFields.every((field) => field in value)) {
+    return false;
+  }
+
+  function validateNumericFields(fields) {
+    let isValid = true;
+
+    fields.forEach((field) => {
+      if (!(field in value)) {
+        isValid = false;
+        return;
+      }
+      const numValue = parseFloat(value[field]);
+      if (Number.isNaN(numValue)) {
+        isValid = false;
+        return;
+      } else if (
+        field === "latitude" ||
+        field === "longitude" ||
+        field === "approximate_latitude" ||
+        field === "approximate_longitude"
+      ) {
+        if (Math.abs(numValue) > 90) {
+          isValid = false;
+          return;
+        }
+      } else if (field === "search_radius") {
+        if (numValue <= 0) {
+          isValid = false;
+          return;
+        }
+      }
+    });
+
+    return isValid;
+  }
+
+  function validateStringFields(fields) {
+    let isValid = true;
+    fields.forEach((field) => {
+      if (typeof value[field] !== "string" || value[field].trim() === "") {
+        isValid = false;
+        return;
+      }
+    });
+    return isValid;
+  }
+
+  function validateTags(tags) {
+    if (isEmpty(tags)) {
+      return true;
+    } else if (!Array.isArray(tags)) {
+      return false;
+    } else {
+      return tags.every((tag) => typeof tag === "string");
+    }
+  }
+
+  const numericValid = validateNumericFields([
+    "latitude",
+    "longitude",
+    "approximate_latitude",
+    "approximate_longitude",
+  ]);
+
+  const stringValid = validateStringFields(["name", "search_name"]);
+
+  const tags = value && value.site_tags;
+  const tagValid = validateTags(tags);
+
+  return numericValid && stringValid && tagValid;
+}
+
 router.use(headers);
 router.use(validatePagination);
 
@@ -207,6 +288,21 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("device_id must be an object ID"),
+      body("selected_sites")
+        .optional()
+        .notEmpty()
+        .withMessage("the selected_sites should not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the selected_sites should be an array"),
+      body("selected_sites.*")
+        .optional()
+        .custom(validateSelectedSitesField)
+        .withMessage(
+          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+        ),
     ],
   ]),
   createPreferenceController.upsert
@@ -393,6 +489,21 @@ router.patch(
         .trim()
         .isMongoId()
         .withMessage("device_id must be an object ID"),
+      body("selected_sites")
+        .optional()
+        .notEmpty()
+        .withMessage("the selected_sites should not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the selected_sites should be an array"),
+      body("selected_sites.*")
+        .optional()
+        .custom(validateSelectedSitesField)
+        .withMessage(
+          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+        ),
     ],
   ]),
   createPreferenceController.replace
@@ -580,6 +691,21 @@ router.put(
         .trim()
         .isMongoId()
         .withMessage("device_id must be an object ID"),
+      body("selected_sites")
+        .optional()
+        .notEmpty()
+        .withMessage("the selected_sites should not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the selected_sites should be an array"),
+      body("selected_sites.*")
+        .optional()
+        .custom(validateSelectedSitesField)
+        .withMessage(
+          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+        ),
     ],
   ]),
   createPreferenceController.update
@@ -734,6 +860,21 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("device_id must be an object ID"),
+      body("selected_sites")
+        .optional()
+        .notEmpty()
+        .withMessage("the selected_sites should not be empty IF provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the selected_sites should be an array"),
+      body("selected_sites.*")
+        .optional()
+        .custom(validateSelectedSitesField)
+        .withMessage(
+          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+        ),
     ],
   ]),
   createPreferenceController.create
