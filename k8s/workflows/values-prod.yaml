@@ -11,8 +11,8 @@ images:
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
   tag: prod-7f86ef2b-1725874150
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   webserver:
@@ -35,7 +35,7 @@ resources:
       memory: 125Mi
     limits:
       cpu: 1000m
-      memory: 3000Mi
+      memory: 4000Mi
   redis:
     requests:
       cpu: 50m
