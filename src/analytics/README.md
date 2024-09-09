@@ -7,18 +7,18 @@ change directory to the analytics microservice
 create local python environment
 
 windows
+
 `python -m venv [local_env_name e.g env]`
 
 linux/mac
+
 `python3 -m venv [local_env_name e.g env]`
 
 activate the environment
 windows
-
 - `[local_env_name]\Scripts\activate`
 
 linux/mac
-
 - source `[local_env_name]/bin/activate`
 
 Install dependencies using the requirements.txt
