@@ -49,6 +49,7 @@ jobs:
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
+      run_insights: ${{ steps.check_files.outputs.run_insights}} # analytics
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
@@ -95,6 +96,7 @@ jobs:
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
           echo "run_workflows=false" >>$GITHUB_OUTPUT
           echo "run_incentives=false" >>$GITHUB_OUTPUT
+          echo "run_insights=false" >>$GITHUB_OUTPUT
           echo "run_spatial=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
@@ -254,7 +256,13 @@ jobs:
             if [[ $file == k8s/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT              
             fi
+            if [[ $file == src/insights/* ]]; then
+              echo "run_insights=true" >>$GITHUB_OUTPUT
+            fi 
 
+            if [[ $file == k8s/insights/* ]]; then
+              echo "run_insights=true" >>$GITHUB_OUTPUT              
+            fi
             if [[ $file == src/spatial/* ]]; then
               echo "run_spatial=true" >>$GITHUB_OUTPUT
             fi 
@@ -283,6 +291,7 @@ jobs:
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
               echo "run_workflows=true" >>$GITHUB_OUTPUT
               echo "run_incentives=true" >>$GITHUB_OUTPUT
+              echo "run_insights=true" >>$GITHUB_OUTPUT
               echo "run_spatial=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
@@ -840,6 +849,74 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
+
+  insights:
+    name: build-push-deploy-insights
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_insights == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      ### run unit tests ###
+
+      - name: Login to GCR
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/insights/
+          target: production
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-api:latest
+
+      - name: Build and push Celery worker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/insights/
+          target: celery
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-insights-celery:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/insights/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update insights production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Login to GCP
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/insights/
+          gcloud secrets versions access latest --secret="prod-env-analytics" > .env
+          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-insights-production | kubectl replace -f - -n production
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-insights-config-files | kubectl replace -f - -n production
 
   ### device uptime ###
   device-uptime:
