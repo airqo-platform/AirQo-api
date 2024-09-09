@@ -14,9 +14,11 @@ linux/mac
 
 activate the environment
 windows
+
 - `[local_env_name]\Scripts\activate`
 
 linux/mac
+
 - source `[local_env_name]/bin/activate`
 
 Install dependencies using the requirements.txt
@@ -31,6 +33,7 @@ windows
 linux/mac
 - `export FLASK_APP=manage.py`
 - `export FLASK_ENV=development`
+
 
 Run the Flask App
 - `flask run`
