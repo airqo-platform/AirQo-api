@@ -11,6 +11,15 @@ const asyncRetry = require("async-retry");
 const generateFilter = require("@utils/generate-filter");
 const cron = require("node-cron");
 
+function isDeviceActive(device) {
+  const inactiveThreshold = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+  return (
+    device.lastActive !== null &&
+    new Date().getTime() - device.lastActive.getTime() < inactiveThreshold
+  );
+}
+
 const fetchAndStoreDataIntoReadingsModel = async () => {
   try {
     const request = {

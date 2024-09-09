@@ -96,6 +96,7 @@ const deviceSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
     },
+    lastActive: { type: Date },
     generation_version: {
       type: Number,
     },
