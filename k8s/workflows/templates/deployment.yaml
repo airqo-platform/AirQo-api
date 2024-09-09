@@ -83,7 +83,7 @@ spec:
             - configMapRef:
                 name: {{ .Values.app.configmap }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=8,3"]
+          args: ["celery", "worker", "--autoscale=6,2"]
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
