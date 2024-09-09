@@ -11,8 +11,8 @@ images:
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
   tag: stage-a3b2191e-1725806408
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   webserver:
@@ -35,7 +35,7 @@ resources:
       memory: 500Mi
     limits:
       cpu: 2000m
-      memory: 3000Mi
+      memory: 4000Mi
   redis:
     requests:
       cpu: 50m
