@@ -10,6 +10,9 @@ from typing import List, Dict, Any
 from .config import configuration
 from .constants import DeviceCategory, Tenant
 from .utils import Utils
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AirQoApi:
@@ -34,7 +37,6 @@ class AirQoApi:
                 method="post",
                 body=data,
             )
-            print(response)
 
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
@@ -124,8 +126,7 @@ class AirQoApi:
             )
             return response if response else []
         except Exception as ex:
-            traceback.print_exc()
-            print(ex)
+            logger.exception()
             return []
 
     def get_devices(
@@ -377,7 +378,7 @@ class AirQoApi:
 
                 meta_data[key] = float(response["data"])
             except Exception as ex:
-                print(ex)
+                logger.exception()
 
         return meta_data
 
@@ -386,13 +387,11 @@ class AirQoApi:
         query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
 
         try:
-            response = self.__request(
-                endpoint="devices/airqlouds/refresh",
-                params=query_params,
-                method="put",
+            self.__request(
+                endpoint="devices/airqlouds/refresh", params=query_params, method="put"
             )
         except Exception as ex:
-            print(ex)
+            logger.exception()
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
@@ -404,8 +403,8 @@ class AirQoApi:
                 params=query_params,
                 method="put",
             )
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception()
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
         """
@@ -541,8 +540,8 @@ class AirQoApi:
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
             measurement = response["measurements"][0]["pm2_5"]["value"]
             return measurement
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception()
             return None
 
     def get_grids(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
@@ -690,8 +689,7 @@ class AirQoApi:
         for i in updated_sites:
             site = dict(i)
             params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
-            response = self.__request("devices/sites", params, site, "put")
-            print(response)
+            self.__request("devices/sites", params, site, "put")
 
     def get_tenants(self, data_source: str) -> List[Dict[str, Any]]:
         """
@@ -778,7 +776,6 @@ class AirQoApi:
         http = urllib3.PoolManager(retries=retry_strategy)
 
         url = f"{base_url}/{endpoint}"
-        print(url)
         try:
             if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
@@ -800,10 +797,8 @@ class AirQoApi:
                     method.upper(), url, fields=params, headers=headers
                 )
             else:
-                print("Method not supported")
+                logger.exception("Method not supported")
                 return None
-
-            print(response._request_url)
 
             if response.status == 200 or response.status == 201:
                 return simplejson.loads(response.data)
@@ -811,6 +806,6 @@ class AirQoApi:
                 Utils.handle_api_error(response)
                 return None
 
-        except urllib3.exceptions.HTTPError as e:
-            print(f"HTTPError: {e}")
+        except urllib3.exceptions.HTTPError as ex:
+            logger.exception(f"HTTPError: {ex}")
             return None

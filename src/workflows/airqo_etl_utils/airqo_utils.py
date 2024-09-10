@@ -24,6 +24,10 @@ from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any
 from .airqo_gx_expectations import AirQoGxExpectations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AirQoDataUtils:
     Device_Field_Mapping = {
@@ -177,7 +181,7 @@ class AirQoDataUtils:
             try:
                 series[value] = values[key]
             except Exception as ex:
-                print(ex)
+                logger.exception()
                 series[value] = None
 
         return series
@@ -392,7 +396,7 @@ class AirQoDataUtils:
             read_key = read_keys.get(device_number, None)
 
             if read_key is None or device_number is None:
-                print(f"{device_number} does not have a read key")
+                logger.exception(f"{device_number} does not have a read key")
                 continue
 
             for start, end in dates:
@@ -403,7 +407,9 @@ class AirQoDataUtils:
                     read_key=read_key,
                 )
                 if data.empty:
-                    print(f"Device does not have data between {start} and {end}")
+                    logger.exception(
+                        f"Device does not have data between {start} and {end}"
+                    )
                     continue
 
                 if "field8" not in data.columns.to_list():
@@ -706,8 +712,7 @@ class AirQoDataUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                traceback.print_exc()
-                print(ex)
+                logger.exception()
 
         return restructured_data
 
@@ -855,8 +860,7 @@ class AirQoDataUtils:
                 )
 
             except Exception as ex:
-                print(ex)
-                traceback.print_exc()
+                logger.exception()
 
         return devices_history.dropna()
 
@@ -989,7 +993,7 @@ class AirQoDataUtils:
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
                 except Exception as e:
-                    print(f"Error getting model: {e}")
+                    logger.exception(f"Error getting model: {e}")
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 
