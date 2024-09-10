@@ -22,6 +22,7 @@ const ClientSchema = new Schema(
     isActive: { type: Boolean, default: false },
     redirect_uri: { type: String },
     ip_address: { type: String },
+    ip_addresses: [{ type: String }],
     description: { type: String },
     rateLimit: { type: Number },
   },
@@ -29,6 +30,13 @@ const ClientSchema = new Schema(
 );
 
 ClientSchema.pre("save", function (next) {
+  const fieldsToAddToSet = ["ip_addresses"];
+
+  fieldsToAddToSet.forEach((field) => {
+    if (this[field]) {
+      this[field] = Array.from(new Set(this[field].map((id) => id.toString())));
+    }
+  });
   return next();
 });
 
@@ -39,9 +47,14 @@ ClientSchema.pre("update", function (next) {
 ClientSchema.statics = {
   async register(args, next) {
     try {
+      let createBody = args;
+      if (createBody._id) {
+        delete createBody._id;
+      }
       data = await this.create({
-        ...args,
+        ...createBody,
       });
+
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -142,9 +155,17 @@ ClientSchema.statics = {
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
+      let modifiedUpdate = Object.assign({}, update);
+      modifiedUpdate["$addToSet"] = {};
+      if (modifiedUpdate.ip_addresses) {
+        modifiedUpdate["$addToSet"]["ip_addresses"] = {};
+        modifiedUpdate["$addToSet"]["ip_addresses"]["$each"] =
+          modifiedUpdate.ip_addresses;
+        delete modifiedUpdate.ip_addresses;
+      }
       const updatedClient = await this.findOneAndUpdate(
         filter,
-        update,
+        modifiedUpdate,
         options
       ).exec();
 
@@ -217,6 +238,7 @@ ClientSchema.methods = {
       description: this.description,
       rateLimit: this.rateLimit,
       ip_address: this.ip_address,
+      ip_addresses: this.ip_addresses,
     };
   },
 };
