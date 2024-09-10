@@ -154,15 +154,18 @@ ClientSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
+      function removeDuplicates(arr) {
+        return [...new Set(arr)];
+      }
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
-      modifiedUpdate["$addToSet"] = {};
+
       if (modifiedUpdate.ip_addresses) {
-        modifiedUpdate["$addToSet"]["ip_addresses"] = {};
-        modifiedUpdate["$addToSet"]["ip_addresses"]["$each"] =
-          modifiedUpdate.ip_addresses;
-        delete modifiedUpdate.ip_addresses;
+        modifiedUpdate.ip_addresses = removeDuplicates(
+          modifiedUpdate.ip_addresses
+        );
       }
+
       const updatedClient = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
