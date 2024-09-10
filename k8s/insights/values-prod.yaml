@@ -6,7 +6,7 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-insights-api
     celery: eu.gcr.io/airqo-250220/airqo-insights-celery
     celeryWorker: eu.gcr.io/airqo-250220/airqo-insights-celery-worker
-  tag: prod-b8e36575-1725954088
+  tag: prod-ac4d7c21-1725974123
 api:
   name: airqo-insights-api
   label: insights-api
