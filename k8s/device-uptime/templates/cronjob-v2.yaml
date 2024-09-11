@@ -4,15 +4,17 @@ metadata:
   name: "{{ .Values.app.name }}-v2"
   namespace: {{ .Values.app.namespace }}
 spec:
-  concurrencyPolicy: Allow
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 1200
   schedule: "0 2 * * *"
   suspend: false
   jobTemplate:
     metadata:
       name: "{{ .Values.app.name }}-v2"
     spec:
+      ttlSecondsAfterFinished: 100
       template:
         spec:
           dnsPolicy: ClusterFirst
@@ -29,6 +31,11 @@ spec:
                         operator: In
                         values:
                           - compute
+          tolerations:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "cronjobs"
+              effect: "NoExecute"
           containers:
             - name: "{{ .Values.app.name }}-v2"
               image: "{{ .Values.image.repository }}-v2:{{ .Values.image.tag }}"
