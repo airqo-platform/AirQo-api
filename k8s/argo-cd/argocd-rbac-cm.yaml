@@ -18,6 +18,6 @@ data:
     p, role:guest, applicationsets, get, development/*, allow
 
     g, airqo-platform:devops, role:admin
-    g, airqo-platform:engineering, role:developer
+    g, airqo-platform:engineering, role:admin
     g, guest, role:guest
   policy.default: role:''
