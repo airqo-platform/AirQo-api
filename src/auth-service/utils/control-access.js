@@ -1217,7 +1217,6 @@ const controlAccess = {
         tenant.toLowerCase()
       ).modify({ filter, update }, next);
       if (responseFromUpdateClient.success === true) {
-        const client = responseFromUpdateClient.data;
         const ip = update.ip_address || "";
         const ip_addresses = update.ip_addresses || [];
         if (!isEmpty(ip)) {

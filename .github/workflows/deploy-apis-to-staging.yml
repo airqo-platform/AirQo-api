@@ -54,6 +54,7 @@ jobs:
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
+      run_insights: ${{ steps.check_files.outputs.run_insights }} # incentives
       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
@@ -95,6 +96,7 @@ jobs:
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
           echo "run_workflows=false" >>$GITHUB_OUTPUT
           echo "run_incentives=false" >>$GITHUB_OUTPUT
+          echo "run_insights=false" >>$GITHUB_OUTPUT
           echo "run_spatial=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
@@ -255,6 +257,14 @@ jobs:
               echo "run_incentives=true" >>$GITHUB_OUTPUT              
             fi
 
+            if [[ $file == src/insights/* ]]; then
+              echo "run_insights=true" >>$GITHUB_OUTPUT
+            fi
+            
+            if [[ $file == k8s/insights/* ]]; then
+              echo "run_insights=true" >>$GITHUB_OUTPUT              
+            fi
+
             if [[ $file == src/spatial/* ]]; then
               echo "run_spatial=true" >>$GITHUB_OUTPUT
             fi
@@ -284,6 +294,7 @@ jobs:
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
               echo "run_workflows=true" >>$GITHUB_OUTPUT
               echo "run_incentives=true" >>$GITHUB_OUTPUT
+              echo "run_insights=true" >>$GITHUB_OUTPUT
               echo "run_spatial=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
@@ -990,6 +1001,73 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
 
+  insights:
+    name: build-push-deploy-insights
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_insights == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      ### run unit tests ###
+
+      - name: Login to GCR
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/insights/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-insights-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-insights-api:latest
+
+      - name: Build and push Celery Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/insights/
+          target: celery
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-insights-celery:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-insights-celery:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/insights/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update insights staging images tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Login to GCP
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/insights/
+          gcloud secrets versions access latest --secret="sta-env-analytics" > .env
+          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-insights-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-insights-config-files | kubectl replace -f - -n staging
   ### device uptime ###
   device-uptime:
     name: build-push-deploy-device-uptime

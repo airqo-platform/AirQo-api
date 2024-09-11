@@ -126,9 +126,9 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     <p>Thank you for your interest in our work.</p>
-                                    <p>If you are interested in data science, please reach out to the data science lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: Raja Wabinyai (raja@airqo.net) and Usman Abdul-Ganiy (usman@airqo.net).</p>
-                                    <p>If you are interested in hardware engineering, reach out to our hardware lead, Joel Ssematimba, at joel@airqo.net and CC: Gideon Lubisia (gideon@airqo.net).</p>
-                                    <p>If interested in software engineering or UI/UX design, please reach out to software engineering lead, Martin Bbaale, at martin@airqo.net and CC: Belinda (belindamarion@airqo.net).</p>
+                                    <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
+                                    <p>If you are interested in Hardware (Embedded Systems) Engineering, reach out to our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
+                                    <p>If interested in Software Product Development, please reach out to our Software Engineering Lead, Martin Bbaale, at martin@airqo.net and CC: platform@airqo.net.</p>
                                 </td>
                   </tr>`;
         break;
