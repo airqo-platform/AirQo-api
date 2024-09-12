@@ -4,6 +4,7 @@ metadata:
   name: "{{ .Values.app.name }}-v2"
   namespace: {{ .Values.app.namespace }}
 spec:
+  suspend: True
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
