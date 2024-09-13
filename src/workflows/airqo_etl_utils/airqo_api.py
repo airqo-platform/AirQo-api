@@ -390,7 +390,7 @@ class AirQoApi:
             self.__request(
                 endpoint="devices/airqlouds/refresh", params=query_params, method="put"
             )
-        except Exception as ex:
+        except Exception:
             logger.exception()
 
     def refresh_grid(self, grid_id: str) -> None:

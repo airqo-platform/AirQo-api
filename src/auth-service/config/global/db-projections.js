@@ -926,6 +926,7 @@ const dbProjections = {
     client_secret: 1,
     redirect_uri: 1,
     ip_address: 1,
+    ip_addresses: 1,
     isActive: 1,
     name: 1,
     user: { $arrayElemAt: ["$user", 0] },
