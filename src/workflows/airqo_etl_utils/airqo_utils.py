@@ -181,7 +181,7 @@ class AirQoDataUtils:
             try:
                 series[value] = values[key]
             except Exception as ex:
-                logger.exception()
+                logger.exception(f"An error occurred: {ex}")
                 series[value] = None
 
         return series
@@ -712,7 +712,7 @@ class AirQoDataUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                logger.exception()
+                logger.exception(f"An error occurred: {ex}")
 
         return restructured_data
 
@@ -860,7 +860,7 @@ class AirQoDataUtils:
                 )
 
             except Exception as ex:
-                logger.exception()
+                logger.exception(f"An error occurred {ex}")
 
         return devices_history.dropna()
 
@@ -992,8 +992,8 @@ class AirQoDataUtils:
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
-                except Exception as e:
-                    logger.exception(f"Error getting model: {e}")
+                except Exception as ex:
+                    logger.exception(f"Error getting model: {ex}")
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 

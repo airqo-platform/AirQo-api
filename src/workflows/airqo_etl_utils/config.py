@@ -165,17 +165,17 @@ class Config:
     AIRQO_BAM_MAPPING = {
         "hourly_conc": "pm2_5",
     }
-
+    # 1st 6 values are from the gps
     AIRQO_LOW_COST_CONFIG = {
         0: "latitude",
         1: "longitude",
         2: "altitude",
-        3: "wind_speed",
-        4: "satellites",
-        5: "hdop",
-        6: "device_temperature",
-        7: "device_humidity",
-        8: "temperature",
+        3: "wind_speed",  # For mobile devices (Velocity)
+        4: "satellites",  # Number of satelites tracked
+        5: "hdop",  # For mobile devices
+        6: "device_temperature",  # Internal
+        7: "device_humidity",  # Internal
+        8: "temperature",  # Internal
         9: "humidity",
         10: "vapor_pressure",
     }
