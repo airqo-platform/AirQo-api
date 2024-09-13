@@ -22,12 +22,12 @@ class SatelliteUtils:
         return ee.Feature(None, image.reduceRegion(
             reducer=ee.Reducer.mean(),
             geometry=aoi,
-            scale=1000 #TODO: Review this, possibly a need for custom scales.
+            scale=1113.2 #TODO: Review this, possibly a need for custom scales.
         ).set('date', image.date().format('YYYY-MM-dd')))
 
     @staticmethod
     def get_satellite_data(aoi: ee.Geometry.Point, collection: str, fields: List[str], start_date: datetime,
-                           end_date: datetime) -> ee.ImageCollection:
+                           end_date: datetime) -> ee.FeatureCollection:
         return ee.ImageCollection(collection) \
             .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')) \
             .filterBounds(aoi) \
@@ -90,4 +90,9 @@ class SatelliteUtils:
         for location in locations:
             all_data.extend(
                 SatelliteUtils.extract_data_for_location(location, satellite_collections, start_date, end_date))
-        return pd.DataFrame(all_data)
+        all_data = pd.DataFrame(all_data)
+        all_data.columns = all_data.columns.str.lower()
+        all_data.columns = [
+            c.replace("/", "_").replace(" ", "_").lower()
+            for c in all_data.columns
+        ]
