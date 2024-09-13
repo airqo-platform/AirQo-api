@@ -51,7 +51,7 @@ CMD ["airflow", "webserver"]
 # Airflow with the celery extra: pip install 'apache-airflow[celery]'
 FROM base-builder as celery
 USER airflow
-CMD ["celery", "worker", "--autoscale=8,3"]
+CMD ["celery", "worker", "--autoscale=6,2"]
 
 FROM base-builder as deployment
 USER airflow
