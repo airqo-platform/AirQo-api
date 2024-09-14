@@ -323,10 +323,10 @@ class CityModel(Enum):
 
 # TODO: May need to remove when no. of locations grow
 satellite_cities = [
-    {"city": "kampala", "coords" : [0.336219, 32.6313083]},
-    {"city": "nairobi", "coords" : [-1.243396, 36.886487]},
-    {"city": "lagos", "coords" : [6.53257, 3.39936]},
-    {"city": "accra", "coords" : [5.614818, -0.205874]}
+    {"city": "kampala", "coords" : [0.3152, 32.5816]},
+    {"city": "nairobi", "coords" : [1.2921, 36.8219]},
+    {"city": "lagos", "coords" : [6.5244, 3.3792]},
+    {"city": "accra", "coords" : [5.5593,0.1974]},
 ]
 satellite_collections = {
     'COPERNICUS/S5P/OFFL/L3_SO2': [

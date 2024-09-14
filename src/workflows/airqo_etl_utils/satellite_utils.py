@@ -1,6 +1,3 @@
-from datetime import datetime
-from typing import List, Dict, Any
-
 import ee
 import pandas as pd
 from google.oauth2 import service_account
@@ -9,6 +6,8 @@ from airqo_etl_utils.config import configuration
 
 
 class SatelliteUtils:
+    """ Class for methods for extracting satellite data from Earth Engine.
+     """
 
     @staticmethod
     def initialize_earth_engine():
@@ -18,81 +17,57 @@ class SatelliteUtils:
         ), project=configuration.GOOGLE_CLOUD_PROJECT_ID)
 
     @staticmethod
-    def extract_data_for_image(image: ee.Image, aoi: ee.Geometry.Point) -> ee.Feature:
-        return ee.Feature(None, image.reduceRegion(
-            reducer=ee.Reducer.mean(),
-            geometry=aoi,
-            scale=1113.2 #TODO: Review this, possibly a need for custom scales.
-        ).set('date', image.date().format('YYYY-MM-dd')))
+    def get_city_region(city_info):
+        center = ee.Geometry.Point(city_info['coords'])
+        return center.buffer(12000)
 
     @staticmethod
-    def get_satellite_data(aoi: ee.Geometry.Point, collection: str, fields: List[str], start_date: datetime,
-                           end_date: datetime) -> ee.FeatureCollection:
-        return ee.ImageCollection(collection) \
-            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')) \
-            .filterBounds(aoi) \
-            .select(fields) \
-            .map(lambda image: SatelliteUtils.extract_data_for_image(image, aoi))
+    def get_satellite_data(regions, collection, fields, start_date, end_date):
+        fc = ee.FeatureCollection(regions)
+        images = ee.ImageCollection(collection) \
+            .filterDate(start_date, end_date) \
+            .select(fields)
+
+        def reduce_regions(image):
+            reduced = image.reduceRegions(
+                collection=fc,
+                reducer=ee.Reducer.mean(),
+                scale=1000
+            )
+            return reduced.map(lambda f: f.set('date', image.date().format('YYYY-MM-dd')))
+
+        reduced = images.map(reduce_regions).flatten()
+
+        return reduced
 
     @staticmethod
-    def process_time_series(time_series: Dict[str, Any], fields: List[str]) -> Dict[str, Dict[str, List[float]]]:
-        daily_data = {}
-        for feature in time_series['features']:
-            date = feature['properties']['date']
-            if date not in daily_data:
-                daily_data[date] = {field: [] for field in fields}
-            for field in fields:
-                if field in feature['properties']:
-                    daily_data[date][field].append(feature['properties'][field])
-        return daily_data
-
-    @staticmethod
-    def calculate_daily_means(daily_data: Dict[str, Dict[str, List[float]]], fields: List[str], city: str) -> List[
-        Dict[str, Any]]:
-        results = []
-        for date, data in daily_data.items():
-            result = {
-                'timestamp': datetime.strptime(date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0),
-                'city': city
-            }
-            for field in fields:
-                if data[field]:
-                    result[field] = sum(filter(None, data[field])) / len(data[field])
-                else:
-                    result[field] = None
-            results.append(result)
-        return results
-
-    @staticmethod
-    def extract_data_for_location(location: Dict[str, Any], collections: Dict[str, List[str]], start_date: datetime,
-                                  end_date: datetime) -> List[Dict[str, Any]]:
-        aoi = ee.Geometry.Point(location["coords"])
-        all_data = []
-
-        for collection, fields in collections.items():
-            prefixed_fields = [f"{collection}_{field}" for field in fields]
-            satellite_data = SatelliteUtils.get_satellite_data(aoi, collection, fields, start_date, end_date)
-            time_series = satellite_data.getInfo()
-            daily_data = SatelliteUtils.process_time_series(time_series, fields)
-            prefixed_daily_data = {date: {f"{collection}_{field}": values for field, values in data.items()}
-                                   for date, data in daily_data.items()}
-            all_data.extend(
-                SatelliteUtils.calculate_daily_means(prefixed_daily_data, prefixed_fields, location['city']))
-
-        return all_data
-
-    @staticmethod
-    def extract_satellite_data(locations: List[Dict[str, Any]], start_date: datetime, end_date: datetime,
-                               satellite_collections: Dict[str, List[str]]) -> pd.DataFrame:
-
+    def extract_satellite_data(cities, start_date, end_date, satellite_collections):
         SatelliteUtils.initialize_earth_engine()
+
+        # Create regions for each city
+        regions = [{'city': city['city'], 'geometry': SatelliteUtils.get_city_region(city)} for city in cities]
+
         all_data = []
-        for location in locations:
-            all_data.extend(
-                SatelliteUtils.extract_data_for_location(location, satellite_collections, start_date, end_date))
-        all_data = pd.DataFrame(all_data)
-        all_data.columns = all_data.columns.str.lower()
-        all_data.columns = [
-            c.replace("/", "_").replace(" ", "_").lower()
-            for c in all_data.columns
-        ]
+        for collection, fields in satellite_collections.items():
+            data = SatelliteUtils.get_satellite_data(regions, collection, fields, start_date, end_date)
+
+            # Convert to pandas DataFrame
+            df = pd.DataFrame(data.getInfo()['features'])
+            df['properties'] = df['properties'].apply(pd.Series)
+            df = df.drop(['geometry', 'type'], axis=1)
+            df = pd.concat([df.drop(['properties'], axis=1), df['properties']], axis=1)
+
+            # Rename columns
+            df.columns = [f"{collection}_{c}" if c in fields else c for c in df.columns]
+
+            all_data.append(df)
+
+        # Merge all dataframes
+        result = pd.concat(all_data, axis=1)
+        result = result.loc[:, ~result.columns.duplicated()]  # Remove duplicate columns
+
+        # Clean up column names
+        result.columns = result.columns.str.lower()
+        result.columns = [c.replace("/", "_").replace(" ", "_").lower() for c in result.columns]
+
+        return result
