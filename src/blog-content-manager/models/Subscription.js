@@ -1,323 +1,323 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { addWeeksToProvideDateTime } = require("@utils/date");
+const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- subscriptions-model`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
 const { HttpError } = require("@utils/errors");
 
-const SubscriptionSchema = new mongoose.Schema(
+const periodSchema = new mongoose.Schema(
   {
-    email: {
+    value: { type: String },
+    label: { type: String },
+    unitValue: { type: Number },
+    unit: { type: String },
+  },
+  { _id: false }
+);
+
+const DefaultsSchema = new mongoose.Schema(
+  {
+    pollutant: {
       type: String,
-      required: true,
-      unique: true,
+      trim: true,
+      required: [true, "pollutant is required!"],
+      default: "pm2_5",
     },
-    subscribed: {
-      type: Boolean,
-      default: true,
+    frequency: {
+      type: String,
+      required: [true, "frequency is required!"],
+      default: "hourly",
     },
-    isSystemUser: {
-      type: Boolean,
-      required: true,
+    startDate: {
+      type: Date,
+      required: [true, "startDate is required!"],
+      default: addWeeksToProvideDateTime(currentDate, -2),
     },
-    notifications: {
-      twitter: {
-        type: Boolean,
-        default: true,
-      },
-      email: {
-        type: Boolean,
-        default: true,
-      },
-      phone: {
-        type: Boolean,
-        default: true,
-      },
-      sms: {
-        type: Boolean,
-        default: true,
-      },
+    endDate: {
+      type: Date,
+      required: [true, "endDate is required!"],
+      default: currentDate,
     },
+    chartType: {
+      type: String,
+      required: [true, "chartTyoe is required!"],
+      default: "line",
+    },
+    chartTitle: {
+      type: String,
+      required: [true, "chartTitle is required!"],
+      default: "Chart Title",
+    },
+    chartSubTitle: {
+      type: String,
+      required: [true, "chartSubTitle is required!"],
+      default: "Chart SubTitle",
+    },
+    airqloud: {
+      type: ObjectId,
+      ref: "airqloud",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_AIRQLOUD),
+    },
+    grid: {
+      type: ObjectId,
+      ref: "grid",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GRID),
+    },
+    cohort: {
+      type: ObjectId,
+      ref: "cohort",
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+    },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
+      default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+    },
+    user: {
+      type: ObjectId,
+      required: [true, "user is required"],
+      ref: "user",
+    },
+    sites: [
+      {
+        type: ObjectId,
+        ref: "site",
+      },
+    ],
+    devices: [
+      {
+        type: ObjectId,
+        ref: "device",
+      },
+    ],
+    period: { type: periodSchema, required: [true, "period is required!"] },
   },
   {
     timestamps: true,
   }
 );
 
-SubscriptionSchema.plugin(uniqueValidator, {
+DefaultsSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-SubscriptionSchema.pre("save", function (next) {
-  return next();
-});
-
-SubscriptionSchema.methods = {
+DefaultsSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      email: this.subscribed,
-      isSystemUser: this.isSystemUser,
-      notifications: this.notifications,
+      pollutant: this.pollutant,
+      frequency: this.frequency,
+      user: this.user,
+      airqloud: this.airqloud,
+      startDate: this.startDate,
+      endDate: this.endDate,
+      chartType: this.chartType,
+      chartTitle: this.chartTitle,
+      chartSubTitle: this.chartSubTitle,
+      sites: this.sites,
+      devices: this.devices,
+      network_id: this.network_id,
+      period: this.period,
+      createdAt: this.createdAt,
     };
   },
 };
 
-SubscriptionSchema.statics.register = async function (args, next) {
-  try {
-    let createBody = args;
-    logObject("args", args);
-    if (createBody._id) {
-      delete createBody._id;
-    }
-
-    logObject("createBody", createBody);
-    let data = await this.create({
-      ...createBody,
-    });
-
-    if (!isEmpty(data)) {
-      return {
-        success: true,
-        data,
-        message: "subscription created successfully with no issues detected",
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(data)) {
-      return {
-        success: true,
-        message: "subscription not created despite successful operation",
-        status: httpStatus.OK,
-        data: [],
-      };
-    }
-  } catch (err) {
-    logObject("error in the object", err);
-    logger.error(`Data conflicts detected -- ${err.message}`);
-    let response = {};
-    let errors = {};
-    let message = "Internal Server Error";
-    let status = httpStatus.INTERNAL_SERVER_ERROR;
-    if (err.code === 11000 || err.code === 11001) {
-      errors = err.keyValue;
-      message = "duplicate values provided";
-      status = httpStatus.CONFLICT;
-      Object.entries(errors).forEach(([key, value]) => {
-        return (response[key] = value);
+DefaultsSchema.statics = {
+  async register(args, next) {
+    try {
+      let body = args;
+      if (body._id) {
+        delete body._id;
+      }
+      if (isEmpty(args.period)) {
+        args.period = {
+          value: "Last 7 days",
+          label: "Last 7 days",
+          unitValue: 7,
+          unit: "day",
+        };
+      }
+      let data = await this.create({
+        ...body,
       });
-    } else {
-      message = "validation errors for some of the provided fields";
-      status = httpStatus.CONFLICT;
-      errors = err.errors;
-      Object.entries(errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
-      });
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "default created successfully with no issues detected",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "default not created despite successful operation",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
+    } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
+      let response = {};
+      let errors = {};
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = httpStatus.CONFLICT;
+        Object.entries(errors).forEach(([key, value]) => {
+          return (response[key] = value);
+        });
+      } else {
+        message = "validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
+        errors = err.errors;
+        Object.entries(errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      }
+
+      next(new HttpError(message, status, response));
     }
+  },
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+    try {
+      const defaults = await this.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
 
-    logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-    next(new HttpError(message, status, response));
-  }
-};
-
-SubscriptionSchema.statics.list = async function (
-  { skip = 0, limit = 1000, filter = {} } = {},
-  next
-) {
-  try {
-    const subscriptions = await this.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .exec();
-
-    if (!isEmpty(subscriptions)) {
-      return {
-        success: true,
-        data: subscriptions,
-        message: "Successfully listed the subscriptions",
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(subscriptions)) {
-      return {
-        success: true,
-        message: "No subscriptions found for this search",
-        data: [],
-        status: httpStatus.OK,
-      };
-    }
-  } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
-    );
-  }
-};
-
-SubscriptionSchema.statics.modify = async function (
-  { filter = {}, update = {} } = {},
-  next
-) {
-  try {
-    const options = { new: true };
-    const updateBody = update;
-
-    if (updateBody._id) {
-      delete updateBody._id;
-    }
-
-    const updatedSubscription = await this.findOneAndUpdate(
-      filter,
-      updateBody,
-      options
-    ).exec();
-
-    if (!isEmpty(updatedSubscription)) {
-      return {
-        success: true,
-        message: "successfully modified the subscription",
-        data: updatedSubscription._doc,
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(updatedSubscription)) {
+      if (!isEmpty(defaults)) {
+        return {
+          success: true,
+          data: defaults,
+          message: "successfully listed the defaults",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(defaults)) {
+        return {
+          success: true,
+          message: "no defaults found for this search",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "the User Subscription  you are trying to UPDATE does not exist, please crosscheck",
-        })
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
-  } catch (err) {
-    logger.error(`Data conflicts detected -- ${err.message}`);
-    let errors = { message: err.message };
-    let message = "Internal Server Error";
-    let status = httpStatus.INTERNAL_SERVER_ERROR;
-    if (err.code == 11000) {
-      errors = err.keyValue;
-      message = "duplicate values provided";
-      status = httpStatus.CONFLICT;
+  },
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+      if (update._id) {
+        delete update._id;
+      }
+      const updatedDefault = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedDefault)) {
+        return {
+          success: true,
+          message: "successfully modified the default",
+          data: updatedDefault._doc,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(updatedDefault)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "The User Default you are trying to UPDATE does not exist, please crosscheck",
+          })
+        );
+      }
+    } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+      if (err.code == 11000) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = httpStatus.CONFLICT;
+      }
+      next(new HttpError(message, status, errors));
     }
-    next(new HttpError(message, status, errors));
-  }
-};
-
-SubscriptionSchema.statics.remove = async function (
-  { filter = {} } = {},
-  next
-) {
-  try {
-    let options = {
-      projection: {
-        _id: 1,
-      },
-    };
-    let removedSubscription = await this.findOneAndRemove(
-      filter,
-      options
-    ).exec();
-
-    if (!isEmpty(removedSubscription)) {
-      return {
-        success: true,
-        message: "successfully removed the subscription",
-        data: removedSubscription._doc,
-        status: httpStatus.OK,
+  },
+  async remove({ filter = {} } = {}, next) {
+    try {
+      let options = {
+        projection: {
+          _id: 1,
+          user: 1,
+          chartTitle: 1,
+          chartSubTitle: 1,
+          airqloud: 1,
+        },
       };
-    } else if (isEmpty(removedSubscription)) {
+      const removedDefault = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
+
+      if (!isEmpty(removedDefault)) {
+        return {
+          success: true,
+          message: "successfully removed the default",
+          data: removedDefault._doc,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(removedDefault)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "the User Default  you are trying to DELETE does not exist, please crosscheck",
+          })
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "the User Subscription  you are trying to DELETE does not exist, please crosscheck",
-        })
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
     }
-  } catch (error) {
-    logger.error(`Data conflicts detected -- ${error.message}`);
-    next(
-      new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-        message: error.message,
-      })
-    );
-    return;
-  }
+  },
 };
 
-SubscriptionSchema.statics.unsubscribe = async function (email, type) {
-  await this.updateOne({ email }, { [`notifications.${type}`]: false });
-};
-
-SubscriptionSchema.statics.checkNotificationStatus = async function (
-  { email, type },
-  next
-) {
+const DefaultModel = (tenant) => {
   try {
-    const subscription = await this.findOne({ email });
-
-    if (!subscription) {
-      return {
-        success: true,
-        message: `Not Found`,
-        status: httpStatus.OK,
-        errors: {
-          message: `No subscription found for email: ${email}`,
-        },
-      };
-    } else if (isEmpty(subscription.notifications[type])) {
-      return {
-        success: true,
-        message: `not subscribed to type`,
-        status: httpStatus.OK,
-        errors: {
-          message: `User is not subscribed to ${type} notifications`,
-        },
-      };
-    } else if (subscription.notifications[type] === false) {
-      return {
-        success: false,
-        message: `Forbidden`,
-        status: httpStatus.FORBIDDEN,
-        errors: {
-          message: `User unsubscribed from ${type} notifications`,
-        },
-      };
-    } else {
-      return {
-        success: true,
-        message: `User is subscribed to ${type} notifications`,
-        status: httpStatus.OK,
-      };
-    }
+    let defaults = mongoose.model("defaults");
+    return defaults;
   } catch (error) {
-    logger.error(`Data conflicts detected -- ${error.message}`);
-    next(
-      new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-        message: error.message,
-      })
-    );
-    return;
+    let defaults = getModelByTenant(tenant, "default", DefaultsSchema);
+    return defaults;
   }
 };
 
-const SubscriptionModel = (tenant) => {
-  try {
-    let subscriptions = mongoose.model("subscriptions");
-    return subscriptions;
-  } catch (error) {
-    let subscriptions = getModelByTenant(
-      tenant,
-      "subscription",
-      SubscriptionSchema
-    );
-    return subscriptions;
-  }
-};
-
-module.exports = SubscriptionModel;
+module.exports = DefaultModel;
