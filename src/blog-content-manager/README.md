@@ -1,6 +1,6 @@
-# Custom Blogging System
+# Blog Content Manager
 
-This custom blogging system is a comprehensive platform designed to create, manage, and share content efficiently. It provides a robust set of features for both content creators and readers, ensuring a seamless blogging experience.
+This is a comprehensive microservice designed to create, manage, and share content efficiently. It provides a robust set of features for both content creators and readers, ensuring a seamless blogging experience.
 
 ## Features
 
@@ -10,47 +10,41 @@ This custom blogging system is a comprehensive platform designed to create, mana
 - Rich text editor for content creation
 - Draft saving and scheduling posts
 
-### 2\. User Management
-
-- User registration and authentication
-- User roles (e.g., admin, author, reader)
-- User profile management
-
-### 3\. Commenting System
+### 2\. Commenting System
 
 - Add, edit, and delete comments
 - Nested replies
 - Comment moderation tools
 
-### 4\. Category and Tag Management
+### 3\. Category and Tag Management
 
 - Organize posts with categories and tags
 - Create, edit, and delete categories and tags
 - Filter posts by category or tag
 
-### 5\. Search Functionality
+### 4\. Search Functionality
 
 - Full-text search across all blog posts
 - Advanced filtering options
 
-### 6\. User Interaction
+### 5\. User Interaction
 
 - Like and share posts
 - Follow authors or topics
 - Personalized content recommendations
 
-### 7\. Content Moderation
+### 6\. Content Moderation
 
 - Review and approve/reject posts and comments
 - Flagging system for inappropriate content
 
-### 8\. Analytics and Reporting
+### 7\. Analytics and Reporting
 
 - View post performance metrics
 - User engagement analytics
 - Custom report generation
 
-### 9\. RSS Feed Generation
+### 8\. RSS Feed Generation
 
 - Automatic RSS feed for blog posts
 - Category-specific feeds
@@ -59,8 +53,7 @@ This custom blogging system is a comprehensive platform designed to create, mana
 
 - Backend: Node.js with Express.js
 - Database: MongoDB
-- Frontend: React.js
-- Authentication: JWT (JSON Web Tokens)
+- Authentication: AirQo Tokens
 - Search: Elasticsearch
 - Caching: Redis
 
@@ -70,13 +63,13 @@ This custom blogging system is a comprehensive platform designed to create, mana
 
     Copy
 
-    `git clone https://github.com/yourusername/custom-blogging-system.git`
+    `git clone https://github.com/airqo-platform/AirQo-api.git`
 
 2.  Install dependencies
 
     Copy
 
-    `cd custom-blogging-system npm install`
+    `cd src/blog-content-manager npm install`
 
 3.  Set up environment variables
 
