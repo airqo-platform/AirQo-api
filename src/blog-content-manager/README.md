@@ -69,7 +69,7 @@ This is a comprehensive microservice designed to create, manage, and share conte
 
     Copy
 
-    `cd src/blog-content-maanager npm install`
+    `cd src/blog-content-manager npm install`
 
 3.  Set up environment variables
 
