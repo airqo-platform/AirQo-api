@@ -14,7 +14,7 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
-router.get("/recent/:ch_id", transformController.getLastEntry);
+router.get("/recent/:ch_id", transformController.getLastFeed);
 router.get(
   "/transform/recent",
   oneOf([
