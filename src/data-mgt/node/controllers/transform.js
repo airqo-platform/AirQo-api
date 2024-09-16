@@ -131,6 +131,107 @@ const data = {
     const json = await fetch_response.json();
     res.status(200).send(json);
   },
+  getLastFeed: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { start, end, ch_id } = { ...req.query, ...req.params };
+      const channel = ch_id;
+      let deviceCategory = "";
+      let api_key = "";
+      let errors = [];
+      await transformUtil.getAPIKey(channel, (result) => {
+        if (result.success === true) {
+          api_key = result.data;
+          // let ts = Date.now();
+          // let day = await generateDateFormat(ts);
+          // let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+          // redis.get(cacheID, (err, result) => {
+          //   if (result) {
+          //     const resultJSON = JSON.parse(result);
+          //     return res.status(httpStatus.OK).json(resultJSON);
+          //   } else {
+          //   }
+          // });
+          let request = {};
+          request["channel"] = channel;
+          request["api_key"] = api_key;
+          request["start"] = start;
+          request["end"] = end;
+          return axios
+            .get(
+              transformUtil.readRecentDeviceMeasurementsFromThingspeak({
+                request,
+              })
+            )
+            .then(async (response) => {
+              logObject("the response man", response);
+              const readings = response.data.feeds[0];
+              const metadata = response.data.channel;
+              if (isEmpty(readings)) {
+                return res.status(httpStatus.NOT_FOUND).json({
+                  success: true,
+                  message: "no recent measurements for this device",
+                });
+              } else if (!isEmpty(readings)) {
+                return res.status(httpStatus.OK).json({
+                  isCache: false,
+                  ...readings,
+                });
+              }
+            })
+            .catch((err) => {
+              let error = {};
+              logObject("err", err);
+              if (err.response) {
+                error["response"] = err.response.data;
+              } else if (err.request) {
+                error["request"] = err.request;
+              } else if (err.config) {
+                error["config"] = err.config;
+              } else {
+                error["message"] =
+                  "unclear error as trying to get measurements from ThingSpeak";
+              }
+              let message = err.response
+                ? err.response.data
+                : "Internal Server Error";
+              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
+              errorsUtil.errorResponse({ res, message, statusCode, error });
+            });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          res.status(status).json({
+            message: result.message ? result.message : "internal server error",
+            errors: result.errors ? result.errors : { message: "" },
+            success: result.success ? result.success : false,
+          });
+        }
+      });
+    } catch (error) {
+      let message = error.message;
+      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
+    }
+  },
   getLastEntry: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -191,6 +292,7 @@ const data = {
                 });
               })
               .catch((err) => {
+                logObject("the err", err);
                 let error = {};
                 if (err.response) {
                   error["response"] = err.response.data;
@@ -214,6 +316,7 @@ const data = {
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
+      logObject("error", error);
       let message = error.message;
       let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
