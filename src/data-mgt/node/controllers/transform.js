@@ -15,13 +15,21 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
 
-function categorizeOutput(input) {
+const isGasDevice = (description) => {
+  return description.toLowerCase().includes("gas");
+};
+
+const categorizeOutput = (input) => {
   try {
+    if (!input || typeof input !== "object") {
+      throw new Error("Invalid input: expected an object");
+    }
+
     if (!input.hasOwnProperty("description")) {
       return "lowcost";
     }
-    const containsGas = input.description.toLowerCase().includes("gas");
-    return containsGas ? "gas" : "lowcost";
+
+    return isGasDevice(input.description) ? "gas" : "lowcost";
   } catch (error) {
     return {
       message: "Internal Server Error",
@@ -29,7 +37,129 @@ function categorizeOutput(input) {
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }
-}
+};
+
+const validateRequest = (req) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const nestedErrors = errors.errors[0].nestedErrors;
+    logger.error(
+      `Input validation errors: ${JSON.stringify(
+        errorsUtil.convertErrorArrayToObject(nestedErrors)
+      )}`
+    );
+    return { isValid: false, errors: nestedErrors };
+  }
+  return { isValid: true };
+};
+
+const getChannelApiKey = async (channel) => {
+  return new Promise((resolve, reject) => {
+    transformUtil.getAPIKey(channel, (result) => {
+      if (result.success) {
+        resolve(result.data);
+      } else {
+        reject(new Error(result.message));
+      }
+    });
+  });
+};
+
+const fetchThingspeakData = async (request) => {
+  const url = transformUtil.readRecentDeviceMeasurementsFromThingspeak({
+    request,
+  });
+  const response = await axios.get(url);
+  return response.data;
+};
+
+const handleThingspeakResponse = (data) => {
+  const readings = data.feeds[0];
+  if (isEmpty(readings)) {
+    return {
+      status: httpStatus.NOT_FOUND,
+      data: {
+        success: true,
+        message: "No recent measurements for this device",
+      },
+    };
+  }
+  return { status: httpStatus.OK, data: { isCache: false, ...readings } };
+};
+
+const processDeviceMeasurements = async (readings, metadata) => {
+  if (isEmpty(readings)) {
+    return {
+      status: httpStatus.NOT_FOUND,
+      data: {
+        success: true,
+        message: "no recent measurements for this device",
+      },
+    };
+  }
+
+  let cleanedDeviceMeasurements = transformUtil.clean(readings);
+  const fieldOneValue = cleanedDeviceMeasurements.field1 || null;
+
+  if (isEmpty(fieldOneValue)) {
+    return {
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      data: {
+        success: false,
+        message: "unable to categorise device",
+        errors: {
+          message:
+            "please crosscheck device on thingSpeak, it is not sending field1",
+        },
+      },
+    };
+  }
+
+  const deviceCategory = isDate(fieldOneValue)
+    ? "reference"
+    : categorizeOutput(metadata);
+  cleanedDeviceMeasurements.field9 = deviceCategory;
+
+  let transformedData = await transformUtil.transformMeasurement(
+    cleanedDeviceMeasurements
+  );
+  let transformedField = {};
+
+  if (transformedData.other_data) {
+    transformedField = await transformUtil.trasformFieldValues({
+      otherData: transformedData.other_data,
+      deviceCategory,
+    });
+    delete transformedData.other_data;
+  }
+
+  let cleanedFinalTransformation = transformUtil.clean({
+    ...transformedData,
+    ...transformedField,
+  });
+
+  if (cleanedFinalTransformation.ExternalPressure) {
+    const pressureConversionResult =
+      transformUtil.convertFromHectopascalsToKilopascals(
+        cleanedFinalTransformation.ExternalPressure
+      );
+    if (pressureConversionResult.success) {
+      cleanedFinalTransformation.ExternalPressure =
+        pressureConversionResult.data;
+    } else {
+      return {
+        status:
+          pressureConversionResult.status || httpStatus.INTERNAL_SERVER_ERROR,
+        data: pressureConversionResult,
+      };
+    }
+  }
+
+  return {
+    status: httpStatus.OK,
+    data: { isCache: false, ...cleanedFinalTransformation },
+  };
+};
 
 const data = {
   getChannels: async (req, res) => {
@@ -133,103 +263,42 @@ const data = {
   },
   getLastFeed: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
+      const validation = validateRequest(req);
+      if (!validation.isValid) {
         return errorsUtil.badRequest(
           res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+          "Bad request errors",
+          errorsUtil.convertErrorArrayToObject(validation.errors)
         );
       }
+
       const { start, end, ch_id } = { ...req.query, ...req.params };
       const channel = ch_id;
-      let deviceCategory = "";
-      let api_key = "";
-      let errors = [];
-      await transformUtil.getAPIKey(channel, (result) => {
-        if (result.success === true) {
-          api_key = result.data;
-          // let ts = Date.now();
-          // let day = await generateDateFormat(ts);
-          // let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-          // redis.get(cacheID, (err, result) => {
-          //   if (result) {
-          //     const resultJSON = JSON.parse(result);
-          //     return res.status(httpStatus.OK).json(resultJSON);
-          //   } else {
-          //   }
-          // });
-          let request = {};
-          request["channel"] = channel;
-          request["api_key"] = api_key;
-          request["start"] = start;
-          request["end"] = end;
-          return axios
-            .get(
-              transformUtil.readRecentDeviceMeasurementsFromThingspeak({
-                request,
-              })
-            )
-            .then(async (response) => {
-              logObject("the response man", response);
-              const readings = response.data.feeds[0];
-              const metadata = response.data.channel;
-              if (isEmpty(readings)) {
-                return res.status(httpStatus.NOT_FOUND).json({
-                  success: true,
-                  message: "no recent measurements for this device",
-                });
-              } else if (!isEmpty(readings)) {
-                return res.status(httpStatus.OK).json({
-                  isCache: false,
-                  ...readings,
-                });
-              }
-            })
-            .catch((err) => {
-              let error = {};
-              logObject("err", err);
-              if (err.response) {
-                error["response"] = err.response.data;
-              } else if (err.request) {
-                error["request"] = err.request;
-              } else if (err.config) {
-                error["config"] = err.config;
-              } else {
-                error["message"] =
-                  "unclear error as trying to get measurements from ThingSpeak";
-              }
-              let message = err.response
-                ? err.response.data
-                : "Internal Server Error";
-              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-              errorsUtil.errorResponse({ res, message, statusCode, error });
-            });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            message: result.message ? result.message : "internal server error",
-            errors: result.errors ? result.errors : { message: "" },
-            success: result.success ? result.success : false,
-          });
-        }
-      });
+
+      try {
+        const api_key = await getChannelApiKey(channel);
+        const request = { channel, api_key, start, end };
+        const thingspeakData = await fetchThingspeakData(request);
+        const { status, data } = handleThingspeakResponse(thingspeakData);
+        return res.status(status).json(data);
+      } catch (error) {
+        logger.error(`Error in getLastFeed: ${error.message}`);
+        const message = error.response
+          ? error.response.data
+          : "Internal Server Error";
+        const statusCode = error.response
+          ? error.response.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
+      }
     } catch (error) {
-      let message = error.message;
-      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-      errorsUtil.errorResponse({ res, message, statusCode, error });
+      logger.error(`Unexpected error in getLastFeed: ${error.message}`);
+      return errorsUtil.errorResponse({
+        res,
+        message: "Internal Server Error",
+        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+        error,
+      });
     }
   },
   getLastEntry: async (req, res) => {
@@ -724,190 +793,47 @@ const data = {
   },
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
+      const validation = validateRequest(req);
+      if (!validation.isValid) {
         return errorsUtil.badRequest(
           res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+          "Bad request errors",
+          errorsUtil.convertErrorArrayToObject(validation.errors)
         );
       }
+
       const { channel, start, end } = req.query;
-      let deviceCategory = "";
-      let api_key = "";
-      let errors = [];
-      await transformUtil.getAPIKey(channel, (result) => {
-        if (result.success === true) {
-          api_key = result.data;
-          // let ts = Date.now();
-          // let day = await generateDateFormat(ts);
-          // let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-          // redis.get(cacheID, (err, result) => {
-          //   if (result) {
-          //     const resultJSON = JSON.parse(result);
-          //     return res.status(httpStatus.OK).json(resultJSON);
-          //   } else {
-          //   }
-          // });
-          let request = {};
-          request["channel"] = channel;
-          request["api_key"] = api_key;
-          request["start"] = start;
-          request["end"] = end;
-          return axios
-            .get(
-              transformUtil.readRecentDeviceMeasurementsFromThingspeak({
-                request,
-              })
-            )
-            .then(async (response) => {
-              logObject("the response man", response);
-              const readings = response.data.feeds[0];
-              const metadata = response.data.channel;
-              if (isEmpty(readings)) {
-                return res.status(httpStatus.NOT_FOUND).json({
-                  success: true,
-                  message: "no recent measurements for this device",
-                });
-              } else if (!isEmpty(readings)) {
-                let cleanedDeviceMeasurements = transformUtil.clean(readings);
-                const fieldOneValue = cleanedDeviceMeasurements.field1
-                  ? cleanedDeviceMeasurements.field1
-                  : null;
 
-                if (isEmpty(fieldOneValue)) {
-                  return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-                    success: false,
-                    message: "unable to categorise device",
-                    errors: {
-                      message:
-                        "please crosscheck device on thingSpeak, it is not sending field1",
-                    },
-                  });
-                } else if (!isEmpty(fieldOneValue)) {
-                  const isProvidedDateReal = isDate(fieldOneValue);
-                  if (isProvidedDateReal) {
-                    cleanedDeviceMeasurements.field9 = "reference";
-                    deviceCategory = "reference";
-                  } else {
-                    logObject("metadata", metadata);
-                    deviceCategory = categorizeOutput(metadata);
-                    cleanedDeviceMeasurements.field9 =
-                      categorizeOutput(metadata);
-                  }
-                  let transformedData =
-                    await transformUtil.transformMeasurement(
-                      cleanedDeviceMeasurements
-                    );
-                  let transformedField = {};
-                  let otherData = transformedData.other_data;
+      try {
+        const api_key = await getChannelApiKey(channel);
+        const request = { channel, api_key, start, end };
+        const thingspeakData = await fetchThingspeakData(request);
 
-                  if (otherData) {
-                    transformedField = await transformUtil.trasformFieldValues({
-                      otherData,
-                      deviceCategory,
-                    });
-                    delete transformedData.other_data;
-                  }
-
-                  let newResp = {
-                    success: true,
-                    ...transformedData,
-                    ...transformedField,
-                    errors,
-                  };
-                  let cleanedFinalTransformation = transformUtil.clean(newResp);
-
-                  if (cleanedFinalTransformation.ExternalPressure) {
-                    const responseFromConvertFromHectopascalsToKilopascals =
-                      transformUtil.convertFromHectopascalsToKilopascals(
-                        cleanedFinalTransformation.ExternalPressure
-                      );
-
-                    if (
-                      responseFromConvertFromHectopascalsToKilopascals.success ===
-                      true
-                    ) {
-                      cleanedFinalTransformation.ExternalPressure =
-                        responseFromConvertFromHectopascalsToKilopascals.data;
-                    } else if (
-                      responseFromConvertFromHectopascalsToKilopascals.success ===
-                      false
-                    ) {
-                      const status =
-                        responseFromConvertFromHectopascalsToKilopascals.status
-                          ? responseFromConvertFromHectopascalsToKilopascals.status
-                          : httpStatus.INTERNAL_SERVER_ERROR;
-                      return res
-                        .status(status)
-                        .json(responseFromConvertFromHectopascalsToKilopascals);
-                    }
-                  }
-
-                  // redis.set(
-                  //   cacheID,
-                  //   JSON.stringify({
-                  //     isCache: true,
-                  //     ...cleanedFinalTransformation,
-                  //   })
-                  // );
-
-                  // redis.expire(
-                  //   cacheID,
-                  //   constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-                  // );
-
-                  return res.status(httpStatus.OK).json({
-                    isCache: false,
-                    ...cleanedFinalTransformation,
-                  });
-                }
-              }
-            })
-            .catch((err) => {
-              let error = {};
-              logObject("err", err);
-              if (err.response) {
-                error["response"] = err.response.data;
-              } else if (err.request) {
-                error["request"] = err.request;
-              } else if (err.config) {
-                error["config"] = err.config;
-              } else {
-                error["message"] =
-                  "unclear error as trying to get measurements from ThingSpeak";
-              }
-              let message = err.response
-                ? err.response.data
-                : "Internal Server Error";
-              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-              errorsUtil.errorResponse({ res, message, statusCode, error });
-            });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            message: result.message ? result.message : "internal server error",
-            errors: result.errors ? result.errors : { message: "" },
-            success: result.success ? result.success : false,
-          });
-        }
-      });
+        const { status, data } = await processDeviceMeasurements(
+          thingspeakData.feeds[0],
+          thingspeakData.channel
+        );
+        return res.status(status).json(data);
+      } catch (error) {
+        logger.error(`Error in generateDescriptiveLastEntry: ${error.message}`);
+        const message = error.response
+          ? error.response.data
+          : "Internal Server Error";
+        const statusCode = error.response
+          ? error.response.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
+      }
     } catch (error) {
-      let message = error.message;
-      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-      errorsUtil.errorResponse({ res, message, statusCode, error });
+      logger.error(
+        `Unexpected error in generateDescriptiveLastEntry: ${error.message}`
+      );
+      return errorsUtil.errorResponse({
+        res,
+        message: "Internal Server Error",
+        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+        error,
+      });
     }
   },
   getChannelLastEntryAge: async (req, res) => {
