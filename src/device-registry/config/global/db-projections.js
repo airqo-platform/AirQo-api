@@ -505,9 +505,6 @@ const dbProjections = {
       // network: 0,
       projection = Object.assign(initialProjection, {
         alias: 0,
-        previous_sites: 0,
-        cohorts: 0,
-        grids: 0,
         latitude: 0,
         longitude: 0,
         approximate_distance_in_km: 0,
