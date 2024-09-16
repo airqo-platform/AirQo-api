@@ -129,7 +129,7 @@ jobs:
               echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/data-mgt/node/* ]]; then
+            if [[ $file == src/data-mgt/* ]]; then
               echo "run_data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
@@ -817,7 +817,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          cd src/data-mgt/node/
+          cd src/data-mgt/
           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
@@ -845,7 +845,7 @@ jobs:
 
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/data-mgt/node/
+          cd src/data-mgt/
           gcloud secrets versions access latest --secret="sta-env-data-mgt-nodejs" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n staging
 
