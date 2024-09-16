@@ -82,13 +82,15 @@ class DataValidationUtils:
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
         big_query_api = BigQueryApi()
         float_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.FLOAT)
+            big_query_api.get_columns(table="all", column_type=[ColumnDataType.FLOAT])
         )
         integer_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.INTEGER)
+            big_query_api.get_columns(table="all", column_type=[ColumnDataType.INTEGER])
         )
         timestamp_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.TIMESTAMP)
+            big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.TIMESTAMP]
+            )
         )
 
         float_columns = list(float_columns & set(data.columns))
