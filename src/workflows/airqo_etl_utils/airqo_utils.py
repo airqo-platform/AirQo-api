@@ -117,40 +117,26 @@ class AirQoDataUtils:
         return not_duplicated_data
 
     @staticmethod
-    def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_aggregated_raw_data(
+        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+    ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
         """
         bigquery_api = BigQueryApi()
+
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
             tenant=Tenant.AIRQO,
+            dynamic_query=dynamic_query,
         )
 
         if measurements.empty:
             return pd.DataFrame([])
 
-        measurements = measurements.dropna(subset=["timestamp"])
-        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        averaged_measurements_list: List[pd.DataFrame] = []
-
-        for (device_number, device_id, site_id), device_site in measurements.groupby(
-            ["device_number", "device_id", "site_id"]
-        ):
-            data = device_site.sort_index(axis=0)
-            numeric_columns = data.select_dtypes(include="number").columns
-            averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
-            averages["timestamp"] = averages.index
-            averages["device_number"] = device_number
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averaged_measurements_list.append(averages)
-
-        averaged_measurements = pd.concat(averaged_measurements_list, ignore_index=True)
-
-        return averaged_measurements
+        return measurements
 
     @staticmethod
     def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
