@@ -150,7 +150,7 @@ const transform = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: error.message },
+        errors: { message: "an unexpected error occurred" },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
