@@ -25,8 +25,8 @@ class DataValidationUtils:
         "temperature": (0, 45),
         "humidity": (0, 99),
         "pressure": (30, 110),
-        "tvoc": (0, float("inf")),
-        "co2": (0, float("inf")),
+        "tvoc": (0, 10),
+        "co2": (400, 3000),
         "hcho": (0, float("inf")),
         "intaketemperature": (0, 45),
         "intakehumidity": (0, 99),
@@ -73,21 +73,24 @@ class DataValidationUtils:
         """
         if column_name in DataValidationUtils.VALID_SENSOR_RANGES:
             min_val, max_val = DataValidationUtils.VALID_SENSOR_RANGES[column_name]
-        if not (min_val <= row_value <= max_val):
-            return None
+            if not (min_val <= row_value <= max_val):
+                return None
+
         return row_value
 
     @staticmethod
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
         big_query_api = BigQueryApi()
         float_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.FLOAT)
+            big_query_api.get_columns(table="all", column_type=[ColumnDataType.FLOAT])
         )
         integer_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.INTEGER)
+            big_query_api.get_columns(table="all", column_type=[ColumnDataType.INTEGER])
         )
         timestamp_columns = set(
-            big_query_api.get_columns(table="all", column_type=ColumnDataType.TIMESTAMP)
+            big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.TIMESTAMP]
+            )
         )
 
         float_columns = list(float_columns & set(data.columns))

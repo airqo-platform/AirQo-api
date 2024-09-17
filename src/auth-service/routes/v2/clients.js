@@ -87,6 +87,14 @@ router.post(
         .bail()
         .isIP()
         .withMessage("Invalid IP address"),
+      body("ip_addresses")
+        .optional()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the ip_addresses should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the ip_addresses should not be empty IF provided"),
+      body("ip_addresses.*").isIP().withMessage("Invalid IP address provided"),
       body("redirect_url")
         .optional()
         .notEmpty()
@@ -200,6 +208,14 @@ router.put(
         .bail()
         .isIP()
         .withMessage("Invalid IP address"),
+      body("ip_addresses")
+        .optional()
+        .custom((value) => Array.isArray(value))
+        .withMessage("the ip_addresses should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the ip_addresses should not be empty IF provided"),
+      body("ip_addresses.*").isIP().withMessage("Invalid IP address provided"),
       body("redirect_url")
         .optional()
         .notEmpty()

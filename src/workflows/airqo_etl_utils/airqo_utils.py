@@ -22,6 +22,11 @@ from .thingspeak_api import ThingspeakApi
 from .utils import Utils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any
+from .airqo_gx_expectations import AirQoGxExpectations
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AirQoDataUtils:
@@ -112,40 +117,26 @@ class AirQoDataUtils:
         return not_duplicated_data
 
     @staticmethod
-    def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_aggregated_raw_data(
+        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+    ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
         """
         bigquery_api = BigQueryApi()
+
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
             tenant=Tenant.AIRQO,
+            dynamic_query=dynamic_query,
         )
 
         if measurements.empty:
             return pd.DataFrame([])
 
-        measurements = measurements.dropna(subset=["timestamp"])
-        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        averaged_measurements_list: List[pd.DataFrame] = []
-
-        for (device_number, device_id, site_id), device_site in measurements.groupby(
-            ["device_number", "device_id", "site_id"]
-        ):
-            data = device_site.sort_index(axis=0)
-            numeric_columns = data.select_dtypes(include="number").columns
-            averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
-            averages["timestamp"] = averages.index
-            averages["device_number"] = device_number
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averaged_measurements_list.append(averages)
-
-        averaged_measurements = pd.concat(averaged_measurements_list, ignore_index=True)
-
-        return averaged_measurements
+        return measurements
 
     @staticmethod
     def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
@@ -176,7 +167,7 @@ class AirQoDataUtils:
             try:
                 series[value] = values[key]
             except Exception as ex:
-                print(ex)
+                logger.exception(f"An error occurred: {ex}")
                 series[value] = None
 
         return series
@@ -391,7 +382,7 @@ class AirQoDataUtils:
             read_key = read_keys.get(device_number, None)
 
             if read_key is None or device_number is None:
-                print(f"{device_number} does not have a read key")
+                logger.exception(f"{device_number} does not have a read key")
                 continue
 
             for start, end in dates:
@@ -402,7 +393,9 @@ class AirQoDataUtils:
                     read_key=read_key,
                 )
                 if data.empty:
-                    print(f"Device does not have data between {start} and {end}")
+                    logger.exception(
+                        f"Device does not have data between {start} and {end}"
+                    )
                     continue
 
                 if "field8" not in data.columns.to_list():
@@ -447,6 +440,15 @@ class AirQoDataUtils:
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and avergages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted(numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         averages_list: List[pd.DataFrame] = []
         for _, device_group in data.groupby("device_number"):
@@ -457,14 +459,14 @@ class AirQoDataUtils:
             del device_group["site_id"]
             del device_group["device_id"]
             del device_group["device_number"]
-            print("This device has bad data: ", device_number)
+
             averages = device_group.resample("1H", on="timestamp").mean()
             averages["timestamp"] = averages.index
             averages["device_id"] = device_id
             averages["site_id"] = site_id
             averages["device_number"] = device_number
             averages_list.append(averages)
-        aggregated_data = pd.DataFrame(averages_list)
+        aggregated_data = pd.concat(averages_list, ignore_index=True)
 
         return aggregated_data
 
@@ -508,6 +510,17 @@ class AirQoDataUtils:
         """
         if remove_outliers:
             data = DataValidationUtils.remove_outliers(data)
+            # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
+            match device_category:
+                case DeviceCategory.LOW_COST_GAS:
+                    AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                        data
+                    )
+                case DeviceCategory.LOW_COST:
+                    AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
+                        data
+                    )
+
         data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
@@ -685,8 +698,7 @@ class AirQoDataUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                traceback.print_exc()
-                print(ex)
+                logger.exception(f"An error occurred: {ex}")
 
         return restructured_data
 
@@ -834,8 +846,7 @@ class AirQoDataUtils:
                 )
 
             except Exception as ex:
-                print(ex)
-                traceback.print_exc()
+                logger.exception(f"An error occurred {ex}")
 
         return devices_history.dropna()
 
@@ -967,8 +978,8 @@ class AirQoDataUtils:
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
-                except Exception as e:
-                    print(f"Error getting model: {e}")
+                except Exception as ex:
+                    logger.exception(f"Error getting model: {ex}")
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 

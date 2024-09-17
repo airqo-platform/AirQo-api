@@ -28,7 +28,7 @@ class DateUtils:
         hours: int = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        """ "
+        """
         Formats start and end dates.
 
         Args:

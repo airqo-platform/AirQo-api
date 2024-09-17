@@ -4,15 +4,17 @@ metadata:
   name: {{ .Values.app.cronJobName }}
   namespace: {{ .Values.app.namespace }}
 spec:
-  concurrencyPolicy: Allow
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 1200
   schedule: 0 * * * *
   suspend: false
   jobTemplate:
     metadata:
       name: {{ .Values.app.cronJobName }}
     spec:
+      ttlSecondsAfterFinished: 100
       template:
         spec:
           dnsPolicy: ClusterFirst
@@ -28,6 +30,11 @@ spec:
                     operator: In
                     values:
                       - compute
+          tolerations:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "cronjobs"
+              effect: "NoExecute"
           containers:
             - name: {{ .Values.app.name }}
               image: "{{ .Values.images.repositories.cronJob }}:{{ .Values.images.tag }}"
