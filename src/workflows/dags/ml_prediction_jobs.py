@@ -154,7 +154,7 @@ make_forecasts()
 
 def processing_pipeline():
     @task()
-    def formatting_variables(data,str_format="%Y-%m-%d"):
+    def formatting_variables(data):
         return DataValidationUtils.format_data_types(data,timestamps='date')
     @task()
     def validating_data(data):
