@@ -223,18 +223,6 @@ const data = {
       return;
     }
   },
-  getFeeds: async (req, res, next) => {
-    const errors = extractErrorsFromRequest(req);
-    if (errors) {
-      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
-      return;
-    }
-
-    logText("getting feeds..............  ");
-    const fetch_response = await fetch(constants.GET_FEEDS(req.params.ch_id));
-    const json = await fetch_response.json();
-    res.status(200).send(json);
-  },
   getLastFeed: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
