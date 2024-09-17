@@ -54,35 +54,5 @@ router.get(
   ]),
   transformController.generateDescriptiveLastEntry
 );
-router.get(
-  "/",
-  oneOf([
-    query("channel")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the channel"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the channel should be an integer value"),
-  ]),
-  transformController.readFeeds
-);
-router.get(
-  "/last",
-  oneOf([
-    query("channel")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the channel"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the channel should be an integer value"),
-  ]),
-  transformController.readMostRecentFeeds
-);
 
 module.exports = router;

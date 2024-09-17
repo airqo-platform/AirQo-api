@@ -6,6 +6,8 @@ const redis = require("../config/redis");
 const { generateDateFormatWithoutHrs, isDate } = require("./date");
 const cleanDeep = require("clean-deep");
 const HTTPStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- transform-util`);
 
 const transform = {
   readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
@@ -89,81 +91,68 @@ const transform = {
     }
     return trimmedValues;
   },
-  getAPIKey: async (channel, callback) => {
+  getAPIKey: async (channel) => {
     try {
-      logText("GET_API_KEY...........");
       const tenant = "airqo";
-      let url = constants.GET_DEVICES_URL({ tenant, channel });
-      logElement("the url inside GET API KEY", url);
-      return axios
-        .get(url, {
+      const url = constants.GET_DEVICES_URL({ tenant, channel });
+
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `JWT ${constants.JWT_TOKEN}`,
+        },
+      });
+
+      const responseJSON = response.data;
+
+      if (!responseJSON.success) {
+        return {
+          success: false,
+          message: responseJSON.message || "Error retrieving device details",
+          errors: responseJSON.errors || { message: "Internal server errors" },
+        };
+      }
+
+      const deviceDetails = responseJSON.devices[0];
+
+      if (isEmpty(deviceDetails)) {
+        return {
+          success: false,
+          message: "Device does not exist",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+
+      if (isEmpty(deviceDetails.readKey)) {
+        return {
+          success: false,
+          message: "ReadKey unavailable, this might be an external device",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+
+      const decryptResponse = await axios.post(
+        constants.DECRYPT_DEVICE_KEY_URL,
+        { encrypted_key: deviceDetails.readKey },
+        {
           headers: {
             Authorization: `JWT ${constants.JWT_TOKEN}`,
           },
-        })
-        .then(async (response) => {
-          let responseJSON = response.data;
-          if (responseJSON.success === true) {
-            let deviceDetails = responseJSON.devices[0];
-            logObject("deviceDetails", deviceDetails);
-            if (isEmpty(deviceDetails)) {
-              return callback({
-                success: false,
-                message: "device does not exist",
-                status: HTTPStatus.NOT_FOUND,
-              });
-            } else if (!isEmpty(deviceDetails.readKey)) {
-              let readKey = deviceDetails.readKey;
-              logElement("readKey", readKey);
-              const url = constants.DECRYPT_DEVICE_KEY_URL;
-              return axios
-                .post(
-                  url,
-                  {
-                    encrypted_key: readKey,
-                  },
-                  {
-                    headers: {
-                      Authorization: `JWT ${constants.JWT_TOKEN}`,
-                    },
-                  }
-                )
-                .then((response) => {
-                  let decrypted_key = response.data.decrypted_key;
-                  return callback({
-                    success: true,
-                    data: decrypted_key,
-                    message: "read key successfully retrieved",
-                  });
-                });
-            } else {
-              return callback({
-                success: false,
-                message:
-                  "readKey unavailable, this might be an external device",
-                status: HTTPStatus.NOT_FOUND,
-              });
-            }
-          } else if (responseJSON.success === false) {
-            return {
-              success: false,
-              message: responseJSON.message,
-              errors: responseJSON.errors
-                ? responseJSON.errors
-                : { message: "internal server errors" },
-            };
-          }
-        })
-        .catch((error) => {
-          logObject("an error for getting API key", error);
-          return callback({
-            success: false,
-            message: "Internal Server Error",
-            errors: { message: error },
-          });
-        });
+        }
+      );
+
+      return {
+        success: true,
+        data: decryptResponse.data.decrypted_key,
+        message: "Read key successfully retrieved",
+      };
     } catch (error) {
-      logObject("an error in the get device API key util", error);
+      logger.error("Error in getAPIKey:", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "an unexpected error occurred" },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
   getFieldLabel: (field) => {
