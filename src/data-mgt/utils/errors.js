@@ -24,11 +24,19 @@ const convertErrorArrayToObject = (arrays) => {
 
 const extractErrorsFromRequest = (req) => {
   const errors = validationResult(req);
-
   if (!errors.isEmpty()) {
-    const firstError = errors.errors[0];
-    const nestedErrors = firstError.nestedErrors || [];
-    return convertErrorArrayToObject(nestedErrors);
+    let allErrors = {};
+    errors.errors.forEach((error) => {
+      if (error.nestedErrors && Array.isArray(error.nestedErrors)) {
+        allErrors = {
+          ...allErrors,
+          ...convertErrorArrayToObject(error.nestedErrors),
+        };
+      } else {
+        allErrors = { ...allErrors, ...convertErrorArrayToObject([error]) };
+      }
+    });
+    return allErrors;
   }
 
   return null;
