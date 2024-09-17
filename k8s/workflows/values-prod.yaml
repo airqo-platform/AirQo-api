@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-be574e32-1725977935
+  tag: prod-78eb702c-1726596255
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -34,8 +34,8 @@ resources:
       cpu: 125m
       memory: 2565Mi
     limits:
-      cpu: 1500m
-      memory: 3000Mi
+      cpu: 3000m
+      memory: 4000Mi
   redis:
     requests:
       cpu: 50m

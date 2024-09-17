@@ -25,6 +25,15 @@ const noSpaces = /^\S*$/;
 
 const accessCodeGenerator = require("generate-password");
 
+function sanitizeObject(obj, invalidKeys) {
+  invalidKeys.forEach((key) => {
+    if (obj.hasOwnProperty(key)) {
+      delete obj[key];
+    }
+  });
+  return obj;
+}
+
 const deviceSchema = new mongoose.Schema(
   {
     cohorts: {
@@ -528,12 +537,10 @@ deviceSchema.statics = {
     try {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
-      delete modifiedUpdate.name;
-      delete modifiedUpdate.device_number;
-      delete modifiedUpdate._id;
-      delete modifiedUpdate.generation_count;
-      delete modifiedUpdate.generation_version;
-      delete modifiedUpdate.network;
+      //device_number, generation_count, generation_version, network
+      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      modifiedUpdate = sanitizeObject(modifiedUpdate, invalidKeys);
+
       let options = { new: true, projected: modifiedUpdate, ...opts };
 
       if (!isEmpty(modifiedUpdate.access_code)) {
@@ -604,12 +611,6 @@ deviceSchema.statics = {
       logObject("the filter", filter);
       let options = { new: true };
       let modifiedUpdate = update;
-      delete modifiedUpdate.name;
-      delete modifiedUpdate.device_number;
-      delete modifiedUpdate._id;
-      delete modifiedUpdate.generation_count;
-      delete modifiedUpdate.generation_version;
-
       validKeys = ["writeKey", "readKey"];
       Object.keys(modifiedUpdate).forEach(
         (key) => validKeys.includes(key) || delete modifiedUpdate[key]

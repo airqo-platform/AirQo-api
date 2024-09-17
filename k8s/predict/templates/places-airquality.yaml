@@ -4,6 +4,7 @@ metadata:
   name: {{ .Values.jobs.predictPlaces.name }}
   namespace: {{ .Values.namespace }}
 spec:
+  suspend: True
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

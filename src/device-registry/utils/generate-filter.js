@@ -902,6 +902,7 @@ const generateFilter = {
       group,
       visibility,
       deviceName,
+      status,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -986,6 +987,30 @@ const generateFilter = {
 
     if (visibility) {
       filter.visibility = visibility.toLowerCase() === "yes";
+    }
+
+    const validStatuses = constants.VALID_DEVICE_STATUSES;
+
+    if (status) {
+      // Split the status string by commas, but not within quotes
+      const statusArray = status.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+
+      const validStatusArray = statusArray
+        .map((s) => {
+          // Remove quotes and trim whitespace
+          s = s
+            .replace(/^"|"$/g, "")
+            .trim()
+            .toLowerCase();
+          // Replace underscores or dashes with spaces
+          s = s.replace(/[_-]/g, " ");
+          return s;
+        })
+        .filter((s) => validStatuses.includes(s));
+
+      if (validStatusArray.length > 0) {
+        filter.status = { $in: validStatusArray };
+      }
     }
 
     return filter;

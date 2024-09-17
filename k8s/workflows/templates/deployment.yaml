@@ -95,10 +95,6 @@ spec:
             requests:
               cpu: {{ .Values.resources.celery.requests.cpu }}
               memory: {{ .Values.resources.celery.requests.memory }}
-      initialDelaySeconds: 10
-      periodSeconds: 15
-      failureThreshold: 3
-      timeoutSeconds: 5
         - name: '{{ .Values.app.name }}-webserver'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent

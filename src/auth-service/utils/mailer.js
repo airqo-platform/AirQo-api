@@ -904,6 +904,7 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
+      //bcc: subscribedBccEmails,
 
       let mailOptions = {};
       mailOptions = {
@@ -914,7 +915,6 @@ const mailer = {
         to: `${email}`,
         subject: "Welcome to AirQo!",
         html: msgTemplates.afterEmailVerification(firstName, username, email),
-        bcc: subscribedBccEmails,
         attachments: attachments,
       };
 
