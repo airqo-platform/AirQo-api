@@ -17,20 +17,26 @@ class HttpError extends Error {
 const convertErrorArrayToObject = (arrays) => {
   const initialValue = {};
   return arrays.reduce((obj, item) => {
-    let param = item.param;
-    return {
-      ...obj,
-      [param]: `${item.msg}`,
-    };
+    obj[item.param] = item.msg;
+    return obj;
   }, initialValue);
 };
 
 const extractErrorsFromRequest = (req) => {
   const errors = validationResult(req);
-
   if (!errors.isEmpty()) {
-    const nestedErrors = errors.errors[0].nestedErrors;
-    return convertErrorArrayToObject(nestedErrors);
+    let allErrors = {};
+    errors.errors.forEach((error) => {
+      if (error.nestedErrors && Array.isArray(error.nestedErrors)) {
+        allErrors = {
+          ...allErrors,
+          ...convertErrorArrayToObject(error.nestedErrors),
+        };
+      } else {
+        allErrors = { ...allErrors, ...convertErrorArrayToObject([error]) };
+      }
+    });
+    return allErrors;
   }
 
   return null;
