@@ -989,16 +989,7 @@ const generateFilter = {
       filter.visibility = visibility.toLowerCase() === "yes";
     }
 
-    const validStatuses = [
-      "recalled",
-      "ready",
-      "deployed",
-      "undeployed",
-      "decommissioned",
-      "assembly",
-      "testing",
-      "not deployed",
-    ];
+    const validStatuses = constants.VALID_DEVICE_STATUSES;
 
     if (status) {
       // Split the status string by commas, but not within quotes
