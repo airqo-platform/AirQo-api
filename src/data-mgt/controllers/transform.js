@@ -11,6 +11,7 @@ const errorsUtil = require("../utils/errors");
 const { validationResult } = require("express-validator");
 const cleanDeep = require("clean-deep");
 const log4js = require("log4js");
+const stringify = require("@utils/stringify");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
@@ -44,7 +45,7 @@ const validateRequest = (req) => {
   if (!errors.isEmpty()) {
     const nestedErrors = errors.errors[0].nestedErrors;
     logger.error(
-      `Input validation errors: ${JSON.stringify(
+      `🐛🐛 Input validation errors: ${stringify(
         errorsUtil.convertErrorArrayToObject(nestedErrors)
       )}`
     );
@@ -169,12 +170,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -204,10 +205,7 @@ const data = {
             })
             .then((response) => {
               const responseJSON = response.data;
-              redis.set(
-                cacheID,
-                JSON.stringify({ isCache: true, ...responseJSON })
-              );
+              redis.set(cacheID, stringify({ isCache: true, ...responseJSON }));
               redis.expire(cacheID, constants.GET_CHANNELS_CACHE_EXPIRATION);
               return res
                 .status(httpStatus.OK)
@@ -243,12 +241,12 @@ const data = {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
       try {
         logger.error(
-          `input validation errors ${JSON.stringify(
+          `🐛🐛 input validation errors ${stringify(
             errorsUtil.convertErrorArrayToObject(nestedErrors)
           )}`
         );
       } catch (e) {
-        logger.error(`Internal Server Error -- ${e.message}`);
+        logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
       }
       return errorsUtil.badRequest(
         res,
@@ -282,7 +280,7 @@ const data = {
         const { status, data } = handleThingspeakResponse(thingspeakData);
         return res.status(status).json(data);
       } catch (error) {
-        logger.error(`Error in getLastFeed: ${error.message}`);
+        logger.error(`🐛🐛 Error in getLastFeed: ${error.message}`);
         const message = error.response
           ? error.response.data
           : "Internal Server Error";
@@ -292,7 +290,7 @@ const data = {
         return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
-      logger.error(`Unexpected error in getLastFeed: ${error.message}`);
+      logger.error(`🐛🐛 Unexpected error in getLastFeed: ${error.message}`);
       return errorsUtil.errorResponse({
         res,
         message: "Internal Server Error",
@@ -308,12 +306,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -348,7 +346,7 @@ const data = {
                 let responseData = recentReadings[0];
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseData })
+                  stringify({ isCache: true, ...responseData })
                 );
                 redis.expire(
                   cacheID,
@@ -399,12 +397,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -439,7 +437,7 @@ const data = {
                 const responseJSON = response.data;
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseJSON })
+                  stringify({ isCache: true, ...responseJSON })
                 );
                 redis.expire(cacheID, constants.GET_HOURLY_CACHE_EXPIRATION);
                 return res
@@ -492,12 +490,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -570,7 +568,7 @@ const data = {
 
                   redis.set(
                     cacheID,
-                    JSON.stringify({
+                    stringify({
                       isCache: true,
                       success: true,
                       measurements: cleanDeep(measurements),
@@ -639,12 +637,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -727,7 +725,7 @@ const data = {
 
                   redis.set(
                     cacheID,
-                    JSON.stringify({
+                    stringify({
                       isCache: true,
                       success: true,
                       measurements: cleanDeep(measurements),
@@ -815,7 +813,9 @@ const data = {
         );
         return res.status(status).json(data);
       } catch (error) {
-        logger.error(`Error in generateDescriptiveLastEntry: ${error.message}`);
+        logger.error(
+          `🐛🐛 an error in generateDescriptiveLastEntry: ${stringify(error)}`
+        );
         const message = error.response
           ? error.response.data
           : "Internal Server Error";
@@ -826,7 +826,7 @@ const data = {
       }
     } catch (error) {
       logger.error(
-        `Unexpected error in generateDescriptiveLastEntry: ${error.message}`
+        `🐛🐛 Unexpected error in generateDescriptiveLastEntry: ${error.message}`
       );
       return errorsUtil.errorResponse({
         res,
@@ -843,12 +843,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -879,7 +879,7 @@ const data = {
               const responseJSON = response.data;
               redis.set(
                 cacheID,
-                JSON.stringify({
+                stringify({
                   isCache: true,
                   channel: channel,
                   ...responseJSON,
@@ -925,12 +925,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -965,7 +965,7 @@ const data = {
                 const responseJSON = response.data;
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseJSON })
+                  stringify({ isCache: true, ...responseJSON })
                 );
                 redis.expire(
                   cacheID,
@@ -1014,12 +1014,12 @@ const data = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
           logger.error(
-            `input validation errors ${JSON.stringify(
+            `🐛🐛 input validation errors ${stringify(
               errorsUtil.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${e.message}`);
         }
         return errorsUtil.badRequest(
           res,
@@ -1045,7 +1045,7 @@ const data = {
             .then((response) => {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
-              redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
+              redis.set(`${cacheID}`, stringify({ isCache: true, count }));
               redis.expire(
                 cacheID,
                 constants.GET_DEVICE_COUNT_CACHE_EXPIRATION
