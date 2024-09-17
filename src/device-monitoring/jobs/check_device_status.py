@@ -70,7 +70,7 @@ def get_all_devices():
     return active_devices
 
 def get_device_channel_status():
-        BASE_API_URL='https://platform.airqo.net/api/v2/data/'
+        BASE_API_URL='https://data-manager-dot-airqo-250220.uc.r.appspot.com/api/v2/data/'
         
         api_url = '{0}{1}'.format(BASE_API_URL,'channels')
         print(api_url)         
