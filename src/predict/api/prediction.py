@@ -351,11 +351,11 @@ class PM2_5Prediction(Resource):
             city = float(request.args.get('city'))
             date = datetime.datetime(request.args.get('date'))
             if latitude and longitude:
-                preds = get_pm2_5_by_coordinates((latitude,longitude))
+                preds = get_pm2_5_by_coordinates((latitude,longitude),date=date)
                 if len(preds) <= 0 :
                     return {'message':'No forcasts available.'}
             elif city:
-                preds = get_pm2_5_by_city(city)
+                preds = get_pm2_5_by_city(city=city,date=date)
             else:
                 return {
                     'message':"no arguments are specified",
