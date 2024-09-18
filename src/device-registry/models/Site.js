@@ -278,6 +278,7 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    lastActive: { type: Date },
     count: { type: Number },
     country: {
       type: String,
@@ -454,6 +455,7 @@ siteSchema.methods = {
       images: this.images,
       share_links: this.share_links,
       city: this.city,
+      lastActive: this.lastActive,
       street: this.street,
       county: this.county,
       altitude: this.altitude,
