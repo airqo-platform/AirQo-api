@@ -15,7 +15,6 @@ const cron = require("node-cron");
 
 function isEntityActive(entity) {
   const inactiveThreshold = 30 * 60 * 1000; // 30 minutes in milliseconds
-  logObject("entity", entity);
 
   if (!entity || !entity.lastActive) {
     return false;
