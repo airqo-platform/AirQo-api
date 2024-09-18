@@ -45,10 +45,35 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       },
     };
     const filter = generateFilter.fetch(request);
-    const viewEventsResponse = await EventModel("airqo").fetch(filter);
-    logText("Running the data insertion script");
+
+    let viewEventsResponse;
+    try {
+      viewEventsResponse = await EventModel("airqo").fetch(filter);
+      logText("Running the data insertion script");
+    } catch (fetchError) {
+      logger.error(`Error fetching events: ${jsonify(fetchError)}`);
+      return;
+    }
+
+    // Check if viewEventsResponse is defined and has the expected structure
+    if (!viewEventsResponse || typeof viewEventsResponse !== "object") {
+      logger.error(
+        `Unexpected response from EventModel.fetch(): ${jsonify(
+          viewEventsResponse
+        )}`
+      );
+      return;
+    }
 
     if (viewEventsResponse.success === true) {
+      if (
+        !viewEventsResponse.data ||
+        !Array.isArray(viewEventsResponse.data) ||
+        viewEventsResponse.data.length === 0
+      ) {
+        logText("No data found in the response");
+        return;
+      }
       const data = viewEventsResponse.data[0].data;
       if (!data || data.length === 0) {
         logText("No Events found to insert into Readings");
