@@ -105,6 +105,7 @@ const deviceSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
     },
+    lastActive: { type: Date },
     generation_version: {
       type: Number,
     },
@@ -292,6 +293,7 @@ deviceSchema.methods = {
       mountType: this.mountType,
       isActive: this.isActive,
       writeKey: this.writeKey,
+      lastActive: this.lastActive,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,

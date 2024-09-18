@@ -170,6 +170,7 @@ const dbProjections = {
     airqlouds: "$airqlouds",
     weather_stations: 1,
     site_category: 1,
+    lastActive: 1,
   },
   SITES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -372,6 +373,7 @@ const dbProjections = {
     category: 1,
     cohorts: 1,
     grids: 1,
+    lastActive: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },
