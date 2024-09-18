@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-fb910b65-1725810667
+  tag: prod-84d7eadc-1726639942
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -24,25 +24,25 @@ resources:
       memory: 2000Mi
   scheduler:
     requests:
-      cpu: 112m
+      cpu: 125m
       memory: 500Mi
     limits:
       cpu: 1000m
       memory: 3000Mi
   celery:
     requests:
-      cpu: 112m
-      memory: 1250Mi
+      cpu: 125m
+      memory: 2565Mi
     limits:
-      cpu: 1000m
-      memory: 3000Mi
+      cpu: 3000m
+      memory: 4000Mi
   redis:
     requests:
       cpu: 50m
       memory: 125Mi
     limits:
       cpu: 1000m
-      memory: 2000Mi
+      memory: 3000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

@@ -1,43 +1,49 @@
-**_WHAT DOES THIS PR DO?_**
+## Description
 
-- [ ] Item 1
-- [ ] Item 2
+[Provide a brief description of the changes made in this PR]
 
-**_WHAT ISSUES ARE RELATED TO THIS PR?_**
+## Related Issues
 
-- Jira cards
-    - []
-- GitHub issues
-    - Closes #<enter GitHub issue number here>
+- [ ] GitHub issues:
+  - [ ] [Closes #123](https://github.com/your-org/your-repo/issues/123)
+  - [ ] [Closes #456](https://github.com/your-org/your-repo/issues/456)
+  - [ ] Any other relevant GitHub Issues...
+- [ ] JIRA cards:
+  - [ ] [JIRA-7890](https://your-jira-instance.atlassian.net/browse/JIRA-7890)
+  - [ ] [JIRA-101112](https://your-jira-instance.atlassian.net/browse/JIRA-101112)
+  - [ ] Any other relevant JIRA cards...
 
-**_HOW DO I TEST OUT THIS PR?_**
+## Changes Made
 
-- [ ] Analytics: [Link to Analytics README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/analytics#readme)
-- [ ] Auth Service: [Link to Auth Service README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/auth-service#readme)
-- [ ] Calibrate: [Link to Calibrate README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/calibrate#readme)
-- [ ] Data Proxy: [Link to Data Proxy README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/data-proxy#readme)
-- [ ] Device Monitoring: [Link to Device Monitoring README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/device-monitoring#readme)
-- [ ] Device Registry: [Link to Device Registry README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/device-registry#readme)
-- [ ] Device Status: [Link to Device Status README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/device-status#readme)
-- [ ] Device Uptime: [Link to Device Uptime README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/device-uptime#readme)
-- [ ] Exceedances: [Link to Exceedances README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/exceedances#readme)
-- [ ] Firebase: [Link to Firebase README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/firebase)
-- [ ] GP Model: [Link to GP Model README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/gp-model#readme)
-- [ ] Incentives: [Link to Incentives README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/incentives#readme)
-- [ ] Kafka Connectors: [Link to Kafka Connectors](https://github.com/airqo-platform/AirQo-api/tree/staging/src/kafka-connectors)
-- [ ] Locate: [Link to Locate README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/locate#readme)
-- [ ] Metadata: [Link to Metadata README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/meta-data#readme)
-- [ ] Predict: [Link to Predict README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/predict#readme)
-- [ ] Spatial: [Link to Spatial](https://github.com/airqo-platform/AirQo-api/tree/staging/src/spatial)
-- [ ] View: [Link to View README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/view#readme)
-- [ ] Workflows: [Link to Workflows README](https://github.com/airqo-platform/AirQo-api/tree/staging/src/workflows#readme)
+- [ ] Brief description of change 1
+- [ ] Brief description of change 2
+- [ ] Brief description of change 3
 
-**_WHICH ENDPOINTS SHOULD BE READY FOR TESTING?:_** 
+## Testing
 
-- [ ] Endpoint 1
-- [ ] Endpoint 2
+- [ ] Tested locally
+- [ ] Tested against staging environment
+- [ ] Relevant tests passed: [List test names]
 
-**_ARE THERE ANY RELATED PRs?_**
+## Affected Services
 
-- [ ] Related PR 1
-- [ ] Related PR 2
+- [ ] Which services were modified:
+  - [ ] Service 1
+  - [ ] Service 2
+  - [ ] Other...
+
+## Endpoints Ready for Testing
+
+- [ ] New endpoints ready for testing:
+  - [ ] Endpoint 1
+  - [ ] Endpoint 2
+  - [ ] Other...
+     
+## API Documentation Updated?
+
+- [ ] Yes, API documentation was updated
+- [ ] No, API documentation does not need updating
+
+## Additional Notes
+
+[Add any additional notes or comments here]

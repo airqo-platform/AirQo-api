@@ -498,6 +498,11 @@ const dbProjections = {
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
+      // readKey: 0,
+      // device_number: 0,
+      // isActive: 0,
+      // description: 0,
+      // network: 0,
       projection = Object.assign(initialProjection, {
         alias: 0,
         latitude: 0,
@@ -507,24 +512,19 @@ const dbProjections = {
         ISP: 0,
         phoneNumber: 0,
         visibility: 0,
-        description: 0,
         isPrimaryInLocation: 0,
         nextMaintenance: 0,
         deployment_date: 0,
         name_id: 0,
+        writeKey: 0,
         recall_date: 0,
         maintenance_date: 0,
-        device_number: 0,
         powerType: 0,
         mountType: 0,
-        isActive: 0,
-        writeKey: 0,
-        readKey: 0,
         access_code: 0,
         device_codes: 0,
         height: 0,
         mobility: 0,
-        network: 0,
         category: 0,
         host: 0,
       });
