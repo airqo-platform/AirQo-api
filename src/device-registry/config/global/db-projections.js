@@ -171,6 +171,7 @@ const dbProjections = {
     weather_stations: 1,
     site_category: 1,
     lastActive: 1,
+    isOnline: 1,
   },
   SITES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -374,6 +375,7 @@ const dbProjections = {
     cohorts: 1,
     grids: 1,
     lastActive: 1,
+    isOnline: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },

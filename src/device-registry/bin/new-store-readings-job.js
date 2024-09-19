@@ -14,7 +14,7 @@ const generateFilter = require("@utils/generate-filter");
 const cron = require("node-cron");
 
 function isEntityActive(entity) {
-  const inactiveThreshold = 30 * 60 * 1000; // 30 minutes in milliseconds
+  const inactiveThreshold = 180 * 60 * 1000; // 180 minutes in milliseconds
 
   if (!entity || !entity.lastActive) {
     return false;
@@ -41,7 +41,10 @@ async function updateEntityLastActive(Model, filter, time, entityType) {
         return;
       }
 
-      const updateResult = await Model.updateOne(filter, { lastActive: time });
+      const updateResult = await Model.updateOne(filter, {
+        lastActive: time,
+        isOnline: false,
+      });
       // logger.info(
       //   `Updated ${entityType} lastActive. Result: ${jsonify(updateResult)}`
       // );
