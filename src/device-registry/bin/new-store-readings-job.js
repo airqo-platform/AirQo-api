@@ -28,23 +28,23 @@ function isEntityActive(entity) {
 
 async function updateEntityLastActive(Model, filter, time, entityType) {
   try {
-    logger.info(
-      `Attempting to update ${entityType} with filter: ${jsonify(filter)}`
-    );
+    // logger.info(
+    //   `Attempting to update ${entityType} with filter: ${jsonify(filter)}`
+    // );
 
     const entity = await Model.findOne(filter);
     if (entity) {
-      logger.info(`Found ${entityType} with ID: ${entity._id}`);
+      // logger.info(`Found ${entityType} with ID: ${entity._id}`);
 
       if (isEntityActive(entity)) {
-        logger.info(`${entityType} is still active, no update needed`);
+        // logger.info(`${entityType} is still active, no update needed`);
         return;
       }
 
       const updateResult = await Model.updateOne(filter, { lastActive: time });
-      logger.info(
-        `Updated ${entityType} lastActive. Result: ${jsonify(updateResult)}`
-      );
+      // logger.info(
+      //   `Updated ${entityType} lastActive. Result: ${jsonify(updateResult)}`
+      // );
     } else {
       logger.warn(`${entityType} not found with filter: ${jsonify(filter)}`);
     }
@@ -58,7 +58,7 @@ async function updateEntityLastActive(Model, filter, time, entityType) {
 async function processDocument(doc) {
   try {
     // Log the document being processed
-    logger.info(`Processing document: ${jsonify(doc)}`);
+    // logger.info(`Processing document: ${jsonify(doc)}`);
 
     // Update Site lastActive
     if (doc.site_id) {
