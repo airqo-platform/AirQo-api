@@ -106,6 +106,11 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
     },
     lastActive: { type: Date },
+    isOnline: {
+      type: Boolean,
+      trim: true,
+      default: true,
+    },
     generation_version: {
       type: Number,
     },
@@ -294,6 +299,7 @@ deviceSchema.methods = {
       isActive: this.isActive,
       writeKey: this.writeKey,
       lastActive: this.lastActive,
+      isOnline: this.isOnline,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,

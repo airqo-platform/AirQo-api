@@ -279,6 +279,11 @@ const siteSchema = new Schema(
       trim: true,
     },
     lastActive: { type: Date },
+    isOnline: {
+      type: Boolean,
+      trim: true,
+      default: true,
+    },
     count: { type: Number },
     country: {
       type: String,
@@ -456,6 +461,7 @@ siteSchema.methods = {
       share_links: this.share_links,
       city: this.city,
       lastActive: this.lastActive,
+      isOnline: this.isOnline,
       street: this.street,
       county: this.county,
       altitude: this.altitude,
