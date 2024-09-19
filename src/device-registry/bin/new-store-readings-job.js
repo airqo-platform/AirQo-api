@@ -26,20 +26,66 @@ function isEntityActive(entity) {
   return now.getTime() - lastActiveDate.getTime() < inactiveThreshold;
 }
 
-async function updateEntityLastActive(Model, filter, time) {
+async function updateEntityLastActive(Model, filter, time, entityType) {
   try {
+    logger.info(
+      `Attempting to update ${entityType} with filter: ${jsonify(filter)}`
+    );
+
     const entity = await Model.findOne(filter);
     if (entity) {
+      logger.info(`Found ${entityType} with ID: ${entity._id}`);
+
       if (isEntityActive(entity)) {
-        // Entity is still active, no need to update
+        logger.info(`${entityType} is still active, no update needed`);
         return;
       }
 
-      await Model.updateOne(filter, { lastActive: time });
+      const updateResult = await Model.updateOne(filter, { lastActive: time });
+      logger.info(
+        `Updated ${entityType} lastActive. Result: ${jsonify(updateResult)}`
+      );
+    } else {
+      logger.warn(`${entityType} not found with filter: ${jsonify(filter)}`);
     }
   } catch (error) {
-    logObject("Error updating entity's lastActive", error);
-    logger.error(`Error updating entity's lastActive: ${jsonify(error)}`);
+    logger.error(`Error updating ${entityType}'s lastActive: ${error.message}`);
+    logger.error(`Stack trace: ${error.stack}`);
+  }
+}
+
+// Modified usage within the main function
+async function processDocument(doc) {
+  try {
+    // Log the document being processed
+    logger.info(`Processing document: ${jsonify(doc)}`);
+
+    // Update Site lastActive
+    if (doc.site_id) {
+      await updateEntityLastActive(
+        SiteModel("airqo"),
+        { _id: doc.site_id },
+        doc.time,
+        "Site"
+      );
+    } else {
+      logger.warn(`Document missing site_id: ${jsonify(doc)}`);
+    }
+
+    // Update Device lastActive
+    if (doc.device_id) {
+      await updateEntityLastActive(
+        DeviceModel("airqo"),
+        { _id: doc.device_id },
+        doc.time,
+        "Device"
+      );
+    } else {
+      logger.warn(`Document missing device_id: ${jsonify(doc)}`);
+    }
+  } catch (error) {
+    logger.error(`Error processing document: ${error.message}`);
+    logger.error(`Error processing document, Stack trace: ${error.stack}`);
   }
 }
 
@@ -104,20 +150,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
             await asyncRetry(
               async (bail) => {
                 try {
-                  // Update Site lastActive
-                  await updateEntityLastActive(
-                    SiteModel("airqo"),
-                    { _id: doc.site_id },
-                    doc.time
-                  );
-
-                  // Update Device lastActive
-                  await updateEntityLastActive(
-                    DeviceModel("airqo"),
-                    { _id: doc.device_id },
-                    doc.time
-                  );
-
+                  await processDocument(doc);
                   // Update Reading
                   const filter = { site_id: doc.site_id, time: doc.time };
                   const updateDoc = { ...doc };
