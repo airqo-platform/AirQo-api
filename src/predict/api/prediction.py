@@ -347,21 +347,17 @@ import datetime
 class PM2_5Prediction(Resource):
     def get(self):
         try:
-            latitude = float(request.args.get('latitude'))
-            longitude = float(request.args.get('longitude'))
-            city = float(request.args.get('city'))
             date = datetime.datetime(request.args.get('date'))
-            if latitude and longitude:
+            try:
+                latitude = float(request.args.get('latitude'))
+                longitude = float(request.args.get('longitude'))
                 preds = get_pm2_5_by_coordinates((latitude,longitude),date=date)
                 if len(preds) <= 0 :
                     return {'message':'No forcasts available.'}
-            elif city:
+            except:
+                city = float(request.args.get('city'))
                 preds = get_pm2_5_by_city(city=city,date=date)
-            else:
-                return {
-                    'message':"no arguments are specified",
-                    "success":False
-                },
+
         except Exception as e:
             return {'message':str(e),'sucess':False}
         return {'forcasts':preds,'message':"pm2.5 forcasts retrieved","sucess":True}
