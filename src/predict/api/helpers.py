@@ -1,7 +1,7 @@
 import json
 import math
 from datetime import datetime
-
+import requests
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -21,7 +21,7 @@ db = connect_mongo()
 def date_to_str(date: datetime):
     return date.isoformat() 
 
-
+INFRENCE_API_URL = "" 
 # Ensure these are updated when the API query parameters are changed
 def heatmap_cache_key():
     args = request.args
@@ -433,6 +433,7 @@ def get_pm2_5_by_coordinates(coordinates:tuple[float],date:datetime):
     data = [prediction for prediction in predictions.find(query)]
     return data
 
+
 def get_pm2_5_by_city(city:str,date:datetime):
     predictions = db.forcasts
     query = [{'$match':
@@ -442,3 +443,8 @@ def get_pm2_5_by_city(city:str,date:datetime):
               }]
     data = [prediction for prediction in predictions.find(query)]
     return data
+
+
+def get_pm2_5_by_inference(coordinates:tuple[float],date:datetime):
+    predictions = requests.get(INFRENCE_API_URL,params={'coordinates':coordinates,'date':date})
+    return predictions

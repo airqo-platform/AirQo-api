@@ -27,7 +27,8 @@ from helpers import (
     get_faults_cache_key,
     add_forecast_health_tips,
     get_pm2_5_by_coordinates,
-    get_pm2_5_by_city
+    get_pm2_5_by_city,
+    get_pm2_5_by_inference
 )
 from app import api
 load_dotenv()
@@ -365,3 +366,16 @@ class PM2_5Prediction(Resource):
             return {'message':str(e),'sucess':False}
         return {'forcasts':preds,'message':"pm2.5 forcasts retrieved","sucess":True}
     
+@app.route(routes.route['predict_by_infrence'])
+class PM2_5_Infrence(Resource):
+    def get(self):
+        try:
+            latitude = float(request.args.get('latitude'))
+            longitude = float(request.args.get('longitude'))
+            date = datetime.datetime(request.args.get('date'))
+            predictions = get_pm2_5_by_inference(coordinates=(latitude,longitude),date=date)
+        except Exception as e:
+            return {'message':str(e),'sucess':False}
+            
+        return {'forcasts':predictions,'message':"pm2.5 forcasts retrieved","sucess":True}
+        
