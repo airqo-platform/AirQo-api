@@ -19,6 +19,7 @@ additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
 
+
 ### This module contains utility functions for ML jobs.
 
 
@@ -36,7 +37,7 @@ class GCSUtils:
 
     @staticmethod
     def upload_trained_model_to_gcs(
-        trained_model, project_name, bucket_name, source_blob_name
+            trained_model, project_name, bucket_name, source_blob_name
     ):
         fs = gcsfs.GCSFileSystem(project=project_name)
         try:
@@ -54,6 +55,32 @@ class GCSUtils:
 
 class MlUtils:
     """Utility class for ML related tasks"""
+
+    @staticmethod
+    def format_data_types(
+            data: pd.DataFrame,
+            floats: list = None,
+            integers: list = None,
+            timestamps: list = None,
+    ) -> pd.DataFrame:
+        floats = [] if floats is None else floats
+        integers = [] if integers is None else integers
+        timestamps = [] if timestamps is None else timestamps
+
+        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
+
+        # formatting integers
+        if integers:
+            for col in integers:
+                if data[col].dtype != "str":
+                    data[col] = data[col].astype(str)
+                data[col] = data[col].str.replace("[^\d]", "", regex=True)
+                data[col] = data[col].str.strip()
+                data[col] = data[col].replace("", -1)
+                data[col] = data[col].astype(np.int64)
+
+        return data
 
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
@@ -93,6 +120,16 @@ class MlUtils:
         )
         data = data.dropna(subset=["pm2_5"])
         return data
+
+
+    @staticmethod
+    def get_valid_value(value, name, data: pd.DataFrame):
+        upper_limit = data[name].max() + abs(data[name].median()) / 2
+        lower_limit = data[name].min() - abs(data[name].median()) / 2
+        if value > upper_limit or value < lower_limit:
+            return None
+        return value
+
     @staticmethod
     def encoding(data: pd.DataFrame, encoder: str = 'LabelEncoder') -> pd.DataFrame:
         """
@@ -103,10 +140,10 @@ class MlUtils:
         encoder --  the type of encoding to apply (default: 'LabelEncoder')
         Return: returns a dataframe after applying the encoding
         """
-        
+
         if not 'city' in data.columns or not 'country' in data.columns:
             raise ValueError('data frame does not contain city or country column')
-        
+
         if encoder == 'LabelEncoder':
             le = LabelEncoder()
             for column in ['city', 'country']:
@@ -130,9 +167,9 @@ class MlUtils:
             raise ValueError("Empty dataframe provided")
 
         if (
-            target_col not in df.columns
-            or "timestamp" not in df.columns
-            or "device_id" not in df.columns
+                target_col not in df.columns
+                or "timestamp" not in df.columns
+                or "device_id" not in df.columns
         ):
             raise ValueError("Required columns missing")
 
@@ -448,13 +485,14 @@ class MlUtils:
         data = data.dropna(subset=["device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
+
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
 
         def get_forecasts(
-            df_tmp,
-            forecast_model,
-            frequency,
-            horizon,
+                df_tmp,
+                forecast_model,
+                frequency,
+                horizon,
         ):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             for i in range(int(horizon)):
@@ -479,8 +517,8 @@ class MlUtils:
 
                 elif frequency == "hourly":
                     df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df_tmp.iloc[
-                        -2, df_tmp.columns.get_loc("timestamp")
-                    ] + pd.Timedelta(hours=1)
+                                                                               -2, df_tmp.columns.get_loc("timestamp")
+                                                                           ] + pd.Timedelta(hours=1)
 
                     # lag features
                     shifts1 = [1, 2, 6, 12]
@@ -551,7 +589,7 @@ class MlUtils:
                 #     + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
                 # )
 
-            return df_tmp.iloc[-int(horizon) :, :]
+            return df_tmp.iloc[-int(horizon):, :]
 
         forecasts = pd.DataFrame()
         forecast_model = GCSUtils.get_trained_model_from_gcs(
@@ -685,7 +723,7 @@ class MlUtils:
             result = pd.concat([result, temp], ignore_index=True)
         result = result[
             (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-        ]
+            ]
         return result
 
     @staticmethod
@@ -716,8 +754,8 @@ class MlUtils:
 
         anomaly_percentage = pd.DataFrame(
             (
-                df[df["anomaly_value"] == -1].groupby("device_id").size()
-                / df.groupby("device_id").size()
+                    df[df["anomaly_value"] == -1].groupby("device_id").size()
+                    / df.groupby("device_id").size()
             )
             * 100,
             columns=["anomaly_percentage"],
@@ -725,13 +763,13 @@ class MlUtils:
 
         return anomaly_percentage[
             anomaly_percentage["anomaly_percentage"] > 45
-        ].reset_index(level=0)
+            ].reset_index(level=0)
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
         df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
         df["anomaly_sequence_length"] = (
-            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+                df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
         )
         df["anomaly_sequence_length"].fillna(0, inplace=True)
         device_max_anomaly_sequence = (
@@ -739,7 +777,7 @@ class MlUtils:
         )
         faulty_devices_df = device_max_anomaly_sequence[
             device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
-        ]
+            ]
         faulty_devices_df.columns = ["device_id", "fault_count"]
 
         return faulty_devices_df
@@ -771,3 +809,11 @@ class MlUtils:
                 print(f"Error saving faulty devices to MongoDB: {e}")
 
             print("Faulty devices saved/updated to MongoDB")
+
+
+# Satellite Utils
+##TODO: perhaps start using various subclasses for the different job types, building on base class
+    @staticmethod
+    def merge_datasets(data1: pd.DataFrame, data2: pd.DataFrame, on: str):
+        return data1.merge(data2, on=on)
+

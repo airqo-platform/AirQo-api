@@ -1,5 +1,7 @@
+import logging
 import os
 from datetime import datetime
+from typing import List
 
 import pandas as pd
 from google.cloud import bigquery
@@ -9,10 +11,6 @@ from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
 from .utils import Utils
-
-from typing import List
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +59,8 @@ class BigQueryApi:
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
-        self,
-        day: datetime,
+            self,
+            day: datetime,
     ) -> pd.DataFrame:
         query = (
             f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
@@ -88,8 +86,8 @@ class BigQueryApi:
         return dataframe
 
     def save_devices_summary_data(
-        self,
-        data: pd.DataFrame,
+            self,
+            data: pd.DataFrame,
     ):
         schema = [
             bigquery.SchemaField("device", "STRING"),
@@ -111,13 +109,13 @@ class BigQueryApi:
         job.result()
 
     def validate_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-        raise_exception=True,
-        date_time_columns=None,
-        float_columns=None,
-        integer_columns=None,
+            self,
+            dataframe: pd.DataFrame,
+            table: str,
+            raise_exception=True,
+            date_time_columns=None,
+            float_columns=None,
+            integer_columns=None,
     ) -> pd.DataFrame:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
@@ -163,9 +161,9 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-        self,
-        table: str = "all",
-        column_type: List[ColumnDataType] = [ColumnDataType.NONE],
+            self,
+            table: str = "all",
+            column_type: List[ColumnDataType] = [ColumnDataType.NONE],
     ) -> List[str]:
         """
         Retrieves a list of columns that match a schema of a given table and or match data type as well. The schemas should match the tables in bigquery.
@@ -213,7 +211,7 @@ class BigQueryApi:
                     column["name"]
                     for column in schema
                     if ColumnDataType.NONE in column_type
-                    or column["type"] in column_type_strings
+                       or column["type"] in column_type_strings
                 ]
             )
         )
@@ -221,10 +219,10 @@ class BigQueryApi:
         return columns
 
     def load_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-        job_action: JobAction = JobAction.APPEND,
+            self,
+            dataframe: pd.DataFrame,
+            table: str,
+            job_action: JobAction = JobAction.APPEND,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -388,10 +386,10 @@ class BigQueryApi:
         )
 
     def update_sites_and_devices(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-        component: str,
+            self,
+            dataframe: pd.DataFrame,
+            table: str,
+            component: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -466,9 +464,9 @@ class BigQueryApi:
         )
 
     def update_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
+            self,
+            dataframe: pd.DataFrame,
+            table: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -505,15 +503,15 @@ class BigQueryApi:
         )
 
     def compose_query(
-        self,
-        query_type: QueryType,
-        table: str,
-        start_date_time: str,
-        end_date_time: str,
-        tenant: Tenant,
-        where_fields: dict = None,
-        null_cols: list = None,
-        columns: list = None,
+            self,
+            query_type: QueryType,
+            table: str,
+            start_date_time: str,
+            end_date_time: str,
+            tenant: Tenant,
+            where_fields: dict = None,
+            null_cols: list = None,
+            columns: list = None,
     ) -> str:
         """
         Composes a SQL query for BigQuery based on the query type (GET or DELETE),
@@ -579,14 +577,14 @@ class BigQueryApi:
         return query
 
     def reload_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-        tenant: Tenant = Tenant.ALL,
-        start_date_time: str = None,
-        end_date_time: str = None,
-        where_fields: dict = None,
-        null_cols: list = None,
+            self,
+            dataframe: pd.DataFrame,
+            table: str,
+            tenant: Tenant = Tenant.ALL,
+            start_date_time: str = None,
+            end_date_time: str = None,
+            where_fields: dict = None,
+            null_cols: list = None,
     ) -> None:
         if start_date_time is None or end_date_time is None:
             data = dataframe.copy()
@@ -609,16 +607,16 @@ class BigQueryApi:
         self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
-        self,
-        start_date_time: str,
-        end_date_time: str,
-        table: str,
-        tenant: Tenant,
-        dynamic_query: bool = False,
-        columns: list = None,
-        where_fields: dict = None,
-        null_cols: list = None,
-        time_granularity: str = "HOUR",
+            self,
+            start_date_time: str,
+            end_date_time: str,
+            table: str,
+            tenant: Tenant,
+            dynamic_query: bool = False,
+            columns: list = None,
+            where_fields: dict = None,
+            null_cols: list = None,
+            time_granularity: str = "HOUR",
     ) -> pd.DataFrame:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
@@ -663,13 +661,13 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def dynamic_averaging_query(
-        self,
-        table: str,
-        start_date_time: str,
-        end_date_time: str,
-        exclude_columns: list = None,
-        group_by: list = None,
-        time_granularity: str = "HOUR",
+            self,
+            table: str,
+            start_date_time: str,
+            end_date_time: str,
+            exclude_columns: list = None,
+            group_by: list = None,
+            time_granularity: str = "HOUR",
     ) -> str:
         """
         Constructs a dynamic SQL query to select and average numeric columns, allowing exclusions,
@@ -808,9 +806,9 @@ class BigQueryApi:
 
     #
     def fetch_data(
-        self,
-        start_date_time: str,
-        job_type: str,
+            self,
+            start_date_time: str,
+            job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
@@ -835,6 +833,26 @@ class BigQueryApi:
         JOIN `{self.sites_table}` t2 on t1.site_id = t2.id """
 
         query += f"""
+        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
+        ORDER BY device_id, timestamp"""
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery", {e})
+
+    # TODO: look into combining these into 1 method, reduce duplicated code
+    def fetch_satellite_readings(self, start_date_time: str) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError:
+            raise ValueError(f"Invalid start date time: {start_date_time}")
+
+        query = f"""
+        SELECT DISTINCT * FROM `{self.satellite_measurements_table}`
         WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
         ORDER BY device_id, timestamp"""
 
