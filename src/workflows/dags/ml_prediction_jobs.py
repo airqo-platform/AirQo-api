@@ -1,7 +1,11 @@
+from datetime import datetime
+
 from airflow.decorators import dag, task
+from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.ml_utils import MlUtils
 from airqo_etl_utils.satellilte_utils import SatelliteMLUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
@@ -141,5 +145,75 @@ def make_forecasts():
 
 make_forecasts()
 
+@dag(
+    "AirQo-satellite-model-prediction-job",
+    schedule="0 1 * * *",
+    default_args=AirflowUtils.dag_default_configs(),
+    tags=["airqo", "hourly-forecast", "daily-forecast", "training-job", "satellite"],
+)
+def training_job():
+    @task()
+    def fetch_historical_satellite_data():
+        from datetime import datetime, timedelta, timezone
 
+        start_date = datetime.now(timezone.utc) - timedelta(
+            hours=int(configuration.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
+        )
+        from airqo_etl_utils.date import date_to_str
 
+        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        return BigQueryApi().fetch_satellite_readings(start_date)
+
+    @task()
+    def fetch_historical_ground_monitor_data():
+        current_date = datetime.today()
+        start_date = current_date - relativedelta(
+            months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
+        )
+        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
+        return BigQueryApi().fetch_data(start_date, "train")
+
+    @task()
+    def formatting_variables(data):
+        #TODO: Modify to take in two datasets
+        return MlUtils.format_data_types(data, timestamps=data['date'])
+
+    @task()
+    def merge_datasets(ground_data, satellite_data):
+        return MlUtils.merge_datasets(ground_data, satellite_data, "timestamp")
+
+    @task()
+    def validating_data(data):
+        return MlUtils.get_valid_value(data)
+
+    @task()
+    def label_encoding(data):
+        return MlUtils.encoding(data, 'LabelEncoder')
+
+    @task()
+    def time_related_features(data):
+        return SatelliteMLUtils.time_features(data)
+
+    @task()
+    def lag_features_extraction(data, frequency):
+        return SatelliteMLUtils.lag_features(data, frequency='hourly')
+
+    @task()
+    def make_predictions(data):
+        return MlUtils.generate_forecasts(
+            data=data, project_name=project_id, bucket_name=bucket, frequency="hourly"
+        )
+
+    @task()
+    def save_hourly_forecasts_to_mongo(data):
+        MlUtils.save_forecasts_to_mongo(data, "hourly")
+    st_data = fetch_historical_satellite_data()
+    # st_data = formatting_variables(st_data)
+    gm_data = fetch_historical_ground_monitor_data()
+    merged_data = merge_datasets(gm_data, st_data)
+    merged_data = validating_data(merged_data)
+    encoded_data = label_encoding(merged_data)
+    time_data = time_related_features(merged_data)
+    lag_data = lag_features_extraction(merged_data, 'hourly')
+    predictions = make_predictions(lag_data)
+training_job()
