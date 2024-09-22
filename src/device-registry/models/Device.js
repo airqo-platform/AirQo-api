@@ -109,7 +109,7 @@ const deviceSchema = new mongoose.Schema(
     isOnline: {
       type: Boolean,
       trim: true,
-      default: true,
+      default: false,
     },
     generation_version: {
       type: Number,
