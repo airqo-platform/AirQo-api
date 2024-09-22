@@ -184,9 +184,9 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 }
               },
               {
-                retries: 3,
-                minTimeout: 1000,
-                factor: 2,
+                retries: 3, // Number of retry attempts
+                minTimeout: 1000, // Initial delay between retries (in milliseconds)
+                factor: 2, // Exponential factor for increasing delay between retries
               }
             );
           })
