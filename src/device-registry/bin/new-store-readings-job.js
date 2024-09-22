@@ -44,11 +44,11 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       };
 
       const updateResult = await Model.updateOne(filter, updateData);
-      logger.info(
-        `Updated ${entityType} status. IsOnline: ${isActive}. Result: ${jsonify(
-          updateResult
-        )}`
-      );
+      // logger.info(
+      //   `Updated ${entityType} status. IsOnline: ${isActive}. Result: ${jsonify(
+      //     updateResult
+      //   )}`
+      // );
     } else {
       logger.warn(`${entityType} not found with filter: ${jsonify(filter)}`);
     }
