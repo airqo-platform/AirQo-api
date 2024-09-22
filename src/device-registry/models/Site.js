@@ -282,7 +282,7 @@ const siteSchema = new Schema(
     isOnline: {
       type: Boolean,
       trim: true,
-      default: true,
+      default: false,
     },
     count: { type: Number },
     country: {
