@@ -32,16 +32,16 @@ This project and everyone participating in it is governed by our [Code of Conduc
 1.  Fork the repository on GitHub.
 2.  Clone your fork locally:
 
-    Copy
-
-    `git clone https://github.com/airqo-platform/AirQo-api.git cd AirQo-api/src/blog-content-manager`
+    ```bash
+    git clone https://github.com/airqo-platform/AirQo-api.git cd AirQo-api/src/blog-content-manager
+    ```
 
 3.  Set up your environment as described in the README.md.
 4.  Create a branch for your work:
 
-    Copy
-
-    `git checkout -b your-feature-branch`
+    ```bash
+     git checkout -b your-feature-branch
+    ```
 
 ## Project Structure
 
