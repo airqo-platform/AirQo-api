@@ -936,13 +936,13 @@ const generateFilter = {
     }
 
     if (last_active_after) {
-      filter.last_active_after = {};
+      filter.lastActive = {};
       const start = new Date(last_active_after);
       filter["lastActive"]["$gte"] = start;
     }
 
     if (last_active_before) {
-      filter.last_active_before = {};
+      filter.lastActive = {};
       const start = new Date(last_active_before);
       filter["lastActive"]["$lte"] = start;
     }
@@ -1119,13 +1119,13 @@ const generateFilter = {
     }
 
     if (last_active_after) {
-      filter.last_active_after = {};
+      filter.lastActive = {};
       const start = new Date(last_active_after);
       filter["lastActive"]["$gte"] = start;
     }
 
     if (last_active_before) {
-      filter.last_active_before = {};
+      filter.lastActive = {};
       const start = new Date(last_active_before);
       filter["lastActive"]["$lte"] = start;
     }

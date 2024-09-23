@@ -156,27 +156,36 @@ router.get(
         .withMessage("last_active_before date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active_before date must be a valid datetime."),
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
       query("last_active_after")
         .optional()
         .notEmpty()
         .withMessage("last_active_after date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active_after date must be a valid datetime."),
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
       query("last_active")
         .optional()
         .notEmpty()
         .withMessage("last_active date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active date must be a valid datetime."),
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
     ],
   ]),
   siteController.list
@@ -237,27 +246,36 @@ router.get(
         .withMessage("last_active_before date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active_before date must be a valid datetime."),
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
       query("last_active_after")
         .optional()
         .notEmpty()
         .withMessage("last_active_after date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active_after date must be a valid datetime."),
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
       query("last_active")
         .optional()
         .notEmpty()
         .withMessage("last_active date cannot be empty IF provided")
         .bail()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("last_active date must be a valid datetime."),
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
     ],
   ]),
   siteController.listSummary
