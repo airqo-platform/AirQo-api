@@ -903,6 +903,10 @@ const generateFilter = {
       visibility,
       deviceName,
       status,
+      online_status,
+      last_active,
+      last_active_before,
+      last_active_after,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -923,6 +927,32 @@ const generateFilter = {
 
     if (channel) {
       filter.device_number = parseInt(channel);
+    }
+
+    if (last_active) {
+      filter.lastActive = {};
+      const start = new Date(last_active);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_after) {
+      filter.lastActive = {};
+      const start = new Date(last_active_after);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_before) {
+      filter.lastActive = {};
+      const start = new Date(last_active_before);
+      filter["lastActive"]["$lte"] = start;
+    }
+
+    if (online_status) {
+      if (online_status.toLowerCase() === "online") {
+        filter["isOnline"] = true;
+      } else if (online_status.toLowerCase() === "offline") {
+        filter["isOnline"] = false;
+      }
     }
 
     if (category) {
@@ -1035,6 +1065,10 @@ const generateFilter = {
       network,
       group,
       google_place_id,
+      online_status,
+      last_active,
+      last_active_before,
+      last_active_after,
     } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
     logText("we are generating the filter man!");
@@ -1076,6 +1110,32 @@ const generateFilter = {
 
     if (!isEmpty(category) && category === "public" && isEmpty(site_id)) {
       filter["visibility"] = true;
+    }
+
+    if (last_active) {
+      filter.lastActive = {};
+      const start = new Date(last_active);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_after) {
+      filter.lastActive = {};
+      const start = new Date(last_active_after);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_before) {
+      filter.lastActive = {};
+      const start = new Date(last_active_before);
+      filter["lastActive"]["$lte"] = start;
+    }
+
+    if (online_status) {
+      if (online_status.toLowerCase() === "online") {
+        filter["isOnline"] = true;
+      } else if (online_status.toLowerCase() === "offline") {
+        filter["isOnline"] = false;
+      }
     }
 
     if (site_codes) {
