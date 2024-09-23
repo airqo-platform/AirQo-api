@@ -1,214 +1,283 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("@utils/log");
+var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- blacklisted-ip-prefix-model`
-);
-const { getModelByTenant } = require("@config/database");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- tag-model`);
 const { HttpError } = require("@utils/errors");
 
-const BlacklistedIPPrefixSchema = new mongoose.Schema(
+const TagSchema = new mongoose.Schema(
   {
-    prefix: {
+    name: {
       type: String,
+      required: [true, "Tag name is required"],
+      trim: true,
       unique: true,
-      required: [true, "prefix is required!"],
+      maxlength: [50, "Tag name cannot be more than 50 characters"],
+    },
+    slug: {
+      type: String,
+      required: [true, "Tag slug is required"],
+      trim: true,
+      unique: true,
+      lowercase: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [200, "Tag description cannot be more than 200 characters"],
+    },
+    color: {
+      type: String,
+      default: "#000000",
+      match: [/^#([0-9A-F]{3}){1,2}$/i, "Invalid color format"],
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-BlacklistedIPPrefixSchema.pre("save", function (next) {
-  return next();
+TagSchema.plugin(uniqueValidator, {
+  message: `{VALUE} should be unique!`,
 });
 
-BlacklistedIPPrefixSchema.pre("update", function (next) {
-  return next();
-});
-
-BlacklistedIPPrefixSchema.index({ prefix: 1 }, { unique: true });
-
-BlacklistedIPPrefixSchema.statics = {
-  async register(args, next) {
-    try {
-      let modifiedArgs = args;
-      const data = await this.create({
-        ...modifiedArgs,
-      });
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "IP created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but IP NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
-      }
-    } catch (err) {
-      logObject("the error", err);
-      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
-      if (err.keyValue) {
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-      }
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
-    }
-  },
-  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
-    try {
-      const inclusionProjection = constants.IP_PREFIX_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.IP_PREFIX_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
-      );
-
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
-      }
-
-      const response = await this.aggregate()
-        .match(filter)
-        .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
-        .allowDiskUse(true);
-
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the prefix details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No prefix found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  async modify({ filter = {}, update = {} } = {}, next) {
-    try {
-      let options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
-
-      const updatedIP = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdate,
-        options
-      ).exec();
-      if (!isEmpty(updatedIP)) {
-        return {
-          success: true,
-          message: "successfully modified the IP",
-          data: updatedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
-        );
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  async remove({ filter = {} } = {}, next) {
-    try {
-      let options = {
-        projection: {
-          _id: 0,
-          prefix: 1,
-        },
-      };
-      const removedIP = await this.findOneAndRemove(filter, options).exec();
-      if (!isEmpty(removedIP)) {
-        return {
-          success: true,
-          message: "successfully removed the IP",
-          data: removedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
-        );
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-};
-
-BlacklistedIPPrefixSchema.methods = {
+TagSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      prefix: this.prefix,
+      name: this.name,
+      slug: this.slug,
+      description: this.description,
+      color: this.color,
+      status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };
 
-const BlacklistedIPPrefixModel = (tenant) => {
+TagSchema.statics = {
+  async create(args, next) {
+    try {
+      let body = args;
+      if (body._id) {
+        delete body._id;
+      }
+      let data = await this.create({
+        ...body,
+      });
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "Tag created successfully",
+          status: httpStatus.CREATED,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Failed to create tag",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
+        };
+      }
+    } catch (err) {
+      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
+    }
+  },
+
+  async list({ skip = 0, limit = 20, filter = {} } = {}, next) {
+    try {
+      const tags = await this.find(filter)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+
+      const total = await this.countDocuments(filter);
+
+      if (!isEmpty(tags)) {
+        return {
+          success: true,
+          data: tags,
+          total,
+          message: "Successfully retrieved tags",
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No tags found",
+          data: [],
+          total: 0,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async findById(id, next) {
+    try {
+      const tag = await this.findOne({ _id: id }).exec();
+
+      if (!isEmpty(tag)) {
+        return {
+          success: true,
+          data: tag,
+          message: "Successfully retrieved tag",
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Tag not found", httpStatus.NOT_FOUND));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async update({ id, update = {} } = {}, next) {
+    try {
+      const options = { new: true, runValidators: true };
+      if (update._id) {
+        delete update._id;
+      }
+      const updatedTag = await this.findByIdAndUpdate(
+        id,
+        update,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedTag)) {
+        return {
+          success: true,
+          message: "Successfully updated the tag",
+          data: updatedTag,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Tag not found", httpStatus.NOT_FOUND));
+      }
+    } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
+    }
+  },
+
+  async remove(id, next) {
+    try {
+      const removedTag = await this.findByIdAndRemove(id).exec();
+
+      if (!isEmpty(removedTag)) {
+        return {
+          success: true,
+          message: "Successfully removed the tag",
+          data: removedTag,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Tag not found", httpStatus.NOT_FOUND));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async findBySlug(slug, next) {
+    try {
+      const tag = await this.findOne({ slug }).exec();
+
+      if (!isEmpty(tag)) {
+        return {
+          success: true,
+          data: tag,
+          message: "Successfully retrieved tag",
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Tag not found", httpStatus.NOT_FOUND));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async getTagStats(next) {
+    try {
+      const PostModel = mongoose.model("Post");
+      const stats = await PostModel.aggregate([
+        { $unwind: "$tags" },
+        { $group: { _id: "$tags", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]).exec();
+
+      return {
+        success: true,
+        data: stats,
+        message: "Successfully retrieved tag stats",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+};
+
+const TagModel = (tenant) => {
   try {
-    let prefix = mongoose.model("BlacklistedIPPrefixes");
-    return prefix;
+    let tags = mongoose.model("tags");
+    return tags;
   } catch (error) {
-    let prefix = getModelByTenant(
-      tenant,
-      "BlacklistedIPPrefix",
-      BlacklistedIPPrefixSchema
-    );
-    return prefix;
+    let tags = getModelByTenant(tenant, "tag", TagSchema);
+    return tags;
   }
 };
 
-module.exports = BlacklistedIPPrefixModel;
+module.exports = TagModel;
