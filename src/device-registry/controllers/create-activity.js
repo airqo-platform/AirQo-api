@@ -121,7 +121,6 @@ const activity = {
 
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
-        logObject("result", result);
         return res.status(status).json({
           success: true,
           message: result.message,
@@ -139,7 +138,6 @@ const activity = {
         });
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
