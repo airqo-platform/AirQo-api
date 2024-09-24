@@ -552,6 +552,114 @@ const createActivity = {
       );
     }
   },
+  deployWithCoordinates: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+
+      // Initialize arrays to hold successful and failed responses
+      const successfulDeployments = [];
+      const failedDeployments = [];
+
+      // Create an array of promises for each deployment
+      const deploymentPromises = body.map(async (deployment) => {
+        const {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          latitude,
+          longitude,
+          site_name,
+          network,
+          deviceName, // Extract deviceName from the current deployment object
+        } = deployment;
+
+        // Step 1: Create a new site using the coordinates
+        const siteRequestBody = {
+          name: site_name,
+          latitude: latitude,
+          longitude: longitude,
+        };
+
+        const siteRequest = {
+          body: siteRequestBody,
+          query: { tenant },
+        };
+
+        const responseFromCreateSite = await createSiteUtil.create(
+          siteRequest,
+          next
+        );
+
+        if (responseFromCreateSite.success === false) {
+          failedDeployments.push({
+            deviceName,
+            error: responseFromCreateSite.errors,
+          });
+          return; // Skip to the next deployment if site creation fails
+        }
+
+        // Step 2: Retrieve the newly created site_id
+        const createdSite = responseFromCreateSite.data;
+        const site_id = createdSite._id; // Assuming _id is returned in the created site data
+
+        // Step 3: Proceed with device deployment using the generated site_id
+        let deviceRequestBody = {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          site_id, // Use the newly created site_id
+          network,
+        };
+
+        const deviceRequest = {
+          body: deviceRequestBody,
+          query: { tenant, deviceName }, // Use deviceName from the current deployment object
+        };
+
+        // Call the existing deploy function
+        const responseFromDeploy = await createActivity.deploy(
+          deviceRequest,
+          next
+        );
+
+        if (responseFromDeploy.success) {
+          successfulDeployments.push({
+            deviceName,
+            response: responseFromDeploy,
+          });
+        } else {
+          failedDeployments.push({
+            deviceName,
+            error: responseFromDeploy.errors,
+          });
+        }
+      });
+
+      // Wait for all deployments to complete
+      await Promise.all(deploymentPromises);
+
+      return {
+        success: true,
+        message: "Batch deployment processed",
+        successfulDeployments,
+        failedDeployments, // Include both successful and failed responses
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createActivity;
