@@ -1,19 +1,10 @@
-//Search Functionality
 const express = require("express");
 const router = express.Router();
-const createUserController = require("@controllers/create-user");
-const { check, oneOf, query, body, param } = require("express-validator");
+const { check, validationResult } = require("express-validator");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
+const SearchController = require("@controllers/perform-search");
 
-const {
-  setJWTAuth,
-  authJWT,
-  setLocalAuth,
-  authLocal,
-} = require("@middleware/passport");
-
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-
+// Middleware
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -28,10 +19,34 @@ const headers = (req, res, next) => {
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  res.header("Access-Control-Allow-Methods", "GET, POST");
   next();
 };
+
 router.use(headers);
 router.use(validatePagination);
+
+// Authentication middleware
+router.use(setJWTAuth);
+router.use(authJWT);
+
+// Validation middleware
+const validateSearchQuery = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Search Routes
+router.get("/", validateSearchQuery, SearchController.search);
+router.get("/autocomplete", SearchController.autocomplete);
+
+// Filter Routes
+router.get("/filter", validateSearchQuery, SearchController.filter);
+
+// Pagination Route
+router.get("/paginate", validateSearchQuery, SearchController.paginate);
 
 module.exports = router;
