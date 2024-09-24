@@ -118,7 +118,8 @@ class AirnowDataUtils:
                     pollutant_value[parameter_col_name] = row["Value"]
 
                 if row["tenant"] != device_details.get("tenant"):
-                    raise Exception(f"Tenant mismatch for device ID {device_id}")
+                    logger.exception(f"Tenant mismatch for device ID {device_id}")
+                    continue
 
                 air_now_data.append(
                     {
