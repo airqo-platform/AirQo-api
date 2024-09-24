@@ -1,115 +1,359 @@
 require("module-alias/register");
-const { expect } = require("chai");
-const sinon = require("sinon");
+// Import necessary modules
 const express = require("express");
-const request = require("supertest");
-const inquiryRoutes = require("../inquiries");
+const router = express.Router();
+const { check, validationResult } = require("express-validator");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
+const AnalyticsReportingController = require("@controllers/generate-reports");
 
-// Import mock controller for inquiry route (you need to provide mock implementations for this)
-const createInquiryController = require("./mockControllers/create-inquiry");
+// Import middleware
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
+  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-describe("Inquiry API Routes", () => {
-  let app;
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST");
+  next();
+};
 
-  beforeEach(() => {
-    app = express();
-    app.use(express.json());
+router.use(headers);
+router.use(validatePagination);
 
-    // Mock the usage of the router file in the main router
-    app.use("/", inquiryRoutes);
+// Authentication middleware
+router.use(setJWTAuth);
+router.use(authJWT);
+
+// Validation middleware
+const validateAnalyticsReport = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Mock route handlers
+const mockViewsHandler = sinon
+  .stub(AnalyticsReportingController, "views")
+  .resolves({
+    status: 200,
+    body: { views: 100 },
   });
 
-  afterEach(() => {
-    sinon.restore(); // Restore Sinon stubs after each test
+const mockCommentsHandler = sinon
+  .stub(AnalyticsReportingController, "comments")
+  .resolves({
+    status: 200,
+    body: { comments: 50 },
   });
 
-  // Test cases for the "/register" route
-  describe("POST /register", () => {
-    it("should create an inquiry and return status code 201", async () => {
-      // Mock the behavior of the createInquiryController's create function
-      sinon
-        .stub(createInquiryController, "create")
-        .resolves(/* Mocked data here */);
+const mockPopularPostsHandler = sinon
+  .stub(AnalyticsReportingController, "popularPosts")
+  .resolves({
+    status: 200,
+    body: { popularPosts: ["post1", "post2"] },
+  });
 
-      // Perform the HTTP POST request
-      const response = await request(app)
-        .post("/register")
-        .send({
-          /* Request body with valid data for the inquiry */
-        })
-        .expect(201);
+const mockUserViewsHandler = sinon
+  .stub(AnalyticsReportingController, "userViews")
+  .resolves({
+    status: 200,
+    body: { views: 150 },
+  });
 
-      // Assert the response
-      expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
+const mockUserCommentsHandler = sinon
+  .stub(AnalyticsReportingController, "userComments")
+  .resolves({
+    status: 200,
+    body: { comments: 75 },
+  });
+
+const mockUserActivityHandler = sinon
+  .stub(AnalyticsReportingController, "userActivity")
+  .resolves({
+    status: 200,
+    body: { activity: ["activity1", "activity2"] },
+  });
+
+const mockUserGrowthReportHandler = sinon
+  .stub(AnalyticsReportingController, "userGrowthReport")
+  .resolves({
+    status: 200,
+    body: { growthReport: "growth report data" },
+  });
+
+const mockPostPerformanceReportHandler = sinon
+  .stub(AnalyticsReportingController, "postPerformanceReport")
+  .resolves({
+    status: 200,
+    body: { performanceReport: "performance report data" },
+  });
+
+describe("Analytics Reporting Routes", () => {
+  describe("GET /posts/:postId/views", () => {
+    it("should return views for a post", async () => {
+      const req = {
+        params: { postId: "testPostId" },
+        query: { limit: 50, skip: 0 },
+      };
+      const res = {};
+
+      await router.get("/posts/testPostId/views", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(mockViewsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ views: 100 });
     });
 
-    // Add more test cases for different scenarios related to the POST /register route
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { postId: "invalidPostId" },
+        query: { invalidLimit: "notANumber" },
+      };
+      const res = {};
+
+      await router.get("/posts/invalidPostId/views", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
-  // Test cases for the root route "/"
-  describe("GET /", () => {
-    it("should return a list of inquiries with status code 200", async () => {
-      // Mock the behavior of the createInquiryController's list function
-      sinon.stub(createInquiryController, "list").resolves([
-        /* Mocked data here */
-      ]);
+  describe("GET /posts/:postId/comments", () => {
+    it("should return comments for a post", async () => {
+      const req = {
+        params: { postId: "testPostId" },
+        query: { limit: 50, skip: 0 },
+      };
+      const res = {};
 
-      // Perform the HTTP GET request
-      const response = await request(app).get("/").expect(200);
+      await router.get("/posts/testPostId/comments", validateAnalyticsReport)(
+        req,
+        res
+      );
 
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
+      expect(mockCommentsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ comments: 50 });
     });
 
-    // Add more test cases for different scenarios related to the root route
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { postId: "invalidPostId" },
+        query: { invalidLimit: "notANumber" },
+      };
+      const res = {};
+
+      await router.get(
+        "/posts/invalidPostId/comments",
+        validateAnalyticsReport
+      )(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
-  // Test cases for the DELETE route "/"
-  describe("DELETE /", () => {
-    it("should delete an inquiry and return status code 200", async () => {
-      // Mock the behavior of the createInquiryController's delete function
-      sinon
-        .stub(createInquiryController, "delete")
-        .resolves(/* Mocked data here */);
+  describe("GET /posts/popular", () => {
+    it("should return popular posts", async () => {
+      const req = {};
+      const res = {};
 
-      // Perform the HTTP DELETE request
-      const response = await request(app)
-        .delete("/")
-        .query({ id: "valid_id" })
-        .expect(200);
+      await router.get("/posts/popular", validateAnalyticsReport)(req, res);
 
-      // Assert the response
-      expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
+      expect(mockPopularPostsHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ popularPosts: ["post1", "post2"] });
     });
 
-    // Add more test cases for different scenarios related to the DELETE route
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/posts/popular", validateAnalyticsReport)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
-  // Test cases for the PUT route "/"
-  describe("PUT /", () => {
-    it("should update an inquiry and return status code 200", async () => {
-      // Mock the behavior of the createInquiryController's update function
-      sinon
-        .stub(createInquiryController, "update")
-        .resolves(/* Mocked data here */);
+  describe("GET /users/:userId/views", () => {
+    it("should return views for a user", async () => {
+      const req = {
+        params: { userId: "testUserId" },
+        query: { limit: 50, skip: 0 },
+      };
+      const res = {};
 
-      // Perform the HTTP PUT request
-      const response = await request(app)
-        .put("/")
-        .query({ id: "valid_id" })
-        .send({
-          /* Request body with valid data for updating the inquiry */
-        })
-        .expect(200);
+      await router.get("/users/testUserId/views", validateAnalyticsReport)(
+        req,
+        res
+      );
 
-      // Assert the response
-      expect(response.body).to.be.an("object");
-      // Add more assertions based on the expected response data
+      expect(mockUserViewsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ views: 150 });
     });
 
-    // Add more test cases for different scenarios related to the PUT route
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { userId: "invalidUserId" },
+        query: { invalidLimit: "notANumber" },
+      };
+      const res = {};
+
+      await router.get("/users/invalidUserId/views", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /users/:userId/comments", () => {
+    it("should return comments for a user", async () => {
+      const req = {
+        params: { userId: "testUserId" },
+        query: { limit: 50, skip: 0 },
+      };
+      const res = {};
+
+      await router.get("/users/testUserId/comments", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(mockUserCommentsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ comments: 75 });
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { userId: "invalidUserId" },
+        query: { invalidLimit: "notANumber" },
+      };
+      const res = {};
+
+      await router.get(
+        "/users/invalidUserId/comments",
+        validateAnalyticsReport
+      )(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /users/:userId/activity", () => {
+    it("should return activity for a user", async () => {
+      const req = {
+        params: { userId: "testUserId" },
+        query: { limit: 50, skip: 0 },
+      };
+      const res = {};
+
+      await router.get("/users/testUserId/activity", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(mockUserActivityHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ activity: ["activity1", "activity2"] });
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { userId: "invalidUserId" },
+        query: { invalidLimit: "notANumber" },
+      };
+      const res = {};
+
+      await router.get(
+        "/users/invalidUserId/activity",
+        validateAnalyticsReport
+      )(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("POST /reports/user-growth", () => {
+    it("should return user growth report", async () => {
+      const req = {};
+      const res = {};
+
+      await router.post("/reports/user-growth", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(mockUserGrowthReportHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ growthReport: "growth report data" });
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.post("/reports/user-growth", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("POST /reports/post-performance", () => {
+    it("should return post performance report", async () => {
+      const req = {};
+      const res = {};
+
+      await router.post("/reports/post-performance", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(mockPostPerformanceReportHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        performanceReport: "performance report data",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.post("/reports/post-performance", validateAnalyticsReport)(
+        req,
+        res
+      );
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 });
