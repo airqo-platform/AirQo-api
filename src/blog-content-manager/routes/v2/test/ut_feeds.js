@@ -1,61 +1,157 @@
 require("module-alias/register");
-const chai = require("chai");
-const sinon = require("sinon");
-const { expect } = chai;
+// Import necessary modules
 const express = require("express");
-const request = require("supertest");
-const { query, body, param } = require("express-validator");
+const router = express.Router();
+const { check, validationResult } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const createDepartmentController = require("@controllers/create-department");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const RSSFeedController = require("../controllers/rss-feed");
 
-const router = require("../departments");
+// Import middleware
+const validateCustomization = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
 
-// ... Express Router Configuration ... (the provided route configurations)
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+};
 
-describe("Department Routes", () => {
-  let app;
-
-  before(() => {
-    app = express();
-    app.use("/", router);
+// Mock route handlers
+const mockGenerateFeedHandler = sinon
+  .stub(RSSFeedController, "generateFeed")
+  .resolves({
+    status: 200,
+    body: {
+      title: "Blog Title",
+      link: "https://example.com/feed",
+      description: "RSS Feed Description",
+      items: [
+        {
+          title: "Article 1",
+          link: "https://example.com/article1",
+          pubDate: new Date().toISOString(),
+        },
+        {
+          title: "Article 2",
+          link: "https://example.com/article2",
+          pubDate: new Date(
+            new Date().setDate(new Date().getDate() - 1)
+          ).toISOString(),
+        },
+      ],
+    },
   });
 
-  describe("POST /", () => {
-    it("should return 201 status and create a new department with valid inputs", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app)
-        .post("/")
-        .query({ tenant: "kcca" })
-        .send({
-          dep_network_id: "network_id",
-          dep_title: "Test Department",
-          dep_description: "This is a test department",
-          // Add more valid input fields here as needed
-        });
+describe("RSS Feed Management Routes", () => {
+  describe("GET /:blogId/rss", () => {
+    it("should generate an RSS feed for a blog", async () => {
+      const req = { params: { blogId: "validBlogId" } };
+      const res = {};
 
-      expect(response.status).to.equal(201);
-      // Add more assertions as needed to verify the response body or any other behavior
+      await router.get("/:blogId/rss", validateCustomization)(req, res);
+
+      expect(mockGenerateFeedHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        title: "Blog Title",
+        link: "https://example.com/feed",
+        description: "RSS Feed Description",
+        items: [
+          {
+            title: "Article 1",
+            link: "https://example.com/article1",
+            pubDate: expect.any(String),
+          },
+          {
+            title: "Article 2",
+            link: "https://example.com/article2",
+            pubDate: expect.any(String),
+          },
+        ],
+      });
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle validation errors", async () => {
+      const req = { params: { blogId: "invalidBlogId" } };
+      const res = {};
+
+      await router.get("/invalidBlogId/rss", validateCustomization)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
+});
 
-  describe("GET /:dep_id", () => {
-    it("should return 200 status and fetch department details with valid dep_id", async () => {
-      // Test the scenario where valid dep_id is provided in the request
-      const departmentId = "your_department_id";
-      const response = await request(app)
-        .get(`/${departmentId}`)
-        .query({ tenant: "kcca" });
+// Helper function
+const mockRequest = sinon.mock();
+const mockResponse = sinon.mock();
 
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed to verify the response body or any other behavior
+describe("Helper Functions", () => {
+  describe("validateCustomization", () => {
+    it("should validate customization fields", async () => {
+      const req = {
+        params: { blogId: "validBlogId" },
+        body: { title: "Valid Title" },
+      };
+      const res = {};
+      const next = sinon.stub();
+
+      validateCustomization(req, res, next);
+
+      expect(next).to.have.been.calledWith();
+      expect(res.status).to.not.have.been.called;
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should return validation errors", async () => {
+      const req = {
+        params: { blogId: "invalidBlogId" },
+        body: { invalidTitle: "too long" },
+      };
+      const res = {};
+      const next = sinon.stub();
+
+      validateCustomization(req, res, next);
+
+      expect(next).to.not.have.been.called;
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.json).to.have.been.calledWith({ errors: expect.any(Array) });
+    });
   });
 
-  // Add more describe blocks and test cases for other routes (if available)...
+  describe("headers", () => {
+    it("should set CORS headers", async () => {
+      const req = {};
+      const res = {};
+      const next = sinon.stub();
+
+      headers(req, res, next);
+
+      expect(res.header).to.have.been.calledThrice;
+      expect(res.header.firstCall.args[0]).to.equal(
+        "Access-Control-Allow-Origin"
+      );
+      expect(res.header.firstCall.args[1]).to.equal("*");
+      expect(res.header.secondCall.args[0]).to.equal(
+        "Access-Control-Allow-Headers"
+      );
+      expect(res.header.secondCall.args[1]).to.equal(
+        "Origin, X-Requested-With, Content-Type, Accept"
+      );
+      expect(next).to.have.been.calledWith();
+    });
+  });
+});
+
+// Cleanup
+afterEach(() => {
+  sinon.restore();
 });
