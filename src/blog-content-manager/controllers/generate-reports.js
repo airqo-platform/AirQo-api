@@ -1,15 +1,16 @@
 const httpStatus = require("http-status");
+const analyticsUtil = require("@utils/analytics");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const controlAccessUtil = require("@utils/control-access");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- department-controller`
+  `${constants.ENVIRONMENT} -- analytics-reporting-controller`
 );
+const { logText, logObject } = require("@utils/log");
 
-const createDepartment = {
-  list: async (req, res, next) => {
+const AnalyticsReportingController = {
+  views: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -18,14 +19,15 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.listDepartment(request, next);
-
+      const result = await analyticsUtil.views(postId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -34,19 +36,20 @@ const createDepartment = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          departments: result.data,
+          message: result.message,
+          viewsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -55,13 +58,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  create: async (req, res, next) => {
+
+  comments: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -70,14 +76,15 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.createDepartment(request, next);
-
+      const result = await analyticsUtil.comments(postId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -86,17 +93,20 @@ const createDepartment = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          created_department: result.data ? result.data : [],
+          message: result.message,
+          commentsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -105,13 +115,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  update: async (req, res, next) => {
+
+  popularPosts: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -120,32 +133,36 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
+
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.updateDepartment(request, next);
-
+      const result = await analyticsUtil.popularPosts(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          updated_department: result.data ? result.data : [],
+          message: result.message,
+          popularPostsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -154,13 +171,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  delete: async (req, res, next) => {
+
+  userViews: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -169,14 +189,15 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
+
+      const userId = req.params.userId;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.deleteDepartment(request, next);
-
+      const result = await analyticsUtil.userViews(userId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -185,17 +206,20 @@ const createDepartment = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          deleted_department: result.data ? result.data : [],
+          message: result.message,
+          userViewsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -204,13 +228,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  listUsersWithDepartment: async (req, res, next) => {
+
+  userComments: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -219,16 +246,15 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await controlAccessUtil.listUsersWithDepartment(
-        request,
-        next
-      );
+      const userId = req.params.userId;
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENENT || "airqo";
+      request.query.tenant = isEmpty(request.query.tenant)
+        ? defaultTenant
+        : request.query.tenant;
+
+      const result = await analyticsUtil.userComments(userId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -237,17 +263,20 @@ const createDepartment = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          users_with_department: result.data ? result.data : [],
+          message: result.message,
+          userCommentsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -256,13 +285,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  listAvailableUsersForDepartment: async (req, res, next) => {
+
+  userActivity: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -271,17 +303,15 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
+
+      const userId = req.params.userId;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.listAvailableUsersForDepartment(
-        request,
-        next
-      );
-
+      const result = await analyticsUtil.userActivity(userId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -290,17 +320,20 @@ const createDepartment = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          available_department_users: result.data ? result.data : [],
+          message: result.message,
+          userActivityData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -309,13 +342,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  assignUserToDepartment: async (req, res, next) => {
+
+  userGrowthReport: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -324,34 +360,36 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await controlAccessUtil.assignUserToDepartment(
-        request,
-        next
-      );
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(request.query.tenant)
+        ? defaultTenant
+        : request.query.tenant;
+
+      const result = await analyticsUtil.userGrowthReport(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          assigned_department_user: result.data ? result.data : [],
+          message: result.message,
+          growthData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -360,13 +398,16 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  unAssignUserFromDepartment: async (req, res, next) => {
+
+  postPerformanceReport: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -375,34 +416,36 @@ const createDepartment = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await controlAccessUtil.unAssignUserFromDepartment(
-        request,
-        next
-      );
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(request.query.tenant)
+        ? defaultTenant
+        : request.query.tenant;
+
+      const result = await analyticsUtil.postPerformanceReport(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          unassigned_department_user: result.data ? result.data : [],
+          message: result.message,
+          performanceData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -411,7 +454,9 @@ const createDepartment = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
@@ -419,4 +464,4 @@ const createDepartment = {
   },
 };
 
-module.exports = createDepartment;
+module.exports = AnalyticsReportingController;

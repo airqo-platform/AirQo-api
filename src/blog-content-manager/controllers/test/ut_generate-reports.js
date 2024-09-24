@@ -1,519 +1,838 @@
-require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const createDefaultUtil = require("@utils/create-default");
-const generateFilter = require("@utils/generate-filter");
-const {
-  badRequest,
-  convertErrorArrayToObject,
-  tryCatchErrors,
-} = require("@utils/errors");
-const constants = require("@config/constants");
-const defaults = require("@controllers/create-default");
+const sinonChai = require("sinon-chai");
 
-describe("defaults controller", () => {
+const httpStatus = require("http-status");
+const AnalyticsReportingController = require("../path/to/AnalyticsReportingController");
+const analyticsUtil = require("@utils/analytics");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- analytics-reporting-controller`
+);
+const { logText, logObject } = require("@utils/log");
+
+// Mock dependencies
+const mockRequest = {
+  params: { postId: "test-post-id" },
+  query: {},
+  body: {},
+};
+const mockResponse = {
+  json: sinon.spy(),
+  status: sinon.spy(),
+};
+const mockNext = sinon.spy();
+
+describe("AnalyticsReportingController", () => {
+  beforeEach(() => {
+    sinon.replace(log4js, "getLogger", sinon.stub().returns(logger));
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
-  describe("update()", () => {
-    it("should update default successfully", async () => {
-      const req = { query: { tenant: "airqo" }, body: { key: "value" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+  describe("views", () => {
+    it("should call analyticsUtil.views with correct arguments", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ id: 1, title: "Test Post" }],
       };
+      sinon.stub(analyticsUtil, "views").resolves(mockResult);
 
-      const validationResultStub = sinon
-        .stub(validationResultStub, "isEmpty")
-        .returns(true);
-      const generateFilterStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: true,
-          data: { key: "value" },
-        });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "update")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Default updated successfully",
-          data: { key: "value" },
-        });
+      await AnalyticsReportingController.views(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      await defaults.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(generateFilterStub.calledOnceWith(req)).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith(
-          "airqo",
-          { key: "value" },
-          { key: "value" }
-        )
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Default updated successfully",
-          default: { key: "value" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle default update failure", async () => {
-      const req = { query: { tenant: "airqo" }, body: { key: "value" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResultStub, "isEmpty")
-        .returns(true);
-      const generateFilterStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: true,
-          data: { key: "value" },
-        });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "update")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to update default",
-          errors: { message: "Default update error" },
-        });
-
-      await defaults.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(generateFilterStub.calledOnceWith(req)).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith(
-          "airqo",
-          { key: "value" },
-          { key: "value" }
-        )
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to update default",
-          default: { key: "value" },
-          errors: { message: "Default update error" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle filter generation failure", async () => {
-      const req = { query: { tenant: "airqo" }, body: { key: "value" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResultStub, "isEmpty")
-        .returns(true);
-      const generateFilterStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: false,
-          message: "Failed to generate filter",
-          errors: { message: "Filter generation error" },
-        });
-
-      await defaults.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(generateFilterStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to generate filter",
-          errors: { message: "Filter generation error" },
-        })
-      ).to.be.true;
-    });
-  });
-
-  describe("create()", () => {
-    it("should create default successfully", async () => {
-      const req = { query: { tenant: "airqo" }, body: { key: "value" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "create")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Default created successfully",
-          data: { key: "value" },
-        });
-
-      await defaults.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo" },
-        })
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Default created successfully",
-          default: { key: "value" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle default creation failure", async () => {
-      const req = { query: { tenant: "airqo" }, body: { key: "value" } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "create")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to create default",
-          errors: { message: "Default creation error" },
-        });
-
-      await defaults.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo" },
-        })
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to create default",
-          default: { key: "value" },
-          errors: { message: "Default creation error" },
-        })
-      ).to.be.true;
-    });
-  });
-
-  describe("list()", () => {
-    it("should list all defaults by query params provided", async () => {
-      const req = {
-        query: { tenant: "airqo", limit: 10, skip: 0 },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const generateFilterDefaultsStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: true,
-          data: { field: "value" },
-        });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "list")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Defaults listed successfully",
-          data: [{ key: "value" }],
-        });
-
-      await defaults.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        generateFilterDefaultsStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo", limit: 10, skip: 0 },
-        })
-      ).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith("airqo", { field: "value" }, 10, 0)
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Defaults listed successfully",
-          defaults: [{ key: "value" }],
-        })
-      ).to.be.true;
-    });
-
-    it("should handle listing defaults failure", async () => {
-      const req = {
-        query: { tenant: "airqo", limit: 10, skip: 0 },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const generateFilterDefaultsStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: true,
-          data: { field: "value" },
-        });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "list")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to list defaults",
-          errors: { message: "Defaults listing error" },
-        });
-
-      await defaults.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        generateFilterDefaultsStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo", limit: 10, skip: 0 },
-        })
-      ).to.be.true;
-      expect(
-        createDefaultUtilStub.calledOnceWith("airqo", { field: "value" }, 10, 0)
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list defaults",
-          errors: { message: "Defaults listing error" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle filter generation failure", async () => {
-      const req = {
-        query: { tenant: "airqo", limit: 10, skip: 0 },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const generateFilterDefaultsStub = sinon
-        .stub(generateFilter, "defaults")
-        .returns({
-          success: false,
-          errors: { message: "Filter generation error" },
-        });
-
-      await defaults.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        generateFilterDefaultsStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo", limit: 10, skip: 0 },
-        })
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Filter generation error",
-        })
-      ).to.be.true;
-    });
-  });
-
-  describe("delete()", () => {
-    it("should delete the default", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
+      expect(analyticsUtil.views).toHaveBeenCalledWith(
+        "test-post-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        viewsData: mockResult.data,
       });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "delete")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Default deleted successfully",
-          data: { key: "value" },
-        });
-
-      await defaults.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.called).to.be.false;
-      expect(
-        createDefaultUtilStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo" },
-        })
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Default deleted successfully",
-          default: { key: "value" },
-        })
-      ).to.be.true;
     });
 
-    it("should handle delete failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle errors from analyticsUtil.views", async () => {
+      const mockError = new Error("Test error");
+      sinon.stub(analyticsUtil, "views").rejects(mockError);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
-      const createDefaultUtilStub = sinon
-        .stub(createDefaultUtil, "delete")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to delete default",
-          errors: { message: "Default deletion error" },
-        });
+      await AnalyticsReportingController.views(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      await defaults.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.called).to.be.false;
-      expect(
-        createDefaultUtilStub.calledOnceWith({
-          body: { key: "value" },
-          query: { tenant: "airqo" },
-        })
-      ).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to delete default",
-          errors: { message: "Default deletion error" },
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-        body: { key: "value" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const mockError = new Error("Bad request error");
+      sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await AnalyticsReportingController.views(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      await defaults.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-        body: { key: "value" },
+    it("should handle empty result", async () => {
+      sinon.stub(analyticsUtil, "views").resolves({});
+
+      await AnalyticsReportingController.views(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockResponse.json).not.to.have.been.called;
+    });
+  });
+
+  describe("comments", () => {
+    it("should call analyticsUtil.comments with correct arguments", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ id: 1, text: "Test comment" }],
       };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+      sinon.stub(analyticsUtil, "comments").resolves(mockResult);
+
+      await AnalyticsReportingController.comments(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.comments).toHaveBeenCalledWith(
+        "test-post-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        commentsData: mockResult.data,
+      });
+    });
+
+    // Add similar tests for views, userViews, popularPosts, userComments, userActivity, userGrowthReport, postPerformanceReport
+  });
+
+  describe("popularPosts", () => {
+    it("should call analyticsUtil.popularPosts with correct arguments", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ id: 1, title: "Popular Post" }],
       };
+      sinon.stub(analyticsUtil, "popularPosts").resolves(mockResult);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await AnalyticsReportingController.popularPosts(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      await defaults.delete(req, res);
+      expect(analyticsUtil.popularPosts).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        popularPostsData: mockResult.data,
+      });
+    });
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+    // Add similar tests for views, userViews, comments, userComments, userActivity, userGrowthReport, postPerformanceReport
+  });
+
+  describe("userViews", () => {
+    it("should call analyticsUtil.userViews with correct arguments", async () => {
+      const mockResult = { success: true, data: [{ userId: 1, views: 10 }] };
+      sinon.stub(analyticsUtil, "userViews").resolves(mockResult);
+
+      await AnalyticsReportingController.userViews(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.userViews).toHaveBeenCalledWith(
+        "test-user-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        userViewsData: mockResult.data,
+      });
+    });
+
+    // Add similar tests for views, comments, popularPosts, userComments, userActivity, userGrowthReport, postPerformanceReport
+  });
+
+  describe("userComments", () => {
+    it("should call analyticsUtil.userComments with correct arguments", async () => {
+      const mockResult = { success: true, data: [{ userId: 1, commentId: 1 }] };
+      sinon.stub(analyticsUtil, "userComments").resolves(mockResult);
+
+      await AnalyticsReportingController.userComments(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.userComments).toHaveBeenCalledWith(
+        "test-user-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        userCommentsData: mockResult.data,
+      });
+    });
+
+    // Add similar tests for views, comments, popularPosts, userViews, userActivity, userGrowthReport, postPerformanceReport
+  });
+
+  describe("userActivity", () => {
+    it("should call analyticsUtil.userActivity with correct arguments", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ userId: 1, activityType: "view" }],
+      };
+      sinon.stub(analyticsUtil, "userActivity").resolves(mockResult);
+
+      await AnalyticsReportingController.userActivity(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.userActivity).toHaveBeenCalledWith(
+        "test-user-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        userActivityData: mockResult.data,
+      });
+    });
+
+    // Add similar tests for views, comments, popularPosts, userViews, userComments, userGrowthReport, postPerformanceReport
+  });
+
+  describe("userGrowthReport", () => {
+    it("should call analyticsUtil.userGrowthReport with correct arguments", async () => {
+      const mockResult = { success: true, data: [{ userId: 1, growth: 10 }] };
+      sinon.stub(analyticsUtil, "userGrowthReport").resolves(mockResult);
+
+      await AnalyticsReportingController.userGrowthReport(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.userGrowthReport).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        growthData: mockResult.data,
+      });
+    });
+
+    // Add similar tests for views, comments, popularPosts, userViews, userComments, userActivity, postPerformanceReport
+  });
+
+  describe("postPerformanceReport", () => {
+    it("should call analyticsUtil.postPerformanceReport with correct arguments", async () => {
+      const mockResult = {
+        success: true,
+        data: [{ postId: 1, performance: 80 }],
+      };
+      sinon.stub(analyticsUtil, "postPerformanceReport").resolves(mockResult);
+
+      await AnalyticsReportingController.postPerformanceReport(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(analyticsUtil.postPerformanceReport).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        performanceData: mockResult.data,
+      });
+    });
+
+    describe("views", () => {
+      it("should call analyticsUtil.views with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ id: 1, title: "Test Post" }],
+        };
+        sinon.stub(analyticsUtil, "views").resolves(mockResult);
+
+        await AnalyticsReportingController.views(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.views).toHaveBeenCalledWith(
+          "test-post-id",
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          viewsData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.views", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "views").rejects(mockError);
+
+        await AnalyticsReportingController.views(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.views(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "views").resolves({});
+
+        await AnalyticsReportingController.views(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("comments", () => {
+      it("should call analyticsUtil.comments with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ id: 1, text: "Test comment" }],
+        };
+        sinon.stub(analyticsUtil, "comments").resolves(mockResult);
+
+        await AnalyticsReportingController.comments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.comments).toHaveBeenCalledWith(
+          "test-post-id",
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          commentsData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.comments", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "comments").rejects(mockError);
+
+        await AnalyticsReportingController.comments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.comments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "comments").resolves({});
+
+        await AnalyticsReportingController.comments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("popularPosts", () => {
+      it("should call analyticsUtil.popularPosts with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ id: 1, title: "Popular Post" }],
+        };
+        sinon.stub(analyticsUtil, "popularPosts").resolves(mockResult);
+
+        await AnalyticsReportingController.popularPosts(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.popularPosts).toHaveBeenCalledWith(
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          popularPostsData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.popularPosts", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "popularPosts").rejects(mockError);
+
+        await AnalyticsReportingController.popularPosts(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.popularPosts(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "popularPosts").resolves({});
+
+        await AnalyticsReportingController.popularPosts(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("userViews", () => {
+      it("should call analyticsUtil.userViews with correct arguments", async () => {
+        const mockResult = { success: true, data: [{ userId: 1, views: 10 }] };
+        sinon.stub(analyticsUtil, "userViews").resolves(mockResult);
+
+        await AnalyticsReportingController.userViews(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.userViews).toHaveBeenCalledWith(
+          "test-user-id",
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          userViewsData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.userViews", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "userViews").rejects(mockError);
+
+        await AnalyticsReportingController.userViews(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.userViews(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "userViews").resolves({});
+
+        await AnalyticsReportingController.userViews(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("userComments", () => {
+      it("should call analyticsUtil.userComments with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ userId: 1, commentId: 1 }],
+        };
+        sinon.stub(analyticsUtil, "userComments").resolves(mockResult);
+
+        await AnalyticsReportingController.userComments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.userComments).toHaveBeenCalledWith(
+          "test-user-id",
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          userCommentsData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.userComments", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "userComments").rejects(mockError);
+
+        await AnalyticsReportingController.userComments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.userComments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "userComments").resolves({});
+
+        await AnalyticsReportingController.userComments(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("userActivity", () => {
+      it("should call analyticsUtil.userActivity with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ userId: 1, activityType: "view" }],
+        };
+        sinon.stub(analyticsUtil, "userActivity").resolves(mockResult);
+
+        await AnalyticsReportingController.userActivity(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.userActivity).toHaveBeenCalledWith(
+          "test-user-id",
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          userActivityData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.userActivity", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "userActivity").rejects(mockError);
+
+        await AnalyticsReportingController.userActivity(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.userActivity(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "userActivity").resolves({});
+
+        await AnalyticsReportingController.userActivity(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("userGrowthReport", () => {
+      it("should call analyticsUtil.userGrowthReport with correct arguments", async () => {
+        const mockResult = { success: true, data: [{ userId: 1, growth: 10 }] };
+        sinon.stub(analyticsUtil, "userGrowthReport").resolves(mockResult);
+
+        await AnalyticsReportingController.userGrowthReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.userGrowthReport).toHaveBeenCalledWith(
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          growthData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.userGrowthReport", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "userGrowthReport").rejects(mockError);
+
+        await AnalyticsReportingController.userGrowthReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.userGrowthReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "userGrowthReport").resolves({});
+
+        await AnalyticsReportingController.userGrowthReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
+    });
+
+    describe("postPerformanceReport", () => {
+      it("should call analyticsUtil.postPerformanceReport with correct arguments", async () => {
+        const mockResult = {
+          success: true,
+          data: [{ postId: 1, performance: 80 }],
+        };
+        sinon.stub(analyticsUtil, "postPerformanceReport").resolves(mockResult);
+
+        await AnalyticsReportingController.postPerformanceReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(analyticsUtil.postPerformanceReport).toHaveBeenCalledWith(
+          mockRequest,
+          mockNext
+        );
+        expect(mockResponse.json).to.have.been.calledWith({
+          success: true,
+          message: mockResult.message,
+          performanceData: mockResult.data,
+        });
+      });
+
+      it("should handle errors from analyticsUtil.postPerformanceReport", async () => {
+        const mockError = new Error("Test error");
+        sinon.stub(analyticsUtil, "postPerformanceReport").rejects(mockError);
+
+        await AnalyticsReportingController.postPerformanceReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle bad request errors", async () => {
+        const mockError = new Error("Bad request error");
+        sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
+
+        await AnalyticsReportingController.postPerformanceReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockNext).to.have.been.calledWith(
+          sinon.match.instanceOf(HttpError)
+        );
+      });
+
+      it("should handle empty result", async () => {
+        sinon.stub(analyticsUtil, "postPerformanceReport").resolves({});
+
+        await AnalyticsReportingController.postPerformanceReport(
+          mockRequest,
+          mockResponse,
+          mockNext
+        );
+
+        expect(mockResponse.json).not.to.have.been.called;
+      });
     });
   });
 });
