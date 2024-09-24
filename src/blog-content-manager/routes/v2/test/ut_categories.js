@@ -1,113 +1,309 @@
 require("module-alias/register");
-const chai = require("chai");
-const sinon = require("sinon");
-const { expect } = chai;
+// Import necessary modules
 const express = require("express");
-const request = require("supertest");
-const { query, body } = require("express-validator");
+const router = express.Router();
+const { check, validationResult } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const createDefaultController = require("@controllers/create-default");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const CategoryTagController = require("@controllers/manage-categories");
 
-const router = require("../defaults");
+// Import middleware
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
+  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-describe("Default Routes", () => {
-  let app;
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
 
-  before(() => {
-    app = express();
-    app.use("/", router);
+router.use(headers);
+router.use(validatePagination);
+
+// Authentication middleware
+router.use(setJWTAuth);
+router.use(authJWT);
+
+// Validation middleware
+const validateCategoryTag = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Mock route handlers
+const mockCreateHandler = sinon.stub(CategoryTagController, "create").resolves({
+  status: 201,
+  body: { id: 1, name: "Test Category" },
+});
+
+const mockListHandler = sinon.stub(CategoryTagController, "list").resolves({
+  status: 200,
+  body: [
+    { id: 1, name: "Category 1" },
+    { id: 2, name: "Category 2" },
+  ],
+});
+
+const mockUpdateHandler = sinon.stub(CategoryTagController, "update").resolves({
+  status: 200,
+  body: { success: true },
+});
+
+const mockDeleteHandler = sinon.stub(CategoryTagController, "delete").resolves({
+  status: 204,
+  body: null,
+});
+
+const mockAssignHandler = sinon.stub(CategoryTagController, "assign").resolves({
+  status: 200,
+  body: { assigned: true },
+});
+
+const mockPostsHandler = sinon.stub(CategoryTagController, "posts").resolves({
+  status: 200,
+  body: [
+    { id: 1, title: "Post 1" },
+    { id: 2, title: "Post 2" },
+  ],
+});
+
+const mockBrowseCategoriesHandler = sinon
+  .stub(CategoryTagController, "browseCategories")
+  .resolves({
+    status: 200,
+    body: [
+      { id: 1, name: "Category 1" },
+      { id: 2, name: "Category 2" },
+    ],
   });
 
-  describe("PUT /", () => {
-    it("should return 200 status and update the default data with valid inputs", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app)
-        .put("/")
-        .query({ tenant: "kcca" })
-        .send({
-          pollutant: "pm2_5",
-          frequency: "daily",
-          chartType: "bar",
-          startDate: "2023-07-25T10:00:00.000Z",
-          endDate: "2023-07-26T10:00:00.000Z",
-          user: "your_user_id",
-          airqloud: "your_airqloud_id",
-          chartTitle: "Sample Chart",
-          period: {
-            start: "2023-07-25T10:00:00.000Z",
-            end: "2023-07-26T10:00:00.000Z",
-          },
-          chartSubTitle: "Sample Subtitle",
-          sites: ["site_id_1", "site_id_2"],
-        });
-
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed to verify the response body or any other behavior
-    });
-
-    // Add more test cases to cover other scenarios and validations
+const mockBrowseTagsHandler = sinon
+  .stub(CategoryTagController, "browseTags")
+  .resolves({
+    status: 200,
+    body: [
+      { id: 1, name: "Tag 1" },
+      { id: 2, name: "Tag 2" },
+    ],
   });
 
+describe("Category and Tag Management Routes", () => {
   describe("POST /", () => {
-    it("should return 201 status and create a new default entry with valid inputs", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app)
-        .post("/")
-        .query({ tenant: "kcca" })
-        .send({
-          pollutant: "no2",
-          frequency: "hourly",
-          chartType: "line",
-          startDate: "2023-07-25T10:00:00.000Z",
-          endDate: "2023-07-26T10:00:00.000Z",
-          user: "your_user_id",
-          chartTitle: "Sample Chart",
-          period: {
-            start: "2023-07-25T10:00:00.000Z",
-            end: "2023-07-26T10:00:00.000Z",
-          },
-          chartSubTitle: "Sample Subtitle",
-          sites: ["site_id_1", "site_id_2"],
-        });
+    it("should create a new category/tag", async () => {
+      const req = { body: { name: "Test Category" } };
+      const res = {};
 
-      expect(response.status).to.equal(201);
-      // Add more assertions as needed to verify the response body or any other behavior
+      await router.post("/", validateCategoryTag)(req, res);
+
+      expect(mockCreateHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(201);
+      expect(res.body).to.deep.equal({ id: 1, name: "Test Category" });
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle validation errors", async () => {
+      const req = { body: { invalidName: "too long" } };
+      const res = {};
+
+      await router.post("/", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
   describe("GET /", () => {
-    it("should return 200 status and list default entries with valid inputs", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app).get("/").query({
-        tenant: "kcca",
-        id: "your_id",
-        user: "your_user_id",
-        airqloud: "your_airqloud_id",
-        site: "your_site_id",
-      });
+    it("should list categories/tags", async () => {
+      const req = {};
+      const res = {};
 
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed to verify the response body or any other behavior
+      await router.get("/", validateCategoryTag)(req, res);
+
+      expect(mockListHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, name: "Category 1" },
+        { id: 2, name: "Category 2" },
+      ]);
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
-  describe("DELETE /", () => {
-    it("should return 204 status and delete the default entry with valid input", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app)
-        .delete("/")
-        .query({ tenant: "kcca", id: "your_id" });
+  describe("PUT /:id", () => {
+    it("should update a category/tag", async () => {
+      const req = {
+        params: { id: 1 },
+        body: { name: "Updated Test Category" },
+      };
+      const res = {};
 
-      expect(response.status).to.equal(204);
-      // Add more assertions as needed to verify the response body or any other behavior
+      await router.put("/:id", validateCategoryTag)(req, res);
+
+      expect(mockUpdateHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ success: true });
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { id: "invalidId" },
+        body: { invalidName: "too long" },
+      };
+      const res = {};
+
+      await router.put("/invalidId", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("DELETE /:id", () => {
+    it("should delete a category/tag", async () => {
+      const req = { params: { id: 1 } };
+      const res = {};
+
+      await router.delete("/:id", validateCategoryTag)(req, res);
+
+      expect(mockDeleteHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(204);
+      expect(res.body).to.be.null;
+    });
+
+    it("should handle validation errors", async () => {
+      const req = { params: { id: "invalidId" } };
+      const res = {};
+
+      await router.delete("/invalidId", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("POST /assign/:postId", () => {
+    it("should assign a category/tag to a post", async () => {
+      const req = {
+        params: { postId: 1 },
+        body: { categoryId: 1 },
+      };
+      const res = {};
+
+      await router.post("/assign/1", validateCategoryTag)(req, res);
+
+      expect(mockAssignHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ assigned: true });
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {
+        params: { postId: "invalidPostId" },
+        body: { invalidCategoryId: "notANumber" },
+      };
+      const res = {};
+
+      await router.post("/assign/invalidPostId", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /posts/:id", () => {
+    it("should retrieve posts associated with a category/tag", async () => {
+      const req = { params: { id: 1 } };
+      const res = {};
+
+      await router.get("/posts/1", validateCategoryTag)(req, res);
+
+      expect(mockPostsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, title: "Post 1" },
+        { id: 2, title: "Post 2" },
+      ]);
+    });
+
+    it("should handle validation errors", async () => {
+      const req = { params: { id: "invalidId" } };
+      const res = {};
+
+      await router.get("/posts/invalidId", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /browse/categories", () => {
+    it("should browse categories", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/browse/categories", validateCategoryTag)(req, res);
+
+      expect(mockBrowseCategoriesHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, name: "Category 1" },
+        { id: 2, name: "Category 2" },
+      ]);
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/browse/categories", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /browse/tags", () => {
+    it("should browse tags", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/browse/tags", validateCategoryTag)(req, res);
+
+      expect(mockBrowseTagsHandler).toHaveBeenCalled();
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, name: "Tag 1" },
+        { id: 2, name: "Tag 2" },
+      ]);
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/browse/tags", validateCategoryTag)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 });

@@ -267,6 +267,12 @@ const mappings = {
       "battery.value": "battery",
       "satellites.value": "satellites",
       "hdop.value": "hdop",
+
+      "tvoc.value": "tvoc",
+      "hcho.value": "hcho",
+      "co2.value": "co2",
+      "intaketemperature.value": "intaketemperature",
+      "intakehumidity.value": "intakehumidity",
     },
     remove: [],
     defaults: {
@@ -390,6 +396,12 @@ const mappings = {
       "battery.value": null,
       "satellites.value": null,
       "hdop.value": null,
+
+      "tvoc.value": null,
+      "hcho.value": null,
+      "co2.value": null,
+      "intaketemperature.value": null,
+      "intakehumidity.value": null,
     },
     operate: [
       /**

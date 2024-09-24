@@ -1,144 +1,133 @@
 const mongoose = require("mongoose").set("debug", true);
-const Schema = mongoose.Schema;
-const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 const { getModelByTenant } = require("@config/database");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- analytics-model`);
 const { HttpError } = require("@utils/errors");
 
-const ClientSchema = new Schema(
+const AnalyticsSchema = new mongoose.Schema(
   {
-    user_id: {
-      type: ObjectId,
-      ref: "user",
-      required: [true, "user_id is required!"],
+    metricName: {
+      type: String,
+      required: [true, "Metric name is required"],
+      trim: true,
+      unique: true,
     },
-    name: { type: String, trim: true, required: [true, "name is required!"] },
-    client_secret: { type: String, trim: true },
-    isActive: { type: Boolean, default: false },
-    redirect_uri: { type: String },
-    ip_address: { type: String },
-    ip_addresses: [{ type: String }],
-    description: { type: String },
-    rateLimit: { type: Number },
+    value: {
+      type: Number,
+      required: [true, "Metric value is required"],
+    },
+    type: {
+      type: String,
+      enum: [
+        "pageviews",
+        "uniquevisitors",
+        "bounces",
+        "timeonpage",
+        "avgtimeonsite",
+      ],
+      default: "pageviews",
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+    },
+    category: {
+      type: String,
+      required: [true, "Metric category is required"],
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-ClientSchema.pre("save", function (next) {
-  const fieldsToAddToSet = ["ip_addresses"];
-
-  fieldsToAddToSet.forEach((field) => {
-    if (this[field]) {
-      this[field] = Array.from(new Set(this[field].map((id) => id.toString())));
-    }
-  });
-  return next();
+AnalyticsSchema.plugin(uniqueValidator, {
+  message: `{VALUE} should be unique!`,
 });
 
-ClientSchema.pre("update", function (next) {
-  return next();
-});
+AnalyticsSchema.methods = {
+  toJSON() {
+    return {
+      _id: this._id,
+      metricName: this.metricName,
+      value: this.value,
+      type: this.type,
+      timestamp: this.timestamp,
+      category: this.category,
+      status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  },
+};
 
-ClientSchema.statics = {
-  async register(args, next) {
+AnalyticsSchema.statics = {
+  async create(args, next) {
     try {
-      let createBody = args;
-      if (createBody._id) {
-        delete createBody._id;
+      let body = args;
+      if (body._id) {
+        delete body._id;
       }
-      data = await this.create({
-        ...createBody,
+      let data = await this.create({
+        ...body,
       });
 
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
-          message: "client created",
-          status: httpStatus.OK,
+          message: "Analytics entry created successfully",
+          status: httpStatus.CREATED,
         };
-      } else if (isEmpty(data)) {
+      } else {
         return {
-          success: true,
-          data: [],
-          message: "operation successful but client NOT successfully created",
-          status: httpStatus.OK,
+          success: false,
+          message: "Failed to create analytics entry",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
         };
       }
     } catch (err) {
-      logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
-      if (err.keyValue) {
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-      } else if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      } else if (err.code === 11000) {
-        response["message"] = "the Client must be unique for every client";
-      }
-
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
+
+  async list({ skip = 0, limit = 20, filter = {} } = {}, next) {
     try {
-      const inclusionProjection = constants.CLIENTS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.CLIENTS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
-      );
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
-      }
+      const analyticsEntries = await this.find(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
 
-      const response = await this.aggregate()
-        .match(filter)
-        .lookup({
-          from: "access_tokens",
-          localField: "_id",
-          foreignField: "client_id",
-          as: "access_token",
-        })
-        .lookup({
-          from: "users",
-          localField: "user_id",
-          foreignField: "_id",
-          as: "user",
-        })
-        .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
-        .allowDiskUse(true);
+      const total = await this.countDocuments(filter);
 
-      if (!isEmpty(response)) {
+      if (!isEmpty(analyticsEntries)) {
         return {
           success: true,
-          message: "successfully retrieved the client details",
-          data: response,
+          data: analyticsEntries,
+          total,
+          message: "Successfully retrieved analytics entries",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(response)) {
+      } else {
         return {
           success: true,
-          message: "no clients exist",
+          message: "No analytics entries found",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          total: 0,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
@@ -152,71 +141,105 @@ ClientSchema.statics = {
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}, next) {
+
+  async findById(id, next) {
     try {
-      function removeDuplicates(arr) {
-        return [...new Set(arr)];
-      }
-      let options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const analyticsEntry = await this.findOne({ _id: id }).exec();
 
-      if (modifiedUpdate.ip_addresses) {
-        modifiedUpdate.ip_addresses = removeDuplicates(
-          modifiedUpdate.ip_addresses
-        );
+      if (!isEmpty(analyticsEntry)) {
+        return {
+          success: true,
+          data: analyticsEntry,
+          message: "Successfully retrieved analytics entry",
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Analytics entry not found", httpStatus.NOT_FOUND));
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 
-      const updatedClient = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdate,
+  async update({ id, update = {} } = {}, next) {
+    try {
+      const options = { new: true, runValidators: true };
+      if (update._id) {
+        delete update._id;
+      }
+      const updatedAnalyticsEntry = await this.findByIdAndUpdate(
+        id,
+        update,
         options
       ).exec();
 
-      if (!isEmpty(updatedClient)) {
+      if (!isEmpty(updatedAnalyticsEntry)) {
         return {
           success: true,
-          message: "successfully modified the client",
-          data: updatedClient._doc,
+          message: "Successfully updated the analytics entry",
+          data: updatedAnalyticsEntry,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedClient)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "client does not exist, please crosscheck",
-          })
-        );
+      } else {
+        next(new HttpError("Analytics entry not found", httpStatus.NOT_FOUND));
       }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+    } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
     }
   },
-  async remove({ filter = {} } = {}, next) {
+
+  async remove(id, next) {
     try {
-      let options = {
-        projection: { _id: 1, client_secret: 1 },
-      };
-      const removedClient = await this.findOneAndRemove(filter, options).exec();
-      if (!isEmpty(removedClient)) {
+      const removedAnalyticsEntry = await this.findByIdAndRemove(id).exec();
+
+      if (!isEmpty(removedAnalyticsEntry)) {
         return {
           success: true,
-          message: "successfully removed the client",
-          data: removedClient._doc,
+          message: "Successfully removed the analytics entry",
+          data: removedAnalyticsEntry,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedClient)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "client does not exist, please crosscheck",
-          })
-        );
+      } else {
+        next(new HttpError("Analytics entry not found", httpStatus.NOT_FOUND));
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async getMetricStats(metricName, category, next) {
+    try {
+      const analyticsEntries = await this.find({
+        metricName,
+        category,
+      });
+
+      const stats = analyticsEntries.reduce((acc, curr) => {
+        acc[curr.type] = (acc[curr.type] || 0) + curr.value;
+        return acc;
+      }, {});
+
+      return {
+        success: true,
+        data: stats,
+        message: "Successfully retrieved metric statistics",
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -230,30 +253,14 @@ ClientSchema.statics = {
   },
 };
 
-ClientSchema.methods = {
-  toJSON() {
-    return {
-      _id: this._id,
-      client_secret: this.client_secret,
-      redirect_uri: this.redirect_uri,
-      name: this.name,
-      isActive: this.isActive,
-      description: this.description,
-      rateLimit: this.rateLimit,
-      ip_address: this.ip_address,
-      ip_addresses: this.ip_addresses,
-    };
-  },
-};
-
-const ClientModel = (tenant) => {
+const AnalyticsModel = (tenant) => {
   try {
-    let clients = mongoose.model("clients");
-    return clients;
+    let analytics = mongoose.model("analytics");
+    return analytics;
   } catch (error) {
-    let clients = getModelByTenant(tenant, "client", ClientSchema);
-    return clients;
+    let analytics = getModelByTenant(tenant, "analytics", AnalyticsSchema);
+    return analytics;
   }
 };
 
-module.exports = ClientModel;
+module.exports = AnalyticsModel;

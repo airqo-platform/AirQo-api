@@ -170,6 +170,8 @@ const dbProjections = {
     airqlouds: "$airqlouds",
     weather_stations: 1,
     site_category: 1,
+    lastActive: 1,
+    isOnline: 1,
   },
   SITES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -372,6 +374,8 @@ const dbProjections = {
     category: 1,
     cohorts: 1,
     grids: 1,
+    lastActive: 1,
+    isOnline: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },
@@ -498,15 +502,8 @@ const dbProjections = {
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      // readKey: 0,
-      // device_number: 0,
-      // isActive: 0,
-      // description: 0,
-      // network: 0,
       projection = Object.assign(initialProjection, {
         alias: 0,
-        latitude: 0,
-        longitude: 0,
         approximate_distance_in_km: 0,
         bearing_in_radians: 0,
         ISP: 0,
@@ -522,10 +519,8 @@ const dbProjections = {
         powerType: 0,
         mountType: 0,
         access_code: 0,
-        device_codes: 0,
         height: 0,
         mobility: 0,
-        category: 0,
         host: 0,
       });
     }

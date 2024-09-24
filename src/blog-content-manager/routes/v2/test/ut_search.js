@@ -1,61 +1,208 @@
 require("module-alias/register");
-const chai = require("chai");
-const sinon = require("sinon");
-const { expect } = chai;
+// Import necessary modules
 const express = require("express");
-const request = require("supertest");
-const { query, body, param } = require("express-validator");
+const router = express.Router();
+const { check, validationResult } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const createDepartmentController = require("@controllers/create-department");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const SearchController = require("@controllers/perform-search");
 
-const router = require("../departments");
+// Import middleware
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
+  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-// ... Express Router Configuration ... (the provided route configurations)
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST");
+  next();
+};
 
-describe("Department Routes", () => {
-  let app;
+// Mock route handlers
+const mockSearchHandler = sinon.stub(SearchController, "search").resolves({
+  status: 200,
+  body: [
+    { id: 1, title: "Test Result 1", content: "Content 1" },
+    { id: 2, title: "Test Result 2", content: "Content 2" },
+  ],
+});
 
-  before(() => {
-    app = express();
-    app.use("/", router);
+const mockAutocompleteHandler = sinon
+  .stub(SearchController, "autocomplete")
+  .resolves({
+    status: 200,
+    body: ["Test Result 1", "Test Result 2"],
   });
 
-  describe("POST /", () => {
-    it("should return 201 status and create a new department with valid inputs", async () => {
-      // Test the scenario where valid input data is provided in the request
-      const response = await request(app)
-        .post("/")
-        .query({ tenant: "kcca" })
-        .send({
-          dep_network_id: "network_id",
-          dep_title: "Test Department",
-          dep_description: "This is a test department",
-          // Add more valid input fields here as needed
-        });
+const mockFilterHandler = sinon.stub(SearchController, "filter").resolves({
+  status: 200,
+  body: [
+    { id: 1, title: "Filtered Result 1", content: "Filtered Content 1" },
+    { id: 2, title: "Filtered Result 2", content: "Filtered Content 2" },
+  ],
+});
 
-      expect(response.status).to.equal(201);
-      // Add more assertions as needed to verify the response body or any other behavior
+const mockPaginateHandler = sinon.stub(SearchController, "paginate").resolves({
+  status: 200,
+  body: {
+    items: [
+      { id: 1, title: "Paginated Result 1", content: "Paginated Content 1" },
+      { id: 2, title: "Paginated Result 2", content: "Paginated Content 2" },
+    ],
+    meta: { limit: 100, skip: 0, total: 2 },
+  },
+});
+
+describe("Search and Filter Routes", () => {
+  describe("GET /", () => {
+    it("should perform a search", async () => {
+      const req = {
+        query: { searchTerm: "test" },
+      };
+      const res = {};
+
+      await router.get("/", validateSearchQuery)(req, res);
+
+      expect(mockSearchHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        {
+          id: expect.any(Number),
+          title: expect.any(String),
+          content: expect.any(String),
+        },
+        {
+          id: expect.any(Number),
+          title: expect.any(String),
+          content: expect.any(String),
+        },
+      ]);
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/", validateSearchQuery)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
   });
 
-  describe("GET /:dep_id", () => {
-    it("should return 200 status and fetch department details with valid dep_id", async () => {
-      // Test the scenario where valid dep_id is provided in the request
-      const departmentId = "your_department_id";
-      const response = await request(app)
-        .get(`/${departmentId}`)
-        .query({ tenant: "kcca" });
+  describe("GET /autocomplete", () => {
+    it("should return autocomplete suggestions", async () => {
+      const req = {
+        query: { searchTerm: "test" },
+      };
+      const res = {};
 
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed to verify the response body or any other behavior
+      await router.get("/autocomplete")(req, res);
+
+      expect(mockAutocompleteHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal(["Test Result 1", "Test Result 2"]);
     });
 
-    // Add more test cases to cover other scenarios and validations
+    it("should handle empty search terms", async () => {
+      const req = {
+        query: { searchTerm: "" },
+      };
+      const res = {};
+
+      await router.get("/autocomplete")(req, res);
+
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([]);
+    });
   });
 
-  // Add more describe blocks and test cases for other routes (if available)...
+  describe("GET /filter", () => {
+    it("should filter search results", async () => {
+      const req = {
+        query: { searchTerm: "test", filter: "example" },
+      };
+      const res = {};
+
+      await router.get("/filter", validateSearchQuery)(req, res);
+
+      expect(mockFilterHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        {
+          id: expect.any(Number),
+          title: expect.any(String),
+          content: expect.any(String),
+        },
+        {
+          id: expect.any(Number),
+          title: expect.any(String),
+          content: expect.any(String),
+        },
+      ]);
+    });
+
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/filter", validateSearchQuery)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+
+  describe("GET /paginate", () => {
+    it("should paginate search results", async () => {
+      const req = {
+        query: { searchTerm: "test", page: 1, limit: 20 },
+      };
+      const res = {};
+
+      await router.get("/paginate", validateSearchQuery)(req, res);
+
+      expect(mockPaginateHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        items: [
+          {
+            id: expect.any(Number),
+            title: expect.any(String),
+            content: expect.any(String),
+          },
+          {
+            id: expect.any(Number),
+            title: expect.any(String),
+            content: expect.any(String),
+          },
+        ],
+        meta: { limit: 20, skip: 0, total: 2 },
+      });
+    });
+
+    it("should handle invalid pagination parameters", async () => {
+      const req = {
+        query: { searchTerm: "test", page: "invalid", limit: "invalid" },
+      };
+      const res = {};
+
+      await router.get("/paginate", validateSearchQuery)(req, res);
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
+    });
+  });
+});
+
+// Cleanup
+afterEach(() => {
+  sinon.restore();
 });

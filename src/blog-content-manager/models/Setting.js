@@ -1,70 +1,79 @@
 const mongoose = require("mongoose").set("debug", true);
-var uniqueValidator = require("mongoose-unique-validator");
+const uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklist-model`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- setting-model`);
 const { HttpError } = require("@utils/errors");
 
-const checklistItemSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-    default: "no title",
-  },
-  completed: {
-    type: Boolean,
-    default: false,
-  },
-  status: {
-    type: String,
-    default: "not started",
-    enum: ["not started", "in progress", "completed", "started"],
-  },
-  completionDate: {
-    type: Date,
-  },
-  videoProgress: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 100,
-  },
-});
-
-const ChecklistSchema = new mongoose.Schema(
+const SettingSchema = new mongoose.Schema(
   {
-    user_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "user",
-      required: [true, "user_id is required"],
+    name: {
+      type: String,
+      required: [true, "Setting name is required"],
+      trim: true,
       unique: true,
     },
-    items: [checklistItemSchema],
+    value: {
+      type: Object,
+      required: [true, "Setting value is required"],
+      validate: {
+        validator: function (value) {
+          // Add custom validation logic here based on the setting type
+          return true; // Placeholder for type-specific validation
+        },
+        message: "Invalid setting value",
+      },
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    type: {
+      type: String,
+      enum: ["string", "boolean", "integer", "array"],
+      default: "string",
+    },
+    category: {
+      type: String,
+      required: [true, "Setting category is required"],
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
   },
   {
     timestamps: true,
   }
 );
 
-ChecklistSchema.plugin(uniqueValidator, {
+SettingSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-ChecklistSchema.methods = {
+SettingSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      user_id: this.user_id,
-      items: this.items,
+      name: this.name,
+      value: this.value,
+      description: this.description,
+      type: this.type,
+      category: this.category,
+      status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };
 
-ChecklistSchema.statics = {
-  async register(args, next) {
+SettingSchema.statics = {
+  async create(args, next) {
     try {
       let body = args;
       if (body._id) {
@@ -78,61 +87,47 @@ ChecklistSchema.statics = {
         return {
           success: true,
           data,
-          message: "checklist created successfully with no issues detected",
-          status: httpStatus.OK,
+          message: "Setting created successfully",
+          status: httpStatus.CREATED,
         };
-      } else if (isEmpty(data)) {
+      } else {
         return {
-          success: true,
-          message: "checklist not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
+          success: false,
+          message: "Failed to create setting",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
         };
       }
     } catch (err) {
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-      next(new HttpError(message, status, response));
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+
+  async list({ skip = 0, limit = 20, filter = {} } = {}, next) {
     try {
-      const checklists = await this.find(filter)
-        .sort({ createdAt: -1 })
+      const settings = await this.find(filter)
+        .sort({ name: 1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
-      if (!isEmpty(checklists)) {
+      const total = await this.countDocuments(filter);
+
+      if (!isEmpty(settings)) {
         return {
           success: true,
-          data: checklists,
-          message: "successfully listed the checklists",
+          data: settings,
+          total,
+          message: "Successfully retrieved settings",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(checklists)) {
+      } else {
         return {
           success: true,
-          message: "no checklists found for this search",
+          message: "No settings found",
           data: [],
+          total: 0,
           status: httpStatus.OK,
         };
       }
@@ -147,72 +142,104 @@ ChecklistSchema.statics = {
       );
     }
   },
-  async modify({ filter = {}, update = {} } = {}, next) {
+
+  async findById(id, next) {
     try {
-      const options = { new: true };
+      const setting = await this.findOne({ _id: id }).exec();
+
+      if (!isEmpty(setting)) {
+        return {
+          success: true,
+          data: setting,
+          message: "Successfully retrieved setting",
+          status: httpStatus.OK,
+        };
+      } else {
+        next(new HttpError("Setting not found", httpStatus.NOT_FOUND));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async update({ id, update = {} } = {}, next) {
+    try {
+      const options = { new: true, runValidators: true };
       if (update._id) {
         delete update._id;
       }
-      const updatedChecklist = await this.findOneAndUpdate(
-        filter,
+      const updatedSetting = await this.findByIdAndUpdate(
+        id,
         update,
         options
       ).exec();
 
-      if (!isEmpty(updatedChecklist)) {
+      if (!isEmpty(updatedSetting)) {
         return {
           success: true,
-          message: "successfully modified the checklist",
-          data: updatedChecklist._doc,
+          message: "Successfully updated the setting",
+          data: updatedSetting,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedChecklist)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Checklist you are trying to UPDATE does not exist, please crosscheck",
-          })
-        );
+      } else {
+        next(new HttpError("Setting not found", httpStatus.NOT_FOUND));
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-      }
-      next(new HttpError(message, status, errors));
+      next(new HttpError(err.message, httpStatus.INTERNAL_SERVER_ERROR));
     }
   },
-  async remove({ filter = {} } = {}, next) {
-    try {
-      let options = {
-        projection: {
-          _id: 1,
-          user_id: 1,
-        },
-      };
-      const removedChecklist = await this.findOneAndRemove(
-        filter,
-        options
-      ).exec();
 
-      if (!isEmpty(removedChecklist)) {
+  async remove(id, next) {
+    try {
+      const removedSetting = await this.findByIdAndRemove(id).exec();
+
+      if (!isEmpty(removedSetting)) {
         return {
           success: true,
-          message: "successfully removed the checklist",
-          data: removedChecklist._doc,
+          message: "Successfully removed the setting",
+          data: removedSetting,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(removedChecklist)) {
+      } else {
+        next(new HttpError("Setting not found", httpStatus.NOT_FOUND));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  async findByCategory(category, next) {
+    try {
+      const settings = await this.find({ category }).sort({ name: 1 }).exec();
+
+      if (!isEmpty(settings)) {
+        return {
+          success: true,
+          data: settings,
+          message: "Successfully retrieved settings for category",
+          status: httpStatus.OK,
+        };
+      } else {
         next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Checklist  you are trying to DELETE does not exist, please crosscheck",
-          })
+          new HttpError(
+            "No settings found for this category",
+            httpStatus.NOT_FOUND
+          )
         );
       }
     } catch (error) {
@@ -228,14 +255,14 @@ ChecklistSchema.statics = {
   },
 };
 
-const ChecklistModel = (tenant) => {
+const SettingModel = (tenant) => {
   try {
-    let checklists = mongoose.model("checklists");
-    return checklists;
+    let settings = mongoose.model("settings");
+    return settings;
   } catch (error) {
-    let checklists = getModelByTenant(tenant, "checklist", ChecklistSchema);
-    return checklists;
+    let settings = getModelByTenant(tenant, "setting", SettingSchema);
+    return settings;
   }
 };
 
-module.exports = ChecklistModel;
+module.exports = SettingModel;

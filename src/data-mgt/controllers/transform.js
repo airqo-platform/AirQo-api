@@ -7,13 +7,13 @@ const { generateDateFormat, isDate } = require("../utils/date");
 const constants = require("../config/constants");
 const transformUtil = require("../utils/transform");
 const { logObject, logElement, logText } = require("../utils/log");
-const errorsUtil = require("../utils/errors");
-const { validationResult } = require("express-validator");
 const cleanDeep = require("clean-deep");
 const log4js = require("log4js");
+const stringify = require("@utils/stringify");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transform-controller`
 );
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 
 const isGasDevice = (description) => {
   return description.toLowerCase().includes("gas");
@@ -39,30 +39,19 @@ const categorizeOutput = (input) => {
   }
 };
 
-const validateRequest = (req) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    const nestedErrors = errors.errors[0].nestedErrors;
-    logger.error(
-      `Input validation errors: ${JSON.stringify(
-        errorsUtil.convertErrorArrayToObject(nestedErrors)
-      )}`
-    );
-    return { isValid: false, errors: nestedErrors };
-  }
-  return { isValid: true };
-};
-
 const getChannelApiKey = async (channel) => {
-  return new Promise((resolve, reject) => {
-    transformUtil.getAPIKey(channel, (result) => {
-      if (result.success) {
-        resolve(result.data);
-      } else {
-        reject(new Error(result.message));
-      }
-    });
-  });
+  try {
+    const result = await transformUtil.getAPIKey(channel);
+    if (result.success) {
+      return result.data;
+    } else {
+      logger.error(`Error in getAPIKey: ${stringify(result)}`);
+      throw new Error(result.message);
+    }
+  } catch (error) {
+    logger.error(`Error in getChannelApiKey: ${stringify(error)}`);
+    throw error;
+  }
 };
 
 const fetchThingspeakData = async (request) => {
@@ -162,25 +151,14 @@ const processDeviceMeasurements = async (readings, metadata) => {
 };
 
 const data = {
-  getChannels: async (req, res) => {
+  getChannels: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       let ts = Date.now();
       let day = await generateDateFormat(ts);
@@ -194,7 +172,9 @@ const data = {
           let message = err;
           let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
           let error = err;
-          errorsUtil.errorResponse({ res, message, statusCode, error });
+          logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+          next(new HttpError(message, statusCode, err));
+          return;
         } else {
           axios
             .get(constants.GET_CHANNELS, {
@@ -204,10 +184,7 @@ const data = {
             })
             .then((response) => {
               const responseJSON = response.data;
-              redis.set(
-                cacheID,
-                JSON.stringify({ isCache: true, ...responseJSON })
-              );
+              redis.set(cacheID, stringify({ isCache: true, ...responseJSON }));
               redis.expire(cacheID, constants.GET_CHANNELS_CACHE_EXPIRATION);
               return res
                 .status(httpStatus.OK)
@@ -227,49 +204,33 @@ const data = {
                 : "Internal Server Error";
 
               let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-              errorsUtil.errorResponse({ res, message, statusCode, error });
+
+              logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+              next(new HttpError(message, statusCode, error));
+              return;
             });
         }
       });
     } catch (error) {
-      let message = error.message;
-      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-      errorsUtil.errorResponse({ res, message, statusCode, error });
-    }
-  },
-  getFeeds: async (req, res) => {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      try {
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            errorsUtil.convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-      } catch (e) {
-        logger.error(`Internal Server Error -- ${e.message}`);
-      }
-      return errorsUtil.badRequest(
-        res,
-        "bad request errors",
-        errorsUtil.convertErrorArrayToObject(nestedErrors)
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
+      return;
     }
-    logText("getting feeds..............  ");
-    const fetch_response = await fetch(constants.GET_FEEDS(req.params.ch_id));
-    const json = await fetch_response.json();
-    res.status(200).send(json);
   },
-  getLastFeed: async (req, res) => {
+  getLastFeed: async (req, res, next) => {
     try {
-      const validation = validateRequest(req);
-      if (!validation.isValid) {
-        return errorsUtil.badRequest(
-          res,
-          "Bad request errors",
-          errorsUtil.convertErrorArrayToObject(validation.errors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
 
       const { start, end, ch_id } = { ...req.query, ...req.params };
@@ -282,45 +243,40 @@ const data = {
         const { status, data } = handleThingspeakResponse(thingspeakData);
         return res.status(status).json(data);
       } catch (error) {
-        logger.error(`Error in getLastFeed: ${error.message}`);
+        logger.error(`🐛🐛 Error in getLastFeed: ${error.message}`);
         const message = error.response
           ? error.response.data
           : "Internal Server Error";
         const statusCode = error.response
           ? error.response.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        return errorsUtil.errorResponse({ res, message, statusCode, error });
+
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(new HttpError(message, statusCode, { message: error.message }));
+        return;
       }
     } catch (error) {
-      logger.error(`Unexpected error in getLastFeed: ${error.message}`);
-      return errorsUtil.errorResponse({
-        res,
-        message: "Internal Server Error",
-        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
-        error,
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getLastEntry: async (req, res) => {
+  getLastEntry: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+
       const { ch_id } = req.params;
       if (ch_id) {
         let ts = Date.now();
@@ -348,7 +304,7 @@ const data = {
                 let responseData = recentReadings[0];
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseData })
+                  stringify({ isCache: true, ...responseData })
                 );
                 redis.expire(
                   cacheID,
@@ -374,7 +330,12 @@ const data = {
                   ? err.response.data
                   : "Internal Server Error";
                 const statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse({ res, message, statusCode, error });
+
+                logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+                next(
+                  new HttpError(message, statusCode, { message: error.message })
+                );
+                return;
               });
           }
         });
@@ -382,35 +343,32 @@ const data = {
         let message = "missing some request parameters";
         let statusCode = httpStatus.BAD_REQUEST;
         let error = {};
-        errorsUtil.errorResponse({ res, message, statusCode, error });
+
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(new HttpError(message, statusCode, err));
+        return;
       }
     } catch (error) {
-      logObject("error", error);
-      let message = error.message;
-      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-      errorsUtil.errorResponse({ res, message, statusCode, error });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  hourly: async (req, res) => {
+  hourly: async (req, res, next) => {
     logText("getting hourly..............  ");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const { channel } = req.query;
 
@@ -427,7 +385,9 @@ const data = {
             let message = err;
             let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
             let error = err;
-            errorsUtil.errorResponse({ res, message, statusCode, error });
+            logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+            next(new HttpError(message, statusCode, error));
+            return;
           } else {
             axios
               .get(constants.GET_HOURLY_FEEDS(Number(channel)), {
@@ -439,7 +399,7 @@ const data = {
                 const responseJSON = response.data;
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseJSON })
+                  stringify({ isCache: true, ...responseJSON })
                 );
                 redis.expire(cacheID, constants.GET_HOURLY_CACHE_EXPIRATION);
                 return res
@@ -460,7 +420,10 @@ const data = {
                   : "Internal Server Error";
 
                 let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse({ res, message, statusCode, error });
+
+                logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+                next(new HttpError(message, statusCode, error));
+                return;
               });
           }
         });
@@ -473,333 +436,52 @@ const data = {
         let message = "missing some request parameters";
         let statusCode = httpStatus.BAD_REQUEST;
         let error = {};
-        errorsUtil.errorResponse({ res, message, statusCode, error });
+
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(new HttpError(message, statusCode, error));
+        return;
       }
     } catch (error) {
-      let message = error.message;
-      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-      errorsUtil.errorResponse({ res, message, statusCode, error });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  readBAM: async (req, res) => {
+  readBAM: async (req, res, next) => {
     try {
-    } catch (error) {}
-  },
-  readFeeds: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-      const { channel, device_number, start, end } = req.query;
-      let api_key = "";
-      let deviceNumber = channel || device_number;
-      await transformUtil.getAPIKey(channel, async (result) => {
-        if (result.success === true) {
-          api_key = result.data;
-          let ts = Date.now();
-          let day = await generateDateFormat(ts);
-          let startTime = start ? start : "no_start";
-          let endTime = end ? end : "no_end";
-          let device = deviceNumber ? deviceNumber : "no_device_number";
-          let cacheID = `feeds_${device.trim()}_${day}_${startTime}_${endTime}`;
-          redis.get(cacheID, (err, result) => {
-            if (result) {
-              const resultJSON = JSON.parse(result);
-              return res.status(httpStatus.OK).json(resultJSON);
-            } else if (err) {
-              return res
-                .status(httpStatus.INTERNAL_SERVER_ERROR)
-                .json({ error: err, message: "Internal Server Error" });
-            } else {
-              let request = {};
-              request["channel"] = deviceNumber;
-              request["api_key"] = api_key;
-              request["start"] = start;
-              request["end"] = end;
-              request["path"] = "feeds";
-
-              axios
-                .get(
-                  transformUtil.readDeviceMeasurementsFromThingspeak({
-                    request,
-                  }),
-                  {
-                    headers: {
-                      Authorization: `JWT ${constants.JWT_TOKEN}`,
-                    },
-                  }
-                )
-                .then(async (response) => {
-                  const readings = response.data;
-                  const { feeds } = readings;
-
-                  let measurements = [];
-
-                  for (const feed of feeds) {
-                    delete feed.entry_id;
-                    let transformedField = {};
-                    let transformedData =
-                      await transformUtil.transformMeasurement(feed);
-                    if (transformedData.other_data) {
-                      transformedField =
-                        await transformUtil.trasformFieldValues(
-                          transformedData.other_data
-                        );
-                      delete transformedData.other_data;
-                    }
-                    let data = { ...transformedData, ...transformedField };
-                    measurements.push({
-                      ...data,
-                    });
-                  }
-
-                  redis.set(
-                    cacheID,
-                    JSON.stringify({
-                      isCache: true,
-                      success: true,
-                      measurements: cleanDeep(measurements),
-                    })
-                  );
-
-                  redis.expire(
-                    cacheID,
-                    parseInt(
-                      constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-                    )
-                  );
-
-                  return res.status(httpStatus.OK).json({
-                    isCache: false,
-                    success: true,
-                    measurements: cleanDeep(measurements),
-                  });
-                })
-                .catch((err) => {
-                  let error = {};
-                  if (err.response) {
-                    error["response"] = err.response.data;
-                  } else if (err.request) {
-                    error["request"] = err.request;
-                  } else {
-                    error["config"] = err.config;
-                  }
-                  let message = err.response
-                    ? err.response.data
-                    : "Internal Server Error";
-
-                  let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                  errorsUtil.errorResponse({ res, message, statusCode, error });
-                });
-            }
-          });
-        } else if (result.success === false) {
-          logText("Not able to get the API key");
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          return res.status(status).json({
-            message: result.message,
-            errors,
-            success: false,
-          });
-        }
-      });
     } catch (error) {
-      logObject("Internal Server Error", error);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  readMostRecentFeeds: async (req, res) => {
+  generateDescriptiveLastEntry: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-      }
-      const { channel, device_number, start, end } = req.query;
-      let api_key = "";
-      const deviceNumber = channel || device_number;
-
-      await transformUtil.getAPIKey(channel, async (result) => {
-        if (result.success === true) {
-          api_key = result.data;
-          let ts = Date.now();
-          let day = await generateDateFormat(ts);
-          let startTime = start ? start : "no_start";
-          let endTime = end ? end : "no_end";
-          let device = deviceNumber ? deviceNumber : "no_device_number";
-          let cacheID = `recent_feeds_${device.trim()}_${day}_${startTime}_${endTime}`;
-          redis.get(cacheID, (err, result) => {
-            if (result) {
-              const resultJSON = JSON.parse(result);
-              return res.status(httpStatus.OK).json(resultJSON);
-            } else if (err) {
-              return res
-                .status(httpStatus.INTERNAL_SERVER_ERROR)
-                .json({ error: err, message: "Internal Server Error" });
-            } else {
-              let request = {};
-              request["channel"] = deviceNumber;
-              request["api_key"] = api_key;
-              request["start"] = start;
-              request["end"] = end;
-              request["path"] = "last";
-
-              axios
-                .get(
-                  transformUtil.readDeviceMeasurementsFromThingspeak({
-                    request,
-                  }),
-                  {
-                    headers: {
-                      Authorization: `JWT ${constants.JWT_TOKEN}`,
-                    },
-                  }
-                )
-                .then(async (response) => {
-                  let measurements = [];
-
-                  let lastEntryId = response.data.channel.last_entry_id;
-
-                  let extractedRecentReadings =
-                    await response.data.feeds.filter((item) => {
-                      return item.entry_id === lastEntryId;
-                    });
-
-                  logObject(
-                    "extractedRecentReadings[0]",
-                    extractedRecentReadings[0]
-                  );
-
-                  let transformedData =
-                    await transformUtil.transformMeasurement(
-                      extractedRecentReadings[0]
-                    );
-                  let transformedField = {};
-
-                  if (transformedData.other_data) {
-                    transformedField = await transformUtil.trasformFieldValues(
-                      transformedData.other_data
-                    );
-                    delete transformedData.other_data;
-                  }
-
-                  let data = { ...transformedData, ...transformedField };
-                  measurements.push({
-                    ...data,
-                  });
-
-                  redis.set(
-                    cacheID,
-                    JSON.stringify({
-                      isCache: true,
-                      success: true,
-                      measurements: cleanDeep(measurements),
-                    })
-                  );
-
-                  redis.expire(
-                    cacheID,
-                    parseInt(
-                      constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-                    )
-                  );
-
-                  return res.status(httpStatus.OK).json({
-                    isCache: false,
-                    success: true,
-                    measurements: cleanDeep(measurements),
-                  });
-                })
-                .catch((err) => {
-                  let error = {};
-                  logObject("err", err);
-                  if (err.response) {
-                    error["response"] = err.response.data;
-                  } else if (err.request) {
-                    error["request"] = err.request;
-                  } else {
-                    error["others"] = err;
-                  }
-                  let message = err.response
-                    ? err.response.data
-                    : "Internal Server Error";
-
-                  let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                  errorsUtil.errorResponse({
-                    res,
-                    message,
-                    statusCode,
-                    error,
-                  });
-                });
-            }
-          });
-        } else if (result.success === false) {
-          logText("Not able to get the API key");
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            message: result.message,
-            errors,
-            success: false,
-          });
-        }
-      });
-    } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  generateDescriptiveLastEntry: async (req, res) => {
-    try {
-      const validation = validateRequest(req);
-      if (!validation.isValid) {
-        return errorsUtil.badRequest(
-          res,
-          "Bad request errors",
-          errorsUtil.convertErrorArrayToObject(validation.errors)
-        );
+        return;
       }
 
       const { channel, start, end } = req.query;
@@ -815,47 +497,42 @@ const data = {
         );
         return res.status(status).json(data);
       } catch (error) {
-        logger.error(`Error in generateDescriptiveLastEntry: ${error.message}`);
+        logger.error(
+          `🐛🐛 an error in generateDescriptiveLastEntry: ${stringify(error)}`
+        );
         const message = error.response
           ? error.response.data
           : "Internal Server Error";
         const statusCode = error.response
           ? error.response.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        return errorsUtil.errorResponse({ res, message, statusCode, error });
+
+        logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        next(new HttpError(message, statusCode, error));
+        return;
       }
     } catch (error) {
-      logger.error(
-        `Unexpected error in generateDescriptiveLastEntry: ${error.message}`
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
       );
-      return errorsUtil.errorResponse({
-        res,
-        message: "Internal Server Error",
-        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
-        error,
-      });
+      return;
     }
   },
-  getChannelLastEntryAge: async (req, res) => {
+  getChannelLastEntryAge: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
+
       const { channel } = req.query;
       logElement("the channel ID:", channel);
       let ts = Date.now();
@@ -879,7 +556,7 @@ const data = {
               const responseJSON = response.data;
               redis.set(
                 cacheID,
-                JSON.stringify({
+                stringify({
                   isCache: true,
                   channel: channel,
                   ...responseJSON,
@@ -908,35 +585,33 @@ const data = {
                 : "Internal Server Error";
 
               let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-              errorsUtil.errorResponse({ res, message, statusCode, error });
+
+              logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+              next(new HttpError(message, statusCode, error));
+              return;
             });
         }
       });
-    } catch (e) {
-      res
-        .status(httpStatus.BAD_GATEWAY)
-        .json({ error: e.message, message: "Server Error" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getLastFieldEntryAge: async (req, res) => {
+  getLastFieldEntryAge: async (req, res, next) => {
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       const { channel, sensor } = req.query;
 
@@ -965,7 +640,7 @@ const data = {
                 const responseJSON = response.data;
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...responseJSON })
+                  stringify({ isCache: true, ...responseJSON })
                 );
                 redis.expire(
                   cacheID,
@@ -991,7 +666,10 @@ const data = {
                   : "Internal Server Error";
 
                 let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse({ res, message, statusCode, error });
+
+                logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+                next(new HttpError(message, statusCode, error));
+                return;
               });
           }
         });
@@ -1000,32 +678,27 @@ const data = {
           message: "missing request parameters, please check documentation",
         });
       }
-    } catch (e) {
-      res
-        .status(httpStatus.BAD_GATEWAY)
-        .json({ error: e.message, message: "server error" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
-  getDeviceCount: async (req, res) => {
+  getDeviceCount: async (req, res, next) => {
     logText(" getDeviceCount..............  ");
     try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errorsUtil.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`Internal Server Error -- ${e.message}`);
-        }
-        return errorsUtil.badRequest(
-          res,
-          "bad request errors",
-          errorsUtil.convertErrorArrayToObject(nestedErrors)
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
       let ts = Date.now();
       let day = await generateDateFormat(ts);
@@ -1045,7 +718,7 @@ const data = {
             .then((response) => {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
-              redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
+              redis.set(`${cacheID}`, stringify({ isCache: true, count }));
               redis.expire(
                 cacheID,
                 constants.GET_DEVICE_COUNT_CACHE_EXPIRATION
@@ -1067,12 +740,23 @@ const data = {
                 : "Internal Server Error";
 
               let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-              errorsUtil.errorResponse({ res, message, statusCode, error });
+
+              logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+              next(new HttpError(message, statusCode, error));
+              return;
             });
         }
       });
-    } catch (e) {
-      res.status(500).json({ error: e.message, message: "Server Error" });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
