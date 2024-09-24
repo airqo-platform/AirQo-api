@@ -521,7 +521,6 @@ const dbProjections = {
         access_code: 0,
         height: 0,
         mobility: 0,
-        category: 0,
         host: 0,
       });
     }
