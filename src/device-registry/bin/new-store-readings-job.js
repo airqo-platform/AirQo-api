@@ -211,7 +211,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
   }
 };
 
-const schedule = "*/30 * * * *";
+const schedule = "30 * * * *";
 cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
   scheduled: true,
   timezone: TIMEZONE,
