@@ -11,6 +11,10 @@ from .utils import Utils
 
 import json
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AirnowDataUtils:
     @staticmethod
@@ -74,26 +78,47 @@ class AirnowDataUtils:
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Processes BAM data by matching it to device details and constructing a list of air quality measurements.
+
+        Args:
+            data (pd.DataFrame): A DataFrame containing raw BAM device data.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing processed air quality data, with relevant device information and pollutant values.
+        """
         air_now_data = []
 
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
+
+        # Precompute device mapping for faster lookup
+        device_mapping = {}
+        for device in devices:
+            for device_code in device["device_codes"]:
+                device_mapping[device_code] = device
+
         for _, row in data.iterrows():
             try:
-                device_id = row["FullAQSCode"]
-                device_details = list(
-                    filter(lambda y: str(device_id) in y["device_codes"], devices)
-                )[0]
+                device_id = str(row["FullAQSCode"])
 
-                pollutant_value = dict({"pm2_5": None, "pm10": None, "no2": None})
+                # Lookup device details based on FullAQSCode
+                device_details = device_mapping.get(device_id)
+                if not device_details:
+                    logger.exception(f"Device with ID {device_id} not found")
+                    continue
 
+                # Initialize pollutant values (note: pm10 and no2 are not always present)
+                pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
+
+                # Get the corresponding pollutant value for the current parameter
                 parameter_col_name = AirnowDataUtils.parameter_column_name(
                     row["Parameter"]
                 )
-
-                pollutant_value[parameter_col_name] = row["Value"]
+                if parameter_col_name in pollutant_value:
+                    pollutant_value[parameter_col_name] = row["Value"]
 
                 if row["tenant"] != device_details.get("tenant"):
-                    raise Exception("tenants dont match")
+                    raise Exception(f"Tenant mismatch for device ID {device_id}")
 
                 air_now_data.append(
                     {
@@ -119,8 +144,6 @@ class AirnowDataUtils:
                     }
                 )
             except Exception as ex:
-                print(ex)
-                traceback.print_exc()
+                logger.exception(f"Error processing row: {ex}")
 
-        air_now_data = pd.DataFrame(air_now_data)
-        return DataValidationUtils.remove_outliers(air_now_data)
+        return pd.DataFrame(air_now_data)
