@@ -1,302 +1,475 @@
+require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
-const DepartmentSchema = require("@models/Department");
+const sinon = require("sinon");
+const sinonChai = require("sinon-chai");
 const mongoose = require("mongoose");
+const MediaModel = require("@models/Media");
 
-describe("DepartmentSchema - Statics", () => {
-  describe("Static Method: register", () => {
-    it("should create a new department and return success response", async () => {
-      // Mock input data
-      const args = {
-        dep_network_id: mongoose.Types.ObjectId(),
-        dep_parent: mongoose.Types.ObjectId(),
-        dep_title: "Department A",
-        dep_status: "active",
-        dep_manager: mongoose.Types.ObjectId(),
-        dep_last: 10,
-        dep_manager_username: "manager_username",
-        dep_manager_firstname: "John",
-        dep_manager_lastname: "Doe",
-        has_children: "yes",
-        dep_children: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        dep_description: "Department A Description",
-        dep_users: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
+describe("Media Model", () => {
+  let sandbox;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("MediaSchema", () => {
+    it("should define the schema correctly", () => {
+      const schema = MediaSchema;
+      expect(schema.paths).to.exist;
+      expect(schema.paths.title).to.exist;
+      expect(schema.paths.type).to.exist;
+      expect(schema.paths.url).to.exist;
+      expect(schema.paths.fileSize).to.exist;
+      expect(schema.paths.mimeType).to.exist;
+      expect(schema.paths.alt).to.exist;
+      expect(schema.paths.caption).to.exist;
+      expect(schema.paths.author).to.exist;
+      expect(schema.paths.post).to.exist;
+      expect(schema.paths.status).to.exist;
+      expect(schema.options.timestamps).to.exist;
+    });
+
+    it("should validate required fields", () => {
+      const validMedia = {
+        title: "Some media title",
+        type: "image",
+        url: "https://example.com/image.jpg",
+        fileSize: 1000000,
+        mimeType: "image/jpeg",
+        alt: "Alt text",
+        author: "some-author-id",
       };
 
-      // Call the register static method
-      const result = await DepartmentSchema.register(args);
+      const invalidMedia = {};
 
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "department created",
-        status: httpStatus.OK,
-      });
-      expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle duplicate values and return conflict response", async () => {
-      // Mock input data with duplicate values
-      const args = {
-        dep_network_id: mongoose.Types.ObjectId(),
-        dep_parent: mongoose.Types.ObjectId(),
-        dep_title: "Department A",
-        dep_status: "active",
-        dep_manager: mongoose.Types.ObjectId(),
-        dep_last: 10,
-        dep_manager_username: "manager_username",
-        dep_manager_firstname: "John",
-        dep_manager_lastname: "Doe",
-        has_children: "yes",
-        dep_children: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-        dep_description: "Department A Description",
-        dep_users: [mongoose.Types.ObjectId(), mongoose.Types.ObjectId()],
-      };
-
-      // Call the register static method
-      const result = await DepartmentSchema.register(args);
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: false,
-        message: "duplicate values provided",
-        status: httpStatus.CONFLICT,
-      });
-      expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
-    });
-
-    // Add more test cases to cover additional scenarios
-  });
-
-  describe("Static Method: list", () => {
-    it("should return a list of departments", async () => {
-      // Mock input data (optional)
-      const filter = { dep_status: "active" };
-      const skip = 0;
-      const limit = 20;
-
-      // Call the list static method
-      const result = await DepartmentSchema.list({ filter, skip, limit });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "successfully retrieved the departments",
-        status: httpStatus.OK,
-      });
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle error and return conflict response", async () => {
-      // Mock input data (optional)
-      const filter = { dep_status: "inactive" };
-      const skip = 0;
-      const limit = 20;
-
-      // Call the list static method
-      const result = await DepartmentSchema.list({ filter, skip, limit });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: false,
-        message: "internal server error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-      expect(result).to.have.property("errors").that.is.an("object");
-      // Add more assertions to verify the result
-    });
-
-    // Add more test cases to cover additional scenarios
-  });
-
-  describe("Static Method: modify", () => {
-    it("should modify the department and return success response", async () => {
-      // Mock input data
-      const filter = { dep_title: "Department A" };
-      const update = { dep_status: "inactive" };
-
-      // Call the modify static method
-      const result = await DepartmentSchema.modify({ filter, update });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "successfully modified the department",
-        status: httpStatus.OK,
-      });
-      expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle error and return not found response", async () => {
-      // Mock input data
-      const filter = { dep_title: "Department B" };
-      const update = { dep_status: "active" };
-
-      // Call the modify static method
-      const result = await DepartmentSchema.modify({ filter, update });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "department does not exist, please crosscheck",
-        status: httpStatus.NOT_FOUND,
-      });
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions to verify the result
-    });
-
-    // Add more test cases to cover additional scenarios
-  });
-
-  describe("Static Method: remove", () => {
-    it("should remove the department and return success response", async () => {
-      // Mock input data
-      const filter = { dep_title: "Department A" };
-
-      // Call the remove static method
-      const result = await DepartmentSchema.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "successfully removed the department",
-        status: httpStatus.OK,
-      });
-      expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle error and return not found response", async () => {
-      // Mock input data
-      const filter = { dep_title: "Department B" };
-
-      // Call the remove static method
-      const result = await DepartmentSchema.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object").that.includes({
-        success: true,
-        message: "department does not exist, please crosscheck",
-        status: httpStatus.NOT_FOUND,
-      });
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions to verify the result
-    });
-
-    // Add more test cases to cover additional scenarios
-  });
-
-  describe("sanitizeName", () => {
-    it("should sanitize a name by removing white spaces and converting to lowercase", () => {
-      // Mock input data
-      const name = "   John Doe   ";
-
-      // Call the sanitizeName function
-      const result = sanitizeName(name);
-
-      // Assertions
-      expect(result).to.equal("johndoe");
-      // Add more assertions to verify the result
-    });
-
-    it("should truncate a long name and sanitize it", () => {
-      // Mock input data
-      const name = "This is a very long name with spaces";
-
-      // Call the sanitizeName function
-      const result = sanitizeName(name);
-
-      // Assertions
-      expect(result).to.equal("thisisaverylon");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle an empty name and return an empty string", () => {
-      // Mock input data
-      const name = "";
-
-      // Call the sanitizeName function
-      const result = sanitizeName(name);
-
-      // Assertions
-      expect(result).to.equal("");
-      // Add more assertions to verify the result
-    });
-
-    it("should handle error and return an empty string", () => {
-      // Mock input data
-      const name = null;
-
-      // Call the sanitizeName function
-      const result = sanitizeName(name);
-
-      // Assertions
-      expect(result).to.equal("");
-      // Add more assertions to verify the result
-    });
-
-    // Add more test cases to cover additional scenarios
-  });
-});
-
-describe("DepartmentSchema instance methods", () => {
-  describe("toJSON method", () => {
-    it("should return the department data in the expected format", () => {
-      // Sample department data
-      const departmentData = {
-        _id: "dept_id_1",
-        dep_parent: "parent_dept_id",
-        dep_title: "Department 1",
-        dep_network_id: "network_id_1",
-        dep_status: "active",
-        dep_manager: "manager_id_1",
-        dep_last: "last_dept_id",
-        dep_manager_username: "manager_username",
-        dep_manager_firstname: "John",
-        dep_manager_lastname: "Doe",
-        has_children: true,
-        dep_children: ["child_dept_id_1", "child_dept_id_2"],
-        dep_users: ["user_id_1", "user_id_2"],
-        createdAt: new Date("2023-07-25T00:00:00Z"),
-        updatedAt: new Date("2023-07-25T12:34:56Z"),
-      };
-
-      // Create a new instance of the DepartmentModel with the sample department data
-      const departmentInstance = new DepartmentModel(departmentData);
-
-      // Call the toJSON method
-      const result = departmentInstance.toJSON();
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "dept_id_1");
-      expect(result).to.have.property("dep_parent", "parent_dept_id");
-      expect(result).to.have.property("dep_title", "Department 1");
-      expect(result).to.have.property("dep_network_id", "network_id_1");
-      expect(result).to.have.property("dep_status", "active");
-      expect(result).to.have.property("dep_manager", "manager_id_1");
-      expect(result).to.have.property("dep_last", "last_dept_id");
-      expect(result).to.have.property(
-        "dep_manager_username",
-        "manager_username"
+      expect(MediaSchema.validate(validMedia)).to.not.throw();
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Title is required/
       );
-      expect(result).to.have.property("dep_manager_firstname", "John");
-      expect(result).to.have.property("dep_manager_lastname", "Doe");
-      expect(result).to.have.property("has_children", true);
-      expect(result)
-        .to.have.property("dep_children")
-        .that.deep.equals(["child_dept_id_1", "child_dept_id_2"]);
-      expect(result)
-        .to.have.property("dep_users")
-        .that.deep.equals(["user_id_1", "user_id_2"]);
-      expect(result).to.have.property("createdAt").that.is.an.instanceOf(Date);
-      expect(result).to.have.property("updatedAt").that.is.an.instanceOf(Date);
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Type is required/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /URL is required/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /File size is required/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /MIME type is required/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Author is required/
+      );
     });
 
-    // Add more test cases if needed
+    it("should validate field lengths", () => {
+      const validMedia = {
+        title: "Some media title",
+        type: "image",
+        url: "https://example.com/image.jpg",
+        fileSize: 1000000,
+        mimeType: "image/jpeg",
+        alt: "Alt text",
+        caption: "This is a short caption",
+      };
+
+      const invalidMedia = {
+        title: "a".repeat(201),
+        alt: "a".repeat(201),
+        caption: "a".repeat(501),
+      };
+
+      expect(MediaSchema.validate(validMedia)).to.not.throw();
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Title cannot be more than 200 characters/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Alt text cannot be more than 200 characters/
+      );
+      expect(() => MediaSchema.validate(invalidMedia)).to.throw(
+        /Caption cannot be more than 500 characters/
+      );
+    });
+  });
+
+  describe("MediaSchema methods", () => {
+    it("should export toJSON method", () => {
+      const media = new MediaModel()
+        .schema({
+          _id: "123",
+          title: "Test Title",
+          type: "image",
+          url: "https://example.com/test-image.jpg",
+          fileSize: 1000000,
+          mimeType: "image/jpeg",
+          alt: "Test Alt Text",
+          caption: "Test Caption",
+          author: "author-id",
+          post: "post-id",
+          status: "active",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .toObject();
+
+      const jsonResult = media.toJSON();
+      expect(jsonResult).to.deep.equal({
+        _id: "123",
+        title: "Test Title",
+        type: "image",
+        url: "https://example.com/test-image.jpg",
+        fileSize: 1000000,
+        mimeType: "image/jpeg",
+        alt: "Test Alt Text",
+        caption: "Test Caption",
+        author: "author-id",
+        post: "post-id",
+        status: "active",
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+
+  describe("static methods", () => {
+    let mockMongooseModel;
+
+    beforeEach(() => {
+      mockMongooseModel = sinon.mock(mongoose.Model);
+    });
+
+    afterEach(() => {
+      mockMongooseModel.restore();
+    });
+
+    describe("create method", () => {
+      it("should create a new media item", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves({
+            _id: "123",
+            title: "Test Title",
+            type: "image",
+            url: "https://example.com/test-image.jpg",
+          });
+
+        const result = await MediaModel.create(
+          {
+            title: "Test Title",
+            type: "image",
+            url: "https://example.com/test-image.jpg",
+          },
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Media created successfully");
+        expect(result.status).to.equal(httpStatus.CREATED);
+        expect(mockCreate).to.have.been.calledOnceWith({
+          title: "Test Title",
+          type: "image",
+          url: "https://example.com/test-image.jpg",
+        });
+      });
+
+      it("should fail to create when required fields are missing", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves(null);
+
+        const result = await MediaModel.create({}, {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Failed to create media");
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(mockCreate).to.have.been.calledOnceWith({});
+      });
+    });
+
+    describe("list method", () => {
+      it("should list media items", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([
+            {
+              _id: "1",
+              title: "Media 1",
+              type: "image",
+              url: "https://example.com/media1.jpg",
+            },
+            {
+              _id: "2",
+              title: "Media 2",
+              type: "video",
+              url: "https://example.com/media2.mp4",
+            },
+          ]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(2);
+
+        const result = await MediaModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.total).to.equal(2);
+        expect(result.message).to.equal("Successfully retrieved media");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+
+      it("should handle empty results", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(0);
+
+        const result = await MediaModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.be.empty;
+        expect(result.total).to.equal(0);
+        expect(result.message).to.equal("No media found");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+    });
+
+    describe("findById method", () => {
+      it("should find a media item by ID", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves({
+            _id: "123",
+            title: "Test Title",
+            type: "image",
+            url: "https://example.com/test-image.jpg",
+          });
+
+        const result = await MediaModel.findById("123", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully retrieved media");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindOne).to.have.been.calledOnceWith({ _id: "123" });
+      });
+
+      it("should return not found when media does not exist", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves(null);
+
+        const result = await MediaModel.findById("nonexistent-id", {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Media not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindOne).to.have.been.calledOnceWith({
+          _id: "nonexistent-id",
+        });
+      });
+    });
+
+    describe("update method", () => {
+      it("should update an existing media item", async () => {
+        const mockFindByIdAndUpdate = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .resolves({
+            _id: "123",
+            title: "Updated Title",
+            type: "image",
+            url: "https://example.com/update-image.jpg",
+          });
+
+        const result = await MediaModel.update(
+          {
+            id: "123",
+            update: {
+              title: "Updated Title",
+              url: "https://example.com/update-image.jpg",
+            },
+          },
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully updated the media");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindByIdAndUpdate).to.have.been.calledOnceWith(
+          "123",
+          {
+            title: "Updated Title",
+            url: "https://example.com/update-image.jpg",
+          },
+          { new: true, runValidators: true }
+        );
+      });
+
+      it("should fail to update when media not found", async () => {
+        const mockFindByIdAndUpdate = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .rejects(new Error("Media not found"));
+
+        const result = await MediaModel.update(
+          {
+            id: "nonexistent-id",
+            update: {
+              title: "Non-existent media title",
+              url: "https://example.com/nonexistent-media.jpg",
+            },
+          },
+          {}
+        );
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Media not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindByIdAndUpdate).to.have.been.calledOnceWith(
+          "nonexistent-id",
+          {
+            title: "Non-existent media title",
+            url: "https://example.com/nonexistent-media.jpg",
+          },
+          { new: true, runValidators: true }
+        );
+      });
+    });
+
+    describe("remove method", () => {
+      it("should remove an existing media item", async () => {
+        const mockFindByIdAndRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .resolves({
+            _id: "123",
+            title: "Test Title",
+            type: "image",
+            url: "https://example.com/test-image.jpg",
+          });
+
+        const result = await MediaModel.remove("123");
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully removed the media");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindByIdAndRemove).to.have.been.calledOnceWith({
+          _id: "123",
+        });
+      });
+
+      it("should return not found when media does not exist", async () => {
+        const mockFindByIdAndRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .resolves(null);
+
+        const result = await MediaModel.remove("nonexistent-id");
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Media not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindByIdAndRemove).to.have.been.calledOnceWith({
+          _id: "nonexistent-id",
+        });
+      });
+    });
+
+    describe("findByPost method", () => {
+      it("should retrieve media items associated with a post", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([
+            {
+              _id: "1",
+              title: "Media 1",
+              type: "image",
+              url: "https://example.com/media1.jpg",
+              post: "post-1",
+            },
+            {
+              _id: "2",
+              title: "Media 2",
+              type: "video",
+              url: "https://example.com/media2.mp4",
+              post: "post-1",
+            },
+          ]);
+
+        const result = await MediaModel.findByPost("post-1", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.message).to.equal(
+          "Successfully retrieved media for the post"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({ post: "post-1" });
+      });
+
+      it("should handle empty results", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(0);
+
+        const result = await MediaModel.findByPost("nonexistent-post", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.be.empty;
+        expect(result.total).to.equal(0);
+        expect(result.message).to.equal("No media found for this post");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({
+          post: "nonexistent-post",
+        });
+        expect(mockCountDocuments).to.have.been.calledOnceWith({
+          post: "nonexistent-post",
+        });
+      });
+    });
+
+    describe("getMediaStats method", () => {
+      it("should aggregate media stats", async () => {
+        const mockAggregate = sandbox
+          .stub(mongoose.Model.prototype.aggregate, "exec")
+          .resolves([
+            { _id: "image", count: 10, totalSize: 10000000 },
+            { _id: "video", count: 5, totalSize: 5000000 },
+          ]);
+
+        const result = await MediaModel.getMediaStats({});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.deep.equal([
+          { _id: "image", count: 10, totalSize: 10000000 },
+          { _id: "video", count: 5, totalSize: 5000000 },
+        ]);
+        expect(result.message).to.equal("Successfully retrieved media stats");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockAggregate).to.have.been.calledOnceWith([
+          {
+            $group: {
+              _id: "$type",
+              count: { $sum: 1 },
+              totalSize: { $sum: "$fileSize" },
+            },
+          },
+        ]);
+      });
+    });
   });
 });
