@@ -39,7 +39,65 @@ const validateBlogPostUpdate = (req, res, next) => {
   next();
 };
 
-// Blog Post Management Routes
+/**
+ * @swagger
+ * /api/v2/blogs/articles:
+ *   get:
+ *     summary: List blog articles (Version 2)
+ *     description: Returns a list of blog articles for version 2 of the API
+ *     tags:
+ *       - Blog
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         description: Page number for pagination
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         description: Number of items per page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: 'config/components/schemas/BlogArticleV2'
+ *
+ *   post:
+ *     summary: Create a blog article (Version 2)
+ *     description: Creates a new blog article for version 2 of the API
+ *     tags:
+ *       - Blog
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               authorId:
+ *                 type: integer
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: 'config/components/schemas/BlogArticleV2'
+ */
 router.get("/edit/:id", BlogPostManagementController.edit);
 router.put(
   "/edit/:id",

@@ -85,7 +85,7 @@ This is a comprehensive microservice designed to create, manage, and share conte
 
 ## API Documentation
 
-API documentation is available at `/api-docs` when running the server locally.
+API documentation is available at `/blogs/api-docs` when running the server locally.
 
 ## Contributing
 

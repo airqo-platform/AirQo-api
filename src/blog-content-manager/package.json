@@ -85,6 +85,8 @@
     "redis": "^4.6.7",
     "saslprep": "^1.0.3",
     "serve-favicon": "~2.4.5",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "tslib": "^2.4.0",
     "validator": "^11.1.0",
     "winston": "^3.8.2",
