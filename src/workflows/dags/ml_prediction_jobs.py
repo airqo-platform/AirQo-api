@@ -43,8 +43,12 @@ def make_forecasts():
         return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
 
     @task()
-    def get_time_and_cyclic_features_hourly_forecast(data):
-        return BaseMlUtils.get_time_and_cyclic_features(data, "hourly")
+    def get_time_features_hourly_forecast(data):
+        return BaseMlUtils.get_time_features(data, "hourly")
+
+    @task()
+    def get_cyclic_features_hourly_forecast(data):
+        return BaseMlUtils.get_cyclic_features(data, "hourly")
 
     @task()
     def get_location_features_hourly_forecast(data):
@@ -87,8 +91,12 @@ def make_forecasts():
         return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
 
     @task()
-    def get_time_and_cyclic_features_daily_forecast(data):
-        return BaseMlUtils.get_time_and_cyclic_features(data, "daily")
+    def get_time_features_daily_forecast(data):
+        return BaseMlUtils.get_time_features(data, "daily")
+
+    @task()
+    def get_cyclic_features_daily_forecast(data):
+        return BaseMlUtils.get_cyclic_features(data, "daily")
 
     @task()
     def get_location_features_daily_forecast(data):
@@ -116,11 +124,12 @@ def make_forecasts():
     hourly_lag_and_roll_features = generate_lag_and_rolling_features_hourly_forecast(
         hourly_preprocessed_data
     )
-    hourly_time_and_cyclic_features = get_time_and_cyclic_features_hourly_forecast(
+    hourly_time_features = get_time_features_hourly_forecast(
         hourly_lag_and_roll_features
     )
+    hourly_cyclic_features = get_cyclic_features_hourly_forecast(hourly_time_features)
     hourly_location_features = get_location_features_hourly_forecast(
-        hourly_time_and_cyclic_features
+        hourly_cyclic_features
     )
     hourly_forecasts = make_hourly_forecasts(hourly_location_features)
     save_hourly_forecasts_to_bigquery(hourly_forecasts)
@@ -132,11 +141,12 @@ def make_forecasts():
     daily_lag_and_roll_features = generate_lag_and_rolling_features_daily_forecast(
         daily_preprocessed_data
     )
-    daily_time_and_cyclic_features = get_time_and_cyclic_features_daily_forecast(
+    daily_time_features = get_time_features_daily_forecast(
         daily_lag_and_roll_features
     )
+    daily_cyclic_features = get_cyclic_features_daily_forecast(daily_time_features)
     daily_location_features = get_location_features_daily_forecast(
-        daily_time_and_cyclic_features
+        daily_cyclic_features
     )
     daily_forecasts = make_daily_forecasts(daily_location_features)
     save_daily_forecasts_to_bigquery(daily_forecasts)
