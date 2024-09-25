@@ -56,6 +56,7 @@ class BigQueryApi:
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
         self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
+        self.satellite_data_table = configuration.BIGQUERY_SATELLITE_DATA_TABLE
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
@@ -853,8 +854,8 @@ class BigQueryApi:
 
         query = f"""
         SELECT DISTINCT * FROM `{self.satellite_measurements_table}`
-        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
-        ORDER BY device_id, timestamp"""
+        WHERE date(timestamp) >= '{start_date_time}' 
+        ORDER BY timestamp"""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True

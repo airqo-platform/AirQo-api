@@ -9,6 +9,7 @@ import pandas as pd
 import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .config import configuration, db
 
@@ -21,7 +22,6 @@ pd.options.mode.chained_assignment = None
 
 
 ### This module contains utility functions for ML jobs.
-
 
 class GCSUtils:
     """Utility class for saving and retrieving models from GCS"""
@@ -53,34 +53,10 @@ class GCSUtils:
             job = joblib.dump(trained_model, handle)
 
 
-class MlUtils:
-    """Utility class for ML related tasks"""
+class BaseMlUtils:
+    """Base Utility class for ML related tasks"""
 
-    @staticmethod
-    def format_data_types(
-            data: pd.DataFrame,
-            floats: list = None,
-            integers: list = None,
-            timestamps: list = None,
-    ) -> pd.DataFrame:
-        floats = [] if floats is None else floats
-        integers = [] if integers is None else integers
-        timestamps = [] if timestamps is None else timestamps
-
-        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
-        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
-
-        # formatting integers
-        if integers:
-            for col in integers:
-                if data[col].dtype != "str":
-                    data[col] = data[col].astype(str)
-                data[col] = data[col].str.replace("[^\d]", "", regex=True)
-                data[col] = data[col].str.strip()
-                data[col] = data[col].replace("", -1)
-                data[col] = data[col].astype(np.int64)
-
-        return data
+    # TODO: need to review this, may need to make better abstractions
 
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
@@ -119,46 +95,6 @@ class MlUtils:
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
         data = data.dropna(subset=["pm2_5"])
-        return data
-
-
-    @staticmethod
-    def get_valid_value(value, name, data: pd.DataFrame):
-        upper_limit = data[name].max() + abs(data[name].median()) / 2
-        lower_limit = data[name].min() - abs(data[name].median()) / 2
-        if value > upper_limit or value < lower_limit:
-            return None
-        return value
-
-    @staticmethod
-    def encoding(data: pd.DataFrame, encoder: str = 'LabelEncoder') -> pd.DataFrame:
-        """
-        applies encoding for the city and country features 
-
-        Keyword arguments:
-        data --  the data frame to apply the transformation on
-        encoder --  the type of encoding to apply (default: 'LabelEncoder')
-        Return: returns a dataframe after applying the encoding
-        """
-
-        if not 'city' in data.columns or not 'country' in data.columns:
-            raise ValueError('data frame does not contain city or country column')
-
-        if encoder == 'LabelEncoder':
-            le = LabelEncoder()
-            for column in ['city', 'country']:
-                data[column] = le.fit_transform(data[column])
-        elif encoder == 'OneHotEncoder':
-            ohe = OneHotEncoder(sparse=False)
-            for column in ['city', 'country']:
-                encoded_data = ohe.fit_transform(data[[column]])
-                encoded_columns = [f"{column}_{i}" for i in range(encoded_data.shape[1])]
-                encoded_df = pd.DataFrame(encoded_data, columns=encoded_columns)
-                data = pd.concat([data, encoded_df], axis=1)
-                data = data.drop(column, axis=1)
-        else:
-            raise ValueError("Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'.")
-
         return data
 
     @staticmethod
@@ -213,7 +149,7 @@ class MlUtils:
         return df1
 
     @staticmethod
-    def get_time_and_cyclic_features(df, freq):
+    def get_time_features(df, freq):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -224,22 +160,38 @@ class MlUtils:
 
         if freq not in ["daily", "hourly"]:
             raise ValueError("Invalid frequency")
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+
         df1 = df.copy()
+        attributes = ["year", "month", "day", "dayofweek"]
+        if freq == "hourly":
+            attributes.append("hour")
+
+        for a in attributes:
+            df1[a] = df1["timestamp"].dt.__getattribute__(a)
+
+        df1["week"] = df1["timestamp"].dt.isocalendar().week
+
+        return df1
+
+    @staticmethod
+    def get_cyclic_features(df, freq):
+        df1 = BaseMlUtils.get_time_features(df, freq)
+
         attributes = ["year", "month", "day", "dayofweek"]
         max_vals = [2023, 12, 30, 7]
         if freq == "hourly":
             attributes.append("hour")
             max_vals.append(23)
+
         for a, m in zip(attributes, max_vals):
-            df1[a] = df1["timestamp"].dt.__getattribute__(a)
             df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
             df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
 
-        df1["week"] = df1["timestamp"].dt.isocalendar().week
         df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
         df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
+
         df1.drop(columns=attributes + ["week"], inplace=True)
+
         return df1
 
     @staticmethod
@@ -280,6 +232,8 @@ class MlUtils:
     #
     #     return df_tmp
 
+
+class ForecastUtils(BaseMlUtils):
     @staticmethod
     def train_and_save_forecast_models(training_data, frequency):
         """
@@ -672,8 +626,8 @@ class MlUtils:
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
 
-    ###Fault Detection
 
+class FaultDetectionUtils(BaseMlUtils):
     @staticmethod
     def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -811,9 +765,61 @@ class MlUtils:
             print("Faulty devices saved/updated to MongoDB")
 
 
-# Satellite Utils
-##TODO: perhaps start using various subclasses for the different job types, building on base class
+class SatelliteUtils(BaseMlUtils):
     @staticmethod
-    def merge_datasets(data1: pd.DataFrame, data2: pd.DataFrame, on: str):
-        return data1.merge(data2, on=on)
+    def encode(data: pd.DataFrame, encoder: str = 'LabelEncoder') -> pd.DataFrame:
+        """
+        applies encoding for the city and country features
 
+        Keyword arguments:
+        data --  the data frame to apply the transformation on
+        encoder --  the type of encoding to apply (default: 'LabelEncoder')
+        Return: returns a dataframe after applying the encoding
+        """
+
+        if not 'city' in data.columns or not 'country' in data.columns:
+            raise ValueError('data frame does not contain city or country column')
+
+        if encoder == 'LabelEncoder':
+            le = LabelEncoder()
+            for column in ['city']:
+                data[column] = le.fit_transform(data[column])
+        elif encoder == 'OneHotEncoder':
+            ohe = OneHotEncoder(sparse=False)
+            for column in ['city']:
+                encoded_data = ohe.fit_transform(data[[column]])
+                encoded_columns = [f"{column}_{i}" for i in range(encoded_data.shape[1])]
+                encoded_df = pd.DataFrame(encoded_data, columns=encoded_columns)
+                data = pd.concat([data, encoded_df], axis=1)
+                data = data.drop(column, axis=1)
+        else:
+            raise ValueError("Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'.")
+
+        return data
+
+    @staticmethod
+    def lag_features(data: pd.DataFrame, frequency: str, target_col: str) -> pd.DataFrame:
+        """appleis lags to specific feature in the data frame.
+
+        Keyword arguments:
+
+            data -- the dataframe to apply the transformation on.
+
+            frequenct -- (hourly/daily) weather the lag is applied per hours or per days.
+
+            target_col -- the column to apply the transformation on.
+
+        Return: returns a dataframe after applying the transformation
+        """
+
+        if frequency == "hourly":
+            shifts = [1, 2, 6, 12]
+            time_unit = "hour"
+        elif frequency == "daily":
+            shifts = [1, 2, 3, 7]
+            time_unit = "day"
+        else:
+            raise ValueError('freq must be daily or hourly')
+        for s in shifts:
+            data[f"pm2_5_last_{s}_{time_unit}"] = data.groupby(["city"])[target_col].shift(s)
+        return data
