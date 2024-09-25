@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const rssFeedUtil = require("@utils/rss-feed");
+const rssFeedUtil = require("@utils/generate-feed");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

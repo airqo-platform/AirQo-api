@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const categoryTagUtil = require("@utils/category-tag");
+const categoryTagUtil = require("@utils/manage-categories");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const createBlogPostUtil = require("@utils/create-blog-post");
+const createBlogPostUtil = require("@utils/create-post");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
