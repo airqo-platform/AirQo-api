@@ -5,8 +5,8 @@ const sinon = require("sinon");
 const sinonChai = require("sinon-chai");
 
 const httpStatus = require("http-status");
-const BlogPostController = require("../path/to/BlogPostController");
-const createBlogPostUtil = require("@utils/create-blog-post");
+const BlogPostController = require("@controllers/create-post");
+const createBlogPostUtil = require("@utils/create-post");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -241,6 +241,127 @@ describe("BlogPostController", () => {
       expect(mockNext).to.have.been.calledWith(
         sinon.match.instanceOf(HttpError)
       );
+    });
+  });
+
+  describe("updateDraftStatus", () => {
+    it("should call createBlogPostUtil.updateDraftStatus with correct arguments", async () => {
+      const mockRequest = {
+        query: { tenant: "custom-tenant" },
+        body: {
+          /* Add any necessary body properties */
+        },
+      };
+      const mockResponse = {
+        json: sinon.spy(),
+        status: sinon.spy(),
+      };
+      const mockNext = sinon.spy();
+
+      const mockResult = {
+        success: true,
+        status: httpStatus.OK,
+        message: "Status updated successfully",
+        data: "HTML content",
+      };
+
+      sinon.stub(createBlogPostUtil, "updateDraftStatus").resolves(mockResult);
+
+      await BlogPostController.updateDraftStatus(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(createBlogPostUtil.updateDraftStatus).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+
+      expect(mockResponse.status).toHaveBeenCalledWith(httpStatus.OK);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        message: mockResult.message,
+        htmlContent: mockResult.data,
+      });
+    });
+
+    it("should handle errors from createBlogPostUtil.updateDraftStatus", async () => {
+      const mockRequest = {
+        query: { tenant: "custom-tenant" },
+        body: {
+          /* Add any necessary body properties */
+        },
+      };
+      const mockResponse = {
+        json: sinon.spy(),
+        status: sinon.spy(),
+      };
+      const mockNext = sinon.spy();
+
+      const mockError = new Error("Test error");
+      sinon.stub(createBlogPostUtil, "updateDraftStatus").rejects(mockError);
+
+      await BlogPostController.updateDraftStatus(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(sinon.match.instanceOf(HttpError));
+    });
+
+    it("should handle empty result from createBlogPostUtil.updateDraftStatus", async () => {
+      const mockRequest = {
+        query: { tenant: "custom-tenant" },
+        body: {
+          /* Add any necessary body properties */
+        },
+      };
+      const mockResponse = {
+        json: sinon.spy(),
+        status: sinon.spy(),
+      };
+      const mockNext = sinon.spy();
+
+      const mockResult = {};
+      sinon.stub(createBlogPostUtil, "updateDraftStatus").resolves(mockResult);
+
+      await BlogPostController.updateDraftStatus(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it("should handle errors during execution", async () => {
+      const mockRequest = {
+        query: { tenant: "custom-tenant" },
+        body: {
+          /* Add any necessary body properties */
+        },
+      };
+      const mockResponse = {
+        json: sinon.spy(),
+        status: sinon.spy(),
+      };
+      const mockNext = sinon.spy();
+
+      const mockError = new Error("Execution error");
+      sinon.stub(createBlogPostUtil, "updateDraftStatus").rejects(mockError);
+
+      await BlogPostController.updateDraftStatus(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(logger.error).toHaveBeenCalledWith(
+        `🐛🐛 Internal Server Error ${mockError.message}`
+      );
+      expect(mockNext).toHaveBeenCalledWith(sinon.match.instanceOf(HttpError));
     });
   });
 });

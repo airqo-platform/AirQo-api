@@ -14,7 +14,7 @@ require("@config/firebase-admin");
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
-const passport = require("passport");
+// const passport = require("passport");
 const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
@@ -54,7 +54,7 @@ if (isDev) {
   app.use(morgan("dev"));
 }
 
-app.use(passport.initialize());
+// app.use(passport.initialize());
 
 app.use(cookieParser());
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));

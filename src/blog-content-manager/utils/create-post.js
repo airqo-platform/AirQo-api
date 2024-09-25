@@ -123,13 +123,16 @@ const createBlogPostUtil = {
 
   retrieve: async (request, next) => {
     try {
-      const { id } = {
+      const { id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
-      const responseFromRetrievePost = await PostModel().findById(id, next);
+      const responseFromRetrievePost = await PostModel(tenant).findById(
+        id,
+        next
+      );
 
       if (!isEmpty(responseFromRetrievePost)) {
         return responseFromRetrievePost;
@@ -150,7 +153,7 @@ const createBlogPostUtil = {
 
   update: async (request, next) => {
     try {
-      const { id, update } = {
+      const { id, update, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
@@ -158,7 +161,7 @@ const createBlogPostUtil = {
 
       const filter = await generateFilter.post(request, next);
 
-      const responseFromUpdatePost = await PostModel().update(
+      const responseFromUpdatePost = await PostModel(tenant).update(
         {
           id,
           update,
@@ -185,13 +188,13 @@ const createBlogPostUtil = {
 
   delete: async (request, next) => {
     try {
-      const { id } = {
+      const { id, tenant } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
-      const responseFromDeletePost = await PostModel().remove(id, next);
+      const responseFromDeletePost = await PostModel(tenant).remove(id, next);
 
       if (!isEmpty(responseFromDeletePost)) {
         return {
@@ -274,6 +277,40 @@ const createBlogPostUtil = {
         message: "Preview generated successfully",
         htmlContent,
       };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  updateDraftStatus: async (request, next) => {
+    try {
+      const { id, update, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const filter = await generateFilter.draftStatus(request, next);
+
+      const responseFromUpdatePost = await PostModel(tenant).update(
+        {
+          _id: id,
+          status: update.status,
+        },
+        next
+      );
+
+      if (!isEmpty(responseFromUpdatePost)) {
+        return responseFromUpdatePost;
+      } else {
+        throw new HttpError("Post not found", httpStatus.NOT_FOUND);
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

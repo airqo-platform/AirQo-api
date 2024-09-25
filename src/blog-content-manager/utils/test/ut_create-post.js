@@ -351,4 +351,69 @@ describe("createBlogPostUtil", () => {
       ).to.be.rejectedWith(HttpError);
     });
   });
+
+  describe("updateDraftStatus", () => {
+    it("should update a draft status", async () => {
+      const request = {
+        params: { id: "test-post-id" },
+        body: { status: "draft" },
+        query: {},
+        tenant: "test-tenant",
+      };
+      const next = sinon.spy();
+
+      sandbox.stub(generateFilter.draftStatus).resolves({});
+
+      sandbox.stub(PostModel.prototype.update).resolves({
+        success: true,
+        data: {
+          _id: "updated-post-id",
+          status: "draft",
+        },
+        status: httpStatus.OK,
+      });
+
+      const result = await createBlogPostUtil.updateDraftStatus(request, next);
+
+      expect(result).to.have.property("success").that.is.true;
+      expect(result).to.have.property("data");
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("should throw HttpError for non-existent post", async () => {
+      const request = {
+        params: { id: "non-existent-post-id" },
+        body: { status: "draft" },
+        query: {},
+        tenant: "test-tenant",
+      };
+      const next = sinon.spy();
+
+      sandbox.stub(generateFilter.draftStatus).resolves({});
+      sandbox.stub(PostModel.prototype.update).resolves({});
+
+      await expect(
+        createBlogPostUtil.updateDraftStatus(request, next)
+      ).to.be.rejectedWith(HttpError);
+    });
+
+    it("should handle PostModel.update errors", async () => {
+      const request = {
+        params: { id: "test-post-id" },
+        body: { status: "draft" },
+        query: {},
+        tenant: "test-tenant",
+      };
+      const next = sinon.spy();
+
+      sandbox.stub(generateFilter.draftStatus).resolves({});
+      sandbox
+        .stub(PostModel.prototype.update)
+        .rejects(new Error("Database error"));
+
+      await expect(
+        createBlogPostUtil.updateDraftStatus(request, next)
+      ).to.be.rejectedWith(HttpError);
+    });
+  });
 });
