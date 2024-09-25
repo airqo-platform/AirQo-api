@@ -1,1049 +1,359 @@
-require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
+const sinonChai = require("sinon-chai");
+const chaiAsPromised = require("chai-as-promised");
 
-const createDepartment = require("@controllers/create-department");
-const controlAccessUtil = require("@utils/control-access");
+const expect = chai.expect;
+chai.use(sinonChai);
+chai.use(chaiAsPromised);
 
-describe("createDepartment module", () => {
-  afterEach(() => {
-    sinon.restore();
+const CommentController = require("./comment.controller");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { isEmpty } = require("is-empty");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- comment-controller`
+);
+const { logText, logObject } = require("@utils/log");
+
+describe("CommentController", () => {
+  let mockRequest;
+  let mockResponse;
+  let mockNext;
+  let mockCommentUtil;
+
+  beforeEach(() => {
+    mockRequest = {
+      params: {},
+      body: {},
+      query: {},
+    };
+
+    mockResponse = {
+      json: sinon.spy(),
+      status: sinon.spy(),
+    };
+
+    mockNext = sinon.spy();
+
+    mockCommentUtil = {
+      create: sinon.stub().resolves({ success: true, data: {}, status: 201 }),
+      list: sinon.stub().resolves({ success: true, data: [], status: 200 }),
+      replies: sinon.stub().resolves({ success: true, data: {}, status: 200 }),
+      edit: sinon.stub().resolves({ success: true, data: {}, status: 200 }),
+      delete: sinon.stub().resolves({ success: true, status: 204 }),
+      approve: sinon.stub().resolves({ success: true, data: {}, status: 200 }),
+      reject: sinon.stub().resolves({ success: true, data: {}, status: 200 }),
+    };
   });
 
-  describe("list()", () => {
-    it("should list departments successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("create", () => {
+    it("should create a new comment successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.body = { text: "New comment", tenant: "airqo" };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Departments listed successfully",
-          data: [{ name: "Department A" }, { name: "Department B" }],
-        });
+      await CommentController.create(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Departments listed successfully",
-          departments: [{ name: "Department A" }, { name: "Department B" }],
-        })
-      ).to.be.true;
-    });
-
-    it("should handle list failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to list departments",
-          errors: { message: "Department listing error" },
-        });
-
-      await createDepartment.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list departments",
-          errors: { message: "Department listing error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.create).toHaveBeenCalledWith(
+        "123",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(201);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.create.getCall(0).args[0].message,
+        commentId: mockCommentUtil.create.getCall(0).args[0].data.id,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "text", message: "Text is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.create(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.create.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.create(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.list(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("create()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should create a department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("list", () => {
+    it("should list comments successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.query.tenant = "airqo";
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "createDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Department created successfully",
-          data: { name: "New Department" },
-        });
+      await CommentController.list(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Department created successfully",
-          created_department: { name: "New Department" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle department creation failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "createDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to create department",
-          errors: { message: "Department creation error" },
-        });
-
-      await createDepartment.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to create department",
-          errors: { message: "Department creation error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.list).toHaveBeenCalledWith(
+        "123",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.list.getCall(0).args[0].message,
+        commentsData: mockCommentUtil.list.getCall(0).args[0].data,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "query.tenant", message: "Tenant is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.list(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.list.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.list(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.create(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("update()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should update a department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("replies", () => {
+    it("should list replies successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.params.commentId = "456";
+      mockRequest.query.tenant = "airqo";
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "updateDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Department updated successfully",
-          data: { name: "Updated Department" },
-        });
+      await CommentController.replies(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Department updated successfully",
-          updated_department: { name: "Updated Department" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle department update failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "updateDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to update department",
-          errors: { message: "Department update error" },
-        });
-
-      await createDepartment.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to update department",
-          errors: { message: "Department update error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.replies).toHaveBeenCalledWith(
+        "123",
+        "456",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.replies.getCall(0).args[0].message,
+        repliesData: mockCommentUtil.replies.getCall(0).args[0].data,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [
+        { field: "commentId", message: "Comment ID is required" },
+      ];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.replies(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.replies.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.replies(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.update(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe(" delete()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should delete a department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("edit", () => {
+    it("should edit a comment successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.params.commentId = "456";
+      mockRequest.body = { text: "Updated comment", tenant: "airqo" };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "deleteDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Department deleted successfully",
-          data: { name: "Deleted Department" },
-        });
+      await CommentController.edit(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Department deleted successfully",
-          deleted_department: { name: "Deleted Department" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle department deletion failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "deleteDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to delete department",
-          errors: { message: "Department deletion error" },
-        });
-
-      await createDepartment.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to delete department",
-          errors: { message: "Department deletion error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.edit).toHaveBeenCalledWith(
+        "123",
+        "456",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.edit.getCall(0).args[0].message,
+        editedComment: mockCommentUtil.edit.getCall(0).args[0].data,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "text", message: "Text is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.edit(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.edit.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.edit(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.delete(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("listUsersWithDepartment()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should list users with department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("delete", () => {
+    it("should delete a comment successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.params.commentId = "456";
+      mockRequest.body = { tenant: "airqo" };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listUsersWithDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Users with department listed successfully",
-          data: [{ name: "User 1" }, { name: "User 2" }],
-        });
+      await CommentController.delete(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listUsersWithDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Users with department listed successfully",
-          users_with_department: [{ name: "User 1" }, { name: "User 2" }],
-        })
-      ).to.be.true;
-    });
-
-    it("should handle listing users with department failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listUsersWithDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to list users with department",
-          errors: { message: "List users error" },
-        });
-
-      await createDepartment.listUsersWithDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list users with department",
-          errors: { message: "List users error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.delete).toHaveBeenCalledWith(
+        "123",
+        "456",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(204);
+      expect(mockResponse.json).to.have.been.calledWith({});
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "tenant", message: "Tenant is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.delete(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listUsersWithDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.delete.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.delete(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listUsersWithDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("listAvailableUsersForDepartment()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should list available users for department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("approve", () => {
+    it("should approve a comment successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.params.commentId = "456";
+      mockRequest.body = { tenant: "airqo" };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listAvailableUsersForDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Available users for department listed successfully",
-          data: [{ name: "User 1" }, { name: "User 2" }],
-        });
+      await CommentController.approve(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listAvailableUsersForDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Available users for department listed successfully",
-          available_department_users: [{ name: "User 1" }, { name: "User 2" }],
-        })
-      ).to.be.true;
-    });
-
-    it("should handle listing available users for department failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listAvailableUsersForDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to list available users for department",
-          errors: { message: "List available users error" },
-        });
-
-      await createDepartment.listAvailableUsersForDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list available users for department",
-          errors: { message: "List available users error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.approve).toHaveBeenCalledWith(
+        "123",
+        "456",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.approve.getCall(0).args[0].message,
+        approvedComment: mockCommentUtil.approve.getCall(0).args[0].data,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "tenant", message: "Tenant is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.approve(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listAvailableUsersForDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.approve.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.approve(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.listAvailableUsersForDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("assignUserToDepartment()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should assign user to department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  describe("reject", () => {
+    it("should reject a comment successfully", async () => {
+      mockRequest.params.postId = "123";
+      mockRequest.params.commentId = "456";
+      mockRequest.body = { tenant: "airqo" };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "assignUserToDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "User assigned to department successfully",
-          data: { userId: "user123", departmentId: "dept456" },
-        });
+      await CommentController.reject(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.assignUserToDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "User assigned to department successfully",
-          assigned_department_user: {
-            userId: "user123",
-            departmentId: "dept456",
-          },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle user assignment failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "assignUserToDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to assign user to department",
-          errors: { message: "User assignment error" },
-        });
-
-      await createDepartment.assignUserToDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to assign user to department",
-          errors: { message: "User assignment error" },
-        })
-      ).to.be.true;
+      expect(mockCommentUtil.reject).toHaveBeenCalledWith(
+        "123",
+        "456",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockCommentUtil.reject.getCall(0).args[0].message,
+        rejectedComment: mockCommentUtil.reject.getCall(0).args[0].data,
+      });
     });
 
     it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      const errors = [{ field: "tenant", message: "Tenant is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
+      await CommentController.reject(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.assignUserToDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle empty result", async () => {
+      mockCommentUtil.reject.resolves({});
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
+      await CommentController.reject(mockRequest, mockResponse, mockNext);
 
-      await createDepartment.assignUserToDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
-  describe("unAssignUserFromDepartment()", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
 
-    it("should unassign user from department successfully", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+  // Helper functions
+  function setupMockRequest(methodName) {
+    const mockRequest = {
+      params: {},
+      body: {},
+      query: {},
+    };
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "unAssignUserFromDepartment")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "User unassigned from department successfully",
-          data: { userId: "user123", departmentId: "dept456" },
-        });
+    mockRequest.params[methodName] = "123";
+    mockRequest.body.tenant = constants.DEFAULT_TENANT || "airqo";
 
-      await createDepartment.unAssignUserFromDepartment(req, res);
+    return mockRequest;
+  }
 
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "User unassigned from department successfully",
-          unassigned_department_user: {
-            userId: "user123",
-            departmentId: "dept456",
-          },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle user unassignment failure", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "unAssignUserFromDepartment")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to unassign user from department",
-          errors: { message: "User unassignment error" },
-        });
-
-      await createDepartment.unAssignUserFromDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnceWith(req)).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to unassign user from department",
-          errors: { message: "User unassignment error" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle bad request errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub().returns({
-        badRequest: sinon.stub(),
-      });
-
-      await createDepartment.unAssignUserFromDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(
-        badRequestStub.calledOnceWith(res, "bad request errors", {
-          nestedErrors: [],
-        })
-      ).to.be.true;
-    });
-
-    it("should handle unexpected errors", async () => {
-      const req = {
-        query: { tenant: "airqo" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .throws(new Error("Some unexpected error"));
-
-      await createDepartment.unAssignUserFromDepartment(req, res);
-
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Some unexpected error" },
-        })
-      ).to.be.true;
-    });
-  });
+  function setupMockResponse() {
+    return {
+      json: sinon.spy(),
+      status: sinon.spy(),
+    };
+  }
 });
