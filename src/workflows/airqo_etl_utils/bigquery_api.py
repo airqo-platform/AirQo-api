@@ -806,7 +806,7 @@ class BigQueryApi:
         return results
 
     #
-    def fetch_data(
+    def fetch_device_data_for_forecast_job(
             self,
             start_date_time: str,
             job_type: str,
@@ -845,8 +845,40 @@ class BigQueryApi:
         except Exception as e:
             print("Error fetching data from bigquery", {e})
 
-    # TODO: look into combining these into 1 method, reduce duplicated code
-    def fetch_satellite_readings(self, start_date_time: str) -> pd.DataFrame:
+    def fetch_device_data_for_satellite_job(
+            self,
+            start_date_time: str,
+            job_type: str,
+    ) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError:
+            raise ValueError(f"Invalid start date time: {start_date_time}")
+
+        query = f"""
+        SELECT
+        t1.timestamp, t1.site_id, t1.pm2_5_calibrated_value, t2.city
+        FROM `{self.hourly_measurements_table_prod}` as t1
+        INNER
+        JOIN
+        `{self.sites_table}` as t2
+        on
+        t1.site_id = t2.id
+        WHERE
+        timestamp > {start_date_time} and t2.city in (
+        'kampala', "Nairobi", "Kisumu", "Lagos", "Accra", "Bujumbura", "Yaounde")
+        """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery", {e})
+
+    def fetch_satellite_readings(self, job_type: str, start_date_time: str = " ", ) -> pd.DataFrame:
+
         try:
             pd.to_datetime(start_date_time)
         except ValueError:
@@ -854,8 +886,13 @@ class BigQueryApi:
 
         query = f"""
         SELECT DISTINCT * FROM `{self.satellite_measurements_table}`
-        WHERE date(timestamp) >= '{start_date_time}' 
-        ORDER BY timestamp"""
+        """
+        if job_type != "train":
+            query += f"""
+            WHERE date(timestamp) >= '{start_date_time}' 
+            """
+
+        query += "ORDER BY timestamp"""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
@@ -867,6 +904,7 @@ class BigQueryApi:
 
     @staticmethod
     def save_data_to_bigquery(data: pd.DataFrame, table: str):
+
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS
