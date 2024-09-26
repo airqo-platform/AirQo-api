@@ -1,349 +1,202 @@
+// test-analytics-reporting-util.js
 require("module-alias/register");
 const chai = require("chai");
-const { expect } = chai;
+const expect = chai.expect;
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const generateFilter = require("@utils/generate-filter");
-const ChecklistModel = require("@models/Checklist");
-const ObjectId = require("mongoose").Types.ObjectId;
-const chaiHttp = require("chai-http");
-chai.use(chaiHttp);
-const createChecklisteUtil = require("@utils/create-checklist");
-const UserModel = require("@models/User");
+const sinonChai = require("sinon-chai");
+chai.use(sinonChai);
+const { describe, it, beforeEach, afterEach } = require("mocha");
 
-describe("create checklist UTIL", () => {
-  describe("list()", () => {
-    let request;
-    let listStub;
-    let generateFilterStub;
+const AnalyticsReportingUtil = require("../path/to/AnalyticsReportingUtil"); // Adjust the path as needed
+const AnalyticsModel = require("@models/analytics");
+const HttpError = require("@utils/http-error");
 
-    beforeEach(() => {
-      request = {
-        query: { tenant: "tenant1", limit: 10, skip: 0 },
-      };
-      listStub = sinon.stub(ChecklistModel.prototype, "list");
-      generateFilterStub = sinon.stub(generateFilter, "checklists");
-    });
+describe("AnalyticsReportingUtil", () => {
+  let sandbox;
 
-    afterEach(() => {
-      listStub.restore();
-      generateFilterStub.restore();
-    });
-
-    it("should return filterResponse when filterResponse.success is false", async () => {
-      const filterResponse = { success: false };
-      generateFilterStub.returns(filterResponse);
-
-      const result = await createChecklisteUtil.list(request);
-      expect(result).to.equal(filterResponse);
-    });
-
-    it("should return the result of ChecklistModel.list when filterResponse.success is true", async () => {
-      const filterResponse = { success: true, filter: {} };
-      const listResult = "list result";
-      listStub.resolves(listResult);
-      generateFilterStub.returns(filterResponse);
-
-      const result = await createChecklisteUtil.list(request);
-      expect(result).to.equal(listResult);
-    });
-
-    it("should return an error response when an error is thrown", async () => {
-      const error = new Error("Test error");
-      generateFilterStub.returns({ success: true, filter: {} });
-      listStub.rejects(error);
-
-      const result = await createChecklisteUtil.list(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
-  describe("create()", () => {
-    let request;
-    let findByIdStub;
-    let registerStub;
 
-    beforeEach(() => {
-      request = {
-        body: { user: "user1" },
-        query: { tenant: "tenant1" },
-      };
-      findByIdStub = sinon.stub(UserModel.prototype, "findById");
-      registerStub = sinon.stub(ChecklistModel.prototype, "register");
-    });
-
-    afterEach(() => {
-      findByIdStub.restore();
-      registerStub.restore();
-    });
-
-    it("should return an error response when user_id is empty", async () => {
-      request.body.user = "";
-
-      const result = await createChecklisteUtil.create(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Bad Request Error",
-        errors: {
-          message: "The provided User does not exist",
-          value: "",
-        },
-        status: httpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should return an error response when user is not found", async () => {
-      findByIdStub.resolves(null);
-
-      const result = await createChecklisteUtil.create(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Bad Request Error",
-        errors: {
-          message: "The provided User does not exist",
-          value: "user1",
-        },
-        status: httpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should return the result of ChecklistModel.register when user is found", async () => {
-      const user = { _id: "user1" };
-      const registerResult = { success: true };
-      findByIdStub.resolves(user);
-      registerStub.resolves(registerResult);
-
-      const result = await createChecklisteUtil.create(request);
-      expect(result).to.equal(registerResult);
-    });
-
-    it("should return an error response when an error is thrown", async () => {
-      const error = new Error("Test error");
-      findByIdStub.rejects(error);
-
-      const result = await createChecklisteUtil.create(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
+  afterEach(() => {
+    sandbox.restore();
   });
-  describe("update()", () => {
-    let request;
-    let modifyStub;
-    let generateFilterStub;
 
-    beforeEach(() => {
-      request = {
-        query: { tenant: "tenant1" },
-        body: { user: "user1" },
-      };
-      modifyStub = sinon.stub(ChecklistModel.prototype, "modify");
-      generateFilterStub = sinon.stub(generateFilter, "checklists");
-    });
+  describe("views", () => {
+    it("should return view data for a post", async () => {
+      const postId = "test-post-id";
+      const tenant = "test-tenant";
 
-    afterEach(() => {
-      modifyStub.restore();
-      generateFilterStub.restore();
-    });
-
-    it("should return filterResponse when filterResponse.success is false", async () => {
-      const filterResponse = { success: false };
-      generateFilterStub.returns(filterResponse);
-
-      const result = await createChecklisteUtil.update(request);
-      expect(result).to.equal(filterResponse);
-    });
-
-    it("should return the result of ChecklistModel.modify when filterResponse.success is true", async () => {
-      const filterResponse = { success: true, filter: {} };
-      const modifyResult = { success: true };
-      generateFilterStub.returns(filterResponse);
-      modifyStub.resolves(modifyResult);
-
-      const result = await createChecklisteUtil.update(request);
-      expect(result).to.equal(modifyResult);
-    });
-
-    it("should return an error response when an error is thrown", async () => {
-      const error = new Error("Test error");
-      generateFilterStub.returns({ success: true, filter: {} });
-      modifyStub.rejects(error);
-
-      const result = await createChecklisteUtil.update(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-  });
-  describe("upsert()", () => {
-    let request;
-    let findOneAndUpdateStub;
-    let generateFilterStub;
-
-    beforeEach(() => {
-      request = {
-        query: { tenant: "tenant1" },
-        body: { user: "user1" },
-      };
-      findOneAndUpdateStub = sinon.stub(
-        ChecklistModel.prototype,
-        "findOneAndUpdate"
-      );
-      generateFilterStub = sinon.stub(generateFilter, "checklists");
-    });
-
-    afterEach(() => {
-      findOneAndUpdateStub.restore();
-      generateFilterStub.restore();
-    });
-
-    it("should return filterResponse when filterResponse.success is false", async () => {
-      const filterResponse = { success: false };
-      generateFilterStub.returns(filterResponse);
-
-      const result = await createChecklisteUtil.upsert(request);
-      expect(result).to.equal(filterResponse);
-    });
-
-    it("should return the result of ChecklistModel.findOneAndUpdate when filterResponse.success is true", async () => {
-      const filterResponse = { success: true, filter: {} };
-      const modifyResult = { success: true };
-      generateFilterStub.returns(filterResponse);
-      findOneAndUpdateStub.resolves(modifyResult);
-
-      const result = await createChecklisteUtil.upsert(request);
-      expect(result).to.deep.equal({
-        success: true,
-        message: "successfully created or updated a checklist",
-        data: modifyResult,
-        status: httpStatus.OK,
-      });
-    });
-
-    it("should return an error response when an error is thrown", async () => {
-      const error = new Error("Test error");
-      generateFilterStub.returns({ success: true, filter: {} });
-      findOneAndUpdateStub.rejects(error);
-
-      const result = await createChecklisteUtil.upsert(request);
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-  });
-  describe("delete()", () => {
-    it("should createChecklisteUtil.delete a checklist successfully", async () => {
-      // Stub generateFilter.checklists to return a successful response
-      const generateFilter = {
-        checklists: sinon.stub().resolves({ success: true }),
+      const mockAnalyticsEntry = {
+        timestamp: new Date(),
+        value: 100,
       };
 
-      // Stub ChecklistModel(tenant).remove to return a successful response
-      const ChecklistModel = {
-        remove: sinon.stub().resolves({ success: true }),
-      };
+      sandbox
+        .stub(AnalyticsModel.prototype.find)
+        .withArgs({ tenant })
+        .resolves([mockAnalyticsEntry]);
 
-      // Mock request object
-      const request = {
-        query: { tenant: "sampleTenant" },
-      };
-
-      // Call the createChecklisteUtil.delete function
-      const result = await createChecklisteUtil.delete(
-        request,
-        generateFilter,
-        ChecklistModel
+      const result = await AnalyticsReportingUtil.views(
+        postId,
+        { query: { tenant } },
+        null
       );
 
-      // Assert the result
-      expect(result).to.deep.equal({ success: true });
-
-      // Verify that the stubs were called as expected
-      sinon.assert.calledOnce(generateFilter.checklists);
-      sinon.assert.calledWith(ChecklistModel.remove, {
-        filter: { success: true },
-      });
+      expect(result).to.have.property("success").that.is.true;
+      expect(result).to.have.property("data");
+      expect(result.data).to.deep.equal(mockAnalyticsEntry);
+      expect(result)
+        .to.have.property("message")
+        .that.equals("Successfully retrieved view data");
+      expect(result).to.have.property("status").that.equals(200);
     });
 
-    it("should handle an error from generateFilter.checklists", async () => {
-      // Stub generateFilter.checklists to return an error response
-      const generateFilter = {
-        checklists: sinon.stub().rejects(new Error("Generate Filter Error")),
+    it("should handle internal server errors", async () => {
+      const postId = "test-post-id";
+      const tenant = "test-tenant";
+
+      sandbox
+        .stub(AnalyticsModel.prototype.find)
+        .withArgs({ tenant })
+        .rejects(new Error("Database error"));
+
+      await expect(
+        AnalyticsReportingUtil.views(postId, { query: { tenant } }, null)
+      ).to.be.rejectedWith(HttpError);
+    });
+  });
+
+  describe("comments", () => {
+    it("should return comment data for a post", async () => {
+      const postId = "test-post-id";
+      const tenant = "test-tenant";
+
+      const mockAnalyticsEntry = {
+        timestamp: new Date(),
+        value: 100,
       };
 
-      // Mock request object
-      const request = {
-        query: { tenant: "sampleTenant" },
-      };
+      sandbox
+        .stub(AnalyticsModel.prototype.find)
+        .withArgs({ tenant })
+        .resolves([mockAnalyticsEntry]);
 
-      // Call the createChecklisteUtil.delete function
-      const result = await createChecklisteUtil.delete(
-        request,
-        generateFilter,
-        ChecklistModel
+      const result = await AnalyticsReportingUtil.comments(
+        postId,
+        { query: { tenant } },
+        null
       );
 
-      // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Generate Filter Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Generate Filter Error" },
-      });
-
-      // Verify that generateFilter.checklists was called once
-      sinon.assert.calledOnce(generateFilter.checklists);
+      expect(result).to.have.property("success").that.is.true;
+      expect(result).to.have.property("data");
+      expect(result.data).to.deep.equal(mockAnalyticsEntry);
+      expect(result)
+        .to.have.property("message")
+        .that.equals("Successfully retrieved comment data");
+      expect(result).to.have.property("status").that.equals(200);
     });
 
-    it("should handle an error from ChecklistModel.remove", async () => {
-      // Stub generateFilter.checklists to return a successful response
-      const generateFilter = {
-        checklists: sinon.stub().resolves({ success: true }),
-      };
+    it("should handle internal server errors", async () => {
+      const postId = "test-post-id";
+      const tenant = "test-tenant";
 
-      // Stub ChecklistModel(tenant).remove to return an error response
-      const ChecklistModel = {
-        remove: sinon.stub().rejects(new Error("Remove Default Error")),
-      };
+      sandbox
+        .stub(AnalyticsModel.prototype.find)
+        .withArgs({ tenant })
+        .rejects(new Error("Database error"));
 
-      // Mock request object
-      const request = {
-        query: { tenant: "sampleTenant" },
-      };
+      await expect(
+        AnalyticsReportingUtil.comments(postId, { query: { tenant } }, null)
+      ).to.be.rejectedWith(HttpError);
+    });
+  });
 
-      // Call the createChecklisteUtil.delete function
-      const result = await createChecklisteUtil.delete(
-        request,
-        generateFilter,
-        ChecklistModel
+  // Add similar tests for other methods like popularPosts, userViews, userComments, etc.
+
+  describe("popularPosts", () => {
+    it("should return popular posts data", async () => {
+      const tenant = "test-tenant";
+
+      const mockAnalyticsEntries = [
+        { metricName: "views", category: "post", count: 100 },
+        { metricName: "views", category: "post", count: 50 },
+      ];
+
+      sandbox
+        .stub(AnalyticsModel.prototype.aggregate)
+        .resolves(mockAnalyticsEntries);
+
+      const result = await AnalyticsReportingUtil.popularPosts({}, null);
+
+      expect(result).to.have.property("success").that.is.true;
+      expect(result).to.have.property("data");
+      expect(result.data).to.deep.equal([
+        { title: "Post 1", views: 100 },
+        { title: "Post 2", views: 50 },
+      ]);
+      expect(result)
+        .to.have.property("message")
+        .that.equals("Successfully retrieved popular posts data");
+      expect(result).to.have.property("status").that.equals(200);
+    });
+
+    it("should handle internal server errors", async () => {
+      sandbox
+        .stub(AnalyticsModel.prototype.aggregate)
+        .rejects(new Error("Database error"));
+
+      await expect(
+        AnalyticsReportingUtil.popularPosts({}, null)
+      ).to.be.rejectedWith(HttpError);
+    });
+  });
+
+  // Add similar tests for other methods like userActivity, userGrowthReport, postPerformanceReport, etc.
+
+  describe("generateReport", () => {
+    it("should generate report based on the reportType", async () => {
+      const mockResult = { success: true, data: {}, message: "", status: 200 };
+      const mockParams = { postId: "test-post-id" };
+
+      sandbox.stub(AnalyticsReportingUtil.views).resolves(mockResult);
+      sandbox.stub(AnalyticsReportingUtil.comments).resolves(mockResult);
+
+      const result = await AnalyticsReportingUtil.generateReport(
+        "postViews",
+        mockParams,
+        {},
+        null
       );
 
-      // Assert the result
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Remove Default Error" },
-      });
+      expect(result).to.deep.equal(mockResult);
+    });
 
-      // Verify that generateFilter.checklists and ChecklistModel.remove were called as expected
-      sinon.assert.calledOnce(generateFilter.checklists);
-      sinon.assert.calledWith(ChecklistModel.remove, {
-        filter: { success: true },
-      });
+    it("should handle invalid report type", async () => {
+      const mockParams = {};
+
+      const result = await AnalyticsReportingUtil.generateReport(
+        "invalid-type",
+        mockParams,
+        {},
+        null
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Invalid report type");
+      expect(result.status).to.equal(400);
+    });
+
+    it("should handle errors in report generation", async () => {
+      const mockParams = { postId: "test-post-id" };
+
+      sandbox
+        .stub(AnalyticsReportingUtil.views)
+        .rejects(new Error("View generation failed"));
+
+      await expect(
+        AnalyticsReportingUtil.generateReport("postViews", mockParams, {}, null)
+      ).to.be.rejectedWith(HttpError);
     });
   });
 });

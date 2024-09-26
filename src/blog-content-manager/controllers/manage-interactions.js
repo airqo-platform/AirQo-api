@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const userInteractionUtil = require("@utils/user-interaction");
+const userInteractionUtil = require("@utils/manage-interactions");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

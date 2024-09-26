@@ -34,7 +34,6 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      // ["new-mobile-app-user-topic"]: operationForNewMobileAppUser,
       // topic2: operationFunction2,
     };
     await consumer.connect();

@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const commentUtil = require("@utils/comment");
+const commentUtil = require("@utils/handle-comments");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

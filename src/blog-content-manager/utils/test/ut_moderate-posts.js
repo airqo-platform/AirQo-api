@@ -1,536 +1,223 @@
-require("module-alias/register");
 const chai = require("chai");
-const expect = chai.expect;
 const sinon = require("sinon");
+const chaiHttp = require("chai-http");
+const mongoose = require("mongoose");
 
-const locationHistories = require("../create-location-history");
-const LocationHistoryModel = require("@models/LocationHistory");
+// Import the module being tested
+const moderateContent = require("./moderate-content"); // Adjust the path as needed
 
-describe("locationHistories", () => {
-  describe("sample method", () => {
-    it("should do something", async () => {
-      // Implement test case for the sample method
-      // Mock any dependencies or request objects if needed
-    });
+// Configure chai plugins
+chai.use(chaiHttp);
+chai.should();
 
-    // Add more test cases if needed
+describe("Moderate Content", () => {
+  let sandbox;
+  let mockRequest;
+  let mockResponse;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    mockRequest = {
+      query: {},
+      params: {},
+      body: {},
+    };
+    mockResponse = {
+      status: sinon.stub().returns(mockResponse),
+      json: sinon.stub(),
+    };
   });
 
-  describe("list method", () => {
-    it("should return a list of location histories", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("reviewAuthor", () => {
+    it("should return success when author exists", async () => {
+      const tenant = "test-tenant";
+      const authorId = "1234567890abcdef";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.authorId = authorId;
+
+      const AuthorModelMock = {
+        findById: sandbox.stub().resolves({
+          _id: authorId,
+          name: "Test Author",
+          __v: 0,
+        }),
       };
 
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(AuthorModelMock);
 
-      // Mock the LocationHistoryModel.list method
-      const responseFromListLocationHistoriesPromise = Promise.resolve({
-        success: true,
-        data: [
-          /* mocked location histories */
-        ],
-      });
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "list")
-        .returns(responseFromListLocationHistoriesPromise);
+      await moderateContent.reviewAuthor(mockRequest, mockResponse);
 
-      // Call the method
-      const result = await locationHistories.list(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.true;
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions for the response data if needed
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").list.restore();
+      mockResponse.status.should.have.been.calledWith(httpStatus.OK);
+      mockResponse.json.should.have.been.calledWith(sinon.match.object);
     });
 
-    it("should return the filter error if generateFilter.location_histories returns success as false", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
+    it("should throw HttpError when author does not exist", async () => {
+      const tenant = "test-tenant";
+      const authorId = "1234567890abcdef";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.authorId = authorId;
+
+      const AuthorModelMock = {
+        findById: sandbox.stub().resolves(null),
       };
 
-      // Mock the filter generation function to return an error
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(AuthorModelMock);
 
-      // Call the method
-      const result = await locationHistories.list(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal("Invalid filter");
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-    });
-
-    it("should handle internal server error and return appropriate response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-      };
-
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
-
-      // Mock the LocationHistoryModel.list method to throw an error
-      const errorMessage = "Database connection error";
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "list")
-        .throws(new Error(errorMessage));
-
-      // Call the method
-      const result = await locationHistories.list(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result)
-        .to.have.property("message")
-        .that.equals("Internal Server Error");
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal(errorMessage);
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").list.restore();
+      await moderateContent
+        .reviewAuthor(mockRequest, mockResponse)
+        .should.be.rejectedWith(HttpError);
     });
   });
 
-  describe("delete method", () => {
-    it("should delete location histories and return success response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
+  describe("flagComment", () => {
+    it("should return success when comment exists", async () => {
+      const tenant = "test-tenant";
+      const commentId = "9876543210fedcba";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.commentId = commentId;
+
+      const CommentModelMock = {
+        findById: sandbox.stub().resolves({
+          _id: commentId,
+          content: "Test comment",
+          __v: 0,
+        }),
+        find: sandbox.stub().resolves([{ _id: commentId, flags: [] }]),
       };
 
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(CommentModelMock);
 
-      // Mock the LocationHistoryModel.remove method
-      const responseFromDeleteLocationHistoriesPromise = Promise.resolve({
-        success: true,
-        message: "Location histories deleted successfully",
-        data: [
-          /* mocked deleted location histories */
-        ],
-      });
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "remove")
-        .returns(responseFromDeleteLocationHistoriesPromise);
+      await moderateContent.flagComment(mockRequest, mockResponse);
 
-      // Call the method
-      const result = await locationHistories.delete(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.true;
-      expect(result)
-        .to.have.property("message")
-        .that.is.a("string")
-        .that.equals("Location histories deleted successfully");
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions for the response data if needed
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").remove.restore();
+      mockResponse.status.should.have.been.calledWith(httpStatus.OK);
+      mockResponse.json.should.have.been.calledWith(sinon.match.object);
     });
 
-    it("should return the filter error if generateFilter.location_histories returns success as false", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
+    it("should throw HttpError when comment does not exist", async () => {
+      const tenant = "test-tenant";
+      const commentId = "9876543210fedcba";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.commentId = commentId;
+
+      const CommentModelMock = {
+        findById: sandbox.stub().resolves(null),
       };
 
-      // Mock the filter generation function to return an error
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(CommentModelMock);
 
-      // Call the method
-      const result = await locationHistories.delete(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal("Invalid filter");
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-    });
-
-    it("should handle internal server error and return appropriate response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-      };
-
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
-
-      // Mock the LocationHistoryModel.remove method to throw an error
-      const errorMessage = "Database connection error";
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "remove")
-        .throws(new Error(errorMessage));
-
-      // Call the method
-      const result = await locationHistories.delete(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result)
-        .to.have.property("message")
-        .that.equals("Internal Server Error");
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal(errorMessage);
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").remove.restore();
+      await moderateContent
+        .flagComment(mockRequest, mockResponse)
+        .should.be.rejectedWith(HttpError);
     });
   });
 
-  describe("update method", () => {
-    it("should update location histories and return success response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          /* mocked update data */
-        },
+  describe("viewFlags", () => {
+    it("should return success when flags exist", async () => {
+      const tenant = "test-tenant";
+      const commentId = "9876543210fedcba";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.commentId = commentId;
+
+      const CommentModelMock = {
+        find: sandbox
+          .stub()
+          .resolves([{ _id: commentId, flags: [{ flagger: "User1" }] }]),
       };
 
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(CommentModelMock);
 
-      // Mock the LocationHistoryModel.modify method
-      const responseFromUpdateLocationHistoriesPromise = Promise.resolve({
-        success: true,
-        message: "Location histories updated successfully",
-        data: {
-          /* mocked updated location histories */
-        },
-      });
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "modify")
-        .returns(responseFromUpdateLocationHistoriesPromise);
+      await moderateContent.viewFlags(mockRequest, mockResponse);
 
-      // Call the method
-      const result = await locationHistories.update(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.true;
-      expect(result)
-        .to.have.property("message")
-        .that.is.a("string")
-        .that.equals("Location histories updated successfully");
-      expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions for the response data if needed
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").modify.restore();
+      mockResponse.status.should.have.been.calledWith(httpStatus.OK);
+      mockResponse.json.should.have.been.calledWith(sinon.match.object);
     });
 
-    it("should return the filter error if generateFilter.location_histories returns success as false", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          /* mocked update data */
-        },
+    it("should return empty array when no flags exist", async () => {
+      const tenant = "test-tenant";
+      const commentId = "9876543210fedcba";
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.commentId = commentId;
+
+      const CommentModelMock = {
+        find: sandbox.stub().resolves([]),
       };
 
-      // Mock the filter generation function to return an error
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: false,
-        errors: { message: "Invalid filter" },
-      });
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(CommentModelMock);
 
-      // Call the method
-      const result = await locationHistories.update(request);
+      await moderateContent.viewFlags(mockRequest, mockResponse);
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal("Invalid filter");
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-    });
-
-    it("should handle internal server error and return appropriate response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          /* mocked update data */
-        },
-      };
-
-      // Mock the filter generation function
-      sinon.stub(generateFilter, "location_histories").returns({
-        success: true,
-        filter: {
-          /* mocked filter data */
-        },
-      });
-
-      // Mock the LocationHistoryModel.modify method to throw an error
-      const errorMessage = "Database connection error";
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "modify")
-        .throws(new Error(errorMessage));
-
-      // Call the method
-      const result = await locationHistories.update(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result)
-        .to.have.property("message")
-        .that.equals("Internal Server Error");
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal(errorMessage);
-
-      // Restore the stubs
-      generateFilter.location_histories.restore();
-      LocationHistoryModel("test_tenant").modify.restore();
+      mockResponse.status.should.have.been.calledWith(httpStatus.OK);
+      mockResponse.json.should.have.been.calledWith(sinon.match.object);
     });
   });
 
-  describe("create method", () => {
-    it("should create a new location history and return success response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          /* mocked location history data */
-        },
+  describe("manageAuthors", () => {
+    it("should call appropriate method based on request method", async () => {
+      const tenant = "test-tenant";
+      const authorId = "1234567890abcdef";
+      const requestBody = { action: "update" };
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.authorId = authorId;
+      mockRequest.body = requestBody;
+
+      const AuthorModelMock = {
+        update: sinon.spy(),
+        delete: sinon.spy(),
       };
 
-      // Mock the LocationHistoryModel.register method
-      const responseFromCreateLocationHistoryPromise = Promise.resolve({
-        success: true,
-        message: "Location history created successfully",
-        data: {
-          /* mocked new location history */
-        },
-      });
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "register")
-        .returns(responseFromCreateLocationHistoryPromise);
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(AuthorModelMock);
 
-      // Call the method
-      const result = await locationHistories.create(request);
+      await moderateContent.manageAuthors(mockRequest, mockResponse);
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.true;
-      expect(result)
-        .to.have.property("message")
-        .that.is.a("string")
-        .that.equals("Location history created successfully");
-      expect(result).to.have.property("data").that.is.an("object");
-      // Add more assertions for the response data if needed
-
-      // Restore the stubs
-      LocationHistoryModel("test_tenant").register.restore();
+      sinon.assert.calledOnce(AuthorModelMock.update);
+      sinon.assert.notCalled(AuthorModelMock.delete);
     });
 
-    it("should handle internal server error and return appropriate response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          /* mocked location history data */
-        },
+    it("should handle internal server error", async () => {
+      const tenant = "test-tenant";
+      const authorId = "1234567890abcdef";
+      const requestBody = { action: "delete" };
+
+      mockRequest.query.tenant = tenant;
+      mockRequest.params.authorId = authorId;
+      mockRequest.body = requestBody;
+
+      const AuthorModelMock = {
+        delete: sinon.spy().throws(new Error("Database error")),
       };
 
-      // Mock the LocationHistoryModel.register method to throw an error
-      const errorMessage = "Database connection error";
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "register")
-        .throws(new Error(errorMessage));
+      sandbox
+        .stub(mongoose.model.bind(mongoose), "call")
+        .returns(AuthorModelMock);
 
-      // Call the method
-      const result = await locationHistories.create(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result)
-        .to.have.property("message")
-        .that.equals("Internal Server Error");
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal(errorMessage);
-
-      // Restore the stubs
-      LocationHistoryModel("test_tenant").register.restore();
-    });
-  });
-  describe("syncLocationHistories method", () => {
-    it("should synchronize location histories and return success response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          location_histories: [
-            /* mocked location history data */
-          ],
-        },
-        params: {
-          firebase_user_id: "test_user_id",
-        },
-      };
-
-      // Mock the LocationHistoryModel.list and LocationHistoryModel.register methods
-      const unsyncedLocationHistories = [
-        /* mocked unsynced location history data */
-      ];
-      const synchronizedLocationHistories = [
-        /* mocked synchronized location history data */
-      ];
-      const responseFromListLocationHistoriesPromise = Promise.resolve({
-        success: true,
-        data: unsyncedLocationHistories,
-      });
-      const responseFromRegisterLocationHistoryPromise = Promise.resolve({
-        success: true,
-        message: "Location history created successfully",
-        data: [] /* mocked new location history */,
-      });
-
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "list")
-        .returns(responseFromListLocationHistoriesPromise);
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "register")
-        .returns(responseFromRegisterLocationHistoryPromise);
-
-      // Call the method
-      const result = await locationHistories.syncLocationHistories(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.true;
-      expect(result)
-        .to.have.property("message")
-        .that.is.a("string")
-        .that.equals("Location Histories Synchronized");
-      expect(result).to.have.property("data").that.is.an("array");
-      // Add more assertions for the response data if needed
-
-      // Restore the stubs
-      LocationHistoryModel("test_tenant").list.restore();
-      LocationHistoryModel("test_tenant").register.restore();
-    });
-
-    it("should handle internal server error and return appropriate response", async () => {
-      // Mock the request object
-      const request = {
-        query: {
-          tenant: "test_tenant",
-        },
-        body: {
-          location_histories: [
-            /* mocked location history data */
-          ],
-        },
-        params: {
-          firebase_user_id: "test_user_id",
-        },
-      };
-
-      // Mock the LocationHistoryModel.list method to throw an error
-      const errorMessage = "Database connection error";
-      sinon
-        .stub(LocationHistoryModel("test_tenant"), "list")
-        .throws(new Error(errorMessage));
-
-      // Call the method
-      const result = await locationHistories.syncLocationHistories(request);
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result.success).to.be.false;
-      expect(result)
-        .to.have.property("message")
-        .that.equals("Internal Server Error");
-      expect(result).to.have.property("errors").that.is.an("object");
-      expect(result.errors.message).to.equal(errorMessage);
-
-      // Restore the stubs
-      LocationHistoryModel("test_tenant").list.restore();
+      await moderateContent
+        .manageAuthors(mockRequest, mockResponse)
+        .should.be.rejectedWith(HttpError);
     });
   });
 });
