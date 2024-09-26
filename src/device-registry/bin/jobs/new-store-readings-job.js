@@ -16,6 +16,17 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
+function logDocumentDetails(doc) {
+  const deviceId = doc.device_id || "N/A";
+  const device = doc.device || "N/A";
+  const time = doc.time || "N/A";
+  const siteId = doc.site_id || "N/A";
+  const site = doc.site || "N/A";
+  logger.warn(
+    `Document missing some details: { time: ${time}, device_id: ${deviceId}, device: ${device}, site_id: ${siteId}, site: ${site}}`
+  );
+}
+
 function isEntityActive(entity, time) {
   const inactiveThreshold = INACTIVE_THRESHOLD;
 
@@ -42,13 +53,7 @@ async function updateEntityStatus(Model, filter, time, entityType) {
           .toDate(),
         isOnline: isActive,
       };
-
       const updateResult = await Model.updateOne(filter, updateData);
-      // logger.info(
-      //   `Updated ${entityType} status. IsOnline: ${isActive}. Result: ${jsonify(
-      //     updateResult
-      //   )}`
-      // );
     } else {
       logger.warn(`${entityType} not found with filter: ${jsonify(filter)}`);
     }
@@ -74,7 +79,7 @@ async function processDocument(doc) {
         )
       );
     } else {
-      logger.warn(`Document missing site_id: ${jsonify(doc)}`);
+      logDocumentDetails(doc);
     }
 
     if (doc.device_id) {
@@ -87,7 +92,7 @@ async function processDocument(doc) {
         )
       );
     } else {
-      logger.warn(`Document missing device_id: ${jsonify(doc)}`);
+      logDocumentDetails(doc);
     }
 
     // Wait for both updates to complete
