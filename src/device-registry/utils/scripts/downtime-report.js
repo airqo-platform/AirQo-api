@@ -2,8 +2,9 @@ const fs = require("fs");
 const moment = require("moment");
 const UPTIME_THRESHOLD = 48;
 
-if (!UPTIME_THRESHOLD) {
-  return;
+if (typeof UPTIME_THRESHOLD === "undefined" || UPTIME_THRESHOLD === null) {
+  console.error("UPTIME_THRESHOLD is not defined. Exiting script.");
+  process.exit(1);
 }
 
 // Read the logs
