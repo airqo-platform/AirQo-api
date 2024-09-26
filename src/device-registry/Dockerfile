@@ -19,7 +19,7 @@ RUN chmod 777 /usr/src/app/bin
 EXPOSE 3000
 
 FROM base as dev
-CMD [ "npm", "run", "dev" ]
+CMD [ "npm", "run", "dev-mac" ]
 
 FROM base as staging
 CMD [ "npm", "run", "stage" ]
