@@ -87,7 +87,7 @@ filteredLogs.forEach((log) => {
   count++;
 });
 
-console.log("\u{1F548} Report written to CSV file successfully!"); // Progress indicator
+console.log("\u{1F514} Report written to CSV file successfully!"); // Progress indicator
 
 // Close the CSV file and print the first three lines of the CSV output to the console
 csvStream.end(() => {
