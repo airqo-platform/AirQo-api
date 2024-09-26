@@ -89,7 +89,7 @@ class AirnowDataUtils:
         """
         air_now_data = []
 
-        devices = AirQoApi().get_devices(tenant=Tenant.ALL)
+        devices = AirQoApi().get_devices(tenant=Tenant.ALL, device_category=DeviceCategory.BAM)
 
         # Precompute device mapping for faster lookup
         device_mapping = {}
