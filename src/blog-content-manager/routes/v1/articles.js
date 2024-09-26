@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { check, validationResult } = require("express-validator");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+// const { setJWTAuth, authJWT } = require("@middleware/passport");
 const BlogPostManagementController = require("@controllers/manage-posts");
 
 // Middleware
@@ -27,8 +27,8 @@ router.use(headers);
 router.use(validatePagination);
 
 // Authentication middleware
-router.use(setJWTAuth);
-router.use(authJWT);
+// router.use(setJWTAuth);
+// router.use(authJWT);
 
 // Validation middleware
 const validateBlogPostUpdate = (req, res, next) => {
@@ -39,7 +39,61 @@ const validateBlogPostUpdate = (req, res, next) => {
   next();
 };
 
-// Blog Post Management Routes
+/**
+ * @swagger
+ * /api/v1/blogs/articles:
+ *   get:
+ *     summary: List blog articles (Version 1)
+ *     description: Returns a list of blog articles for version 1 of the API
+ *     tags:
+ *       - Blog
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         description: Page number for pagination
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         description: Number of items per page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: 'config/components/schemas/BlogArticleV1'
+ *
+ *   post:
+ *     summary: Create a blog article (Version 1)
+ *     description: Creates a new blog article for version 1 of the API
+ *     tags:
+ *       - Blog
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               authorId:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: 'config/components/schemas/BlogArticleV1'
+ */
 router.get("/edit/:id", BlogPostManagementController.edit);
 router.put(
   "/edit/:id",

@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { check, validationResult } = require("express-validator");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
-const RSSFeedController = require("../controllers/rss-feed");
+// const { setJWTAuth, authJWT } = require("@middleware/passport");
+const RSSFeedController = require("@controllers/generate-feed");
 
 // Middleware
 const validateCustomization = (req, res, next) => {
@@ -25,8 +25,8 @@ const headers = (req, res, next) => {
 router.use(headers);
 
 // Authentication middleware
-router.use(setJWTAuth);
-router.use(authJWT);
+// router.use(setJWTAuth);
+// router.use(authJWT);
 
 // RSS Feed Routes
 router.get(
