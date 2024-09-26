@@ -26,5 +26,6 @@ const prodConfig = {
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
   REDIS_SERVER: process.env.PROD_REDIS_SERVER,
   REDIS_PORT: process.env.PROD_REDIS_PORT,
+  API_URL: process.env.API_URL_PRODUCTION,
 };
 module.exports = prodConfig;

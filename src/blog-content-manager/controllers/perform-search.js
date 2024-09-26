@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const searchUtil = require("@utils/search");
+const searchUtil = require("@utils/perform-search");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

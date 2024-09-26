@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const contentModerationUtil = require("@utils/content-moderation");
+const contentModerationUtil = require("@utils/moderate-posts");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

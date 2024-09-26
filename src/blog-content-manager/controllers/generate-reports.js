@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const analyticsUtil = require("@utils/analytics");
+const analyticsUtil = require("@utils/generate-reports");
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");

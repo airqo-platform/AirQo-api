@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { check, validationResult } = require("express-validator");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+// const { setJWTAuth, authJWT } = require("@middleware/passport");
 const UserInteractionController = require("@controllers/manage-interactions");
 
 // Middleware
@@ -27,8 +27,8 @@ router.use(headers);
 router.use(validatePagination);
 
 // Authentication middleware
-router.use(setJWTAuth);
-router.use(authJWT);
+// router.use(setJWTAuth);
+// router.use(authJWT);
 
 // Validation middleware
 const validateUserInteraction = (req, res, next) => {
