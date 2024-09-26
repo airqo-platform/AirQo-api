@@ -9,6 +9,7 @@ import pandas as pd
 import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .config import configuration, db
@@ -777,7 +778,7 @@ class SatelliteUtils(BaseMlUtils):
         Return: returns a dataframe after applying the encoding
         """
 
-        if not 'city' in data.columns or not 'country' in data.columns:
+        if not 'city' in data.columns:
             raise ValueError('data frame does not contain city or country column')
 
         if encoder == 'LabelEncoder':
@@ -799,13 +800,13 @@ class SatelliteUtils(BaseMlUtils):
 
     @staticmethod
     def lag_features(data: pd.DataFrame, frequency: str, target_col: str) -> pd.DataFrame:
-        """appleis lags to specific feature in the data frame.
+        """appends lags to specific feature in the data frame.
 
         Keyword arguments:
 
             data -- the dataframe to apply the transformation on.
 
-            frequenct -- (hourly/daily) weather the lag is applied per hours or per days.
+            frequency -- (hourly/daily) weather the lag is applied per hours or per days.
 
             target_col -- the column to apply the transformation on.
 
@@ -823,3 +824,57 @@ class SatelliteUtils(BaseMlUtils):
         for s in shifts:
             data[f"pm2_5_last_{s}_{time_unit}"] = data.groupby(["city"])[target_col].shift(s)
         return data
+
+    @staticmethod
+    def train_satellite_model(data):
+        data['year'] = data['timestamp'].dt.year
+        min_year = data['year'].min()
+
+        train_data = pd.DataFrame()
+        test_data = pd.DataFrame()
+
+        for site in data["site_id"].unique():
+            site_df = data[data["site_id"] == site]
+
+            train_df = site_df[site_df['year'].isin([min_year, min_year + 1, min_year + 2, min_year + 3])]
+            test_df = site_df[site_df['year'].isin([min_year + 4, min_year + 5])]
+
+            train_data = pd.concat([train_data, train_df])
+            test_data = pd.concat([test_data, test_df])
+
+        # Drop unnecessary columns
+        columns_to_drop = ["timestamp", "device_id", "year"]
+        train_data.drop(columns=columns_to_drop, axis=1, inplace=True)
+        test_data.drop(columns=columns_to_drop, axis=1, inplace=True)
+
+        model = LGBMRegressor(random_state=42, n_estimators=200, max_depth=10, objective='mse')
+        n_splits = 4
+        cv = GroupKFold(n_splits=n_splits)
+        groups = train_data['city']
+        def validate(trainset, testset, t, origin):
+            with mlflow.start_run():
+                model.fit(trainset.drop(columns=t), trainset[t])
+                pred = model.predict(np.array(testset.drop(columns=t)))
+                print('std: ', testset[t].std())
+
+                # to validate the post processing
+                origin['pm_5'] = pred
+                origin['date'] = pd.to_datetime(origin['date'])
+                origin['date_day'] = origin['date'].dt.dayofyear
+                pred = origin['date_day'].map(origin[['date_day', 'pm_5']].groupby('date_day')['pm_5'].mean())
+                # --------------------------------------------------------------------------------------------
+                stds.append(testset[t].std())
+                score = mean_squared_error(pred, testset[t], squared=False)
+                print('score:', score)
+                mlflow.log_metric("rmse", score)
+                mlflow.sklearn.log_model(model, "model")
+
+                return score
+
+        stds = []
+        rmse = []
+
+        for v_train, v_test in cv.split(train.drop(columns='pm2_5'), train['pm2_5'], groups=groups):
+            train_v, test_v = train.iloc[v_train], train.iloc[v_test]
+            origin = train_set.iloc[v_test]
+            rmse.append(validate(train_v, test_v, 'pm2_5', origin))

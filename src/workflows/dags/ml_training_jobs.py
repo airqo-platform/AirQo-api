@@ -1,3 +1,5 @@
+## This DAG contains jobs for all training jobs for machine learning models.
+
 from datetime import datetime
 
 import pandas as pd
@@ -8,7 +10,6 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.ml_utils import BaseMlUtils, SatelliteUtils, ForecastUtils
-from airqo_etl_utils.satellilte_utils import SatelliteMLUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
@@ -28,7 +29,7 @@ def train_forecasting_models():
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "train")
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
@@ -65,7 +66,7 @@ def train_forecasting_models():
             months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "train")
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):
@@ -117,7 +118,7 @@ train_forecasting_models()
 
 @dag(
     "AirQo-satellite-model-training-job",
-    schedule="0 1 * * *",
+    schedule="0 0 1 * *",
     default_args=AirflowUtils.dag_default_configs(),
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job", "satellite"],
 )
@@ -141,10 +142,13 @@ def training_job():
             months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "train")
+        data = BigQueryApi().fetch_device_data_for_satellite_job(start_date, "train")
+        # resample data on daily basis using mean
 
     @task()
     def merge_datasets(ground_data: pd.DataFrame, satellite_data: pd.DataFrame) -> pd.DataFrame:
+        ground_data = ground_data.groupby('site_id').resample("D", on='timestamp').mean(numeric_only=True)
+        ground_data.reset_index(inplace=True)
         return satellite_data.merge(ground_data, on='timestamp')
 
     @task()
@@ -153,7 +157,7 @@ def training_job():
 
     @task()
     def time_related_features(data):
-        return BaseMlUtils.get_time_features(data, 'daily')
+        return BaseMlUtils.get_time_features(data, 'hourly')
 
     @task()
     def lag_features_extraction(data, frequency):

@@ -1,3 +1,5 @@
+## This module contains DAGS for prediction/inference jobs of AirQo.
+
 from datetime import datetime
 
 from airflow.decorators import dag, task
@@ -32,7 +34,7 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "prediction")
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "prediction")
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
@@ -80,7 +82,7 @@ def make_forecasts():
             days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "prediction")
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "prediction")
 
     @task()
     def preprocess_historical_data_daily_forecast(data):
@@ -181,7 +183,7 @@ def training_job():
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_data(start_date, "train")
+        return BigQueryApi().fetch_device_data_for_forecast_job(start_date, "train")
 
     @task()
     def formatting_variables(data):
