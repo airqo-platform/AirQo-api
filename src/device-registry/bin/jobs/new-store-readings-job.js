@@ -23,7 +23,7 @@ function logDocumentDetails(doc) {
   const siteId = doc.site_id || "N/A";
   const site = doc.site || "N/A";
   logger.warn(
-    `Document missing some details: { time: ${time}, device_id: ${deviceId}, device: ${device}, site_id: ${siteId}, site: ${site}}`
+    `🙀🙀 Measurement missing some key details: { time: ${time}, device_id: ${deviceId}, device: ${device}, site_id: ${siteId}, site: ${site}}`
   );
 }
 
