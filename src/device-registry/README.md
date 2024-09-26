@@ -24,16 +24,10 @@ Install the dependencies
   npm install
 ```
 
-To run on MacOS
+To run locally
 
 ```bash
-  npm run dev-mac
-```
-
-To run on Windows
-
-```bash
-  npm run dev-pc
+  npm run dev
 ```
 
 #### b) Using Docker

@@ -2,7 +2,7 @@ require("module-alias/register");
 const dotenv = require("dotenv");
 dotenv.config();
 require("app-module-path").addPath(__dirname);
-const kafkaConsumer = require("./kafka-consumer");
+const kafkaConsumer = require("./jobs/kafka-consumer");
 const createServer = require("./server");
 const log4js = require("log4js");
 const constants = require("@config/constants");
