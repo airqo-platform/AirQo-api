@@ -12,6 +12,8 @@
     "dev-pc": "SET NODE_ENV=development&&nodemon --max-old-space-size=1024 ./bin",
     "prod-pc": "SET NODE_ENV=production&&nodemon --max-old-space-size=1024 ./bin",
     "stage-pc": "SET NODE_ENV=staging&&nodemon --max-old-space-size=1024 ./bin",
+    "dev": "cross-env NODE_ENV=development nodemon --max-old-space-size=1024 ./bin",
+    "prod": "cross-env NODE_ENV=production node --max-old-space-size=1024 ./bin",
     "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
     "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
   },
@@ -106,6 +108,7 @@
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
     "chai-http": "^4.3.0",
+    "cross-env": "^7.0.3",
     "eslint": "^7.18.0",
     "eslint-config-prettier": "^6.4.0",
     "eslint-plugin-prettier": "^3.1.1",
